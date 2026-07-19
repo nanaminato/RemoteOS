@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Server</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Shared\RemoteOS.Protocol\RemoteOS.Protocol.csproj" />
+    </ItemGroup>
+
+</Project>
