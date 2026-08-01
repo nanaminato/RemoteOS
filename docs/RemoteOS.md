@@ -16,7 +16,7 @@
 RemoteOS 是一个**云原生桌面操作系统**。
 
 - **Client 端**：基于 Avalonia 的跨平台桌面 Shell，提供 Desktop、Window Manager、Application Runtime、Application SDK。
-- **Server 端**：运行于 Linux，复用 Linux 用户与权限体系，提供 Workspace、Storage、Sync、Remote Runtime、Compute 能力。
+- **Server 端**：跨平台运行于 **Ubuntu（Linux）** 与 **Windows Server**，复用宿主 OS 用户与权限体系，提供 Workspace、Storage、Sync、Remote Runtime、Compute 能力。
 - **主场景**：个人服务器、小型团队服务器的桌面化管理。
 
 RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，与 Server 同步状态/数据/命令。
@@ -47,7 +47,8 @@ Framework/
     RemoteOS.Runtime             应用运行时（ApplicationManager）
 Shared/
     RemoteOS.Protocol            通信协议契约（占位）
-    RemoteOS.Server              服务端（ASP.NET Core，占位）
+RemoteOS.Server/                 服务端（ASP.NET Core，跨平台，占位）
+Windows Server Test/             跨平台能力验证测试床（原生 API 探针）
 ```
 
 ---
@@ -149,10 +150,19 @@ Shared/
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，运行于 Linux。当前为 ASP.NET Core 默认模板占位。
-- **负责**：Authentication、Identity Mapping（Linux 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。当前为 ASP.NET Core 默认模板占位。
+- **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
+- **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
 - **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+
+### 4.10 Windows Server Test
+
+- **类型**：Executable (Console)
+- **定位**：跨平台能力验证测试床。在把原生 OS 能力集成进 Server 之前，先用独立控制台程序验证 API 调用正确性。
+- **已验证**：Windows 凭据验证（Win32 `LogonUser` API，支持本地账户 `MACHINE\user` 与域账户 `user@domain`，含错误码映射）。
+- **职责**：为 Server 跨平台支持（Ubuntu + Windows Server）提供原生 API 探针——认证、文件、进程、服务管理等能力的本机验证。
+- **不包含**：生产代码。验证通过的能力后续迁移到 `RemoteOS.Server` 的 OS 抽象层实现中。
 
 ---
 

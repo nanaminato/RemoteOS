@@ -67,12 +67,12 @@ User
 
 ### 3.1 定义
 
-User 是 RemoteOS 的身份抽象，与底层 Linux User 建立映射关系。User 负责 RemoteOS Workspace、Session、Device 管理；Linux User 负责实际系统权限。
+User 是 RemoteOS 的身份抽象，与宿主 OS 用户（Linux User / Windows Account）建立映射关系。User 负责 RemoteOS Workspace、Session、Device 管理；宿主 OS 用户负责实际系统权限。
 
 ```text
 User
   |
-Linux Identity Mapping
+Platform Identity Mapping (Linux User / Windows Account)
   |
 Workspace
 ```
@@ -122,7 +122,7 @@ Workspace
   ├── Application State
   ├── Runtime State
   ├── User Data
-  ├── Linux Identity Context
+  ├── Platform Identity Context
   └── Remote Service State
 ```
 
@@ -160,9 +160,10 @@ Application State 表示应用状态。
 - **示例**：
 
   ```text
-  Terminal
-    Session: id=10001
-    cwd:     /home/alice/project
+Terminal
+  Session: id=10001
+  cwd:     /home/alice/project        (Linux)
+           C:\Users\alice\project      (Windows)
   ```
 
 ---

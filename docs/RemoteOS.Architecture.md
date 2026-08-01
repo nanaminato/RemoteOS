@@ -56,9 +56,10 @@ RemoteOS.Client 是用户交互端。
 
 ### 2.2 RemoteOS.Server
 
-RemoteOS.Server 是 RemoteOS Cloud Backend。
+RemoteOS.Server 是 RemoteOS Cloud Backend，**跨平台运行于 Ubuntu（Linux）与 Windows Server**。
 
 - **负责**：User Account、Workspace、Application State、Storage、Synchronization、Remote Runtime、Compute Service。
+- **架构**：单一代码库 + OS 抽象层。平台差异（认证、权限、文件、服务管理）封装在抽象接口之后，Linux/Windows 各有实现。
 - **Server 不负责**：UI Rendering、Window Management、Screen Capture、Pixel Streaming。
 - **Server 永远不生成桌面图像。**
 
@@ -207,9 +208,11 @@ Client ←── Protocol ──→ Server
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend。
+- **定位**：RemoteOS Cloud Backend，跨平台运行于 Ubuntu / Windows Server。
 - **提供**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute API、Security Integration。
+- **架构**：单一代码库 + OS 抽象层（`IIdentityProvider`、`IFileSystem`、`IProcessManager`、`IServiceManager` 等接口 + Linux/Windows 实现）。原生 API 先在 `Windows Server Test` 测试床验证，再迁移到 Server 抽象层实现。
 - **禁止**：UI Rendering、Desktop Rendering、Screen Streaming。
+- **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)
 
 ---
 

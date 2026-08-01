@@ -2,9 +2,9 @@
 
 > 本文档定义 RemoteOS 安全设计原则。
 >
-> RemoteOS 不实现独立权限系统，而是基于 Linux 原生用户、权限、sudo、Capability 机制提供安全操作体验。
+> RemoteOS Server 跨平台支持 **Ubuntu（Linux）** 与 **Windows Server**。RemoteOS 不实现独立权限系统，而是基于宿主 OS 原生用户、权限、权限提升机制提供安全操作体验。
 >
-> RemoteOS 的目标不是替代 Linux Security，而是将 Linux 管理能力包装成类似现代桌面操作系统的安全交互模型。
+> RemoteOS 的目标不是替代宿主 OS Security，而是将 OS 管理能力包装成类似现代桌面操作系统的安全交互模型。
 >
 > 本文档属服务端安全层设计，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位）。
 >
@@ -41,7 +41,19 @@ RemoteOS 不追求：
 
 核心目标：
 
-> 让用户可以安全地管理 Linux Server，同时减少误操作风险。
+> 让用户可以安全地管理服务器（Linux 或 Windows），同时减少误操作风险。
+
+### 1.1 跨平台支持
+
+| 能力 | Ubuntu (Linux) | Windows Server |
+|------|----------------|----------------|
+| 用户身份 | Linux User | Windows Account |
+| 文件权限 | rwx / ACL / Capability | NTFS ACL |
+| 权限提升 | sudo (PAM) | UAC / RunAs |
+| 服务管理 | systemctl | Windows Service (sc.exe / ServiceController) |
+| 强制访问控制 | SELinux / AppArmor | Windows Integrity Level |
+
+设计原则：平台差异封装在 OS 抽象层之后，RemoteOS 上层提供统一安全交互模型。
 
 ---
 
@@ -53,16 +65,16 @@ RemoteOS 安全模型：
 RemoteOS Application
     |
     v
-Linux User Context
+Platform User Context (Linux User / Windows Identity)
     |
     v
-Linux Security Model
+Platform Security Model (Linux Permission / Windows ACL)
     |
     v
 Operating System
 ```
 
-RemoteOS 不拥有最终权限。最终决定权在 **Linux Kernel**。
+RemoteOS 不拥有最终权限。最终决定权在 **宿主 OS Kernel**（Linux Kernel / Windows NT Kernel）。
 
 ---
 
@@ -73,11 +85,11 @@ RemoteOS 不拥有最终权限。最终决定权在 **Linux Kernel**。
 - 操作确认
 - 风险提示
 - 用户交互
-- sudo 请求
+- 权限提升请求（sudo / UAC）
 - 操作日志
 - 状态恢复
 
-### Linux 负责
+### 宿主 OS 负责
 
 - 用户身份
 - 文件权限
@@ -92,17 +104,17 @@ RemoteOS 不拥有最终权限。最终决定权在 **Linux Kernel**。
 
 ### 4.1 默认最小权限
 
-RemoteOS Application 默认使用当前用户身份。
+RemoteOS Application 默认使用当前登录用户身份。
 
 例如：
 
 ```text
-Login:      alice
+Login:       alice
 Application: RemoteExplorer
-Process:    alice
+Process:     alice   (Linux: alice / Windows: MACHINE\alice)
 ```
 
-不会默认使用 `root`。
+不会默认使用 `root`（Linux）或 `Administrator`（Windows）。
 
 ### 4.2 权限不足时提升
 
@@ -112,35 +124,34 @@ RemoteOS 不提前判断所有权限，直接执行操作：
 User Action
     |
     v
-Linux Operation
+Platform Operation
     |
     +-- Success
     |
     +-- Permission Denied
             |
             v
-      Request Privilege
+      Request Privilege Escalation
 ```
 
-原因——Linux 权限模型已经非常复杂：ACL、Group、Capability、SELinux、AppArmor。RemoteOS 不重复实现。
+原因——宿主 OS 权限模型已经非常复杂：
+
+- Linux：ACL、Group、Capability、SELinux、AppArmor
+- Windows：NTFS ACL、UAC、Integrity Level、Token Privileges
+
+RemoteOS 不重复实现。
 
 ---
 
 ## 5. Privilege Escalation
 
-权限提升采用 Linux 原生机制。
+权限提升采用宿主 OS 原生机制。
 
 ```text
 RemoteOS
     |
-    v
-sudo
-    |
-    v
-Linux Authentication
-    |
-    v
-root Capability
+    +-- Linux   → sudo → PAM Authentication  → root Capability
+    +-- Windows → UAC  → RunAs / Consent UI  → Elevated Token
 ```
 
 ---
@@ -157,14 +168,14 @@ RemoteExplorer 管理文件。
 User Click Delete
     |
     v
-Check Linux Permission
+Check Platform Permission (Linux rwx / Windows ACL)
     |
     +-- Allowed
     |
     +-- Denied
             |
             v
-      Request Authentication
+      Request Authentication (sudo / UAC)
             |
             v
         Execute
@@ -176,21 +187,22 @@ Check Linux Permission
 
 RemoteOS 对危险操作提供二次确认。
 
-例如删除 `/etc/nginx`，提示：
+例如删除系统目录，提示：
 
 ```text
 This operation requires administrator permission.
-Target: /etc/nginx
+Target: /etc/nginx          (Linux)
+       C:\Windows\System32   (Windows)
 Continue?
 ```
 
-确认后执行 `sudo rm`。
+确认后执行提权删除（Linux: `sudo rm` / Windows: elevated delete）。
 
 ---
 
 ## 8. Operation Risk Level
 
-RemoteOS 可以根据操作风险提供提示。
+RemoteOS 可以根据操作风险提供提示。风险分级与平台无关，由 RemoteOS 上层统一定义。
 
 ### Level 0 — 普通操作
 
@@ -202,7 +214,12 @@ Delete User File / Modify Application Data。普通确认。
 
 ### Level 2 — 系统配置
 
-Modify `/etc` / `/usr` / `/var` / System Service。需要管理员确认。
+Modify：
+
+- Linux：`/etc`、`/usr`、`/var`、System Service
+- Windows：`C:\Windows`、`C:\Program Files`、Registry、Windows Service
+
+需要管理员确认。
 
 ### Level 3 — 高风险操作
 
@@ -224,36 +241,40 @@ RemoteTerminal 不创建新的 Shell 权限。
 RemoteTerminal
     |
     v
-PTY
+PTY (Linux) / ConPTY (Windows)
     |
     v
-Shell
+Shell (bash / PowerShell / cmd)
     |
     v
-Linux User
+Platform User (Linux User / Windows Account)
 ```
 
 例如：
 
 ```text
-whoami
-alice
+Linux:    whoami → alice
+Windows:  whoami → machine\alice
 ```
+
+> 开发期便利：Server 跑在本地 Windows Server 时，RemoteTerminal 直接使用本机 PowerShell/cmd，无需传输代码到 Ubuntu。
 
 ---
 
-## 10. sudo Handling
+## 10. Privilege Command Handling
 
-用户执行 `sudo apt install nginx` 时，RemoteOS 不拦截，交给 Linux：
+用户执行提权命令时，RemoteOS 不拦截，交给宿主 OS：
 
 ```text
-sudo
-    |
-    v
-PAM Authentication
-    |
-    v
-Execute
+Linux:    sudo apt install nginx
+              |
+              v
+           PAM Authentication → Execute
+
+Windows:  elevated command (需 UAC)
+              |
+              v
+           UAC Consent UI → Execute
 ```
 
 RemoteOS 只负责：显示认证界面、保存 Session 状态、显示执行结果。
@@ -271,10 +292,10 @@ Application
 RemoteOS App SDK
     |
     v
-System API
+System API (via OS Abstraction)
     |
     v
-Linux
+Host OS (Linux / Windows)
 ```
 
 禁止：
@@ -283,7 +304,7 @@ Linux
 Application
     |
     v
-Direct Shell
+Direct Shell / Direct OS API
 ```
 
 ---
@@ -302,12 +323,12 @@ Manifest:
     - filesystem.write
 ```
 
-但是：**Capability 不替代 Linux Permission**。最终：
+但是：**Capability 不替代宿主 OS Permission**。最终：
 
 ```text
 Application Capability
     +
-Linux Permission
+Platform Permission (Linux / Windows)
     |
     v
 Allowed Operation
@@ -317,7 +338,7 @@ Allowed Operation
 
 ## 13. Docker Security
 
-Docker 是特殊资源——默认拥有接近 root 权限。
+Docker 是特殊资源——默认拥有接近 root / Administrator 权限。
 
 RemoteOS 不应该默认允许：`docker exec` / `docker rm` / `docker run --privileged`。
 
@@ -327,7 +348,7 @@ RemoteOS 不应该默认允许：`docker exec` / `docker rm` / `docker run --pri
 Docker Operation
     |
     v
-Check Linux Docker Permission
+Check Platform Docker Permission (Linux docker group / Windows Docker)
     |
     v
 Require Confirmation
@@ -340,16 +361,23 @@ Execute
 
 ## 14. Service Management
 
-管理系统服务，例如 `systemctl restart nginx`：
+管理系统服务：
+
+```text
+Linux:    systemctl restart nginx
+Windows:  Restart-Service nginx  (或 sc.exe)
+```
+
+流程：
 
 ```text
 RemoteOS Settings
     |
     v
-systemctl
+Service Manager (systemctl / ServiceController)
     |
     v
-Linux Permission
+Platform Permission
     |
     v
 Service Change
@@ -395,37 +423,33 @@ Created → Active → Disconnected → Expired
 
 RemoteOS Server 应：
 
-- 最小 Linux 权限运行
-- 不默认 root
-- 使用 sudo 执行需要权限的任务
+- 最小宿主 OS 权限运行
+- 不默认 root（Linux）/ 不默认 Administrator（Windows）
+- 使用 sudo / UAC 执行需要权限的任务
 
 推荐：
 
 ```text
-remoteos-server
-    |
-    v
-sudo limited commands
+Linux:    remoteos-server → sudo limited commands
+Windows:  remoteos-server → elevated limited commands (via UAC)
 ```
 
 而不是：
 
 ```text
-remoteos-server
-    |
-    v
-root
+Linux:    remoteos-server → root
+Windows:  remoteos-server → Administrator
 ```
 
 ---
 
 ## 18. 实现路线
 
-首批实现：
+首批实现（双平台）：
 
-- Linux User Context
-- sudo 支持
-- 文件权限处理
+- Platform User Context（Linux / Windows）
+- 权限提升支持（sudo / UAC）
+- 文件权限处理（Linux rwx / Windows ACL）
 - Terminal 用户隔离
 - 基础操作确认
 
@@ -443,15 +467,16 @@ root
 
 **必须**：
 
-- 使用 Linux Security Model
-- 使用 sudo / PAM
+- 使用宿主 OS Security Model（Linux 或 Windows）
+- 通过 OS 抽象层封装平台差异
+- Linux 使用 sudo / PAM，Windows 使用 UAC / RunAs
 - 保持最小权限
 - 高风险操作需要确认
 
 **禁止**：
 
 - 创建新的权限体系
-- 绕过 Linux Permission
-- 默认使用 root
+- 绕过宿主 OS Permission
+- 默认使用 root / Administrator
 - 将 RemoteOS 设计为多租户平台
-- 存储 Linux 密码
+- 存储宿主 OS 密码

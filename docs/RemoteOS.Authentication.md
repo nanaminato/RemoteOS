@@ -1,12 +1,12 @@
 ﻿# RemoteOS Authentication & Identity Design
 
-> 本文档定义 RemoteOS 登录系统、用户身份模型以及 Linux 用户集成方式。
+> 本文档定义 RemoteOS 登录系统、用户身份模型以及**跨平台**操作系统用户集成方式。
 >
-> RemoteOS 不实现独立操作系统级用户体系，而是在 Linux 用户系统之上提供统一登录体验和 Workspace 管理。
+> RemoteOS Server 跨平台支持 **Ubuntu（Linux）** 与 **Windows Server**。RemoteOS 不实现独立操作系统级用户体系，而是在宿主 OS 用户系统之上提供统一登录体验和 Workspace 管理。
 >
-> RemoteOS 的定位是云原生桌面操作系统：Server 端运行于 Linux，复用 Linux 用户与权限体系；Client 端提供跨平台桌面 Shell。主要应用场景为个人服务器、小型团队服务器的桌面化管理。
+> RemoteOS 的定位是云原生桌面操作系统：Server 端跨平台运行，复用宿主 OS 用户与权限体系；Client 端提供跨平台桌面 Shell。主要应用场景为个人服务器、小型团队服务器的桌面化管理。
 >
-> 本文档属服务端身份层设计，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位）。
+> 本文档属服务端身份层设计，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位，Windows 凭据验证已在 `Windows Server Test` 项目中验证）。
 >
 > 相关文档：
 >
@@ -34,7 +34,18 @@ RemoteOS 面向：
 
 核心目标：
 
-> 提供类似 Windows / macOS 的服务器桌面操作体验，同时复用 Linux 已有用户和权限体系。
+> 提供类似 Windows / macOS 的服务器桌面操作体验，同时复用宿主 OS（Linux 或 Windows）已有用户和权限体系。
+
+### 1.1 跨平台支持
+
+RemoteOS Server 支持两种宿主 OS：
+
+| 宿主 OS | 用户体系 | 认证机制 | 权限提升 | Home 目录 |
+|---------|---------|----------|----------|-----------|
+| Ubuntu (Linux) | Linux User | PAM | sudo | `/home/<user>` |
+| Windows Server | Windows Account | LogonUser (Win32) | UAC / RunAs | `C:\Users\<user>` |
+
+设计原则：**RemoteOS Server 单一代码库 + OS 抽象层**。平台差异封装在抽象接口之后，上层业务逻辑保持一致。
 
 ---
 
@@ -46,7 +57,7 @@ RemoteOS 用户模型：
 RemoteOS Identity
     |
     v
-Linux User
+Platform User (Linux User / Windows Account)
     |
     v
 Operating System
@@ -59,46 +70,57 @@ Operating System
 - Session 管理
 - Device 管理
 
-**Linux User** 负责：
+**Platform User** 负责（由宿主 OS 管理）：
 
 - 文件权限
 - Process 权限
 - Service 权限
-- sudo 权限
+- 权限提升（Linux: sudo / Windows: UAC）
 
 ---
 
-## 3. Identity Provider
+## 3. Identity Provider（OS 抽象层）
 
-RemoteOS 通过 Identity Provider 获取用户身份。
-
-MVP 阶段：
+RemoteOS 通过 `IIdentityProvider` 抽象获取用户身份，各平台提供实现：
 
 ```text
-Linux Identity Provider
+IIdentityProvider
+    |
+    +-- LinuxPamProvider        (Ubuntu: PAM 认证)
+    +-- WindowsLogonProvider    (Windows Server: LogonUser API)
+    +-- LdapProvider            (未来扩展)
+    +-- CloudIdentityProvider   (未来扩展)
 ```
 
-流程：
+运行时根据宿主 OS 选择对应 Provider（依赖注入 + 平台检测）。
+
+### 3.1 认证流程（跨平台）
 
 ```text
 RemoteOS Login
     |
     v
-Linux Authentication
+IIdentityProvider.Authenticate
     |
-    v
-Linux User Context
+    +-- Linux   → PAM Authentication  → Linux User Context
+    +-- Windows → LogonUser API       → Windows Token / Identity
 ```
 
-未来可扩展：
+### 3.2 Windows 凭据验证（已验证）
 
-```text
-RemoteOS Identity
-    |
-    +-- Linux User Provider
-    +-- LDAP Provider
-    +-- Cloud Identity Provider
-```
+Windows 平台使用 Win32 `LogonUser` API 验证账号密码，支持：
+
+- 本地账户（`MACHINE\user`）
+- 域账户（`DOMAIN\user` / `user@domain`）
+- 纯用户名默认验证本机
+
+错误码映射：用户名或密码错误 / 用户不存在 / 账户禁用 / 账户锁定 / 密码过期 / 账户过期 / 账户受限 / 未授予网络登录权限。
+
+> 参考实现：`Windows Server Test/Categories/Authentication/WindowsCredentialVerifier.cs`
+
+### 3.3 Linux 凭据验证
+
+Linux 平台通过 PAM（Pluggable Authentication Modules）验证账号密码，复用系统标准认证链。
 
 ---
 
@@ -116,7 +138,7 @@ Authentication Request
 RemoteOS.Server
     |
     v
-Linux Authentication
+IIdentityProvider.Authenticate (Linux PAM / Windows LogonUser)
     |
     v
 Create Session
@@ -132,19 +154,20 @@ Desktop Ready
 
 ## 5. User
 
-User 表示 RemoteOS 身份对象，与 Linux User 建立映射。
+User 表示 RemoteOS 身份对象，与宿主 OS 用户建立映射。
 
 例如：
 
 ```text
 RemoteOS User
-  Id:       550e8400
-  Username: alice
-  Mapping:  Linux User: alice
+  Id:              550e8400
+  Username:        alice
+  Platform:        Windows   (或 Linux)
+  PlatformIdentity: MACHINE\alice   (Linux: alice)
 ```
 
-- RemoteOS **不保存** Linux 密码。
-- 密码认证由 Linux PAM 处理。
+- RemoteOS **不保存**宿主 OS 密码。
+- 密码认证由宿主 OS 处理（Linux: PAM / Windows: LogonUser）。
 
 ---
 
@@ -167,7 +190,7 @@ Session
 Device
 ```
 
-Workspace **不等同于** Linux Home。
+Workspace **不等同于**宿主 OS 的 Home 目录。
 
 Workspace 保存：
 
@@ -176,19 +199,20 @@ Workspace 保存：
 - RemoteOS Preference
 - Session State
 - Device Binding
-- Linux Identity Context
+- Platform Identity Context
 
-Linux Home（`/home/alice`）保存：
+宿主 OS Home 目录保存（跨平台）：
 
-- User Files
-- Application Data
-- System Files
+| OS | Home 路径 | 保存内容 |
+|----|-----------|----------|
+| Linux | `/home/<user>` | User Files、Application Data、System Files |
+| Windows | `C:\Users\<user>` | User Files、Application Data、System Files |
 
 ---
 
 ## 7. Permission Model
 
-RemoteOS 不实现独立权限系统。所有实际权限由 Linux 管理。
+RemoteOS 不实现独立权限系统。所有实际权限由宿主 OS 管理。
 
 模型：
 
@@ -196,46 +220,51 @@ RemoteOS 不实现独立权限系统。所有实际权限由 Linux 管理。
 RemoteOS Application
     |
     v
-Linux User Context
+Platform User Context
     |
     v
-Linux Permission System
+Platform Permission System (Linux Permission / Windows ACL)
     |
     v
 Operating System
 ```
 
-Linux 已提供：User、Group、File Permission、sudo、Capability。RemoteOS 不重复实现。
+宿主 OS 已提供的能力（RemoteOS 不重复实现）：
+
+| 能力 | Linux | Windows |
+|------|-------|---------|
+| 用户/组 | User / Group | Account / Group |
+| 文件权限 | rwx / ACL / Capability | NTFS ACL |
+| 权限提升 | sudo | UAC / RunAs |
+| 强制访问控制 | SELinux / AppArmor | (Windows Integrity Level) |
 
 ---
 
 ## 8. 权限提升
 
-当用户执行需要更高权限的操作时，RemoteOS 请求 Linux 权限提升。
-
-例如：
+当用户执行需要更高权限的操作时，RemoteOS 请求宿主 OS 权限提升。
 
 ```text
-Delete /etc/nginx
+Delete /etc/nginx  (Linux)      或   Delete C:\Windows\System32 (Windows)
     |
     v
-Linux Permission Check
+Platform Permission Check
     |
     +-- Success
     |
     +-- Permission Denied
             |
             v
-      Request Authentication
+      Request Privilege Escalation
             |
-            v
-          sudo
+            +-- Linux   → sudo (PAM)
+            +-- Windows → UAC / RunAs
             |
             v
         Execute
 ```
 
-类似：Windows UAC、macOS Administrator Authentication。
+类似体验：Windows UAC、macOS Administrator Authentication、Linux sudo。
 
 ---
 
@@ -243,9 +272,9 @@ Linux Permission Check
 
 RemoteOS 数据库只保存 RemoteOS 状态。
 
-**保存**：RemoteOS User、Linux User Mapping、Workspace、Session、Device。
+**保存**：RemoteOS User、Platform User Mapping、Workspace、Session、Device。
 
-**不保存**：Linux Password、Linux Permission、ACL。
+**不保存**：宿主 OS 密码、宿主 OS 权限、ACL。
 
 数据库：SQLite / PostgreSQL。首批实现推荐 SQLite。
 
@@ -259,16 +288,18 @@ Table: `users`
 |------|------|------|
 | id | uuid | RemoteOS User ID |
 | username | string | RemoteOS 用户名 |
-| linux_username | string | Linux 用户名映射 |
+| platform | string | 宿主 OS（`linux` / `windows`） |
+| platform_identity | string | 宿主 OS 用户标识（Linux: username；Windows: `domain\user`） |
 | created_at | datetime | 创建时间 |
 | last_login_at | datetime | 最后登录时间 |
 
 Example:
 
 ```text
-id:            550e8400
-username:      alice
-linux_username: alice
+id:                550e8400
+username:          alice
+platform:          windows
+platform_identity: MACHINE\alice
 ```
 
 ---
@@ -325,24 +356,29 @@ Table: `device`
 
 ---
 
-## 14. Linux Integration
+## 14. Platform Integration
 
-RemoteOS Server 运行于 Linux 之上：
+RemoteOS Server 运行于宿主 OS 之上：
 
 ```text
 remoteos-server
     |
     v
-Linux System
+Host OS (Ubuntu / Windows Server)
 ```
 
-RemoteOS **不创建** `/etc/passwd`、`/etc/shadow`。Linux 用户由系统管理。
+RemoteOS **不创建/修改**宿主 OS 用户数据库：
+
+- Linux：不写 `/etc/passwd`、`/etc/shadow`
+- Windows：不操作 SAM / AD
+
+宿主 OS 用户由系统管理员管理。
 
 ---
 
 ## 15. RemoteTerminal
 
-RemoteTerminal 使用当前 Linux 用户执行。
+RemoteTerminal 使用当前登录用户的宿主 OS 身份执行。
 
 模型：
 
@@ -350,51 +386,55 @@ RemoteTerminal 使用当前 Linux 用户执行。
 RemoteTerminal
     |
     v
-PTY
+PTY (Linux) / ConPTY (Windows)
     |
     v
-Shell
+Shell (bash / PowerShell / cmd)
     |
     v
-Linux User
+Platform User (Linux User / Windows Account)
 ```
 
 例如：
 
 ```text
-RemoteOS User: alice
-Terminal:      bash -- alice
+RemoteOS User:  alice
+Platform:       Windows
+Terminal:       PowerShell -- MACHINE\alice
+
+RemoteOS User:  alice
+Platform:       Linux
+Terminal:       bash -- alice
 ```
 
-sudo：
+权限提升：
 
 ```text
-sudo command
-    |
-    v
-Linux Authentication
-    |
-    v
-Execute
+Linux:    sudo command      → PAM Authentication → Execute
+Windows:  elevated command  → UAC prompt         → Execute
 ```
+
+> 开发期便利：Server 跑在本地 Windows Server 时，RemoteTerminal 直接操作本机，无需传输代码到 Ubuntu。
 
 ---
 
 ## 16. 实现路线
 
-首批实现：
+首批实现（双平台）：
 
-- Linux User 登录
+- Linux User 登录（PAM）
+- Windows Account 登录（LogonUser）
 - Workspace 创建
 - Session 管理
 - Device 管理
-- Linux Identity Mapping
+- Platform Identity Mapping
 
 后续逐步完善：
 
-- 独立密码系统（不实现，复用 Linux）
-- RemoteOS ACL / Role（不实现，复用 Linux 权限）
+- 独立密码系统（不实现，复用宿主 OS）
+- RemoteOS ACL / Role（不实现，复用宿主 OS 权限）
 - 多租户隔离（不实现）
+- LDAP / Cloud Identity Provider
 
 ---
 
@@ -404,14 +444,16 @@ Execute
 
 **必须**：
 
-- 使用 Linux User 作为最终执行身份
+- 使用宿主 OS User 作为最终执行身份
+- 通过 `IIdentityProvider` 抽象，平台差异封装在 Provider 实现
 - 保留 Workspace 模型
 - 保留 Session / Device 模型
-- 不复制 Linux 权限体系
+- 不复制宿主 OS 权限体系
 
 **禁止**：
 
-- 创建新的 Linux 替代用户体系
+- 创建新的 OS 替代用户体系
 - 创建 RemoteOS ACL 系统
-- 将 Workspace 等同于 Linux Home
+- 将 Workspace 等同于宿主 OS Home
 - 实现 SaaS 多租户权限模型
+- 存储宿主 OS 密码
