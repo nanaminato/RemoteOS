@@ -1,0 +1,1007 @@
+# RemoteOS 架构设计文档
+
+> 本文档定义 RemoteOS 的架构设计原则：
+>
+> - 模块定位
+> - 职责边界
+> - 依赖约束
+> - 应用运行模型
+> - Client / Server 架构原则
+>
+> 本文档描述**设计原则**，不描述当前完整代码结构。
+>
+> 当前项目文件清单与代码地图见：
+>
+> `RemoteOS.md`
+>
+> 当两者存在差异：
+>
+> - 架构原则以本文档为准
+> - 当前实现以 `RemoteOS.md` 为准
+
+
+---
+
+# 1. RemoteOS 核心定位
+
+RemoteOS 是一个跨平台云原生桌面操作系统环境。
+
+RemoteOS 不是：
+
+- Remote Desktop
+- RDP Server
+- VNC
+- Screen Streaming Tool
+
+
+RemoteOS 禁止采用：
+
+
+Server
+
+Application
+
+Desktop Rendering
+
+Screen Capture
+
+    |
+
+Pixel Stream
+
+    |
+
+Client
+
+
+
+RemoteOS 采用：
+
+
+RemoteOS.Client
+
+Window Manager
+
+Application Runtime
+
+Local Rendering
+
+       |
+
+       |
+
+Protocol
+
+       |
+
+       |
+
+RemoteOS.Server
+
+Workspace
+
+State
+
+Storage
+
+Remote Runtime
+
+Compute
+
+
+核心原则：
+
+> RemoteOS 传输的是系统状态、应用状态和用户操作意图，而不是屏幕像素。
+
+
+---
+
+# 2. Client / Server 职责划分
+
+
+## 2.1 RemoteOS.Client
+
+RemoteOS.Client 是用户交互端。
+
+
+负责：
+
+- Desktop Shell
+- Window Manager
+- UI Rendering
+- Application UI
+- 用户输入处理
+- 本地 Runtime
+
+
+Client 不负责：
+
+- 用户身份管理
+- 云端数据存储
+- Workspace 生命周期
+- Remote Service 执行
+
+
+---
+
+## 2.2 RemoteOS.Server
+
+RemoteOS.Server 是 RemoteOS Cloud Backend。
+
+
+负责：
+
+- User Account
+- Workspace
+- Application State
+- Storage
+- Synchronization
+- Remote Runtime
+- Compute Service
+
+
+Server 不负责：
+
+- UI Rendering
+- Window Management
+- Screen Capture
+- Pixel Streaming
+
+
+Server 永远不生成桌面图像。
+
+
+---
+
+# 3. Solution Architecture
+
+RemoteOS 采用分层架构。
+
+
+
+Application Layer
+
+    ▲
+
+Runtime Layer
+
+    ▲
+
+Framework Layer
+
+    ▲
+
+Platform Layer
+
+
+
+项目依赖方向：
+
+
+Core
+|
+v
+UI
+|
+v
+WindowManager
+|
+v
+App.SDK
+|
+v
+Runtime
+|
+v
+Client
+|
+v
+Client.Desktop
+
+
+
+通信方向：
+
+
+Client
+
+|
+
+Protocol
+
+|
+
+Server
+
+
+
+禁止：
+
+- Core 引用 UI
+- Framework 引用 Server
+- Application 直接访问网络
+- UI 直接调用 HTTP/WebSocket
+
+
+---
+
+# 4. 模块定位与边界
+
+
+# 4.1 RemoteOS.Client.Desktop
+
+
+定位：
+
+RemoteOS 平台入口。
+
+类似：
+
+- Windows Boot Loader
+- Linux Desktop Entry
+
+
+职责：
+
+- 配置 Avalonia AppBuilder
+- 平台初始化
+- 字体配置
+- 日志初始化
+- 启动 RemoteOS.Client
+
+
+不包含：
+
+- Shell 逻辑
+- Window Logic
+- Application Logic
+
+
+---
+
+# 4.2 RemoteOS.Client
+
+
+定位：
+
+RemoteOS Shell。
+
+类似：
+
+Windows Explorer。
+
+
+职责：
+
+- Desktop
+- Taskbar
+- StartMenu
+- Shell Window
+- System UI
+- 内置应用装配
+- DI 初始化
+
+
+负责：
+
+
+Application
+
+|
+
+Runtime
+
+|
+
+WindowManager
+
+
+
+不包含：
+
+- WindowManager 算法
+- Application 生命周期
+- 网络通信
+
+
+---
+
+# 4.3 RemoteOS.Core
+
+
+定位：
+
+平台无关基础层。
+
+
+所有模块均可以依赖 Core。
+
+
+包含：
+
+## Geometry
+
+
+Point
+
+Size
+
+Rect
+
+
+
+## Window Model
+
+
+WindowId
+
+WindowInfo
+
+WindowState
+
+WindowChangedEventArgs
+
+
+
+## Application Model
+
+
+AppId
+
+ApplicationManifest
+
+ApplicationInfo
+
+
+
+严格禁止：
+
+Core 不允许引用：
+
+- Avalonia
+- Network
+- Database
+- Server
+
+
+Core 必须保持纯净。
+
+
+---
+
+# 4.4 RemoteOS.UI
+
+
+定位：
+
+RemoteOS 统一视觉系统。
+
+
+类似：
+
+- WinUI
+- Material Design
+
+
+职责：
+
+- Theme
+- Style
+- Control Template
+- System Components
+
+
+例如：
+
+- Button
+- TextBox
+- ListBox
+- RemoteWindow Style
+
+
+所有系统 UI 必须复用该模块。
+
+
+---
+
+# 4.5 RemoteOS.WindowManager
+
+
+定位：
+
+RemoteOS 核心窗口管理系统。
+
+
+负责模拟操作系统窗口。
+
+
+架构：
+
+
+WindowManager
+
+|
+
+RemoteWindow
+
+|
+
+Avalonia Control
+
+
+
+WindowManager 是窗口状态唯一管理者。
+
+
+负责：
+
+- Create
+- Close
+- Move
+- Resize
+- Focus
+- Minimize
+- Maximize
+- Z Order
+- Taskbar State
+
+
+应用启动流程：
+
+
+User Click Icon
+
+    |
+
+ApplicationManager.Launch
+
+    |
+
+AppContext.ShowWindow
+
+    |
+
+WindowManager.Create
+
+    |
+
+RemoteWindow
+
+
+
+禁止：
+
+WindowManager 包含：
+
+- Application Logic
+- Application Registry
+
+
+---
+
+# 4.6 RemoteOS.App.SDK
+
+
+定位：
+
+RemoteOS 应用开发接口。
+
+
+类似：
+
+- Windows SDK
+- Android SDK
+
+
+提供：
+
+
+## Window API
+
+
+AppContext.ShowWindow()
+
+
+
+## Storage API
+
+规划：
+
+
+Storage.Save()
+
+Storage.Load()
+
+
+
+## Sync API
+
+规划：
+
+
+Sync.Push()
+
+Sync.Pull()
+
+
+
+## Remote API
+
+规划：
+
+
+RemoteClient.Execute()
+
+
+
+应用通过：
+
+
+IRemoteApplication
+
+或者
+
+RemoteApplicationBase
+
+
+接入 RemoteOS。
+
+
+---
+
+# 4.7 RemoteOS.Runtime
+
+
+定位：
+
+RemoteOS 应用运行时。
+
+
+RemoteOS 应用不是普通 exe。
+
+
+Runtime 负责：
+
+- Application Registry
+- Application Loading
+- Lifecycle Management
+
+
+流程：
+
+
+Desktop Icon
+
+    |
+
+ApplicationManager.Launch
+
+    |
+
+Create AppContext
+
+    |
+
+IRemoteApplication.Activate
+
+    |
+
+ShowWindow
+
+    |
+
+WindowManager
+
+
+
+Runtime 不负责：
+
+- Window Rendering
+- Window Algorithm
+- UI Control
+
+
+---
+
+# 4.8 RemoteOS.Protocol
+
+
+定位：
+
+Client 与 Server 通信契约。
+
+
+所有通信必须经过 Protocol。
+
+
+禁止：
+
+业务代码直接：
+
+
+HTTP
+
+WebSocket
+
+TCP
+
+
+
+Protocol 包含：
+
+- DTO
+- Message
+- API Contract
+- Client Proxy
+
+
+---
+
+# 4.9 RemoteOS.Server
+
+
+定位：
+
+RemoteOS Cloud Backend。
+
+
+提供：
+
+- Authentication
+- Workspace
+- Storage
+- Sync
+- Remote Runtime
+- Compute API
+
+
+禁止：
+
+- UI Rendering
+- Desktop Rendering
+- Screen Streaming
+
+
+---
+
+# 5. Application Runtime Model
+
+
+RemoteOS Application 不是简单本地程序。
+
+
+Application 是：
+
+> RemoteOS Runtime Managed Component
+
+
+应用由：
+
+
+Application Package
+
+|
+
+Manifest
+UI
+Logic
+State Manager
+Remote Connector
+
+
+组成。
+
+
+---
+
+# 6. Application Execution Model
+
+
+RemoteOS 应用分为两类。
+
+
+---
+
+## 6.1 Local Application
+
+
+运行位置：
+
+
+RemoteOS.Client
+
+
+
+特点：
+
+- UI 本地渲染
+- Runtime 本地执行
+- 使用 Client 硬件能力
+
+
+例如：
+
+## RemoteBrowser
+
+
+
+RemoteBrowser
+
+    |
+
+Avalonia Window
+
+    |
+
+WebView2
+
+    |
+
+Chromium
+
+
+
+Server 保存：
+
+- History
+- Bookmark
+- Cookie
+- Extension Config
+
+
+---
+
+## 6.2 Remote Service Application
+
+
+运行位置：
+
+
+RemoteOS.Server
+
+
+
+特点：
+
+- Server 执行 Runtime
+- Client 提供交互 UI
+- 状态持久保存
+
+
+例如：
+
+## RemoteTerminal
+
+
+Client:
+
+
+Terminal Window
+
+Input
+
+Output Rendering
+
+
+
+Server:
+
+
+PTY
+
+Shell
+
+Process
+
+
+
+断开：
+
+
+Client Offline
+
+
+不会导致：
+
+
+Runtime Destroy
+
+
+
+重新连接：
+
+
+Restore Terminal Session
+
+
+
+---
+
+# 7. RemoteOS 架构原则
+
+
+## 原则 1
+
+UI 本地渲染。
+
+禁止：
+
+
+Screen Capture
+Pixel Streaming
+
+
+
+---
+
+## 原则 2
+
+状态优先。
+
+RemoteOS 同步：
+
+- State
+- Data
+- Command
+
+
+而不是：
+
+- Image
+- Frame
+
+
+---
+
+## 原则 3
+
+模块单向依赖。
+
+
+禁止：
+
+反向引用。
+
+
+---
+
+## 原则 4
+
+应用隔离。
+
+
+应用只能通过：
+
+- App.SDK
+- Runtime API
+
+访问系统能力。
+
+
+---
+
+# 8. AI Agent 开发规则
+
+
+修改 RemoteOS 代码时必须遵守：
+
+
+## 禁止实现
+
+
+不要创建：
+
+- RDP
+- VNC
+- Screen Capture
+- Desktop Streaming
+- Pixel Transfer
+
+
+---
+
+## 正确方向
+
+
+实现：
+
+- Local UI Rendering
+- Application Runtime
+- Window Management
+- Workspace State
+- Remote Service
+
+
+---
+
+## 架构纪律
+
+
+必须保持：
+
+- Core 纯净
+- Protocol 作为唯一通信入口
+- WindowManager 管理窗口
+- Runtime 管理应用生命周期
+- Shell 负责装配
+
+
+---
+
+# 9. 当前开发原则
+
+
+优先：
+
+1. RemoteOS.Client
+2. RemoteOS.WindowManager
+3. RemoteOS.Core
+4. RemoteOS.Runtime
+5. RemoteOS.App.SDK
+
+
+不要提前开发：
+
+- 用户系统
+- 权限系统
+- 云同步
+- Storage Server
+- Docker 管理
+
+
+先完成：
+
+一个可以运行应用、管理窗口的本地操作系统 Shell。
+
+
+---
+
+# AI Agent 理解总结
+
+
+RemoteOS = Operating System Shell
+
+
+RemoteOS.Client:
+
+负责：
+
+- UI
+- Window
+- Interaction
+
+
+RemoteOS.Server:
+
+负责：
+
+- Workspace
+- State
+- Storage
+- Remote Runtime
+
+
+Application:
+
+不是普通 exe。
+
+Application 是：
+
+RemoteOS Runtime Managed Component。
+
+
+任何设计必须优先考虑：
+
+- 状态驱动
+- 本地 UI 渲染
+- 模块隔离
+- Server 提供云能力
+
+
+不要将 RemoteOS 演变为：
+
+Remote Desktop Tool
+
+或者
+
+Server Management Dashboard。
