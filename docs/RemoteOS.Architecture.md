@@ -208,7 +208,7 @@ Client ←── Protocol ──→ Server
 ### 4.9 RemoteOS.Server
 
 - **定位**：RemoteOS Cloud Backend。
-- **提供**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute API。
+- **提供**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute API、Security Integration。
 - **禁止**：UI Rendering、Desktop Rendering、Screen Streaming。
 
 ---

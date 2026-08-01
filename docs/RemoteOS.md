@@ -147,7 +147,20 @@ Shared/
 ### 4.9 RemoteOS.Server
 
 - **定位**：RemoteOS Cloud Backend。当前为 ASP.NET Core 默认模板占位。
-- **未来负责**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute。
+- **负责**：
+```
+Authentication
+
+    |
+    +-- Identity Mapping
+    +-- Linux Authentication Integration
+
+Workspace
+
+    |
+    +-- Session
+    +-- Device
+```
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
 
 ---

@@ -67,8 +67,14 @@ User
 
 ### 3.1 定义
 
-User 是 RemoteOS 的身份主体。
-
+User 是 RemoteOS 的身份抽象，与底层 Linux User 建立映射关系。User 负责 RemoteOS Workspace、Session、Device 管理；Linux User 负责实际系统权限。
+```
+User
+ |
+Linux Identity Mapping
+ |
+Workspace
+```
 - **负责**：登录认证、权限管理、数据归属、Workspace 所有权。
 - **示例**：
 
@@ -115,7 +121,7 @@ Workspace
   ├── Application State
   ├── Runtime State
   ├── User Data
-  ├── Permission Context
+  ├── Linux Identity Context
   └── Remote Service State
 ```
 
