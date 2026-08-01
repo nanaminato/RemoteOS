@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS 的用户环境模型：User、Workspace、Device、Session、Controller / Observer、Workspace 生命周期、多设备连接模型。
 >
-> 本文档描述 RemoteOS 作为**云操作系统**时的运行模型（属 MVP 3 阶段设计，当前未实现）。
+> 本文档描述 RemoteOS 作为**云操作系统**时的运行模型，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位）。
 >
 > - 模块架构见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 当前代码实现见 [`RemoteOS.md`](./RemoteOS.md)
@@ -68,11 +68,12 @@ User
 ### 3.1 定义
 
 User 是 RemoteOS 的身份抽象，与底层 Linux User 建立映射关系。User 负责 RemoteOS Workspace、Session、Device 管理；Linux User 负责实际系统权限。
-```
+
+```text
 User
- |
+  |
 Linux Identity Mapping
- |
+  |
 Workspace
 ```
 - **负责**：登录认证、权限管理、数据归属、Workspace 所有权。

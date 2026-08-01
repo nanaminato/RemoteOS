@@ -285,9 +285,9 @@ RemoteOS 应用分为两类。
 
 ---
 
-## 9. 当前开发原则
+## 9. 开发原则
 
-优先顺序：
+本地 Shell 已就绪。后续按优先级逐步丰富系统能力：
 
 1. `RemoteOS.Client`
 2. `RemoteOS.WindowManager`
@@ -295,11 +295,7 @@ RemoteOS 应用分为两类。
 4. `RemoteOS.Runtime`
 5. `RemoteOS.App.SDK`
 
-不要提前开发：用户系统、权限系统、云同步、Storage Server、Docker 管理。
-
-先完成：
-
-> 一个可以运行应用、管理窗口的本地操作系统 Shell。
+服务端能力（登录与身份、安全、Workspace、云同步、Storage、Docker 管理）按设计文档逐步实现，详见 [`RemoteOS.md`](./RemoteOS.md) §10。
 
 ---
 

@@ -2,9 +2,10 @@
 
 > 本文档描述 RemoteOS 当前实现状态：Solution 结构、项目列表、代码地图、当前 MVP 进度、开发状态。
 >
-> - 本文档**不是**架构规范。
 > - 架构设计原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 用户 Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+> - 登录与身份模型见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+> - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 >
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
@@ -12,19 +13,21 @@
 
 ## 1. RemoteOS 简介
 
-RemoteOS 是一个基于 Avalonia 的跨平台桌面操作系统 Shell。
+RemoteOS 是一个**云原生桌面操作系统**。
 
-目标：构建一个类似现代操作系统的桌面环境——Desktop、Window Manager、Application Runtime、Application SDK。
+- **Client 端**：基于 Avalonia 的跨平台桌面 Shell，提供 Desktop、Window Manager、Application Runtime、Application SDK。
+- **Server 端**：运行于 Linux，复用 Linux 用户与权限体系，提供 Workspace、Storage、Sync、Remote Runtime、Compute 能力。
+- **主场景**：个人服务器、小型团队服务器的桌面化管理。
 
-未来扩展：RemoteServer、Workspace、Storage、Sync、Remote Service。
+RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，与 Server 同步状态/数据/命令。
 
 ---
 
 ## 2. 当前开发阶段
 
-当前重点：完成本地 RemoteOS Shell，包括桌面环境、窗口管理、应用运行时、应用开发模型。
+本地 RemoteOS Shell 已完成（Desktop、Window Manager、Application Runtime、Application SDK、内置应用 Welcome/Notepad/Settings）。
 
-当前不实现：用户系统、云同步、权限系统、文件服务器、Docker 管理。
+系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
 ---
 
@@ -146,22 +149,10 @@ Shared/
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend。当前为 ASP.NET Core 默认模板占位。
-- **负责**：
-```
-Authentication
-
-    |
-    +-- Identity Mapping
-    +-- Linux Authentication Integration
-
-Workspace
-
-    |
-    +-- Session
-    +-- Device
-```
+- **定位**：RemoteOS Cloud Backend，运行于 Linux。当前为 ASP.NET Core 默认模板占位。
+- **负责**：Authentication、Identity Mapping（Linux 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
+- **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 
 ---
 
@@ -235,7 +226,7 @@ Application Package
 | MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成 |
 | MVP 1 | Runtime / App.SDK / Launch App / Create Window | 完成 |
 | MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（雏形：Welcome/Notepad/Settings） |
-| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 计划 |
+| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 逐步推进中 |
 
 ---
 
@@ -251,13 +242,17 @@ Application Package
 
 ---
 
-## 10. 当前禁止提前实现
+## 10. 后续逐步实现
 
-在 MVP 阶段不要实现：用户系统、登录系统、权限系统、云同步、文件服务器、Docker 管理。
+本地 Shell 已就绪，系统按以下方向逐步丰富（设计先行，再落地代码）：
 
-原因——先完成：
+- **登录与身份**（Linux 用户集成）— 见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+- **安全设计**（sudo / 权限 / 危险操作确认）— 见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
+- **Workspace / Session / Device 多设备模型** — 见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+- **云同步、Storage、Remote Runtime、Compute** — 见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
+- **RemoteBrowser / RemoteTerminal / RemoteExplorer** 内置应用
 
-> 一个可以运行应用、管理窗口的本地桌面操作系统。
+实现节奏：每个能力先完成设计文档，再逐步实现代码。
 
 ---
 
@@ -296,5 +291,7 @@ RemoteOS.Server     = Cloud Backend
 | 文档 | 用途 |
 |------|------|
 | [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) | 模块设计、依赖关系、架构原则 |
-| [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | 用户、登录、多设备、云桌面状态 |
+| [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | User / Workspace / Session / Device、多设备、云桌面状态 |
+| [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
+| [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |
