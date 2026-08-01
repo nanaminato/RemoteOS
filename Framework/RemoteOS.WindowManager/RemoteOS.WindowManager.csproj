@@ -1,15 +1,21 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>WindowManager</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>RemoteOS.WindowManager</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\RemoteOS.Core\RemoteOS.Core.csproj" />
-      <ProjectReference Include="..\RemoteOS.UI\RemoteOS.UI.csproj" />
+        <PackageReference Include="Avalonia" />
+        <PackageReference Include="CommunityToolkit.Mvvm" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RemoteOS.Core\RemoteOS.Core.csproj" />
+        <ProjectReference Include="..\RemoteOS.UI\RemoteOS.UI.csproj" />
     </ItemGroup>
 
 </Project>

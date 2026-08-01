@@ -1,8 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>Client</RootNamespace>
     </PropertyGroup>
 
@@ -19,11 +20,13 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\..\Framework\RemoteOS.Core\RemoteOS.Core.csproj" />
       <ProjectReference Include="..\..\Shared\RemoteOS.Protocol\RemoteOS.Protocol.csproj" />
+      <ProjectReference Include="..\..\Framework\RemoteOS.App.SDK\RemoteOS.App.SDK.csproj" />
       <ProjectReference Include="..\..\Framework\RemoteOS.Runtime\RemoteOS.Runtime.csproj" />
       <ProjectReference Include="..\..\Framework\RemoteOS.UI\RemoteOS.UI.csproj" />
       <ProjectReference Include="..\..\Framework\RemoteOS.WindowManager\RemoteOS.WindowManager.csproj" />

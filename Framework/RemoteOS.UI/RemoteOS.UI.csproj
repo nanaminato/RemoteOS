@@ -1,15 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>UI</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>RemoteOS.UI</RootNamespace>
     </PropertyGroup>
+
     <ItemGroup>
-        <PackageVersion Include="Avalonia" Version="12.1.0" />
+        <PackageReference Include="Avalonia" />
+        <PackageReference Include="Avalonia.Themes.Fluent" />
     </ItemGroup>
+
     <ItemGroup>
-      <ProjectReference Include="..\RemoteOS.Core\RemoteOS.Core.csproj" />
+        <ProjectReference Include="..\RemoteOS.Core\RemoteOS.Core.csproj" />
     </ItemGroup>
+
 </Project>

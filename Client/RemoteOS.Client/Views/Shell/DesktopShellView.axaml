@@ -1,0 +1,222 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.ViewModels.Shell"
+             xmlns:wm="clr-namespace:RemoteOS.WindowManager;assembly=RemoteOS.WindowManager"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="Client.Views.Shell.DesktopShellView"
+             x:DataType="vm:DesktopShellViewModel"
+             Background="{Binding Settings.CurrentWallpaper}"
+             FontFamily="{StaticResource ContentFont}">
+
+    <UserControl.Styles>
+        <Style Selector="Button.desktop-icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.desktop-icon:pointerover">
+            <Setter Property="Background" Value="#22FFFFFF" />
+        </Style>
+        <Style Selector="Button.desktop-icon:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.start-button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.start-button:pointerover">
+            <Setter Property="Background" Value="#22FFFFFF" />
+        </Style>
+        <Style Selector="Button.start-button:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.taskbar-item">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.taskbar-item:pointerover">
+            <Setter Property="Background" Value="#22FFFFFF" />
+        </Style>
+        <Style Selector="Button.taskbar-item:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.start-item">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="MinHeight" Value="44" />
+        </Style>
+        <Style Selector="Button.start-item:pointerover">
+            <Setter Property="Background" Value="#22FFFFFF" />
+        </Style>
+        <Style Selector="Button.start-item:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="Border.start-menu">
+            <Setter Property="Background" Value="#EE1E1E1E" />
+            <Setter Property="BorderBrush" Value="#44FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BoxShadow" Value="0 16 36 0 #80000000" />
+            <Setter Property="ClipToBounds" Value="True" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Workspace: desktop icons behind, managed windows in front -->
+        <Grid Grid.Row="0" ClipToBounds="True">
+            <ItemsControl ItemsSource="{Binding DesktopIcons}" Focusable="False" Padding="10" Margin="6">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Vertical" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AppEntryViewModel">
+                        <Button Classes="desktop-icon" Width="92" Height="96" Margin="2"
+                                Command="{Binding LaunchCommand}"
+                                ToolTip.Tip="{Binding DisplayName}">
+                            <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                <Border Width="48" Height="48" CornerRadius="8" Background="#33000000"
+                                        HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding IconGlyph}" FontSize="26"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
+                                           HorizontalAlignment="Center" TextAlignment="Center"
+                                           TextWrapping="Wrap" MaxWidth="88" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Managed windows are parented here by the WindowManager -->
+            <Canvas x:Name="PART_WindowHost" ClipToBounds="True" />
+        </Grid>
+
+        <!-- Click-away backdrop for the start menu (workspace only) -->
+        <Border Grid.Row="0" Background="Transparent"
+                IsVisible="{Binding IsStartOpen}"
+                PointerPressed="StartBackdrop_OnPointerPressed" />
+
+        <!-- Taskbar -->
+        <Border Grid.Row="1" Height="48" Background="#E61A1A1A"
+                BorderBrush="#33000000" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="56,*,Auto">
+                <Button Grid.Column="0" Classes="start-button"
+                        Command="{Binding ToggleStartCommand}">
+                    <Grid Width="20" Height="20">
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                        <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource AccentBrush}" CornerRadius="2" Margin="1.5" />
+                        <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource AccentBrush}" CornerRadius="2" Margin="1.5" />
+                        <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource AccentBrush}" CornerRadius="2" Margin="1.5" />
+                        <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource AccentBrush}" CornerRadius="2" Margin="1.5" />
+                    </Grid>
+                </Button>
+
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Windows}"
+                              VerticalAlignment="Center" Focusable="False">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="wm:ManagedWindow">
+                            <Button Classes="taskbar-item"
+                                    Command="{Binding TaskbarToggleCommand}"
+                                    ToolTip.Tip="{Binding Title}">
+                                <Grid RowDefinitions="*,4">
+                                    <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="18"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Grid.Row="1" Height="2" CornerRadius="1" Width="16"
+                                            HorizontalAlignment="Center"
+                                            Background="{DynamicResource AccentBrush}"
+                                            IsVisible="{Binding IsActive}" />
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="0,0,12,0" Spacing="10">
+                    <StackPanel Orientation="Vertical" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Clock}" FontSize="13" HorizontalAlignment="Right" />
+                        <TextBlock Text="{Binding DateText}" FontSize="11" HorizontalAlignment="Right" Opacity="0.7" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Start menu overlay -->
+        <Border x:Name="StartMenu" Grid.Row="0" Grid.RowSpan="2" Classes="start-menu"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="8,0,0,56" Width="380" Height="460"
+                IsVisible="{Binding IsStartOpen}">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Row="0" Text="RemoteOS" FontSize="16" FontWeight="SemiBold"
+                           Margin="18,16,0,10" />
+                <ScrollViewer Grid.Row="1" Padding="10,0">
+                    <ItemsControl ItemsSource="{Binding StartApps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AppEntryViewModel">
+                                <Button Classes="start-item" Command="{Binding LaunchCommand}"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <Grid ColumnDefinitions="40,*">
+                                        <TextBlock Grid.Column="0" Text="{Binding IconGlyph}" FontSize="20"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}" FontSize="13" />
+                                            <TextBlock Text="{Binding Description}" FontSize="11"
+                                                       Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <Border Grid.Row="2" BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0" Padding="10,8">
+                    <Button Classes="start-item" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Command="{Binding ShutdownCommand}">
+                        <Grid ColumnDefinitions="40,*">
+                            <TextBlock Grid.Column="0" Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="Shut down" Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </Button>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

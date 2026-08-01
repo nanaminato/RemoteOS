@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="clr-namespace:Client.Apps"
+             x:Class="Client.Apps.WelcomeView"
+             x:DataType="app:WelcomeViewModel"
+             Background="#1E1E1E">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="28">
+        <StackPanel Grid.Row="0" Spacing="6">
+            <TextBlock Text="🏠 RemoteOS" FontSize="28" FontWeight="Bold" />
+            <TextBlock Text="A cross-platform, cloud-native desktop environment." Opacity="0.8" FontSize="13" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Classes="card" Margin="0,18,0,0" Background="#262626">
+            <StackPanel Spacing="12">
+                <TextBlock Text="What's in this MVP" Classes="title" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                           Text="• Custom Window Manager — drag, resize, minimize, maximize, focus &amp; z-order, all rendered locally." />
+                <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                           Text="• Desktop with icons, a taskbar with live window list, and a start menu." />
+                <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                           Text="• Apps run locally and render locally — RemoteOS is NOT a remote desktop tool." />
+                <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                           Text="• Built-in apps: Welcome, Notepad, Settings." />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Classes="primary" Content="Open Notepad" Command="{Binding OpenNotepadCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

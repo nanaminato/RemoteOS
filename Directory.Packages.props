@@ -4,15 +4,20 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     </PropertyGroup>
     <ItemGroup>
-        <!-- Avalonia packages -->
-        <!-- Important: keep version in sync! -->
+        <!-- Avalonia packages. Important: keep version in sync! -->
         <PackageVersion Include="Avalonia" Version="12.1.0" />
         <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
         <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
         <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
         <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
 
+        <!-- MVVM / DI -->
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+
+        <!-- Server -->
+        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
     </ItemGroup>

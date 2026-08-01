@@ -1,0 +1,50 @@
+using Avalonia.Controls;
+using RemoteOS.Core.Applications;
+using RemoteOS.Core.Primitives;
+using RemoteOS.WindowManager;
+
+namespace RemoteOS.AppSDK;
+
+/// <summary>
+/// The runtime context handed to an application when it is launched. This is the surface
+/// through which a RemoteOS application creates windows and reaches system services.
+/// </summary>
+public sealed class AppContext
+{
+    public AppContext(AppId appId, IWindowManager windowManager, IServiceProvider services)
+    {
+        AppId = appId;
+        WindowManager = windowManager;
+        Services = services;
+    }
+
+    /// <summary>The id of the application this context belongs to.</summary>
+    public AppId AppId { get; }
+
+    /// <summary>The desktop window manager — used to create application windows.</summary>
+    public IWindowManager WindowManager { get; }
+
+    /// <summary>DI container for resolving shared services.</summary>
+    public IServiceProvider Services { get; }
+
+    /// <summary>Convenience: create and show a window owned by this application.</summary>
+    public ManagedWindow ShowWindow(
+        string title,
+        Control content,
+        Rect? bounds = null,
+        string? iconGlyph = null,
+        bool canResize = true,
+        bool canMinimize = true,
+        bool canMaximize = true)
+    {
+        return WindowManager.Create(new WindowCreateOptions(
+            OwnerAppId: AppId,
+            Title: title,
+            Content: content,
+            Bounds: bounds,
+            IconGlyph: iconGlyph,
+            CanResize: canResize,
+            CanMinimize: canMinimize,
+            CanMaximize: canMaximize));
+    }
+}

@@ -1,0 +1,105 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wm="clr-namespace:RemoteOS.WindowManager;assembly=RemoteOS.WindowManager">
+
+    <Style Selector="wm|RemoteWindow">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="FontFamily" Value="Segoe UI, Inter" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid x:DataType="wm:ManagedWindow">
+                    <Border x:Name="PART_Frame"
+                            Background="#262626"
+                            BorderBrush="#3A3A3A"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            BoxShadow="0 12 28 0 #A6000000, 0 2 6 0 #44000000">
+                        <Grid RowDefinitions="Auto,*">
+                            <!-- Title bar -->
+                            <Border x:Name="PART_TitleBar"
+                                    Grid.Row="0"
+                                    Height="36"
+                                    Background="#2D2D2D"
+                                    CornerRadius="8,8,0,0">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border x:Name="PART_TitleDrag" Grid.Column="0" Grid.ColumnSpan="2" Background="Transparent" />
+                                    <TextBlock Grid.Column="0"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                               FontSize="13"
+                                               Foreground="#CCCCCC"
+                                               Text="{Binding IconGlyph}" />
+                                    <TextBlock x:Name="PART_TitleText"
+                                               Grid.Column="1"
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"
+                                               Foreground="#FFFFFF"
+                                               Text="{Binding Title}" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                        <Button x:Name="PART_Minimize"
+                                                Classes="caption"
+                                                FontSize="10"
+                                                Content="{x:Static wm:ManagedWindow.MinimizeGlyph}"
+                                                Command="{Binding MinimizeCommand}"
+                                                IsVisible="{Binding CanMinimize}" />
+                                        <Button x:Name="PART_Maximize"
+                                                Classes="caption"
+                                                FontSize="10"
+                                                Content="{Binding MaximizeGlyph}"
+                                                Command="{Binding ToggleMaximizeCommand}"
+                                                IsVisible="{Binding CanMaximize}" />
+                                        <Button x:Name="PART_Close"
+                                                Classes="caption close"
+                                                FontSize="10"
+                                                Content="{x:Static wm:ManagedWindow.CloseGlyph}"
+                                                Command="{Binding CloseCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Application content -->
+                            <ContentPresenter x:Name="PART_ContentHost"
+                                              Grid.Row="1"
+                                              Margin="0"
+                                              Content="{TemplateBinding Content}"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Stretch" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Resize grips overlay: only the 8 edge borders are hit-testable;
+                         the empty center falls through to the frame / content below. -->
+                    <Grid x:Name="PART_ResizeLayer">
+                        <Grid.ColumnDefinitions>8,*,8</Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>8,*,8</Grid.RowDefinitions>
+                        <Border x:Name="PART_ResizeNW" Grid.Row="0" Grid.Column="0" Cursor="TopLeftCorner"     Background="Transparent" />
+                        <Border x:Name="PART_ResizeN"  Grid.Row="0" Grid.Column="1" Cursor="SizeNorthSouth"    Background="Transparent" />
+                        <Border x:Name="PART_ResizeNE" Grid.Row="0" Grid.Column="2" Cursor="TopRightCorner"    Background="Transparent" />
+                        <Border x:Name="PART_ResizeW"  Grid.Row="1" Grid.Column="0" Cursor="SizeWestEast"      Background="Transparent" />
+                        <Border x:Name="PART_ResizeE"  Grid.Row="1" Grid.Column="2" Cursor="SizeWestEast"      Background="Transparent" />
+                        <Border x:Name="PART_ResizeSW" Grid.Row="2" Grid.Column="0" Cursor="BottomLeftCorner"  Background="Transparent" />
+                        <Border x:Name="PART_ResizeS"  Grid.Row="2" Grid.Column="1" Cursor="SizeNorthSouth"    Background="Transparent" />
+                        <Border x:Name="PART_ResizeSE" Grid.Row="2" Grid.Column="2" Cursor="BottomRightCorner" Background="Transparent" />
+                    </Grid>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- Inactive window dims the title text. -->
+    <Style Selector="wm|RemoteWindow /template/ TextBlock#PART_TitleText">
+        <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="wm|RemoteWindow:active /template/ TextBlock#PART_TitleText">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="wm|RemoteWindow /template/ Border#PART_Frame">
+        <Setter Property="BorderBrush" Value="#333333" />
+    </Style>
+    <Style Selector="wm|RemoteWindow:active /template/ Border#PART_Frame">
+        <Setter Property="BorderBrush" Value="#4A4A4A" />
+    </Style>
+
+</Styles>

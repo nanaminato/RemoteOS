@@ -3,7 +3,7 @@ RemoteOS 项目开发规范文档
 
 RemoteOS 是一个跨平台云原生桌面操作系统环境。
 
-目标是在 Windows/Linux/macOS 上提供类似 Windows Desktop 的用户体验。
+目标是在 Windows/Linux/macOS 上为Ubuntu提供类似 Windows Desktop 的用户体验。
 
 RemoteOS 不是远程桌面软件。
 
