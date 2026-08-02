@@ -3,46 +3,111 @@
              xmlns:vm="clr-namespace:Client.ViewModels.Login"
              x:Class="Client.Views.Login.LoginView"
              x:DataType="vm:LoginViewModel"
-             Background="{StaticResource BackgroundBrush}"
+             Background="#FFFFFF"
              FontFamily="{StaticResource ContentFont}">
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <Border Classes="card" Margin="24" MaxWidth="420"
-                HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel Spacing="10">
-                <TextBlock Classes="title" FontSize="18" Text="连接到 RemoteOS" />
-                <TextBlock Classes="subtle"
-                           Text="输入服务器地址与本机账号，连接到你的 Workspace。"
-                           TextWrapping="Wrap" />
+    <UserControl.Styles>
+        <Style Selector="Border.login-divider">
+            <Setter Property="Background" Value="#E5E5E5" />
+            <Setter Property="Height" Value="1" />
+        </Style>
+        <Style Selector="TextBlock.login-label">
+            <Setter Property="Foreground" Value="#333333" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.connection-input">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="CornerRadius" Value="2" />
+        </Style>
+        <Style Selector="Button.connect-button">
+            <Setter Property="MinWidth" Value="92" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="16,5" />
+            <Setter Property="CornerRadius" Value="2" />
+        </Style>
+    </UserControl.Styles>
 
-                <TextBlock Classes="subtle" Text="服务器" Margin="0,8,0,0" />
-                <TextBox Text="{Binding ServerUrl}" PlaceholderText="http://host:port" />
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- mstsc-like product banner -->
+        <Grid Margin="32,28,32,22" ColumnDefinitions="70,*">
+            <Canvas Width="58" Height="48" VerticalAlignment="Center">
+                <Border Canvas.Left="2" Canvas.Top="5" Width="35" Height="28"
+                        Background="#1C70B8" CornerRadius="2" />
+                <Border Canvas.Left="5" Canvas.Top="8" Width="29" Height="18"
+                        Background="#D9EEFC" CornerRadius="1" />
+                <Border Canvas.Left="13" Canvas.Top="33" Width="13" Height="4"
+                        Background="#5A5A5A" />
+                <Border Canvas.Left="8" Canvas.Top="37" Width="24" Height="3"
+                        Background="#5A5A5A" CornerRadius="1" />
+                <Border Canvas.Left="31" Canvas.Top="16" Width="25" Height="20"
+                        Background="#0F5591" CornerRadius="2" />
+                <Border Canvas.Left="34" Canvas.Top="19" Width="19" Height="12"
+                        Background="#C9E8FA" CornerRadius="1" />
+                <Border Canvas.Left="39" Canvas.Top="36" Width="8" Height="3"
+                        Background="#5A5A5A" />
+            </Canvas>
+            <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="RemoteOS" FontSize="24" FontWeight="Light" Foreground="#202020" />
+                <TextBlock Text="远程桌面连接" FontSize="14" Foreground="#5E5E5E" />
+            </StackPanel>
+        </Grid>
 
-                <TextBlock Classes="subtle" Text="用户名" />
-                <TextBox Text="{Binding Username}" PlaceholderText="用户名（如 alice）" />
+        <StackPanel Grid.Row="1">
+            <Border Classes="login-divider" />
+            <StackPanel Margin="32,22,32,18" Spacing="0">
+                <TextBlock Text="输入要连接的远程计算机的名称。" Foreground="#404040" FontSize="13" />
+                <TextBlock Text="连接时将使用下方提供的凭据。" Foreground="#6A6A6A" FontSize="13" Margin="0,3,0,22" />
 
-                <TextBlock Classes="subtle" Text="密码" />
-                <TextBox Text="{Binding Password}" PasswordChar="●" PlaceholderText="密码" />
+                <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,12,Auto,12,Auto">
+                    <TextBlock Classes="login-label" Text="计算机:" Grid.Row="0" />
+                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="0"
+                             Text="{Binding ServerUrl}"
+                             PlaceholderText="http://host:port" />
 
-                <Button Classes="primary" Content="连接" Command="{Binding ConnectCommand}"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                        Margin="0,10,0,0" />
+                    <TextBlock Classes="login-label" Text="用户名:" Grid.Row="2" />
+                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="2"
+                             Text="{Binding Username}"
+                             PlaceholderText="例如：alice" />
+
+                    <TextBlock Classes="login-label" Text="密码:" Grid.Row="4" />
+                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="4"
+                             Text="{Binding Password}"
+                             PasswordChar="●"
+                             PlaceholderText="输入密码" />
+                </Grid>
+
+                <TextBlock Text="将提示你确认远程计算机的身份。"
+                           Foreground="#6A6A6A" FontSize="12" Margin="88,11,0,0" />
+
+                <Border Background="#F6F6F6" BorderBrush="#E1E1E1" BorderThickness="1"
+                        CornerRadius="2" Margin="0,24,0,0" Padding="13,11">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="连接设置" FontWeight="SemiBold" Foreground="#333333" />
+                        <TextBlock Text="RemoteOS 将以此计算机的名称和本地显示设置打开工作区。"
+                                   Foreground="#666666" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
 
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}"
-                             Height="2" Margin="0,8,0,0"
+                             Height="3" Margin="0,18,0,0"
                              Foreground="{StaticResource AccentBrush}" />
-
-                <TextBlock Classes="subtle" Text="{Binding StatusMessage}"
-                           IsVisible="{Binding !HasError}" />
-                <TextBlock Classes="error" Text="{Binding ErrorMessage}"
-                           IsVisible="{Binding HasError}" TextWrapping="Wrap" />
-
-                <!-- 预留：显示选项（未来扩展：显示大小/颜色深度/本地资源等，对标 mstsc） -->
-                <Expander Header="显示选项" IsExpanded="False" Margin="0,10,0,0">
-                    <TextBlock Classes="subtle" Text="（预留，尚未实现）" />
-                </Expander>
+                <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding !HasError}"
+                           Foreground="#555555" FontSize="12" Margin="0,8,0,0" />
+                <TextBlock Classes="error" Text="{Binding ErrorMessage}" IsVisible="{Binding HasError}"
+                           FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap" />
             </StackPanel>
-        </Border>
-    </ScrollViewer>
+        </StackPanel>
 
+        <Border Grid.Row="2" Background="#F4F4F4" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0"
+                Padding="32,14">
+            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                <TextBlock Text="RemoteOS 远程桌面客户端" Foreground="#6B6B6B" FontSize="12"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="primary connect-button" Content="连接"
+                        Command="{Binding ConnectCommand}" />
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>
