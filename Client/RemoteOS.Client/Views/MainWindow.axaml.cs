@@ -1,11 +1,96 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Client.Services.Auth;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly DispatcherTimer _hideBarTimer;
+    private bool _isPinned;
+    private bool _isFullScreen;
+
     public MainWindow()
     {
         InitializeComponent();
+        _hideBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _hideBarTimer.Tick += (_, _) => HideConnectionBar();
+    }
+
+    private void ConnectionInfo_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => ConnectionInfo.IsVisible = !ConnectionInfo.IsVisible;
+
+    private void Pin_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        _isPinned = !_isPinned;
+        PinButton.Content = _isPinned ? "已固定" : "固定";
+        ToolTip.SetTip(PinButton, _isPinned ? "取消固定连接栏" : "固定连接栏");
+        if (_isPinned)
+        {
+            _hideBarTimer.Stop();
+            ConnectionBar.IsVisible = true;
+        }
+    }
+
+    private void FullScreen_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        _isFullScreen = !_isFullScreen;
+        WindowState = _isFullScreen ? WindowState.FullScreen : WindowState.Maximized;
+        FullScreenButton.Content = _isFullScreen ? "退出全屏" : "全屏";
+        ToolTip.SetTip(FullScreenButton, _isFullScreen ? "退出全屏" : "进入全屏");
+        ConnectionInfo.IsVisible = false;
+
+        if (_isFullScreen && !_isPinned)
+            ScheduleConnectionBarHide();
+        else
+            ConnectionBar.IsVisible = true;
+    }
+
+    private async void Disconnect_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        ConnectionInfo.IsVisible = false;
+        try
+        {
+            await App.Services.GetRequiredService<IAuthSession>().LogoutAsync();
+        }
+        finally
+        {
+            Close();
+        }
+    }
+
+    private void Root_OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_isFullScreen && !_isPinned && e.GetPosition(this).Y <= 6)
+        {
+            _hideBarTimer.Stop();
+            ConnectionBar.IsVisible = true;
+        }
+    }
+
+    private void ConnectionBar_OnPointerEntered(object? sender, PointerEventArgs e) => _hideBarTimer.Stop();
+
+    private void ConnectionBar_OnPointerExited(object? sender, PointerEventArgs e) => ScheduleConnectionBarHide();
+
+    private void ScheduleConnectionBarHide()
+    {
+        if (_isFullScreen && !_isPinned)
+        {
+            _hideBarTimer.Stop();
+            _hideBarTimer.Start();
+        }
+    }
+
+    private void HideConnectionBar()
+    {
+        _hideBarTimer.Stop();
+        if (_isFullScreen && !_isPinned)
+        {
+            ConnectionBar.IsVisible = false;
+            ConnectionInfo.IsVisible = false;
+        }
     }
 }

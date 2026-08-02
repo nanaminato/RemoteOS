@@ -40,12 +40,13 @@ public static class Bootstrapper
             var wm = sp.GetRequiredService<WindowManager>();
             var apps = sp.GetRequiredService<ApplicationManager>();
             var settings = sp.GetRequiredService<ShellSettings>();
+            var session = sp.GetRequiredService<IAuthSession>();
             Action shutdown = () =>
             {
                 if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
                     desktop.Shutdown();
             };
-            return new DesktopShellViewModel(wm, apps, settings, shutdown);
+            return new DesktopShellViewModel(wm, apps, settings, session, shutdown);
         });
 
         var provider = services.BuildServiceProvider();

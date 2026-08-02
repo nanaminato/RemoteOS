@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using Client.Services;
+using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
@@ -20,16 +21,19 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly ApplicationManager _applications;
     private readonly ShellSettings _settings;
     private readonly Action _shutdown;
+    private readonly IAuthSession _session;
 
     public DesktopShellViewModel(
         WindowManager windowManager,
         ApplicationManager applications,
         ShellSettings settings,
+        IAuthSession session,
         Action shutdown)
     {
         _windowManager = windowManager;
         _applications = applications;
         _settings = settings;
+        _session = session;
         _shutdown = shutdown;
 
         StartClock();
@@ -37,6 +41,9 @@ public partial class DesktopShellViewModel : ObservableObject
 
     public WindowManager WindowManager => _windowManager;
     public ShellSettings Settings => _settings;
+    public string ConnectionServer => _session.ServerUrl ?? "未连接";
+    public string ConnectionUser => _session.CurrentUser?.Username ?? "未知用户";
+    public string ConnectionWorkspace => _session.CurrentWorkspace?.Name ?? "默认工作区";
 
     /// <summary>Live list of open windows (bound to the taskbar). Source is the window manager.</summary>
     public IReadOnlyList<ManagedWindow> Windows => _windowManager.Windows;

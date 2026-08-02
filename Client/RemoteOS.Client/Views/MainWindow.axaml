@@ -1,7 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:Client.Views.Shell"
+        xmlns:vm="clr-namespace:Client.ViewModels.Shell"
         x:Class="Client.Views.MainWindow"
+        x:DataType="vm:DesktopShellViewModel"
         Title="RemoteOS"
         WindowState="Maximized"
         WindowDecorations="None"
@@ -11,5 +13,74 @@
         mc:Ignorable="d"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
-    <shell:DesktopShellView />
+    <Window.Styles>
+        <Style Selector="Border.connection-bar">
+            <Setter Property="Background" Value="#EE252525" />
+            <Setter Property="BorderBrush" Value="#66000000" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0,0,7,7" />
+            <Setter Property="BoxShadow" Value="0 4 12 0 #66000000" />
+        </Style>
+        <Style Selector="Button.connection-action">
+            <Setter Property="Foreground" Value="#F5F5F5" />
+            <Setter Property="Padding" Value="13,0" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Button.connection-action:pointerover">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+        <Style Selector="Button.disconnect-action:pointerover">
+            <Setter Property="Background" Value="#C42B1C" />
+        </Style>
+    </Window.Styles>
+
+    <Grid x:Name="Root" PointerMoved="Root_OnPointerMoved">
+        <shell:DesktopShellView />
+
+        <!-- mstsc-style connection bar. Extra empty space is deliberately kept for future actions. -->
+        <Border x:Name="ConnectionBar" Classes="connection-bar"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Width="640" Height="40"
+                PointerEntered="ConnectionBar_OnPointerEntered"
+                PointerExited="ConnectionBar_OnPointerExited">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
+                <Button Grid.Column="0" Classes="connection-action" Click="ConnectionInfo_OnClick"
+                        ToolTip.Tip="查看连接信息">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                        <TextBlock Text="{Binding ConnectionServer}" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Border Grid.Column="1" Width="1" Background="#55FFFFFF" Margin="0,8" />
+                <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
+                        Content="固定" ToolTip.Tip="固定连接栏" />
+
+                <!-- Reserved command area for clipboard, display, and session actions. -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Center" />
+
+                <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
+                        Click="FullScreen_OnClick" Content="全屏" ToolTip.Tip="进入全屏" />
+                <Border Grid.Column="5" Width="1" Background="#55FFFFFF" Margin="0,8" />
+                <Button Grid.Column="6" Classes="connection-action disconnect-action" Click="Disconnect_OnClick"
+                        Content="关闭连接" ToolTip.Tip="断开连接并退出" />
+            </Grid>
+        </Border>
+
+        <Border x:Name="ConnectionInfo" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Width="360" Margin="0,50,0,0"
+                Background="#F9F9F9" BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="4"
+                BoxShadow="0 8 18 0 #66000000" Padding="16">
+            <StackPanel Spacing="8">
+                <TextBlock Text="连接信息" FontWeight="SemiBold" FontSize="14" />
+                <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto">
+                    <TextBlock Text="服务器" Foreground="#666666" />
+                    <TextBlock Grid.Column="1" Text="{Binding ConnectionServer}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="1" Text="用户" Foreground="#666666" Margin="0,7,0,0" />
+                    <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding ConnectionUser}" Margin="0,7,0,0" />
+                    <TextBlock Grid.Row="2" Text="工作区" Foreground="#666666" Margin="0,7,0,0" />
+                    <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding ConnectionWorkspace}" Margin="0,7,0,0" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>
