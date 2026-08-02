@@ -11,21 +11,21 @@
         MinWidth="800"
         MinHeight="520"
         ShowInTaskbar="True"
-        Background="Black"
+        Background="#F6F6F6"
         FontFamily="{StaticResource ContentFont}"
         mc:Ignorable="d"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
     <Window.Styles>
         <Style Selector="Border.connection-bar">
-            <Setter Property="Background" Value="#EE252525" />
-            <Setter Property="BorderBrush" Value="#66000000" />
+            <Setter Property="Background" Value="#F9F9F9" />
+            <Setter Property="BorderBrush" Value="#D0D0D0" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="0,0,7,7" />
-            <Setter Property="BoxShadow" Value="0 4 12 0 #66000000" />
+            <Setter Property="BoxShadow" Value="0 4 12 0 #33000000" />
         </Style>
         <Style Selector="Button.connection-action">
-            <Setter Property="Foreground" Value="#F5F5F5" />
+            <Setter Property="Foreground" Value="#2A2A2A" />
             <Setter Property="Padding" Value="13,0" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="34" />
@@ -35,26 +35,26 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.connection-action:pointerover">
-            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#E5E5E5" />
         </Style>
         <Style Selector="Button.disconnect-action:pointerover">
             <Setter Property="Background" Value="#C42B1C" />
         </Style>
         <Style Selector="Border.window-titlebar">
-            <Setter Property="Background" Value="#202020" />
+            <Setter Property="Background" Value="#F3F3F3" />
         </Style>
         <Style Selector="Button.window-control">
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
-            <Setter Property="Foreground" Value="#EDEDED" />
+            <Setter Property="Foreground" Value="#2A2A2A" />
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.window-control:pointerover">
-            <Setter Property="Background" Value="#3A3A3A" />
+            <Setter Property="Background" Value="#E1E1E1" />
         </Style>
         <Style Selector="Button.window-close:pointerover">
             <Setter Property="Background" Value="#C42B1C" />
@@ -75,7 +75,7 @@
                     <TextBlock Text="R" Foreground="White" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
-                <TextBlock Grid.Column="1" Text="RemoteOS 远程桌面" Foreground="#EDEDED" FontSize="12"
+                <TextBlock Grid.Column="1" Text="RemoteOS 远程桌面" Foreground="#2A2A2A" FontSize="12"
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Classes="window-control" Content="&#xE921;" Click="Minimize_OnClick" ToolTip.Tip="最小化" />
@@ -100,13 +100,13 @@
                         <TextBlock Text="{Binding ConnectionServer}" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Border Grid.Column="1" Width="1" Background="#55FFFFFF" Margin="0,7" />
+                <Border Grid.Column="1" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
                         Content="固定" ToolTip.Tip="固定连接栏" />
                 <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Center" />
                 <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
                         Click="FullScreen_OnClick" Content="全屏" ToolTip.Tip="进入全屏" />
-                <Border Grid.Column="5" Width="1" Background="#55FFFFFF" Margin="0,7" />
+                <Border Grid.Column="5" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="6" Classes="connection-action disconnect-action" Click="Disconnect_OnClick"
                         Content="关闭连接" ToolTip.Tip="断开连接并退出" />
             </Grid>

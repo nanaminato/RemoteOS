@@ -3,11 +3,12 @@
              xmlns:app="clr-namespace:Client.Apps"
              x:Class="Client.Apps.NotepadView"
              x:DataType="app:NotepadViewModel"
-             Background="#1E1E1E">
+             Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Background="#262626" Padding="8,6">
+        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="New" Command="{Binding NewDocumentCommand}" />
+                <Button Content="Insert text..." Command="{Binding InsertTextCommand}" />
                 <TextBlock Text="Untitled" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
             </StackPanel>
         </Border>
@@ -23,7 +24,7 @@
                  FontSize="14"
                  CaretBrush="#4CC2FF" />
 
-        <Border Grid.Row="2" Background="#262626" Padding="12,5">
+        <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
             <TextBlock Text="{Binding CharCount, StringFormat='{}{0} characters'}"
                        FontSize="12" Opacity="0.7" />
         </Border>

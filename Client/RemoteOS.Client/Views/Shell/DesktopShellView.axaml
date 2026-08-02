@@ -20,10 +20,10 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.desktop-icon:pointerover">
-            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Background" Value="#220078D4" />
         </Style>
         <Style Selector="Button.desktop-icon:pressed">
-            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#330078D4" />
         </Style>
 
         <Style Selector="Button.start-button">
@@ -37,10 +37,10 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.start-button:pointerover">
-            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Background" Value="#220078D4" />
         </Style>
         <Style Selector="Button.start-button:pressed">
-            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#330078D4" />
         </Style>
 
         <Style Selector="Button.taskbar-item">
@@ -54,10 +54,10 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.taskbar-item:pointerover">
-            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Background" Value="#220078D4" />
         </Style>
         <Style Selector="Button.taskbar-item:pressed">
-            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#330078D4" />
         </Style>
 
         <Style Selector="Button.start-item">
@@ -68,18 +68,18 @@
             <Setter Property="MinHeight" Value="44" />
         </Style>
         <Style Selector="Button.start-item:pointerover">
-            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Background" Value="#220078D4" />
         </Style>
         <Style Selector="Button.start-item:pressed">
-            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="Background" Value="#330078D4" />
         </Style>
 
         <Style Selector="Border.start-menu">
-            <Setter Property="Background" Value="#EE1E1E1E" />
-            <Setter Property="BorderBrush" Value="#44FFFFFF" />
+            <Setter Property="Background" Value="#FAFAFA" />
+            <Setter Property="BorderBrush" Value="#D6D6D6" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 16 36 0 #80000000" />
+            <Setter Property="BoxShadow" Value="0 16 36 0 #44000000" />
             <Setter Property="ClipToBounds" Value="True" />
         </Style>
     </UserControl.Styles>
@@ -104,7 +104,7 @@
                                 Command="{Binding LaunchCommand}"
                                 ToolTip.Tip="{Binding DisplayName}">
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
-                                <Border Width="48" Height="48" CornerRadius="8" Background="#33000000"
+                                <Border Width="48" Height="48" CornerRadius="8" Background="#220078D4"
                                         HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -128,8 +128,8 @@
                 PointerPressed="StartBackdrop_OnPointerPressed" />
 
         <!-- Taskbar -->
-        <Border Grid.Row="1" Height="48" Background="#E61A1A1A"
-                BorderBrush="#33000000" BorderThickness="0,1,0,0">
+        <Border Grid.Row="1" Height="48" Background="#F7F7F7"
+                BorderBrush="#D6D6D6" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="56,*,Auto">
                 <Button Grid.Column="0" Classes="start-button"
                         Command="{Binding ToggleStartCommand}">
@@ -206,7 +206,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <Border Grid.Row="2" BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0" Padding="10,8">
+                <Border Grid.Row="2" BorderBrush="#D6D6D6" BorderThickness="0,1,0,0" Padding="10,8">
                     <Button Classes="start-item" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Command="{Binding ShutdownCommand}">
                         <Grid ColumnDefinitions="40,*">

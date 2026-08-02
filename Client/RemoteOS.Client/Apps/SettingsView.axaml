@@ -4,7 +4,7 @@
              xmlns:ss="clr-namespace:Client.Services"
              x:Class="Client.Apps.SettingsView"
              x:DataType="app:SettingsViewModel"
-             Background="#1E1E1E">
+             Background="#FFFFFF">
     <ScrollViewer Padding="22">
         <StackPanel Spacing="18">
             <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" />

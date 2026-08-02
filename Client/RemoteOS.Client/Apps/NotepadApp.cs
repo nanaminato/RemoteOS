@@ -17,9 +17,21 @@ public sealed class NotepadApp : RemoteApplicationBase
 
     public override void Activate(AppContext context)
     {
-        var view = new NotepadView { DataContext = new NotepadViewModel() };
-        context.ShowWindow("Notepad", view,
+        var viewModel = new NotepadViewModel();
+        var view = new NotepadView { DataContext = viewModel };
+        var window = context.ShowWindow("Notepad", view,
             bounds: new Rect(160, 100, 720, 520),
             iconGlyph: Manifest.IconGlyph);
+
+        viewModel.RequestTextAsync = () => context.ShowDialogAsync<string>(window, "插入文本", dialog =>
+        {
+            var dialogViewModel = new NotepadInsertDialogViewModel(dialog.Close, dialog.Cancel);
+            dialogViewModel.RequestNestedTextAsync = () => dialog.ShowDialogAsync<string>("添加文本", childDialog =>
+                new NotepadInsertDialogView
+                {
+                    DataContext = new NotepadInsertDialogViewModel(childDialog.Close, childDialog.Cancel),
+                });
+            return new NotepadInsertDialogView { DataContext = dialogViewModel };
+        });
     }
 }

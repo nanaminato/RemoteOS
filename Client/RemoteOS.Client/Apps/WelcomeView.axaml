@@ -3,14 +3,14 @@
              xmlns:app="clr-namespace:Client.Apps"
              x:Class="Client.Apps.WelcomeView"
              x:DataType="app:WelcomeViewModel"
-             Background="#1E1E1E">
+             Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto" Margin="28">
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="🏠 RemoteOS" FontSize="28" FontWeight="Bold" />
             <TextBlock Text="A cross-platform, cloud-native desktop environment." Opacity="0.8" FontSize="13" />
         </StackPanel>
 
-        <Border Grid.Row="1" Classes="card" Margin="0,18,0,0" Background="#262626">
+        <Border Grid.Row="1" Classes="card" Margin="0,18,0,0">
             <StackPanel Spacing="12">
                 <TextBlock Text="What's in this MVP" Classes="title" />
                 <TextBlock TextWrapping="Wrap" Opacity="0.9"

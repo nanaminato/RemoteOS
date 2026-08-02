@@ -47,4 +47,11 @@ public sealed class AppContext
             CanMinimize: canMinimize,
             CanMaximize: canMaximize));
     }
+
+    /// <summary>Shows a dialog that blocks its owner until it is confirmed or cancelled.</summary>
+    public Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory)
+        => WindowManager.ShowDialogAsync(owner, title, contentFactory);
 }

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Core.Windows;
 using Rect = RemoteOS.Core.Primitives.Rect;
@@ -17,6 +18,7 @@ public sealed class WindowManager : IWindowManager
 {
     private readonly ObservableCollection<ManagedWindow> _windows = new();
     private readonly Dictionary<WindowId, WindowState> _preMinimizeState = new();
+    private readonly List<IModalDialogView> _dialogs = new();
 
     private Canvas? _host;
     private Rect _hostBounds;
@@ -46,6 +48,9 @@ public sealed class WindowManager : IWindowManager
                 w.View.ApplyBounds(bounds);
             }
         }
+
+        foreach (var dialog in _dialogs)
+            dialog.ApplyBounds(dialog.Owner.Info.Bounds);
     }
 
     public ManagedWindow Create(WindowCreateOptions options)
@@ -97,6 +102,49 @@ public sealed class WindowManager : IWindowManager
         return managed;
     }
 
+    public Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory)
+    {
+        if (_host == null)
+            throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
+        if (!_windows.Contains(owner))
+            throw new InvalidOperationException("The dialog owner is no longer open.");
+
+        return ShowDialogCoreAsync(owner, parent: null, owner.View.ZIndex + 1, title, contentFactory);
+    }
+
+    internal Task<TResult?> ShowChildDialogAsync<TResult>(
+        IModalDialogView parent,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory)
+        => ShowDialogCoreAsync(parent.Owner, parent, parent.ZOrder + 1, title, contentFactory);
+
+    private Task<TResult?> ShowDialogCoreAsync<TResult>(
+        ManagedWindow owner,
+        IModalDialogView? parent,
+        int zOrder,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory)
+    {
+        if (_host == null)
+            throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
+
+        var dialog = new ModalDialog<TResult>(this, owner);
+        var view = new ModalDialogView<TResult>(title, contentFactory(dialog), dialog, parent);
+        dialog.Attach(view);
+        view.ApplyBounds(owner.Info.Bounds);
+        view.ZIndex = zOrder;
+        _host.Children.Add(view);
+        _dialogs.Add(view);
+        view.FocusDialog();
+
+        _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseDialog(view)),
+            TaskScheduler.Default);
+        return dialog.Result;
+    }
+
     public void Close(ManagedWindow window)
     {
         if (!_windows.Remove(window))
@@ -106,6 +154,8 @@ public sealed class WindowManager : IWindowManager
             _host.Children.Remove(window.View);
 
         _preMinimizeState.Remove(window.Info.Id);
+        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, window)).ToList())
+            dialog.Cancel();
 
         if (ReferenceEquals(_active, window))
         {
@@ -119,6 +169,18 @@ public sealed class WindowManager : IWindowManager
         }
 
         WindowClosed?.Invoke(this, window);
+    }
+
+    private void CloseDialog(IModalDialogView dialog)
+    {
+        if (!_dialogs.Remove(dialog))
+            return;
+
+        if (_host != null && dialog is Control control)
+            _host.Children.Remove(control);
+
+        foreach (var child in _dialogs.Where(d => ReferenceEquals(d.ParentDialog, dialog)).ToList())
+            child.Cancel();
     }
 
     public void Focus(ManagedWindow window)
@@ -152,6 +214,8 @@ public sealed class WindowManager : IWindowManager
             return;
 
         _preMinimizeState[window.Info.Id] = window.Info.State;
+        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, window)).ToList())
+            dialog.Cancel();
         SetState(window, WindowState.Minimized);
 
         if (ReferenceEquals(_active, window))
@@ -205,12 +269,14 @@ public sealed class WindowManager : IWindowManager
                 SetState(window, WindowState.Normal);
                 window.Info.Bounds = window.Info.RestoreBounds;
                 window.View.ApplyBounds(window.Info.RestoreBounds);
+                UpdateDialogs(window);
                 break;
             case WindowState.Minimized:
                 // Restore straight to maximized.
                 SetState(window, WindowState.Maximized);
                 window.Info.Bounds = _hostBounds;
                 window.View.ApplyBounds(_hostBounds);
+                UpdateDialogs(window);
                 Focus(window);
                 break;
             default:
@@ -218,6 +284,7 @@ public sealed class WindowManager : IWindowManager
                 SetState(window, WindowState.Maximized);
                 window.Info.Bounds = _hostBounds;
                 window.View.ApplyBounds(_hostBounds);
+                UpdateDialogs(window);
                 break;
         }
     }
@@ -238,6 +305,7 @@ public sealed class WindowManager : IWindowManager
         moved = ClampDrag(moved);
         window.Info.Bounds = moved;
         window.View.ApplyBounds(moved);
+        UpdateDialogs(window);
     }
 
     private void OnResize(ManagedWindow window, ResizeBoundsEventArgs e)
@@ -249,6 +317,13 @@ public sealed class WindowManager : IWindowManager
         window.Info.Bounds = resized;
         window.Info.RestoreBounds = resized;
         window.View.ApplyBounds(resized);
+        UpdateDialogs(window);
+    }
+
+    private void UpdateDialogs(ManagedWindow owner)
+    {
+        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, owner)))
+            dialog.ApplyBounds(owner.Info.Bounds);
     }
 
     private Rect ResolveInitialBounds(Rect? requested)

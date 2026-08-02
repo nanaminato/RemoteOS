@@ -13,4 +13,18 @@ public partial class NotepadViewModel : ObservableObject
 
     [RelayCommand]
     private void NewDocument() => Text = string.Empty;
+
+    /// <summary>Provided by the application when its owning desktop window is available.</summary>
+    public Func<Task<string?>>? RequestTextAsync { get; set; }
+
+    [RelayCommand]
+    private async Task InsertTextAsync()
+    {
+        if (RequestTextAsync is null)
+            return;
+
+        var result = await RequestTextAsync();
+        if (!string.IsNullOrEmpty(result))
+            Text += result;
+    }
 }

@@ -17,11 +17,11 @@ public sealed partial class ShellSettings : ObservableObject
     {
         Wallpapers =
         [
-            new WallpaperOption("Bloom", Gradient("#1B2A4A", "#2E4A7D", "#6E8FCB")),
-            new WallpaperOption("Aurora", Gradient("#0B3D2E", "#0E5C46", "#2FAE8E")),
-            new WallpaperOption("Sunset", Gradient("#3A1C2A", "#7A2E48", "#D9846A")),
-            new WallpaperOption("Graphite", Gradient("#161616", "#232323", "#2E2E2E")),
-            new WallpaperOption("Cobalt", Gradient("#0A1A3F", "#143A8C", "#3E7BD6")),
+            new WallpaperOption("Bloom", Gradient("#EAF4FF", "#D7EAFF", "#B9D9F7")),
+            new WallpaperOption("Aurora", Gradient("#E7F8F2", "#D4F0E7", "#B6DFD2")),
+            new WallpaperOption("Sunset", Gradient("#FFF0E8", "#FFE1D2", "#F6C5B3")),
+            new WallpaperOption("Mist", Gradient("#F7F7F7", "#E9EDF2", "#D8E0EA")),
+            new WallpaperOption("Cobalt", Gradient("#E8F1FF", "#D5E6FF", "#BDD4F5")),
         ];
     }
 

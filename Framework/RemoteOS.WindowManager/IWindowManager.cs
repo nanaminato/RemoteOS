@@ -27,6 +27,12 @@ public interface IWindowManager
     /// <summary>Creates, lays out and shows a new window for the given application content.</summary>
     ManagedWindow Create(WindowCreateOptions options);
 
+    /// <summary>Shows a modal dialog over an application window and asynchronously returns its result.</summary>
+    Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory);
+
     void Close(ManagedWindow window);
     void Focus(ManagedWindow window);
     void Minimize(ManagedWindow window);
