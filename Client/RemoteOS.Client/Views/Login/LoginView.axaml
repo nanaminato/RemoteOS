@@ -10,7 +10,7 @@
         <Border Classes="card" Margin="24" MaxWidth="420"
                 HorizontalAlignment="Center" VerticalAlignment="Center">
             <StackPanel Spacing="10">
-                <TextBlock Classes="title" Text="连接到 RemoteOS" />
+                <TextBlock Classes="title" FontSize="18" Text="连接到 RemoteOS" />
                 <TextBlock Classes="subtle"
                            Text="输入服务器地址与本机账号，连接到你的 Workspace。"
                            TextWrapping="Wrap" />
@@ -26,7 +26,7 @@
 
                 <Button Classes="primary" Content="连接" Command="{Binding ConnectCommand}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                        Margin="0,6,0,0" />
+                        Margin="0,10,0,0" />
 
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}"
                              Height="2" Margin="0,8,0,0"
@@ -34,7 +34,7 @@
 
                 <TextBlock Classes="subtle" Text="{Binding StatusMessage}"
                            IsVisible="{Binding !HasError}" />
-                <TextBlock Foreground="#FF4444" Text="{Binding ErrorMessage}"
+                <TextBlock Classes="error" Text="{Binding ErrorMessage}"
                            IsVisible="{Binding HasError}" TextWrapping="Wrap" />
 
                 <!-- 预留：显示选项（未来扩展：显示大小/颜色深度/本地资源等，对标 mstsc） -->

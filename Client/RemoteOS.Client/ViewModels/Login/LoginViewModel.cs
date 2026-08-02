@@ -16,10 +16,24 @@ public partial class LoginViewModel : ObservableObject
 
     public LoginViewModel(IAuthSession session) => _session = session;
 
-    [ObservableProperty] private string _serverUrl = "http://localhost:5090";
-    [ObservableProperty] private string _username = string.Empty;
-    [ObservableProperty] private string _password = string.Empty;
-    [ObservableProperty] private bool _isConnecting;
+    // 输入与连接状态变化时，自动通知 ConnectCommand 重新评估 CanExecute。
+    // 此前缺少通知，导致填写完账号密码后按钮仍处于禁用状态（无法点击）。
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private string _serverUrl = "http://localhost:5090";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private string _username = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private string _password = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
+    private bool _isConnecting;
+
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
     [ObservableProperty] private bool _hasError;
@@ -27,7 +41,6 @@ public partial class LoginViewModel : ObservableObject
     partial void OnServerUrlChanged(string value) => ClearError();
     partial void OnUsernameChanged(string value) => ClearError();
     partial void OnPasswordChanged(string value) => ClearError();
-    partial void OnIsConnectingChanged(bool value) => ConnectCommand.NotifyCanExecuteChanged();
 
     private void ClearError()
     {
