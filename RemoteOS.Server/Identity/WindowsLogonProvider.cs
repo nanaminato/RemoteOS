@@ -1,14 +1,15 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
-namespace Windows_Server_Tester.Categories.Authentication;
+namespace Server.Identity;
 
-/// <summary>
-/// 使用 Win32 LogonUser API 验证 Windows 账号密码是否正确。
-/// 支持本地账户与域账户，自动解析 user / domain\user / user@domain 三种格式。
-/// </summary>
-public static class WindowsCredentialVerifier
+/// <summary>Windows 平台身份认证 Provider。使用 advapi32!LogonUser 验证凭据。
+/// 支持本地账户（MACHINE\user）与域账户（DOMAIN\user / user@domain）。见 Authentication.md §1.1。
+/// 迁移自 Windows Server Test/Categories/Authentication/WindowsCredentialVerifier.cs（已验证可行）。</summary>
+[SupportedOSPlatform("windows")]
+public sealed class WindowsLogonProvider : IIdentityProvider
 {
-    public static CredentialVerifyResult Verify(string userName, string password)
+    public CredentialVerifyResult Verify(string userName, string password)
     {
         if (string.IsNullOrWhiteSpace(userName))
             return CredentialVerifyResult.Failed("用户名不能为空", CredentialError.InvalidInput);
@@ -51,6 +52,14 @@ public static class WindowsCredentialVerifier
         {
             if (token != IntPtr.Zero) CloseHandle(token);
         }
+    }
+
+    public PlatformUserInfo GetUserInfo(string userName)
+    {
+        ParseUserName(userName, out var user, out var domain);
+        domain ??= Environment.MachineName;
+        var identity = $"{domain}\\{user}";
+        return new PlatformUserInfo(Uid: identity, DisplayName: identity, HomeDirectory: null);
     }
 
     private static void ParseUserName(string raw, out string user, out string? domain)
@@ -100,34 +109,4 @@ public static class WindowsCredentialVerifier
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr hObject);
-}
-
-public enum CredentialError
-{
-    None,
-    InvalidInput,
-    BadCredentials,
-    NoSuchUser,
-    AccountDisabled,
-    AccountLockedOut,
-    PasswordExpired,
-    AccountExpired,
-    AccountRestriction,
-    Unknown,
-}
-
-public sealed record CredentialVerifyResult(
-    bool Success,
-    string Message,
-    CredentialError Error,
-    int? Win32ErrorCode)
-{
-    public static CredentialVerifyResult Ok(string domain, string user)
-        => new(true, $"验证通过：{domain}\\{user}", CredentialError.None, null);
-
-    public static CredentialVerifyResult Failed(string msg, CredentialError err, int? win32 = null)
-        => new(false, msg, err, win32);
-
-    public static CredentialVerifyResult FromError(string msg, string detail)
-        => new(false, $"{msg}：{detail}", CredentialError.Unknown, null);
 }

@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
+using Client.Services.Auth;
+using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
@@ -22,6 +24,11 @@ public static class Bootstrapper
         services.AddSingleton<ShellSettings>();
         services.AddSingleton<ApplicationManager>(sp =>
             new ApplicationManager(sp.GetRequiredService<IWindowManager>(), sp));
+
+        // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
+        services.AddHttpClient<IRemoteOsClient, RemoteOsClient>();
+        services.AddSingleton<IAuthSession, AuthSession>();
+        services.AddSingleton<LoginViewModel>();
 
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();

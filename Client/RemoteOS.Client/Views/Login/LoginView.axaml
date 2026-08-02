@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.ViewModels.Login"
+             x:Class="Client.Views.Login.LoginView"
+             x:DataType="vm:LoginViewModel"
+             Background="{StaticResource BackgroundBrush}"
+             FontFamily="{StaticResource ContentFont}">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <Border Classes="card" Margin="24" MaxWidth="420"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Spacing="10">
+                <TextBlock Classes="title" Text="连接到 RemoteOS" />
+                <TextBlock Classes="subtle"
+                           Text="输入服务器地址与本机账号，连接到你的 Workspace。"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Classes="subtle" Text="服务器" Margin="0,8,0,0" />
+                <TextBox Text="{Binding ServerUrl}" PlaceholderText="http://host:port" />
+
+                <TextBlock Classes="subtle" Text="用户名" />
+                <TextBox Text="{Binding Username}" PlaceholderText="用户名（如 alice）" />
+
+                <TextBlock Classes="subtle" Text="密码" />
+                <TextBox Text="{Binding Password}" PasswordChar="●" PlaceholderText="密码" />
+
+                <Button Classes="primary" Content="连接" Command="{Binding ConnectCommand}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Margin="0,6,0,0" />
+
+                <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}"
+                             Height="2" Margin="0,8,0,0"
+                             Foreground="{StaticResource AccentBrush}" />
+
+                <TextBlock Classes="subtle" Text="{Binding StatusMessage}"
+                           IsVisible="{Binding !HasError}" />
+                <TextBlock Foreground="#FF4444" Text="{Binding ErrorMessage}"
+                           IsVisible="{Binding HasError}" TextWrapping="Wrap" />
+
+                <!-- 预留：显示选项（未来扩展：显示大小/颜色深度/本地资源等，对标 mstsc） -->
+                <Expander Header="显示选项" IsExpanded="False" Margin="0,10,0,0">
+                    <TextBlock Classes="subtle" Text="（预留，尚未实现）" />
+                </Expander>
+            </StackPanel>
+        </Border>
+    </ScrollViewer>
+
+</UserControl>

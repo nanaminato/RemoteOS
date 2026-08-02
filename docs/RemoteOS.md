@@ -47,7 +47,7 @@ Framework/
     RemoteOS.Runtime             应用运行时（ApplicationManager）
 Shared/
     RemoteOS.Protocol            通信协议契约（占位）
-RemoteOS.Server/                 服务端（ASP.NET Core，跨平台，占位）
+RemoteOS.Server/                 服务端（ASP.NET Core，跨平台，已实现 auth 端点）
 Windows Server Test/             跨平台能力验证测试床（原生 API 探针）
 ```
 
@@ -150,7 +150,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。当前为 ASP.NET Core 默认模板占位。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 内存仓储（User/Workspace/Session/Device）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
@@ -238,7 +238,7 @@ Application Package
 | MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成 |
 | MVP 1 | Runtime / App.SDK / Launch App / Create Window | 完成 |
 | MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（雏形：Welcome/Notepad/Settings） |
-| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 逐步推进中 |
+| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成） |
 
 ---
 
@@ -258,7 +258,7 @@ Application Package
 
 本地 Shell 已就绪，系统按以下方向逐步丰富（设计先行，再落地代码）：
 
-- **登录与身份**（Linux 用户集成）— 见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+- **登录与身份**（Windows LogonUser 已实现，Linux PAM 占位）— MVP 已完成，见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)；设计原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 - **安全设计**（sudo / 权限 / 危险操作确认）— 见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 - **Workspace / Session / Device 多设备模型** — 见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 - **云同步、Storage、Remote Runtime、Compute** — 见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
@@ -306,5 +306,6 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md) | 通信协议契约层、REST/SignalR、序列化约定 |
 | [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | User / Workspace / Session / Device、多设备、云桌面状态 |
 | [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
+| [`RemoteOS.Login.md`](./RemoteOS.Login.md) | 登录模块：mstsc 风格登录窗、auth 端点、JWT、IIdentityProvider、错误处理 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |
