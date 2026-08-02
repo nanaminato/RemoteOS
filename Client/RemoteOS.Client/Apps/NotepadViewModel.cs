@@ -16,6 +16,7 @@ public partial class NotepadViewModel : ObservableObject
 
     /// <summary>Provided by the application when its owning desktop window is available.</summary>
     public Func<Task<string?>>? RequestTextAsync { get; set; }
+    public Func<Task<string?>>? RequestFileAsync { get; set; }
 
     [RelayCommand]
     private async Task InsertTextAsync()
@@ -26,5 +27,25 @@ public partial class NotepadViewModel : ObservableObject
         var result = await RequestTextAsync();
         if (!string.IsNullOrEmpty(result))
             Text += result;
+    }
+
+    [RelayCommand]
+    private async Task OpenDocumentAsync()
+    {
+        if (RequestFileAsync is null)
+            return;
+
+        var path = await RequestFileAsync();
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        try
+        {
+            Text = await File.ReadAllTextAsync(path);
+        }
+        catch (Exception ex)
+        {
+            Text = $"无法打开文件：{ex.Message}";
+        }
     }
 }

@@ -18,7 +18,7 @@ public sealed class WindowManager : IWindowManager
 {
     private readonly ObservableCollection<ManagedWindow> _windows = new();
     private readonly Dictionary<WindowId, WindowState> _preMinimizeState = new();
-    private readonly List<IModalDialogView> _dialogs = new();
+    private readonly List<IModalSession> _modalSessions = new();
 
     private Canvas? _host;
     private Rect _hostBounds;
@@ -49,8 +49,8 @@ public sealed class WindowManager : IWindowManager
             }
         }
 
-        foreach (var dialog in _dialogs)
-            dialog.ApplyBounds(dialog.Owner.Info.Bounds);
+        foreach (var session in _modalSessions)
+            session.Blocker.ApplyBounds(session.Owner.Info.Bounds);
     }
 
     public ManagedWindow Create(WindowCreateOptions options)
@@ -112,35 +112,33 @@ public sealed class WindowManager : IWindowManager
         if (!_windows.Contains(owner))
             throw new InvalidOperationException("The dialog owner is no longer open.");
 
-        return ShowDialogCoreAsync(owner, parent: null, owner.View.ZIndex + 1, title, contentFactory);
-    }
-
-    internal Task<TResult?> ShowChildDialogAsync<TResult>(
-        IModalDialogView parent,
-        string title,
-        Func<ModalDialog<TResult>, Control> contentFactory)
-        => ShowDialogCoreAsync(parent.Owner, parent, parent.ZOrder + 1, title, contentFactory);
-
-    private Task<TResult?> ShowDialogCoreAsync<TResult>(
-        ManagedWindow owner,
-        IModalDialogView? parent,
-        int zOrder,
-        string title,
-        Func<ModalDialog<TResult>, Control> contentFactory)
-    {
-        if (_host == null)
-            throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
-
         var dialog = new ModalDialog<TResult>(this, owner);
-        var view = new ModalDialogView<TResult>(title, contentFactory(dialog), dialog, parent);
-        dialog.Attach(view);
-        view.ApplyBounds(owner.Info.Bounds);
-        view.ZIndex = zOrder;
-        _host.Children.Add(view);
-        _dialogs.Add(view);
-        view.FocusDialog();
+        var ownerBounds = owner.Info.Bounds;
+        var bounds = new Rect(
+            ownerBounds.X + Math.Max(24, (ownerBounds.Width - 460) / 2),
+            ownerBounds.Y + Math.Max(28, (ownerBounds.Height - 300) / 2),
+            Math.Min(460, Math.Max(320, ownerBounds.Width - 48)),
+            Math.Min(320, Math.Max(220, ownerBounds.Height - 56)));
+        var dialogWindow = Create(new WindowCreateOptions(
+            OwnerAppId: owner.Info.OwnerAppId,
+            Title: title,
+            Content: contentFactory(dialog),
+            Bounds: bounds,
+            IconGlyph: owner.IconGlyph,
+            CanResize: true,
+            CanMinimize: false,
+            CanMaximize: false));
+        dialog.Attach(dialogWindow);
 
-        _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseDialog(view)),
+        var blocker = new ModalBlocker(owner);
+        blocker.ApplyBounds(owner.Info.Bounds);
+        // Place the shield above only its owner and below the newly-created dialog window.
+        blocker.ZIndex = dialogWindow.View.ZIndex - 1;
+        _host.Children.Add(blocker);
+
+        var session = new ModalSession<TResult>(owner, dialogWindow, blocker, dialog);
+        _modalSessions.Add(session);
+        _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseModalSession(session)),
             TaskScheduler.Default);
         return dialog.Result;
     }
@@ -154,8 +152,8 @@ public sealed class WindowManager : IWindowManager
             _host.Children.Remove(window.View);
 
         _preMinimizeState.Remove(window.Info.Id);
-        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, window)).ToList())
-            dialog.Cancel();
+        foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window) || ReferenceEquals(s.DialogWindow, window)).ToList())
+            session.Cancel();
 
         if (ReferenceEquals(_active, window))
         {
@@ -171,16 +169,16 @@ public sealed class WindowManager : IWindowManager
         WindowClosed?.Invoke(this, window);
     }
 
-    private void CloseDialog(IModalDialogView dialog)
+    private void CloseModalSession(IModalSession session)
     {
-        if (!_dialogs.Remove(dialog))
+        if (!_modalSessions.Remove(session))
             return;
 
-        if (_host != null && dialog is Control control)
-            _host.Children.Remove(control);
+        if (_host != null)
+            _host.Children.Remove(session.Blocker);
 
-        foreach (var child in _dialogs.Where(d => ReferenceEquals(d.ParentDialog, dialog)).ToList())
-            child.Cancel();
+        if (_windows.Contains(session.DialogWindow))
+            Close(session.DialogWindow);
     }
 
     public void Focus(ManagedWindow window)
@@ -214,8 +212,8 @@ public sealed class WindowManager : IWindowManager
             return;
 
         _preMinimizeState[window.Info.Id] = window.Info.State;
-        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, window)).ToList())
-            dialog.Cancel();
+        foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window)).ToList())
+            session.Cancel();
         SetState(window, WindowState.Minimized);
 
         if (ReferenceEquals(_active, window))
@@ -322,8 +320,8 @@ public sealed class WindowManager : IWindowManager
 
     private void UpdateDialogs(ManagedWindow owner)
     {
-        foreach (var dialog in _dialogs.Where(d => ReferenceEquals(d.Owner, owner)))
-            dialog.ApplyBounds(owner.Info.Bounds);
+        foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, owner)))
+            session.Blocker.ApplyBounds(owner.Info.Bounds);
     }
 
     private Rect ResolveInitialBounds(Rect? requested)

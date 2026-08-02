@@ -8,6 +8,7 @@
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="New" Command="{Binding NewDocumentCommand}" />
+                <Button Content="Open..." Command="{Binding OpenDocumentCommand}" />
                 <Button Content="Insert text..." Command="{Binding InsertTextCommand}" />
                 <TextBlock Text="Untitled" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
             </StackPanel>

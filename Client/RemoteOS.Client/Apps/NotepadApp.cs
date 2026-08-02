@@ -33,5 +33,10 @@ public sealed class NotepadApp : RemoteApplicationBase
                 });
             return new NotepadInsertDialogView { DataContext = dialogViewModel };
         });
+        viewModel.RequestFileAsync = () => context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
+            new FilePickerView
+            {
+                DataContext = new FilePickerViewModel(dialog.Close, dialog.Cancel),
+            });
     }
 }
