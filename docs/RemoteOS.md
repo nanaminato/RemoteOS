@@ -145,7 +145,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 ### 4.8 RemoteOS.Protocol
 
 - **定位**：通信协议契约。当前为占位。
-- **未来负责**：DTO、Message、API Contract、WebSocket Client、API Client。
+- **包含**：DTO、Message、API Contract、Client Proxy 契约（契约位于 Protocol，代理实现位于 Client）。详见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)。
 - **规则**：所有 Client / Server 通信必须经过 Protocol。禁止业务代码直接调用 HTTP / WebSocket。
 
 ### 4.9 RemoteOS.Server
@@ -213,7 +213,7 @@ Application Package
   ```text
   Terminal UI
       |
-  WebSocket
+  SignalR (over WebSocket)
       |
   RemoteServer
       |
@@ -221,6 +221,8 @@ Application Package
       |
   Shell
   ```
+
+  > PTY 高吞吐流若 SignalR 性能不足，未来可切换裸 WebSocket 端点（如 `/terminals/{id}/stream`）；此决策在 RemoteTerminal 实现阶段再定。调研 RoyalTerminal（传输无关的终端 UI 栈）结论：SignalR 与裸 WebSocket 均可行。
 
 ### RemoteExplorer
 
@@ -301,6 +303,7 @@ RemoteOS.Server     = Cloud Backend
 | 文档 | 用途 |
 |------|------|
 | [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) | 模块设计、依赖关系、架构原则 |
+| [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md) | 通信协议契约层、REST/SignalR、序列化约定 |
 | [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | User / Workspace / Session / Device、多设备、云桌面状态 |
 | [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |

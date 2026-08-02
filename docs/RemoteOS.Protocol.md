@@ -1,0 +1,168 @@
+# RemoteOS Protocol 通信协议层
+
+> 本文档定义 RemoteOS Client↔Server 通信协议契约层 `Shared/RemoteOS.Protocol`：模块结构、序列化约定、REST 端点、SignalR Hub 契约、认证集成方式。
+>
+> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) §4.8
+> - 当前实现状态见 [`RemoteOS.md`](./RemoteOS.md) §4.8
+> - 登录与身份见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+> - Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+
+---
+
+## 1. 定位与边界
+
+`RemoteOS.Protocol` 是 Client↔Server **唯一**通信契约层。所有 Client/Server 通信必须经过 Protocol，禁止业务代码直接调用 HTTP / WebSocket / TCP。
+
+**包含**：DTO、Message、API Contract（路由常量）、SignalR Hub 接口、序列化约定。
+
+**不包含**（边界）：
+- 客户端代理实现（`HubConnection` 包装、typed HttpClient）→ 位于 `RemoteOS.Client`
+- Server 端 Hub 实现与端点实现 → 位于 `RemoteOS.Server`
+- Server 端 OS 抽象（`IIdentityProvider` / `IFileSystem` 等）→ 位于 `RemoteOS.Server` 内部
+
+Protocol 程序集**零 PackageReference**，不引用 Core（避免线协议与 Core 版本耦合）。
+
+---
+
+## 2. 通信框架
+
+| 通道 | 用途 |
+|------|------|
+| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写 |
+| **SignalR Hub**（`/hubs/workspace`） | 实时双向：桌面状态增量广播、设备上下线通知、控制权变更通知、Session/Workspace 状态变更通知 |
+
+SignalR 内部走 WebSocket（不可用降级 SSE/长轮询），**不裸用 WebSocket**。Workspace 多设备通过 SignalR Group（一个 Workspace 一个 Group）广播。
+
+---
+
+## 3. 模块结构
+
+```text
+Shared/RemoteOS.Protocol/
+├── Common/        # PlatformKind、RemoteOsEndpoints、ProblemDetails、RemoteOsJsonOptions
+├── Identity/      # UserDto、AuthTokens、LoginRequest/Response、RefreshToken、Logout、AuthApiRoutes
+├── Workspace/     # WorkspaceDto、SessionDto、DeviceDto、ControllerLeaseInfo、3 enum、WorkspaceApiRoutes
+├── Desktop/       # DesktopStateDto/Patch、IconPositionDto、WallpaperDto、ThemeKind
+└── Hubs/          # IWorkspaceHubClient、WorkspaceHubMethods、WorkspaceHubEvents、JoinWorkspaceRequest、事件参数
+```
+
+命名空间：`RemoteOS.Protocol.{Common,Identity,Workspace,Desktop,Hubs}`。
+
+DTO 风格：`sealed record` + 主构造 + `[property: JsonPropertyName]`，对齐 `Framework/RemoteOS.Core` 风格。ID 用 `Guid`，时间用 `DateTimeOffset`，状态用 `enum`。
+
+---
+
+## 4. 序列化约定
+
+`RemoteOsJsonOptions.Default` 统一序列化：
+- `JsonSerializerDefaults.Web`：camelCase + 大小写不敏感
+- `JsonStringEnumConverter`：枚举序列化为 camelCase 字符串（如 `"linux"`、`"running"`、`"controller"`）
+- 时间：`DateTimeOffset` → ISO 8601
+
+Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().AddJsonProtocol`）共用此配置。Client Http 也用同一份 options 反序列化。
+
+所有 DTO 公开成员显式标注 `[property: JsonPropertyName("camelCaseName")]`，钉死线协议，避免 C# 重命名导致线协议破坏。
+
+---
+
+## 5. REST 端点
+
+路径前缀 `/api/v1`，错误统一返回 `ProblemDetails`（RFC 7807 子集）。路由常量集中在 `AuthApiRoutes` / `WorkspaceApiRoutes`。
+
+### 认证
+| 方法 | 路径 | 请求 | 响应 | 认证 |
+|---|---|---|---|---|
+| POST | `/api/v1/auth/login` | `LoginRequest` | `LoginResponse` | 无 |
+| POST | `/api/v1/auth/refresh` | `RefreshTokenRequest` | `RefreshTokenResponse` | 无 |
+| POST | `/api/v1/auth/logout` | `LogoutRequest` | 204 | JWT |
+| GET | `/api/v1/auth/me` | — | `UserDto` | JWT |
+
+### Workspace
+| 方法 | 路径 | 请求 | 响应 | 认证 |
+|---|---|---|---|---|
+| GET | `/api/v1/workspaces` | — | `WorkspaceDto[]` | JWT |
+| GET | `/api/v1/workspaces/{id}` | — | `WorkspaceDto` | JWT |
+| POST | `/api/v1/workspaces` | `CreateWorkspaceRequest` | `WorkspaceDto` | JWT |
+| GET | `/api/v1/workspaces/{id}/sessions` | — | `SessionDto[]` | JWT |
+| GET | `/api/v1/workspaces/{id}/devices` | — | `DeviceDto[]` | JWT |
+| GET | `/api/v1/workspaces/{id}/desktop` | — | `DesktopStateDto` | JWT |
+| PUT | `/api/v1/workspaces/{id}/desktop` | `DesktopStatePatch` | `DesktopStateDto` | JWT（仅 Controller） |
+| POST | `/api/v1/workspaces/{id}/control/request` | `RequestControlRequest` | `ControllerLeaseInfo` / 409 | JWT |
+| POST | `/api/v1/workspaces/{id}/control/release` | — | 204 | JWT |
+| POST | `/api/v1/devices` | `RegisterDeviceRequest` | `DeviceDto` | JWT |
+
+---
+
+## 6. SignalR Hub 契约
+
+Hub 路径 `/hubs/workspace`。Server 端实现 `WorkspaceHub : Hub<IWorkspaceHubClient>` 获得编译期校验。
+
+### Client → Server（invoke，方法名见 `WorkspaceHubMethods`）
+| 方法 | 参数 | 返回 | 仅 Controller |
+|---|---|---|---|
+| `JoinWorkspace` | `JoinWorkspaceRequest` | `WorkspaceSnapshotDto` | 否 |
+| `LeaveWorkspace` | — | void | 否 |
+| `SendDesktopStateChange` | `DesktopStatePatch` | void | 是 |
+| `RequestControl` | `RequestControlRequest` | `ControllerLeaseInfo` | 否 |
+| `ReleaseControl` | — | void | 是 |
+| `Heartbeat` | — | void | 否 |
+
+### Server → Client（on，事件名见 `WorkspaceHubEvents`，接口 `IWorkspaceHubClient`）
+- `OnDesktopStateChanged(DesktopStatePatch)`
+- `OnControllerChanged(ControllerChangedEventArgs)`
+- `OnDeviceConnected(DevicePresenceEventArgs)`
+- `OnDeviceDisconnected(DevicePresenceEventArgs)`
+- `OnSessionUpdated(SessionDto)`
+- `OnWorkspaceStateChanged(WorkspaceState)`
+
+**未设计 `SendInput`**：RemoteOS 是状态同步模式，Controller 输入通过本地应用状态变更 + 状态同步体现，不在 workspace hub 传原始键鼠。
+
+---
+
+## 7. 认证集成
+
+- 登录返回 `AuthTokens`（AccessToken + RefreshToken）
+- REST：`Authorization: Bearer <accessToken>`
+- SignalR：连接时携带 token（query string 或 header），Server 端 `IUserIdProvider` + JWT 中间件解析，连接建立时绑定到 Session/Device/Workspace 并加入对应 Group
+- Controller/Observer 协调在 SignalR Hub 层完成（`RequestControl` / `ReleaseControl` + `OnControllerChanged` 广播）
+
+---
+
+## 8. Terminal 传输（延后）
+
+RemoteTerminal 的 PTY 流传输**不在当前 Protocol 契约**。未来 RemoteTerminal 实现阶段决策：
+- 默认走 SignalR（新建 `TerminalHub`，Binary transfer format + MessagePack 传 `byte[]`，`IAsyncEnumerable<T>` 流式）
+- 若高吞吐 PTY 场景 SignalR 性能不足，可切换裸 WebSocket 端点（如 `/terminals/{id}/stream`，二进制帧）
+
+调研结论：RoyalTerminal（`royalapplications/RoyalTerminal`）是传输无关的终端 UI 栈，通过 `ITerminalTransport` 抽象开放传输方式，SignalR 与裸 WebSocket 均可行。RemoteOS 可用 `RoyalTerminal.Avalonia` 作为终端控件 + 自实现 transport 适配器。
+
+---
+
+## 9. AI Agent Rules
+
+修改 Protocol 层时：
+
+**必须**：
+- 保持 Protocol 零 PackageReference（纯契约）
+- 所有 DTO 公开成员加 `[property: JsonPropertyName]`
+- 路由字符串集中在 `*ApiRoutes` 静态类，不散落
+- Hub 方法名/事件名用 `WorkspaceHubMethods` / `WorkspaceHubEvents` 常量，不用字面量
+- 枚举值与文档（Authentication.md / Security.md / Workspace.md）一致
+
+**禁止**：
+- 在 Protocol 引入 `Microsoft.AspNetCore.SignalR.Client` / `HttpClient` 等实现包
+- 在 Protocol 引用 `RemoteOS.Core`（线协议与 Core 解耦）
+- 业务代码直接调用 HTTP / WebSocket（必须经 Protocol 契约）
+- 把 Server 端 OS 抽象（`IIdentityProvider` 等）放进 Protocol
+
+---
+
+## 10. 相关文档
+
+| 文档 | 用途 |
+|------|------|
+| [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) | 模块定位、依赖约束、架构原则 |
+| [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录、身份模型、User/Session/Device 表 |
+| [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | Workspace 生命周期、Controller/Observer |
+| [`RemoteOS.Security.md`](./RemoteOS.Security.md) | Session 安全、权限提升 |
+| [`RemoteOS.md`](./RemoteOS.md) | 项目结构、当前进度 |

@@ -19,6 +19,11 @@
         <!-- Server -->
         <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
 
+        <!-- Protocol / SignalR / JWT（为后续实现阶段预备，本次仅定义版本，未在任何 csproj 引用） -->
+        <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
+        <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+        <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
+
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
     </ItemGroup>
 </Project>

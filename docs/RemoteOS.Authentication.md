@@ -338,7 +338,7 @@ Table: `session`
 | last_active_at | datetime | 最后活动 |
 | status | string | 状态 |
 
-状态：`Connected` / `Disconnected`
+状态：见 [`RemoteOS.Security.md`](./RemoteOS.Security.md) §16（`Created` → `Active` → `Disconnected` → `Expired`）
 
 ---
 
