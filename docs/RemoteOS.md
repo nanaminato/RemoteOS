@@ -6,6 +6,7 @@
 > - 用户 Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 > - 登录与身份模型见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 > - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
+> - 桌面外壳与模态对话框见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
 >
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
@@ -26,6 +27,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 ## 2. 当前开发阶段
 
 本地 RemoteOS Shell 已完成（Desktop、Window Manager、Application Runtime、Application SDK、内置应用 Welcome/Notepad/Settings）。
+
+桌面外壳已增强：宿主窗口控制（标题栏拖动 / 8 向 resize / 最小化·最大化·关闭 / 全屏）、mstsc 风格连接栏（全屏切换、固定与自动隐藏、连接信息、关闭连接 = 登出）、可复用模态对话框机制（`AppContext.ShowDialogAsync`，支持嵌套与任意结果类型）。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)。
 
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
@@ -99,7 +102,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
   Avalonia Control
   ```
 
-- **职责**：创建窗口、关闭窗口、移动、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State。
+- **职责**：创建窗口、关闭窗口、移动、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State、**模态对话框（`ShowDialogAsync` + `ModalDialog<TResult>` + owner 局部遮罩）**。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3。
 - **窗口创建流程**：
 
   ```text
@@ -117,6 +120,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **定位**：RemoteOS 应用开发接口，类似 Windows SDK / Android SDK。
 - **提供**：
   - **Window API**（已实现）：`AppContext.ShowWindow()`
+  - **Modal Dialog API**（已实现）：`AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)` — 可复用、可嵌套、任意结果类型，详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3
   - **Storage API**（规划）：`Storage.Save()` / `Storage.Load()`
   - **Sync API**（规划）：`Sync.Push()` / `Sync.Pull()`
   - **Remote API**（规划）：`RemoteClient.Execute()`
@@ -235,8 +239,8 @@ Application Package
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成 |
-| MVP 1 | Runtime / App.SDK / Launch App / Create Window | 完成 |
+| MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
+| MVP 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
 | MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（雏形：Welcome/Notepad/Settings） |
 | MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成） |
 
@@ -307,5 +311,6 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | User / Workspace / Session / Device、多设备、云桌面状态 |
 | [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
 | [`RemoteOS.Login.md`](./RemoteOS.Login.md) | 登录模块：mstsc 风格登录窗、auth 端点、JWT、IIdentityProvider、错误处理 |
+| [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) | 桌面外壳：宿主窗口控制、mstsc 连接栏、模态对话框机制 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

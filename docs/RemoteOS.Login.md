@@ -7,6 +7,7 @@
 > - 通信契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
 > - 身份模型与认证原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 > - Workspace / Session / Device 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+> - 登录成功后的桌面外壳（连接栏、断开 = 登出）见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
 > - 整体架构见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 
 ---
@@ -269,6 +270,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - AccessToken TTL：15 分钟（`Jwt:AccessTokenTtl`）。
 - RefreshToken TTL：7 天（`Jwt:RefreshTokenTtl`）。
 - 刷新失败（refresh 过期/已吊销）→ `AuthSession.Reset()` → 状态回 `Unauthenticated`。
+- **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（MVP 断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §2.4。
 
 ---
 

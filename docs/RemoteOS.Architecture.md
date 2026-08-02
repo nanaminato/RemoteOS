@@ -151,7 +151,7 @@ Client ←── Protocol ──→ Server
 
   `WindowManager` 是窗口状态唯一管理者。
 
-- **职责**：Create、Close、Move、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State。
+- **职责**：Create、Close、Move、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State、**模态对话框（`ShowDialogAsync<TResult>` + `ModalDialog<TResult>` + owner 局部遮罩 `ModalBlocker`，可嵌套）**。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3。
 - **应用启动流程**：
 
   ```text
@@ -173,6 +173,7 @@ Client ←── Protocol ──→ Server
 - **定位**：RemoteOS 应用开发接口，类似 Windows SDK / Android SDK。
 - **提供**：
   - **Window API**（已实现）：`AppContext.ShowWindow()`
+  - **Modal Dialog API**（已实现）：`AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)`，可复用、可嵌套、任意结果类型，详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3
   - **Storage API**（规划）：`Storage.Save()` / `Storage.Load()`
   - **Sync API**（规划）：`Sync.Push()` / `Sync.Pull()`
   - **Remote API**（规划）：`RemoteClient.Execute()`
