@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Reflection;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -59,7 +60,7 @@ public partial class LoginViewModel : ObservableObject
         {
             var request = new LoginRequest(
                 Username, Password,
-                ClientPlatform: PlatformKind.Windows,
+                ClientPlatform: DetectClientPlatform(),
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
             await _session.LoginAsync(ServerUrl, request, ct);
@@ -73,7 +74,7 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (HttpRequestException ex)
         {
-            ErrorMessage = $"无法连接到服务器：{ex.Message}";
+            ErrorMessage = MapHttpError(ex);
             HasError = true;
             StatusMessage = string.Empty;
         }
@@ -92,6 +93,41 @@ public partial class LoginViewModel : ObservableObject
            && !string.IsNullOrWhiteSpace(ServerUrl)
            && !string.IsNullOrWhiteSpace(Username)
            && !string.IsNullOrWhiteSpace(Password);
+
+    /// <summary>运行时探测客户端宿主平台，而非硬编码。PlatformKind 目前仅 Linux/Windows。</summary>
+    private static PlatformKind DetectClientPlatform()
+        => OperatingSystem.IsWindows() ? PlatformKind.Windows : PlatformKind.Linux;
+
+    /// <summary>HttpRequestException → 可操作的 UI 文案。重点区分连接拒绝/重置/超时，
+    /// 这些通常对应服务器未启动、地址端口不对，或 HTTP/HTTPS 协议不匹配（最易踩坑）。</summary>
+    private static string MapHttpError(HttpRequestException ex)
+    {
+        if (Walk<SocketException>(ex) is { } sock)
+        {
+            return sock.SocketErrorCode switch
+            {
+                SocketError.ConnectionRefused =>
+                    "无法连接到服务器：连接被拒绝。请确认服务器已启动，且地址与端口正确（开发期默认 http://localhost:5090）。",
+                SocketError.ConnectionReset =>
+                    "无法连接到服务器：连接被远程主机强制关闭。请确认服务器已启动，且客户端与服务器协议一致（HTTP 与 HTTPS 不可混用）。",
+                SocketError.TimedOut =>
+                    "连接服务器超时，请检查网络或服务器地址。",
+                _ => $"无法连接到服务器：{sock.Message}",
+            };
+        }
+        return $"无法连接到服务器：{ex.Message}";
+    }
+
+    /// <summary>沿 InnerException 链查找首个指定类型的异常（HttpRequestException 常包裹多层）。</summary>
+    private static T? Walk<T>(Exception? ex) where T : Exception
+    {
+        while (ex is not null)
+        {
+            if (ex is T t) return t;
+            ex = ex.InnerException;
+        }
+        return null;
+    }
 
     /// <summary>ProblemDetails.Type → 本地化 UI 文案。错误码见 RemoteOS.Login.md 错误处理矩阵。</summary>
     private static string MapProblemToMessage(RemoteOsAuthException ex) => ex.Type switch
