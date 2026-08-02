@@ -7,6 +7,9 @@
         Title="RemoteOS"
         WindowState="Maximized"
         WindowDecorations="None"
+        CanResize="True"
+        MinWidth="800"
+        MinHeight="520"
         ShowInTaskbar="True"
         Background="Black"
         FontFamily="{StaticResource ContentFont}"
@@ -24,8 +27,12 @@
         <Style Selector="Button.connection-action">
             <Setter Property="Foreground" Value="#F5F5F5" />
             <Setter Property="Padding" Value="13,0" />
-            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.connection-action:pointerover">
             <Setter Property="Background" Value="#33FFFFFF" />
@@ -33,14 +40,56 @@
         <Style Selector="Button.disconnect-action:pointerover">
             <Setter Property="Background" Value="#C42B1C" />
         </Style>
+        <Style Selector="Border.window-titlebar">
+            <Setter Property="Background" Value="#202020" />
+        </Style>
+        <Style Selector="Button.window-control">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Foreground" Value="#EDEDED" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.window-control:pointerover">
+            <Setter Property="Background" Value="#3A3A3A" />
+        </Style>
+        <Style Selector="Button.window-close:pointerover">
+            <Setter Property="Background" Value="#C42B1C" />
+        </Style>
     </Window.Styles>
 
-    <Grid x:Name="Root" PointerMoved="Root_OnPointerMoved">
-        <shell:DesktopShellView />
+    <Grid PointerMoved="Root_OnPointerMoved">
+        <Grid x:Name="Root" PointerMoved="Root_OnPointerMoved">
+            <shell:DesktopShellView />
+        </Grid>
 
-        <!-- mstsc-style connection bar. Extra empty space is deliberately kept for future actions. -->
+        <!-- The title bar and mstsc connection bar deliberately share the same top layer. -->
+        <Border x:Name="WindowTitleBar" Classes="window-titlebar" Height="34"
+                VerticalAlignment="Top" PointerPressed="TitleBar_OnPointerPressed">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Width="26" Height="26" Background="#1976C2" Margin="8,0,6,0" CornerRadius="4"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="R" Foreground="White" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Grid.Column="1" Text="RemoteOS 远程桌面" Foreground="#EDEDED" FontSize="12"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Classes="window-control" Content="&#xE921;" Click="Minimize_OnClick" ToolTip.Tip="最小化" />
+                    <Button x:Name="MaximizeButton" Classes="window-control" Content="&#xE922;"
+                            Click="Maximize_OnClick" ToolTip.Tip="最大化" />
+                    <Button Classes="window-control window-close" Content="&#xE8BB;"
+                            Click="CloseWindow_OnClick" ToolTip.Tip="关闭连接" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- mstsc-style connection bar. The centre is intentionally reserved for future actions. -->
         <Border x:Name="ConnectionBar" Classes="connection-bar"
-                HorizontalAlignment="Center" VerticalAlignment="Top" Width="640" Height="40"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Width="520" Height="34"
                 PointerEntered="ConnectionBar_OnPointerEntered"
                 PointerExited="ConnectionBar_OnPointerExited">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
@@ -51,23 +100,20 @@
                         <TextBlock Text="{Binding ConnectionServer}" FontSize="12" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <Border Grid.Column="1" Width="1" Background="#55FFFFFF" Margin="0,8" />
+                <Border Grid.Column="1" Width="1" Background="#55FFFFFF" Margin="0,7" />
                 <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
                         Content="固定" ToolTip.Tip="固定连接栏" />
-
-                <!-- Reserved command area for clipboard, display, and session actions. -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Center" />
-
                 <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
                         Click="FullScreen_OnClick" Content="全屏" ToolTip.Tip="进入全屏" />
-                <Border Grid.Column="5" Width="1" Background="#55FFFFFF" Margin="0,8" />
+                <Border Grid.Column="5" Width="1" Background="#55FFFFFF" Margin="0,7" />
                 <Button Grid.Column="6" Classes="connection-action disconnect-action" Click="Disconnect_OnClick"
                         Content="关闭连接" ToolTip.Tip="断开连接并退出" />
             </Grid>
         </Border>
 
         <Border x:Name="ConnectionInfo" IsVisible="False"
-                HorizontalAlignment="Center" VerticalAlignment="Top" Width="360" Margin="0,50,0,0"
+                HorizontalAlignment="Center" VerticalAlignment="Top" Width="360" Margin="0,42,0,0"
                 Background="#F9F9F9" BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="4"
                 BoxShadow="0 8 18 0 #66000000" Padding="16">
             <StackPanel Spacing="8">
@@ -82,5 +128,23 @@
                 </Grid>
             </StackPanel>
         </Border>
+
+        <!-- Transparent hit targets keep every edge and corner resizable. -->
+        <Border HorizontalAlignment="Left" Width="8" Background="Transparent" Cursor="SizeWestEast"
+                PointerPressed="Resize_OnPointerPressed" Tag="West" />
+        <Border HorizontalAlignment="Right" Width="8" Background="Transparent" Cursor="SizeWestEast"
+                PointerPressed="Resize_OnPointerPressed" Tag="East" />
+        <Border VerticalAlignment="Top" Height="8" Background="Transparent" Cursor="SizeNorthSouth"
+                PointerPressed="Resize_OnPointerPressed" Tag="North" />
+        <Border VerticalAlignment="Bottom" Height="8" Background="Transparent" Cursor="SizeNorthSouth"
+                PointerPressed="Resize_OnPointerPressed" Tag="South" />
+        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Width="12" Height="12" Background="Transparent"
+                Cursor="TopLeftCorner" PointerPressed="Resize_OnPointerPressed" Tag="NorthWest" />
+        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Width="12" Height="12" Background="Transparent"
+                Cursor="TopRightCorner" PointerPressed="Resize_OnPointerPressed" Tag="NorthEast" />
+        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="12" Height="12" Background="Transparent"
+                Cursor="BottomLeftCorner" PointerPressed="Resize_OnPointerPressed" Tag="SouthWest" />
+        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="12" Height="12" Background="Transparent"
+                Cursor="BottomRightCorner" PointerPressed="Resize_OnPointerPressed" Tag="SouthEast" />
     </Grid>
 </Window>

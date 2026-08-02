@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _hideBarTimer;
     private bool _isPinned;
     private bool _isFullScreen;
+    private WindowState _windowStateBeforeFullScreen = WindowState.Maximized;
 
     public MainWindow()
     {
@@ -37,11 +38,15 @@ public partial class MainWindow : Window
 
     private void FullScreen_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (!_isFullScreen)
+            _windowStateBeforeFullScreen = WindowState;
+
         _isFullScreen = !_isFullScreen;
-        WindowState = _isFullScreen ? WindowState.FullScreen : WindowState.Maximized;
+        WindowState = _isFullScreen ? WindowState.FullScreen : _windowStateBeforeFullScreen;
         FullScreenButton.Content = _isFullScreen ? "退出全屏" : "全屏";
         ToolTip.SetTip(FullScreenButton, _isFullScreen ? "退出全屏" : "进入全屏");
         ConnectionInfo.IsVisible = false;
+        WindowTitleBar.IsVisible = !_isFullScreen;
 
         if (_isFullScreen && !_isPinned)
             ScheduleConnectionBarHide();
@@ -50,6 +55,16 @@ public partial class MainWindow : Window
     }
 
     private async void Disconnect_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await DisconnectAsync();
+    }
+
+    private async void CloseWindow_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await DisconnectAsync();
+    }
+
+    private async Task DisconnectAsync()
     {
         ConnectionInfo.IsVisible = false;
         try
@@ -60,6 +75,32 @@ public partial class MainWindow : Window
         {
             Close();
         }
+    }
+
+    private void Minimize_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void Maximize_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var isMaximized = WindowState == WindowState.Maximized;
+        WindowState = isMaximized ? WindowState.Normal : WindowState.Maximized;
+        MaximizeButton.Content = isMaximized ? "\uE922" : "\uE923";
+        ToolTip.SetTip(MaximizeButton, isMaximized ? "最大化" : "还原");
+    }
+
+    private void TitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && WindowState == WindowState.Normal)
+            BeginMoveDrag(e);
+    }
+
+    private void Resize_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (WindowState != WindowState.Normal || sender is not Control { Tag: string edgeName })
+            return;
+
+        if (Enum.TryParse<WindowEdge>(edgeName, out var edge))
+            BeginResizeDrag(edge, e);
     }
 
     private void Root_OnPointerMoved(object? sender, PointerEventArgs e)
