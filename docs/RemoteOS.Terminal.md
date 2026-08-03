@@ -88,23 +88,24 @@ var control = new TerminalControl(
 ┌───────────── Client (RemoteOS.Client) ─────────────┐    ┌──────── Server (RemoteOS.Server) ────────┐
 │                                                    │    │                                          │
 │  TerminalControl                                   │    │  TerminalHub (Hub<ITerminalHubClient>)   │
-│    ├── VT 处理器 (托管, client-side)               │    │    ├── IPty (ConPTY/forkpty)             │
-│    ├── Skia 渲染                                   │    │    └── Shell (powershell/bash)           │
-│    └── TerminalTransportFactory                    │    │                                          │
-│         └── SignalRTransportFactory                │    │  Start(req)  → pty.Start(shell,cols,rows)│
-│              └── SignalRTerminalTransport          │    │  Input(data) → pty.Write(data)           │
-│                   ├── HubConnection                │◄───┤  Resize(c,r) → pty.Resize(c,r)           │
-│                   │   OnOutput(byte[])  ◄──────────┤────┤  pty.DataReceived → Clients.Caller.OnOutput│
-│                   │   OnProcessExited(int) ◄───────┤────┤  pty.ProcessExited → OnProcessExited+Dispose│
-│                   │   Start(Input/Resize/Close) ──►│────┤  Close()      → DisposePty()             │
-│                   │   [JWT via AccessTokenProvider]│    │  OnDisconnected → DisposePty()           │
-│                   └── DataReceived/ProcessExited   │    │                                          │
-│                        (事件, 传给 TerminalControl)  │    │  IPtyFactory (DefaultPtyFactory)        │
-│                                                    │    │                                          │
+│    ├── VT 处理器 (托管, client-side)               │    │    └── TerminalSessionManager (Singleton)│
+│    ├── Skia 渲染                                   │    │         └── TerminalSession              │
+│    └── TerminalTransportFactory                    │    │              └── IPty (ConPTY/forkpty)   │
+│         └── SignalRTransportFactory                │    │  Start(req,sid)→ GetOrCreate+Attach      │
+│              └── SignalRTerminalTransport          │    │                  （回放 1MB 缓冲快照）      │
+│                   ├── HubConnection                │◄───┤  Input(data)  → session.Pty.Write(data) │
+│                   │   OnOutput(byte[])  ◄──────────┤────┤  Resize(c,r)  → session.Pty.Resize(c,r) │
+│                   │   OnProcessExited(int) ◄───────┤────┤  pty.DataReceived→缓冲+Clients.Caller   │
+│                   │   Start(Input/Resize) ────────►│────┤  Close()      → manager.Remove (杀 PTY) │
+│                   │   KillAsync→Close (手动终止) ──►│────┤  ListSessions()→ ListForUser           │
+│                   │   StopAsync (不杀, 仅关连接)    │    │  OnDisconnected→ Detach (保留 PTY)      │
+│                   │   [JWT via AccessTokenProvider]│    │                                          │
+│                   └── DataReceived/ProcessExited   │    │  IPtyFactory (PlatformPtyFactory)       │
+│                        (事件, 传给 TerminalControl)  │    │  IUserIdProvider (sub claim)            │
 └────────────────────────────────────────────────────┘    └──────────────────────────────────────────┘
 ```
 
-**核心设计：服务端是 PTY 哑中继**。Server 端只做三件事：创建 PTY、转发输入字节、回传输出字节。VT 解析（标题/响铃/光标/颜色/滚动）全部在客户端的 `TerminalControl` 内完成。这使得服务端逻辑极简，且 VT 引擎升级不影响服务端。
+**核心设计：服务端是 PTY 哑中继 + 持久会话**。Server 端持有 PTY（与 Hub 连接解耦），只做：附加/创建会话、转发输入字节、回传输出字节（+1MB 环形缓冲供恢复）、手动终止、列表。VT 解析（标题/响铃/光标/颜色/滚动）全部在客户端的 `TerminalControl` 内完成。连接断开**不**杀 PTY，仅 detach；再次登录 `Start(Attach)` 回放缓冲快照重现历史。
 
 ### 3.2 Protocol 契约层
 
@@ -146,36 +147,58 @@ http.AccessTokenProvider = () =>
 
 ## 4. Server 端：TerminalHub
 
-### 4.1 Hub 实现
+### 4.1 Hub 实现（持久会话哑中继）
 
-`RemoteOS.Server/Hubs/TerminalHub.cs`：
+`RemoteOS.Server/Hubs/TerminalHub.cs`：PTY 由 `TerminalSessionManager` 持有，与 Hub 连接解耦。
 
-- **每连接一 PTY**：`Context.Items["pty"]` 存储 `IPty` 实例，连接与 PTY 一一对应。
-- **`Start(StartTerminalRequest)`**：释放旧 PTY（容错）→ `_ptyFactory.Create()` → 订阅 `DataReceived`/`ProcessExited` → `pty.Start(shell, cols, rows, cwd, env, null)`。
-- **`Input(byte[])`**：`pty.Write(data, 0, data.Length)`。
-- **`Resize(int, int, int, int)`**：`pty.Resize(cols, rows, widthPixels, heightPixels)`。
-- **`Close()`**：`DisposePty()`（不关闭连接，允许客户端重新 `Start`）。
-- **`OnDisconnectedAsync`**：`DisposePty()`（连接断开即释放 PTY，确保无残留 shell 进程）。
+- **`Start(StartTerminalRequest req, string? sessionId = null)` → `AttachTerminalResponse`**：`manager.GetOrCreate(UserIdentifier, sessionId, req)` —— sessionId 命中且属于当前用户且未退出则**附加**（先回放缓冲快照），否则**新建** PTY 会话；`Context.Items["sid"]=sessionId`。返回 `{SessionId, Created}`。
+- **`Input(byte[])`**：取 `Context.Items["sid"]` 对应会话 → `pty.Write(data)`。
+- **`Resize(int, int, int, int)`**：对应会话 → `pty.Resize(cols, rows, ...)`。
+- **`Close()`**：`manager.Remove(sid)` —— **手动终止**（杀 PTY 并从注册表移除）。对应客户端"断开"按钮 / 关闭终端窗口。
+- **`ListSessions()`**：`manager.ListForUser(UserIdentifier)` —— 返回当前用户的全部终端会话摘要（多实例）。
+- **`OnDisconnectedAsync(Exception?)`**：`session.Detach(Context.ConnectionId)` —— **仅 detach 当前连接，不终止 PTY**。网络掉线 / 桌面关闭 / 进程退出均走此路径，PTY 存活供再次登录恢复。
 
-### 4.2 PTY 工厂与环境
+### 4.2 持久会话与环形缓冲
 
-- `DefaultPtyFactory`（来自 `RoyalApps.RoyalTerminal.Terminal.Pty.Platform`）：Windows 用 ConPTY，Linux 用 forkpty。
-- 默认 shell：Windows `powershell`，Linux `bash`（`RuntimeInformation.IsOSPlatform` 判定）。
-- 环境：继承宿主进程环境变量 + `TERM=xterm-256color`。
-- 工作目录：请求中未指定时用 `Environment.SpecialFolder.UserProfile`。
+- `Server.Terminal.TerminalSession`：持有 `IPty` + 1MB 环形缓冲（移植自参考项目 `visual-windows-server-master`）。`IPty.DataReceived` 始终把输出追加进缓冲（哪怕无人连接，ConPTY 读线程持续排空管道，shell 不阻塞），并在有附加连接时经 `IHubContext<TerminalHub, ITerminalHubClient>` 转发原始字节。`Attach` 时先把 `GetBufferSnapshot()` 经 `OnOutput` 回放 → 客户端重现历史输出。
+- `Server.Terminal.TerminalSessionManager`（Singleton）：`ConcurrentDictionary<string, TerminalSession>` 按 sessionId 索引、按 UserId 归属。`GetOrCreate` / `ListForUser` / `Remove`。子进程退出经 `ProcessExited` 回调自动出字典。
+- `Server.Terminal.TerminalUserIdProvider`（`IUserIdProvider`）：以 JWT `sub` claim 作为 `Context.UserIdentifier`，供按用户过滤。
+- `IPtyFactory`（`PlatformPtyFactory`）：Windows 用 ConPTY，Linux 用 forkpty。
+- 默认 shell：Windows `powershell`，Linux `bash`；环境继承宿主进程 + `TERM=xterm-256color`；工作目录未指定时用 `UserProfile`。
+
+### 4.2.1 断开语义
+
+| 客户端动作 | 客户端调用 | 服务端结果 | PTY |
+|------------|-----------|-----------|-----|
+| 关闭终端窗口（`Detach`，`IAuthSession.State` 仍 Authenticated） | `KillActiveAsync` → hub `Close` | `manager.Remove` | **终止** |
+| "断开"按钮 | `KillActiveAsync` → hub `Close` | `manager.Remove` | **终止** |
+| 切换会话 / 新建（`StopActiveAsync`，不调 Close） | `conn.StopAsync` | `OnDisconnected` → `Detach` | **存活** |
+| 桌面关闭/登出（`LogoutAsync` 先把 State 置 Unauthenticated，再关窗 → `Detach` 走非 kill 分支） | `conn.StopAsync` | `OnDisconnected` → `Detach` | **存活** |
+| 网络掉线 / 进程退出 / 崩溃 | （无 Close 调用） | `OnDisconnected` → `Detach` | **存活** |
+
+> 关窗与桌面关闭的判据：`MainWindow.DisconnectAsync` 在 `Close()` 前先 `IAuthSession.LogoutAsync`（State→Unauthenticated）。`TerminalViewModel.Detach` 据此判断：`State == Authenticated` 表示仅关了终端窗口 → 杀；否则保留。
 
 ### 4.3 Server 注册
 
 `RemoteOS.Server/Program.cs`：
 
 ```csharp
-builder.Services.AddSingleton<IPtyFactory, DefaultPtyFactory>();
+builder.Services.AddSingleton<IPtyFactory, Server.Terminal.PlatformPtyFactory>();
+builder.Services.AddSingleton<Server.Terminal.TerminalSessionManager>();
+builder.Services.AddSingleton<IUserIdProvider, Server.Terminal.TerminalUserIdProvider>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null); // 大输出流不截断
 // ...
 app.MapHub<TerminalHub>("/hubs/terminals");
 ```
 
-`MaximumReceiveMessageSize = null` 解除 SignalR 默认 32KB 消息上限，允许大块 PTY 输出（如 `cat` 大文件）单帧传输。
+`MaximumReceiveMessageSize = null` 解除 SignalR 默认 32KB 消息上限，允许大块 PTY 输出（如 `cat` 大文件）与 1MB 缓冲快照单帧传输。
+
+**JWT over SignalR**：`AddJwtBearer` 的 `Events.OnMessageReceived` 对 `/hubs/terminals` 路径从查询串 `access_token` 读取 token 注入 `context.Token`（.NET 客户端走 Authorization 头，query 兜底；修复 WebSocket 升级 401）。
+
+### 4.4 恢复与多实例
+
+- **恢复**：再次登录打开终端 → `TerminalViewModel.AttachAsync` 用一次性 Hub 连接调 `ListSessions` 拉取该用户会话 → 自动附加最近一个存活会话 → 服务端 `Start(Attach)` 回放 1MB 缓冲快照 → 客户端 `TerminalControl` 渲染历史输出，可继续输入。
+- **多实例**：每用户可有多个终端会话（sessionId 索引）。进程内 `TerminalViewModel._openSessions`（静态 `ConcurrentDictionary`）记录本进程已开 sessionId，避免两个窗口附加同一会话。工具条 ComboBox 可切换、新建、断开。
 
 ---
 
@@ -183,24 +206,29 @@ app.MapHub<TerminalHub>("/hubs/terminals");
 
 | 时机 | 触发 | 动作 |
 |------|------|------|
-| 控件 Loaded | `TerminalView.OnLoaded` | `vm.AttachAsync(terminal, factory)` → 订阅事件 → `StartSessionAsync()` |
-| 窗口关闭 | `TerminalView.OnUnloaded` | `vm.Detach()` → `factory.StopActiveAsync()`（关连接→Server `OnDisconnected` 释放 PTY）→ `terminal.StopPty()` |
-| 进程退出 | `TerminalControl.ProcessExited` | 更新状态栏、置 `HasExited` |
-| Restart 按钮 | `TerminalViewModel.RestartCommand` | `StopPty()` + `StopActiveAsync()` → `StartSessionAsync()` |
-| Clear 按钮 | `TerminalViewModel.ClearCommand` | `terminal.ClearScrollback()` |
-| 窗口 resize | `TerminalControl` 内部自动同步 | 走 transport `Resize()` → SignalR `Resize` invoke → Server `pty.Resize()` |
+| 控件 Loaded | `TerminalView.OnLoaded` | `vm.AttachAsync` → 订阅事件 → `StartSessionAsync(initial:true)`：拉取会话列表 → 自动恢复或新建 |
+| 关闭终端窗口 | `TerminalView.OnUnloaded` | `vm.Detach()`：若 `State==Authenticated` → `KillActiveAsync`（杀 PTY）；否则 `StopActiveAsync`（保留 PTY）→ `terminal.StopPty()` |
+| 桌面关闭/登出 | `MainWindow.DisconnectAsync` | 先 `LogoutAsync`（State→Unauthenticated）→ `Close()` → 各终端 `Detach` 走非 kill 分支（PTY 存活） |
+| 网络掉线/进程退出 | — | 客户端无 Close 调用；服务端 `OnDisconnected` → `Detach`（PTY 存活） |
+| 进程退出 | `TerminalControl.ProcessExited` | 更新状态栏、置 `HasExited`；服务端会话自动出字典 |
+| 切换会话 | `SwitchSessionCommand` | `StopActiveAsync`（不杀）→ `StartSessionAsync(sessionId)` |
+| 新建 | `NewTerminalCommand` | `StopActiveAsync`（不杀）→ `StartSessionAsync(null)` |
+| 断开按钮 | `DisconnectCommand` | `KillActiveAsync`（杀）→ 从本地列表移除 |
+| Restart 按钮 | `RestartCommand` | `KillActiveAsync`（杀旧）→ `StartSessionAsync(null)` |
+| Clear 按钮 | `ClearCommand` | `terminal.ClearScrollback()` |
+| 窗口 resize | `TerminalControl` 内部自动同步 | transport `Resize()` → SignalR `Resize` → `pty.Resize()` |
 
 ### 5.1 模式选择（TerminalViewModel.StartSessionAsync）
 
 ```csharp
-if (_session is { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens })
+if (_session is { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } })
 {
-    // Remote Mode: SignalR transport
-    options = new SignalRTransportOptions(
-        hubUrl: $"{url.TrimEnd('/')}/hubs/terminals",
-        dimensions: dimensions,
-        tokenProvider: () => _session.Tokens?.AccessToken,
-        accessToken: tokens.AccessToken);
+    // Remote Mode: 先拉取会话列表，自动恢复或新建
+    var listOpts = BuildRemoteOptions(url, dimensions, sessionId: null);
+    Sessions = (await TerminalHubConnection.ListSessionsAsync(listOpts)).ToArray();
+    var resumeId = initial ? Sessions.Where(s => !s.HasExited && !_openSessions.ContainsKey(s.SessionId))
+                                     .OrderByDescending(s => s.CreatedAt).FirstOrDefault()?.SessionId : sessionId;
+    options = BuildRemoteOptions(url, dimensions, resumeId);  // SignalRTransportOptions，含 SessionId
 }
 else
 {
@@ -249,19 +277,24 @@ else
 | 文件 | 职责 |
 |------|------|
 | `Client/RemoteOS.Client/Apps/TerminalApp.cs` | `RemoteApplicationBase` 实现，Manifest + `Activate` 开窗，注入 `IAuthSession` |
-| `Client/RemoteOS.Client/Apps/TerminalView.axaml` | UserControl，工具条 + `TerminalHost`（Grid 占位） |
+| `Client/RemoteOS.Client/Apps/TerminalView.axaml` | UserControl，工具条（会话 ComboBox/切换/新建/断开/Restart/Clear）+ `TerminalHost` |
 | `Client/RemoteOS.Client/Apps/TerminalView.axaml.cs` | code-behind 创建 `TerminalControl`（9-param ctor）+ 焦点管理 |
-| `Client/RemoteOS.Client/Apps/TerminalViewModel.cs` | 会话状态、模式选择（Remote/Local）、Restart/Clear 命令 |
-| `Client/RemoteOS.Client/Apps/SignalRTransportOptions.cs` | SignalR 传输选项 DTO |
-| `Client/RemoteOS.Client/Apps/SignalRTerminalTransport.cs` | `ITerminalTransport` 的 SignalR 实现 |
-| `Client/RemoteOS.Client/Apps/SignalRTransportFactory.cs` | 传输工厂：SignalR + 本地 PTY 回退 |
+| `Client/RemoteOS.Client/Apps/TerminalViewModel.cs` | 会话状态、列表+恢复、断开语义、切换/新建/断开/Restart/Clear 命令 |
+| `Client/RemoteOS.Client/Apps/SignalRTransportOptions.cs` | SignalR 传输选项 DTO（含 `SessionId`） |
+| `Client/RemoteOS.Client/Apps/SignalRTerminalTransport.cs` | `ITerminalTransport` 的 SignalR 实现（`StartAsync` 附加、`StopAsync` 不杀、`KillAsync` 杀、`ListSessionsAsync`） |
+| `Client/RemoteOS.Client/Apps/SignalRTransportFactory.cs` | 传输工厂：SignalR + 本地 PTY 回退；`StopActiveAsync`/`KillActiveAsync`/`CurrentSessionId` |
+| `Client/RemoteOS.Client/Apps/TerminalHubConnection.cs` | 构建 `HubConnection` + 一次性连接拉取 `ListSessions` |
 
 ### Server 端
 
 | 文件 | 职责 |
 |------|------|
-| `RemoteOS.Server/Hubs/TerminalHub.cs` | PTY 哑中继 Hub（Start/Input/Resize/Close + OnDisconnected 清理） |
-| `RemoteOS.Server/Program.cs` | 注册 `IPtyFactory` + `AddSignalR` + `MapHub<TerminalHub>` |
+| `RemoteOS.Server/Hubs/TerminalHub.cs` | 持久会话 Hub（Start=attach/create, Input, Resize, Close=kill, ListSessions, OnDisconnected=detach） |
+| `RemoteOS.Server/Terminal/TerminalSession.cs` | PTY + 1MB 环形缓冲 + attach/detach/kill |
+| `RemoteOS.Server/Terminal/TerminalSessionManager.cs` | Singleton 注册表（sessionId 索引、userId 过滤） |
+| `RemoteOS.Server/Terminal/TerminalUserIdProvider.cs` | `IUserIdProvider`（JWT sub claim） |
+| `RemoteOS.Server/Terminal/ConPty.cs` / `PlatformPtyFactory.cs` | Windows ConPTY / Unix forkpty 工厂 |
+| `RemoteOS.Server/Program.cs` | 注册 `IPtyFactory`/Manager/`IUserIdProvider` + `AddSignalR` + JwtBearer `OnMessageReceived` + `MapHub<TerminalHub>` |
 
 ### Protocol 契约层
 
@@ -269,8 +302,10 @@ else
 |------|------|
 | `Shared/RemoteOS.Protocol/Hubs/ITerminalHubClient.cs` | server→client 接口 |
 | `Shared/RemoteOS.Protocol/Hubs/TerminalHubEvents.cs` | server→client 事件名常量 |
-| `Shared/RemoteOS.Protocol/Hubs/TerminalHubMethods.cs` | client→server 方法名常量 |
+| `Shared/RemoteOS.Protocol/Hubs/TerminalHubMethods.cs` | client→server 方法名常量（Start/Input/Resize/Close/ListSessions） |
 | `Shared/RemoteOS.Protocol/Hubs/StartTerminalRequest.cs` | 启动请求 DTO |
+| `Shared/RemoteOS.Protocol/Hubs/AttachTerminalResponse.cs` | `Start` 返回值（SessionId + Created） |
+| `Shared/RemoteOS.Protocol/Hubs/TerminalSessionInfo.cs` | 会话摘要 DTO（ListSessions 用） |
 
 ### 包管理
 
@@ -287,14 +322,16 @@ else
 实现与维护终端模块时必须遵守：
 
 - **Remote Mode 是默认模式**：认证后（`IAuthSession.State == Authenticated`）自动走 SignalR 远端 PTY。Local Mode 仅作未登录时的 dev 回退，不得作为正式运行模式。
-- **传输用 SignalR，禁止裸 WebSocket**：RoyalTerminal 传输抽象（`ITerminalTransport`）是传输方式无关的，本项目选择 SignalR（自动重连 + JWT + 强类型 Hub）。禁止为终端单独引入裸 WebSocket 端点。
+- **传输用 SignalR，禁止裸 WebSocket**：RoyalTerminal 传输抽象（`ITerminalTransport`）是传输方式无关的，本项目选择 SignalR（JWT + 强类型 Hub + 一次性连接拉取列表）。禁止为终端单独引入裸 WebSocket 端点。**不启用 `WithAutomaticReconnect`**（自动重连后服务端不会自动重新附加会话，进入半附加状态）；恢复路径是"再次登录打开终端"→重新 `Start(Attach)`→服务端回放缓冲快照。
 - **`TerminalControl` 在 code-behind 创建（9-param ctor）**：`TerminalTransportFactory` 是只读属性，只能通过构造函数注入 `SignalRTransportFactory`。禁止在 XAML 中声明 `TerminalControl` 后尝试运行时替换传输工厂。
-- **服务端是 PTY 哑中继**：`TerminalHub` 只做创建/输入/输出/退出/尺寸/清理，**不做 VT 解析**。VT 渲染（标题/响铃/光标/颜色）全部在客户端 `TerminalControl` 完成。服务端不得引入 VT 处理器。
-- **Hub 方法名必须与 `TerminalHubMethods` 常量一致**：Server Hub 方法 `Start`/`Input`/`Resize`/`Close` 必须与 `TerminalHubMethods` 中的常量值（`nameof`）完全匹配，否则 SignalR 运行时找不到方法。
-- **连接断开即释放 PTY**：`TerminalHub.OnDisconnectedAsync` 必须调用 `DisposePty()`。禁止在服务端保留无连接的 PTY（会导致 shell 进程泄漏）。
-- **JWT 鉴权**：`TerminalHub` 标注 `[Authorize]`；Client 端通过 `AccessTokenProvider` 从 `IAuthSession.Tokens.AccessToken` 获取 token。禁止未认证连接。
+- **服务端是 PTY 哑中继 + 持久会话**：`TerminalHub` 只做附加/输入/输出/退出/尺寸/手动终止/列表，**不做 VT 解析**。PTY 由 `TerminalSessionManager` 持有，与 Hub 连接解耦。VT 渲染（标题/响铃/光标/颜色）全部在客户端 `TerminalControl` 完成。服务端不得引入 VT 处理器。
+- **Hub 方法名必须与 `TerminalHubMethods` 常量一致**：Server Hub 方法 `Start`/`Input`/`Resize`/`Close`/`ListSessions` 必须与 `TerminalHubMethods` 中的常量值（`nameof`）完全匹配，否则 SignalR 运行时找不到方法。
+- **连接断开仅 detach，保留 PTY**：`TerminalHub.OnDisconnectedAsync` 必须调用 `session.Detach(Context.ConnectionId)`，**禁止**在断开时杀 PTY。只有显式 `Close`（客户端"断开"按钮 / 关闭终端窗口）才 `manager.Remove` 杀 PTY。这是"再次登录恢复原桌面"的前提。
+- **断开语义判据**：客户端 `TerminalViewModel.Detach` 按 `IAuthSession.State` 判断——`Authenticated` 表示仅关了终端窗口 → `KillActiveAsync`（杀）；`Unauthenticated`（桌面登出/关闭中）→ `StopActiveAsync`（保留）。网络掉线/崩溃不触发 `Detach`，服务端 `OnDisconnected` 保留 PTY。
+- **JWT 鉴权 + query 兜底**：`TerminalHub` 标注 `[Authorize]`；Client 端通过 `AccessTokenProvider` 从 `IAuthSession.Tokens.AccessToken` 取 token；Server `AddJwtBearer` 的 `OnMessageReceived` 对 `/hubs/terminals` 从查询串 `access_token` 读 token（修复 WebSocket 升级 401）。禁止未认证连接。
+- **按用户索引会话**：`TerminalUserIdProvider`（`IUserIdProvider`）以 JWT `sub` claim 作 `Context.UserIdentifier`；会话按 sessionId 索引、按 userId 归属过滤。多实例。
 - **嵌入 `TerminalControl`，禁止引入 `RoyalApps.RoyalTerminal.Avalonia.App`**：RemoteOS 自有 WindowManager / RemoteWindow / Taskbar，不能被 RoyalTerminal 的外壳接管。
 - **焦点修复不可移除**：`TerminalControl.Focusable = true`（code-behind 设置）+ `PointerPressed` 延迟聚焦是输入正常的前提。`RemoteWindow` 的 `WindowManager.Focus` 会抢回焦点，必须用 `Dispatcher.UIThread.Post` 延迟。
-- **会话清理走 View 的 `OnUnloaded`**：SDK 无 `Deactivate` 钩子；`RemoteWindow` 关闭 → 控件离开视觉树 → `Detach()` → `StopActiveAsync()`（关 SignalR 连接）+ `StopPty()`。
+- **会话清理走 View 的 `OnUnloaded`**：SDK 无 `Deactivate` 钩子；`RemoteWindow` 关闭 → 控件离开视觉树 → `Detach()` → 按断开语义 `KillActiveAsync`/`StopActiveAsync` + `StopPty()`。
 - **不引入 native Ghostty VT**（除非显式需求）：MVP 用托管 VT；引入 native 需按 RID 处理原生资产包。
 - **程序集名是 `RoyalTerminal.Avalonia`**（非 NuGet 包 id `RoyalApps.RoyalTerminal.Avalonia`）；`NullSshCredentialProvider` 在 `RoyalTerminal.Terminal.Transport.Ssh.SshNet` namespace，`KnownHostsSshHostKeyValidator` 在 `RoyalTerminal.Terminal.Transport.Ssh` namespace（abstractions 程序集，传递依赖可用）。

@@ -1,12 +1,29 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
+             xmlns:hubs="clr-namespace:RemoteOS.Protocol.Hubs;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.TerminalView"
              x:DataType="app:TerminalViewModel"
              Background="#0C0C0C">
     <Grid RowDefinitions="Auto,*">
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
             <StackPanel Orientation="Horizontal" Spacing="6">
+                <ComboBox ItemsSource="{Binding Sessions}"
+                          SelectedItem="{Binding SelectedSession}"
+                          MinWidth="140"
+                          PlaceholderText="会话">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="hubs:TerminalSessionInfo">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding CreatedAt, StringFormat='{}{0:MM-dd HH:mm:ss}'}" />
+                                <TextBlock Text="已退出" Foreground="#C00" IsVisible="{Binding HasExited}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="切换" Command="{Binding SwitchSessionCommand}" CommandParameter="{Binding SelectedSession}" />
+                <Button Content="新建" Command="{Binding NewTerminalCommand}" />
+                <Button Content="断开" Command="{Binding DisconnectCommand}" />
                 <Button Content="Restart" Command="{Binding RestartCommand}" />
                 <Button Content="Clear" Command="{Binding ClearCommand}" />
                 <TextBlock Text="{Binding Status}" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />

@@ -47,6 +47,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg.Secret)),
             ClockSkew = TimeSpan.FromSeconds(30),
         };
+        // SignalR WebSocket 升级请求无法可靠携带 Authorization 头（.NET 客户端走头，但补齐 query 兜底）。
+        // 对终端 Hub 路径，从查询串 access_token 读取令牌注入 JwtBearer，修复 WebSocket 升级 401。
+        opts.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) &&
+                    path.StartsWithSegments("/hubs/terminals"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -62,9 +78,12 @@ builder.Services.AddSingleton<IWorkspaceRepository, InMemoryWorkspaceRepository>
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
 builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 
-// 终端：服务端 PTY 工厂（Windows ConPTY / Unix forkpty）+ SignalR Hub（哑中继）。
+// 终端：服务端 PTY 工厂（Windows ConPTY / Unix forkpty）+ 持久会话管理器 + SignalR Hub。
 // AddSignalR 由 Microsoft.NET.Sdk.Web 隐式 FrameworkReference 提供，无需额外 NuGet。
 builder.Services.AddSingleton<IPtyFactory, Server.Terminal.PlatformPtyFactory>();
+builder.Services.AddSingleton<Server.Terminal.TerminalSessionManager>();
+// 以 JWT sub claim 作为 Hub UserIdentifier，供 TerminalHub 按用户索引/过滤持久会话。
+builder.Services.AddSingleton<IUserIdProvider, Server.Terminal.TerminalUserIdProvider>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null);
 
 // CORS（开发期允许客户端跨域）
