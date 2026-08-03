@@ -34,6 +34,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
+        services.AddSingleton<IRemoteApplication, TerminalApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {

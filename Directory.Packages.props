@@ -25,5 +25,10 @@
         <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
+
+        <!-- Terminal: RoyalTerminal 终端栈（Managed Avalonia terminal，含 TerminalControl + 默认会话组合） -->
+        <PackageVersion Include="RoyalApps.RoyalTerminal.Avalonia" Version="0.4.0" />
+        <!-- Server 端 PTY 工厂（Windows ConPTY / Unix forkpty），Terminal Hub 哑中继用 -->
+        <PackageVersion Include="RoyalApps.RoyalTerminal.Terminal.Pty.Platform" Version="0.4.0" />
     </ItemGroup>
 </Project>

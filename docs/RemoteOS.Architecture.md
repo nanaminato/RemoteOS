@@ -262,11 +262,12 @@ RemoteOS 应用分为两类。
 
 - **运行位置**：`RemoteOS.Server`。
 - **特点**：Server 执行 Runtime、Client 提供交互 UI、状态持久保存。
-- **例如 RemoteTerminal**：
-  - Client：Terminal Window、Input、Output Rendering
-  - Server：PTY、Shell、Process
+- **例如 RemoteTerminal**（**已实现 MVP**）：
+  - Client：Terminal Window、Input、Output Rendering（VT 解析在客户端 `TerminalControl` 完成）
+  - Server：PTY（ConPTY/forkpty）、Shell、Process（`TerminalHub` 哑中继，只转发字节）
+  - 传输：SignalR Hub（`/hubs/terminals`），JWT 鉴权，详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)
 - **断开**：Client Offline 不会导致 Runtime Destroy。
-- **重新连接**：Restore Terminal Session。
+- **重新连接**：Restore Terminal Session（MVP 阶段断开即释放 PTY，重连恢复为后续演进）。
 
 ---
 

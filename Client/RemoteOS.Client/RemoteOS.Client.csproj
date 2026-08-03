@@ -22,6 +22,8 @@
         <PackageReference Include="CommunityToolkit.Mvvm"/>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection"/>
         <PackageReference Include="Microsoft.Extensions.Http"/>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client"/>
+        <PackageReference Include="RoyalApps.RoyalTerminal.Avalonia"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -1,0 +1,228 @@
+# RemoteOS 桌面外壳与模态对话框设计文档
+
+> 本文档定义 RemoteOS 登录成功后的桌面外壳交互层：宿主窗口（`MainWindow`）的窗口控制与 mstsc 风格连接栏，以及 Framework 层的可复用模态对话框机制（`ModalDialog` / `ShowDialogAsync`）。
+>
+> - 登录流程与认证会话见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)
+> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
+> - 项目结构与当前进度见 [`RemoteOS.md`](./RemoteOS.md)
+
+---
+
+## 1. 模块定位
+
+登录成功后，`App.axaml.cs` 把桌面 `MainWindow`（顶层 Avalonia `Window`，`WindowDecorations=None`）显示给用户。`MainWindow` 内部承载 `DesktopShellView`（桌面 + 任务栏 + 开始菜单 + `WindowManager` 的窗口宿主 Canvas）。本文档覆盖这一层新增的两块能力：
+
+| 能力 | 层 | 说明 |
+|---|---|---|
+| 宿主窗口控制 | `Client`（`MainWindow`） | 标题栏拖动、8 向 resize、最小化/最大化/关闭、全屏切换 |
+| mstsc 连接栏 | `Client`（`MainWindow` + `DesktopShellViewModel`） | 全屏/固定/自动隐藏、连接信息、关闭连接 = 登出 |
+| 模态对话框 | `Framework`（`WindowManager` + `App.SDK`） | `ModalDialog<TResult>` / `ShowDialogAsync` / `ModalBlocker`，可复用、可嵌套 |
+
+设计目标：
+
+- **宿主窗口**模拟原生 OS 窗口（mstsc 全屏体验）：自绘标题栏 + 系统控制按钮，进入全屏隐藏标题栏，连接栏仿 mstsc 顶部条。
+- **模态对话框是真正的受管窗口**（`ManagedWindow`），可移动、可 resize，只屏蔽其直接 owner，其它窗口保持可交互；支持嵌套与任意结果类型。
+
+---
+
+## 2. 宿主窗口控制（MainWindow）
+
+### 2.1 标题栏与系统控制
+
+`MainWindow.axaml` 设 `WindowDecorations="None"` + `WindowState="Maximized"` + `MinWidth=800 MinHeight=520`，自绘：
+
+- **标题栏**（`WindowTitleBar`，高 34）：`PointerPressed` → `BeginMoveDrag`（仅 `WindowState == Normal` 时）。
+- **系统按钮**（Segoe MDL2 Assets 字形）：
+  - 最小化（`&#xE921;`）→ `WindowState = Minimized`
+  - 最大化/还原（`&#xE922;` / `&#xE923;`）→ 切换 `Normal`/`Maximized`，按钮字形与 Tooltip 同步
+  - 关闭（`&#xE8BB;`，红底）→ 执行登出并关闭（见 §2.3）
+
+### 2.2 8 向 resize
+
+`MainWindow` 周围放 8 个透明命中区（4 边 + 4 角），`Tag` 标记方向：
+
+```text
+[NW][──North──][NE]
+[│                 │]
+[W     桌面内容    E]
+[│                 │]
+[SW][──South──][SE]
+```
+
+`Resize_OnPointerPressed` 把 `Tag`（`West`/`East`/`North`/`South`/`NorthWest`/`NorthEast`/`SouthWest`/`SouthEast`）解析为 Avalonia `WindowEdge`，仅 `WindowState == Normal` 时 `BeginResizeDrag(edge, e)`。`MinWidth/MinHeight` 防止桌面内容过度压缩。
+
+> 这是**宿主 Avalonia Window** 的 resize，与 `WindowManager` 内部 `RemoteWindow` 的 8 向 resize（`ComputeResize`）是两套独立机制：前者管整个桌面窗口的边框，后者管桌面内每个应用窗口。
+
+### 2.3 mstsc 风格连接栏
+
+连接栏（`ConnectionBar`）与标题栏同处顶层，居中悬浮顶部（520×34，下圆角 7，阴影）：
+
+```text
+[ 服务器信息 ][│][ 固定/已固定 ][   预留    ][ 全屏/退出全屏 ][│][ 关闭连接 ]
+```
+
+| 控件 | 行为 |
+|---|---|
+| 服务器信息按钮 | 点击切换 `ConnectionInfo` 面板（服务器/用户/工作区，绑定 `IAuthSession`） |
+| 固定 / 已固定 | `_isPinned` 切换；固定时停止自动隐藏计时器 |
+| 全屏 / 退出全屏 | `_isFullScreen` 切换 `WindowState.FullScreen`；进全屏隐藏标题栏；未固定时 2s 后自动隐藏连接栏 |
+| 关闭连接 | `DisconnectAsync()` → `IAuthSession.LogoutAsync()` → `Close()` |
+
+中间 `StackPanel` 预留未来动作位（剪贴板、显示设置、会话操作等）。
+
+**自动隐藏行为**（mstsc 仿生）：
+
+- 进全屏且未固定 → `DispatcherTimer`（2s）到点隐藏 `ConnectionBar` + `ConnectionInfo`
+- 鼠标移到顶部（`Y <= 6`）→ 停止计时器并重新显示连接栏（`Root_OnPointerMoved`）
+- 鼠标进入连接栏 → 停止计时器；离开 → 重新排程隐藏
+- `DispatcherTimer` 单次触发：首次 tick 内 `Stop()`（Avalonia 无 `AutoReset`）
+
+**连接信息绑定**（`DesktopShellViewModel`）：
+
+```text
+ConnectionServer    ← IAuthSession.ServerUrl                （未连接时 "未连接"）
+ConnectionUser      ← IAuthSession.CurrentUser.Username
+ConnectionWorkspace ← IAuthSession.CurrentWorkspace.Name
+```
+
+### 2.4 关闭连接 = 登出
+
+```text
+用户点"关闭连接"或标题栏"关闭"
+    → DisconnectAsync()
+        → IAuthSession.LogoutAsync()   // 吊销 RefreshToken，状态回 Unauthenticated
+        → MainWindow.Close()
+        → MainWindow.Closed → desktop.Shutdown()   // 进程退出
+```
+
+> 这是登录会话与桌面外壳的衔接点：连接栏把"断开远程连接"映射为 `IAuthSession.LogoutAsync`，与 [`RemoteOS.Login.md`](./RemoteOS.Login.md) §7 的登出路径一致。MVP 阶段断开即退出进程（不回 `LoginWindow`），未来可改为回登录窗。
+
+---
+
+## 3. 模态对话框系统（Framework）
+
+### 3.1 设计目标
+
+应用需要弹"输入框""选择文件""确认"等模态对话。RemoteOS 的模态对话框设计为**真正的受管窗口**：
+
+- 对话框是一个 `ManagedWindow`（由 `WindowManager.Create` 创建），可移动、可 resize，与普通应用窗口共用同一套 z-order / 焦点逻辑。
+- **只屏蔽其直接 owner**：通过一个跟随 owner 的半透明遮罩（`ModalBlocker`）盖住 owner，owner 之外其它窗口仍可交互。
+- **可嵌套**：对话框可以再弹自己的子对话框（owner = 该对话框窗口）。
+- **任意结果类型**：`ModalDialog<TResult>`，`await` 返回 `TResult?`；取消/关闭返回 `default`。
+- **自动清理**：owner 关闭/最小化、对话框关闭、Esc/取消按钮，都触发 session 取消并移除遮罩。
+
+### 3.2 核心类型（`Framework/RemoteOS.WindowManager/`）
+
+```text
+ModalDialog<TResult>        对话框句柄：Owner / Result(Task<TResult?>) / Close(result) / Cancel()
+                            ShowDialogAsync<TChild>(...) 打开子模态（owner = 本对话框窗口）
+ModalBlocker : Border       半透明遮罩（#3D000000），ApplyBounds 跟随 owner
+ModalSession<TResult>      owner + dialogWindow + blocker + dialog，实现 IModalSession
+IWindowManager.ShowDialogAsync<TResult>(owner, title, contentFactory)
+AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)   // 应用入口
+```
+
+### 3.3 ShowDialogAsync 流程
+
+```text
+WindowManager.ShowDialogAsync<TResult>(owner, title, contentFactory)
+    │
+    Create WindowCreateOptions(ownerAppId = owner.OwnerAppId, CanResize = true,
+                              CanMinimize = false, CanMaximize = false)   → 受管对话框窗口
+    │
+    new ModalBlocker(owner); blocker.ApplyBounds(owner.Bounds)
+    blocker.ZIndex = dialogWindow.View.ZIndex - 1   // 遮罩在 owner 之上、对话框之下
+    _host.Children.Add(blocker)
+    │
+    new ModalSession(owner, dialogWindow, blocker, dialog) → _modalSessions
+    │
+    dialog.Result.ContinueWith → Dispatcher.UIThread.Post(CloseModalSession)
+    │
+    return dialog.Result   // 调用方 await
+```
+
+`CloseModalSession`：从 `_modalSessions` 移除 → 从 host 移除 blocker → 若对话框窗口仍开则 `Close(dialogWindow)`。
+
+对话框窗口尺寸由 owner 推算：居中于 owner，宽 320–460、高 220–320（不超出 owner）。
+
+### 3.4 遮罩跟随 owner
+
+owner 拖动/resize 时，`WindowManager` 调 `UpdateDialogs(owner)` 对该 owner 的每个 session 重新 `blocker.ApplyBounds(owner.Info.Bounds)`，遮罩始终贴合 owner。`SetHostBounds`（宿主区域变化）也会同步更新所有 session 的 blocker 边界。
+
+```text
+owner 拖动/Resize ──→ OnDrag/OnResize ──→ UpdateDialogs(owner) ──→ blocker.ApplyBounds(owner.Bounds)
+宿主区域变化     ──→ SetHostBounds     ──→ 遍历 _modalSessions ──→ blocker.ApplyBounds(owner.Bounds)
+```
+
+### 3.5 自动取消场景
+
+| 触发 | 行为 |
+|---|---|
+| 对话框调 `dialog.Close(result)` | `TaskCompletionSource.TrySetResult(result)` → session 关闭 |
+| 对话框调 `dialog.Cancel()` / Esc / 取消按钮 | `TrySetResult(default)` → 返回 null |
+| owner 被 `Close()` | `Close` 遍历 `_modalSessions` 取消相关 session |
+| owner 被 `Minimize()` | 最小化前取消该 owner 的 session（避免遮罩悬空） |
+| 对话框窗口被关闭 | `dialog.Result` 已完成 → `CloseModalSession` 移除遮罩 |
+
+### 3.6 嵌套模态
+
+`ModalDialog<TResult>.ShowDialogAsync<TChild>(title, contentFactory)` 把**本对话框窗口**作为子对话框的 owner 调 `WindowManager.ShowDialogAsync`，形成栈式嵌套。每层各自有 owner + blocker + session，互不干扰。
+
+### 3.7 应用接入
+
+应用通过 `AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)` 打开对话框，`contentFactory` 收到一个 `ModalDialog<TResult>`，用其 `Close`/`Cancel` 构造 ViewModel 的回调：
+
+```csharp
+var result = await context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
+    new FilePickerView { DataContext = new FilePickerViewModel(dialog.Close, dialog.Cancel) });
+```
+
+### 3.8 内置示例（Notepad）
+
+| 入口 | 对话框 | 结果 |
+|---|---|---|
+| Notepad → Insert text... | `NotepadInsertDialogView` | string（追加到正文） |
+|   └─ 从子对话框添加... | `NotepadInsertDialogView`（嵌套，owner = 父对话框窗口） | string（拼到父输入框） |
+| Notepad → Open... | `FilePickerView`（"选择文件"模式） | 文件路径 string → `File.ReadAllTextAsync` |
+
+`FilePickerViewModel` 用本地 `Directory.Enumerate*` 列目录，选中文件后 `dialog.Close(fullPath)`；返回路径后 Notepad 读取文件内容。这同时验证了"模态对话框返回任意类型结果"与"应用通过对话框获取输入"两条路径。
+
+---
+
+## 4. 关键文件清单
+
+| 文件 | 职责 |
+|---|---|
+| `Client/RemoteOS.Client/Views/MainWindow.axaml`(+`.cs`) | 宿主窗口：标题栏、8 向 resize 命中区、连接栏、连接信息面板、全屏/固定/自动隐藏、关闭 = 登出 |
+| `Client/RemoteOS.Client/ViewModels/Shell/DesktopShellViewModel.cs` | `ConnectionServer/User/Workspace` 绑定 `IAuthSession` |
+| `Framework/RemoteOS.WindowManager/ModalDialog.cs` | `ModalDialog<TResult>` / `ModalBlocker` / `ModalSession` / `IModalSession` |
+| `Framework/RemoteOS.WindowManager/WindowManager.cs` | `ShowDialogAsync` / `CloseModalSession` / `UpdateDialogs` |
+| `Framework/RemoteOS.WindowManager/IWindowManager.cs` | `ShowDialogAsync` 接口契约 |
+| `Framework/RemoteOS.App.SDK/AppContext.cs` | `ShowDialogAsync` 应用入口 |
+| `Client/RemoteOS.Client/Apps/NotepadApp.cs` | 模态对话框 + 嵌套 + 文件选择示例装配 |
+| `Client/RemoteOS.Client/Apps/NotepadInsertDialogView.axaml`(+`.cs`) + `NotepadInsertDialogViewModel.cs` | 文本输入对话框 |
+| `Client/RemoteOS.Client/Apps/FilePickerView.axaml`(+`.cs`) + `FilePickerViewModel.cs` + `FilePickerEntry.cs` | 文件选择对话框（"选择文件"模式） |
+
+---
+
+## 5. AI Agent 理解规则
+
+实现/修改桌面外壳与模态对话框时必须遵守：
+
+**必须**：
+
+- 模态对话框必须是**真正的受管窗口**（`WindowManager.Create`），不要用 Avalonia 顶层 `Window.ShowDialog` 绕开 WindowManager。
+- `ShowDialogAsync` 的遮罩只盖 owner；owner 拖动/resize/宿主区域变化时必须 `UpdateDialogs` / `SetHostBounds` 同步 blocker 边界。
+- owner 关闭/最小化前必须取消其 modal session（避免遮罩悬空或对话框孤儿）。
+- 应用层一律经 `AppContext.ShowDialogAsync` 打开对话框，不直接调 `WindowManager.ShowDialogAsync`。
+- 宿主 `MainWindow` 的 resize/拖动用 Avalonia `BeginMoveDrag` / `BeginResizeDrag(WindowEdge)`；`WindowDecorations=None` + 自绘标题栏。
+- "关闭连接"/标题栏关闭 = `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`，与登录模块登出路径一致。
+- `DispatcherTimer` 单次触发：首次 tick 内 `Stop()`（Avalonia 无 `AutoReset`）。
+
+**禁止**：
+
+- 用 `RemoteWindow` 承载模态对话框以外的"屏蔽全桌面"遮罩（遮罩只跟随 owner，不屏蔽其它窗口）。
+- 在 `WindowManager.ShowDialogAsync` 之外另起模态实现。
+- 让模态遮罩脱离 owner 边界（必须 `ApplyBounds(owner.Info.Bounds)` 跟随）。
+- 把宿主 `MainWindow` 的窗口控制与桌面内 `RemoteWindow` 的 resize 混为一谈（两套独立机制）。
+- 在连接栏"关闭连接"里跳过 `LogoutAsync` 直接 `Close()`（会留下未吊销的 RefreshToken）。

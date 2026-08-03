@@ -1,0 +1,47 @@
+using RoyalTerminal.Terminal;
+using RoyalTerminal.Terminal.Transport.Pty;
+
+namespace Client.Apps;
+
+/// <summary>
+/// 自包含的终端传输工厂：对 <see cref="SignalRTransportOptions"/> 返回 SignalR 传输（远端 PTY），
+/// 其余选项（如 <c>PtyTransportOptions</c> 本地回退）委托内部 <c>CompositeTerminalTransportFactory</c>。
+/// 持有最近创建的 SignalR 传输引用，供窗口关闭时主动停止连接
+/// （→ 服务端 <c>OnDisconnectedAsync</c> 释放 PTY）。
+/// </summary>
+/// <remarks>
+/// 本工厂在 <c>TerminalControl</c> 构造时通过 9 参数构造函数注入（<c>TerminalTransportFactory</c> 属性只读），
+/// 故无需在运行时替换控件的传输工厂。
+/// </remarks>
+public sealed class SignalRTransportFactory : ITerminalTransportFactory
+{
+    private readonly ITerminalTransportFactory _inner;
+    private SignalRTerminalTransport? _current;
+
+    public SignalRTransportFactory()
+    {
+        // Local PTY 回退：仅需 PtyTerminalTransportProvider（平台 ConPTY/forkpty 由传递依赖提供）。
+        _inner = new CompositeTerminalTransportFactory(
+            new ITerminalTransportProvider[] { new PtyTerminalTransportProvider() });
+    }
+
+    public ITerminalTransport Create(ITerminalTransportOptions options)
+    {
+        if (options is SignalRTransportOptions s)
+        {
+            _current = new SignalRTerminalTransport(s);
+            return _current;
+        }
+        return _inner.Create(options);
+    }
+
+    /// <summary>停止并释放最近创建的 SignalR 传输（关闭连接 → 服务端释放 PTY）。</summary>
+    public async ValueTask StopActiveAsync()
+    {
+        var t = _current;
+        _current = null;
+        if (t is null) return;
+        try { await t.StopAsync(); } catch { /* best effort */ }
+        t.Dispose();
+    }
+}
