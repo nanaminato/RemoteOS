@@ -37,13 +37,13 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
         _conn.On<byte[]>(TerminalHubEvents.OnOutput, data => DataReceived?.Invoke(data, data.Length));
         _conn.On<int>(TerminalHubEvents.OnProcessExited, code => ProcessExited?.Invoke(code));
 
-        await _conn.StartAsync(cancellationToken);
+        await _conn.StartAsync(cancellationToken).ConfigureAwait(false);
         await _conn.InvokeAsync(TerminalHubMethods.Start,
             new StartTerminalRequest(
                 opts.Dimensions.Columns, opts.Dimensions.Rows,
                 opts.Dimensions.WidthPixels, opts.Dimensions.HeightPixels,
                 opts.Shell, opts.WorkingDirectory),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         IsRunning = true;
     }
@@ -69,8 +69,8 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
         IsRunning = false;
         var conn = _conn;
         if (conn is null) return;
-        try { await conn.InvokeAsync(TerminalHubMethods.Close); } catch { /* best effort */ }
-        try { await conn.StopAsync(); } catch { /* best effort */ }
+        try { await conn.InvokeAsync(TerminalHubMethods.Close).ConfigureAwait(false); } catch { /* best effort */ }
+        try { await conn.StopAsync().ConfigureAwait(false); } catch { /* best effort */ }
     }
 
     public void Dispose()

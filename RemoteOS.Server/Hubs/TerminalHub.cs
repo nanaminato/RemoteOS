@@ -25,22 +25,29 @@ public sealed class TerminalHub : Hub<ITerminalHubClient>
     /// <summary>启动远端 PTY 会话。方法名 <c>Start</c> 与 <see cref="TerminalHubMethods.Start"/> 对齐。</summary>
     public Task Start(StartTerminalRequest req)
     {
+        // SignalR disposes the hub instance after each method invocation; the PTY
+        // DataReceived/ProcessExited callbacks run on background threads and must not
+        // touch this.Clients / this.Context (ObjectDisposedException). Capture the
+        // connection-scoped client proxy and items dictionary while the hub is alive.
+        var caller = Clients.Caller;
+        var items = Context.Items;
         // 同一连接重复 Start：先释放旧 PTY（容错）。
-        DisposePty();
+        DisposePty(items);
 
         var pty = _ptyFactory.Create();
-        Context.Items[PtyKey] = pty;
+        items[PtyKey] = pty;
 
         // IPty.DataReceived delivers (buffer, count): the buffer may be larger than count.
         pty.DataReceived += (buffer, count) =>
         {
             if (count <= 0) return;
-            _ = Clients.Caller.OnOutput(count == buffer.Length ? buffer : buffer[..count]);
+            var data = count == buffer.Length ? buffer : buffer[..count];
+            try { _ = caller.OnOutput(data); } catch { /* client disconnected; ignore */ }
         };
         pty.ProcessExited += code =>
         {
-            _ = Clients.Caller.OnProcessExited(code);
-            DisposePty();
+            try { _ = caller.OnProcessExited(code); } catch { /* client disconnected; ignore */ }
+            DisposePty(items);
         };
 
         var shell = string.IsNullOrWhiteSpace(req.Shell) ? DefaultShell() : req.Shell!;
@@ -48,7 +55,16 @@ public sealed class TerminalHub : Hub<ITerminalHubClient>
             ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
             : req.WorkingDirectory!;
 
-        pty.Start(shell, req.Columns, req.Rows, workingDirectory, BuildEnvironment(), null);
+        try
+        {
+            pty.Start(shell, req.Columns, req.Rows, workingDirectory, BuildEnvironment(), null);
+        }
+        catch
+        {
+            // Leave no half-started PTY behind if the shell fails to spawn.
+            DisposePty(items);
+            throw;
+        }
         return Task.CompletedTask;
     }
 
@@ -84,9 +100,12 @@ public sealed class TerminalHub : Hub<ITerminalHubClient>
     private IPty? GetPty() =>
         Context.Items.TryGetValue(PtyKey, out var p) ? p as IPty : null;
 
-    private void DisposePty()
+    private void DisposePty(IDictionary<object, object?>? items = null)
     {
-        if (!Context.Items.Remove(PtyKey, out var p) || p is not IPty pty)
+        // ProcessExited fires from a background thread; this.Context is unavailable once
+        // the hub instance is disposed, so use the captured items dictionary instead.
+        var dict = items ?? Context.Items;
+        if (!dict.Remove(PtyKey, out var p) || p is not IPty pty)
             return;
         try { pty.Stop(); } catch { /* best effort */ }
         (pty as IDisposable)?.Dispose();

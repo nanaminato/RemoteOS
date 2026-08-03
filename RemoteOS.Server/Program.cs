@@ -64,7 +64,7 @@ builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
 
 // 终端：服务端 PTY 工厂（Windows ConPTY / Unix forkpty）+ SignalR Hub（哑中继）。
 // AddSignalR 由 Microsoft.NET.Sdk.Web 隐式 FrameworkReference 提供，无需额外 NuGet。
-builder.Services.AddSingleton<IPtyFactory, DefaultPtyFactory>();
+builder.Services.AddSingleton<IPtyFactory, Server.Terminal.PlatformPtyFactory>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null);
 
 // CORS（开发期允许客户端跨域）
