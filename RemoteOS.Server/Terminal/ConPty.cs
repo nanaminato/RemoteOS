@@ -60,8 +60,16 @@ public sealed class ConPty : IPty, IDisposable
 
         try
         {
-            var hr = Native.CreatePseudoConsole(hInRead, hOutWrite, 0,
-                new Coord { X = checked((short)columns), Y = checked((short)rows) }, out var hpc);
+            var hr = Native.CreatePseudoConsole(
+                new Coord
+                {
+                    X = checked((short)columns),
+                    Y = checked((short)rows)
+                },
+                hInRead,
+                hOutWrite,
+                0,
+                out var hpc);
             if (hr != 0)
                 throw new Win32Exception(hr);
 
@@ -421,8 +429,12 @@ public sealed class ConPty : IPty, IDisposable
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.I4)]
-        public static extern int CreatePseudoConsole(IntPtr hInput, IntPtr hOutput, uint dwFlags,
-            Coord size, out IntPtr phPC);
+        public static extern int CreatePseudoConsole(
+            Coord size,
+            IntPtr hInput,
+            IntPtr hOutput,
+            uint dwFlags,
+            out IntPtr phPC);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern void ClosePseudoConsole(IntPtr hPC);
