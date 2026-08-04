@@ -28,10 +28,11 @@ Protocol 程序集**零 PackageReference**，不引用 Core（避免线协议与
 
 | 通道 | 用途 |
 |------|------|
-| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写 |
+| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写、**文件管理**（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload） |
 | **SignalR Hub**（`/hubs/workspace`） | 实时双向：桌面状态增量广播、设备上下线通知、控制权变更通知、Session/Workspace 状态变更通知 |
+| **SignalR Hub**（`/hubs/terminals`） | 实时双向：远端 PTY 字节流中继（输入/输出/尺寸/退出/会话附加/列表/手动终止）。PTY 由 `TerminalSessionManager` 持有，与 Hub 连接解耦 |
 
-SignalR 内部走 WebSocket（不可用降级 SSE/长轮询），**不裸用 WebSocket**。Workspace 多设备通过 SignalR Group（一个 Workspace 一个 Group）广播。
+SignalR 内部走 WebSocket（不可用降级 SSE/长轮询），**不裸用 WebSocket**。Workspace 多设备通过 SignalR Group（一个 Workspace 一个 Group）广播。Terminal Hub 不启用 `WithAutomaticReconnect`（自动重连后服务端不会自动重新附加会话），恢复路径是"再次登录打开终端 → 重新 `Start(Attach)` → 回放 1MB 缓冲快照"。
 
 ---
 
@@ -43,10 +44,12 @@ Shared/RemoteOS.Protocol/
 ├── Identity/      # UserDto、AuthTokens、LoginRequest/Response、RefreshToken、Logout、AuthApiRoutes
 ├── Workspace/     # WorkspaceDto、SessionDto、DeviceDto、ControllerLeaseInfo、3 enum、WorkspaceApiRoutes
 ├── Desktop/       # DesktopStateDto/Patch、IconPositionDto、WallpaperDto、ThemeKind
-└── Hubs/          # IWorkspaceHubClient、WorkspaceHubMethods、WorkspaceHubEvents、JoinWorkspaceRequest、事件参数
+├── Files/         # FileSystemEntryType/Dto、FileEntryDto、DirectoryDto、DriveDto、Rename/Move/CopyRequest、FileApiRoutes
+└── Hubs/          # Workspace Hub（IWorkspaceHubClient/Methods/Events、JoinWorkspaceRequest、事件参数）
+                  # + Terminal Hub（ITerminalHubClient、TerminalHubMethods/Events、StartTerminalRequest、AttachTerminalResponse、TerminalSessionInfo）
 ```
 
-命名空间：`RemoteOS.Protocol.{Common,Identity,Workspace,Desktop,Hubs}`。
+命名空间：`RemoteOS.Protocol.{Common,Identity,Workspace,Desktop,Files,Hubs}`。
 
 DTO 风格：`sealed record` + 主构造 + `[property: JsonPropertyName]`，对齐 `Framework/RemoteOS.Core` 风格。ID 用 `Guid`，时间用 `DateTimeOffset`，状态用 `enum`。
 
@@ -91,6 +94,22 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | POST | `/api/v1/workspaces/{id}/control/release` | — | 204 | JWT |
 | POST | `/api/v1/devices` | `RegisterDeviceRequest` | `DeviceDto` | JWT |
 
+### Files（文件管理）
+路由常量见 `FileApiRoutes`。Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL）。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+
+| 方法 | 路径 | 请求 | 响应 | 认证 |
+|---|---|---|---|---|
+| GET | `/api/v1/files/drives` | — | `DriveDto[]` | JWT |
+| GET | `/api/v1/files/list` | query: `path`（空=盘符根） | `FileSystemEntryDto[]` | JWT |
+| GET | `/api/v1/files/info` | query: `path` | `FileSystemEntryDto` | JWT |
+| GET | `/api/v1/files/download` | query: `path` | 字节流 | JWT |
+| POST | `/api/v1/files/directory` | query: `path` | `DirectoryDto` | JWT |
+| DELETE | `/api/v1/files` | query: `path`（目录递归） | 204 | JWT |
+| POST | `/api/v1/files/rename` | `RenameRequest` | `FileSystemEntryDto` | JWT |
+| POST | `/api/v1/files/move` | `MoveRequest` | `FileSystemEntryDto` | JWT |
+| POST | `/api/v1/files/copy` | `CopyRequest` | `FileSystemEntryDto` | JWT |
+| POST | `/api/v1/files/upload` | query: `path` + multipart/form-data | `FileEntryDto` | JWT |
+
 ---
 
 ## 6. SignalR Hub 契约
@@ -117,6 +136,25 @@ Hub 路径 `/hubs/workspace`。Server 端实现 `WorkspaceHub : Hub<IWorkspaceHu
 
 **未设计 `SendInput`**：RemoteOS 是状态同步模式，Controller 输入通过本地应用状态变更 + 状态同步体现，不在 workspace hub 传原始键鼠。
 
+### Terminal Hub（`/hubs/terminals`）
+
+远端 PTY 字节流中继。Server 端实现 `TerminalHub : Hub<ITerminalHubClient>`，PTY 由 `TerminalSessionManager`（Singleton）持有，与 Hub 连接解耦——连接断开仅 `Detach`，**保留 PTY**。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+
+#### Client → Server（invoke，方法名见 `TerminalHubMethods`）
+| 方法 | 参数 | 返回 | 说明 |
+|---|---|---|---|
+| `Start` | `StartTerminalRequest req, string? sessionId = null` | `AttachTerminalResponse {SessionId, Created}` | sessionId 命中且属于当前用户且未退出则**附加**（先回放 1MB 缓冲快照），否则**新建** PTY 会话 |
+| `Input` | `byte[]` | void | 转发到 `session.Pty.Write(data)` |
+| `Resize` | `int cols, int rows, int widthPixels, int heightPixels` | void | 转发到 `session.Pty.Resize(...)` |
+| `Close` | — | void | `manager.Remove` —— **手动终止**（杀 PTY），对应关闭终端窗口 / "断开"按钮 |
+| `ListSessions` | — | `TerminalSessionInfo[]` | 返回当前用户全部终端会话摘要（多实例） |
+
+#### Server → Client（on，事件名见 `TerminalHubEvents`，接口 `ITerminalHubClient`）
+- `OnOutput(byte[] data)`：PTY 输出字节（始终追加进 1MB 环形缓冲；有附加连接时经 `IHubContext` 转发）
+- `OnProcessExited(int exitCode)`：子进程退出
+
+> **方法名对齐**：Server Hub 方法名必须与 `TerminalHubMethods` 常量完全一致（`Start` 非 `StartTerminal`），否则 SignalR 运行时找不到方法。`OnDisconnectedAsync` 调 `session.Detach(Context.ConnectionId)` 保留 PTY；仅显式 `Close` 才杀。`TerminalUserIdProvider`（`IUserIdProvider`）以 JWT `sub` claim 作 `Context.UserIdentifier`，按用户过滤会话。
+
 ---
 
 ## 7. 认证集成
@@ -128,13 +166,26 @@ Hub 路径 `/hubs/workspace`。Server 端实现 `WorkspaceHub : Hub<IWorkspaceHu
 
 ---
 
-## 8. Terminal 传输（延后）
+## 8. Terminal 传输（已实现）
 
-RemoteTerminal 的 PTY 流传输**不在当前 Protocol 契约**。未来 RemoteTerminal 实现阶段决策：
-- 默认走 SignalR（新建 `TerminalHub`，Binary transfer format + MessagePack 传 `byte[]`，`IAsyncEnumerable<T>` 流式）
-- 若高吞吐 PTY 场景 SignalR 性能不足，可切换裸 WebSocket 端点（如 `/terminals/{id}/stream`，二进制帧）
+RemoteTerminal 的 PTY 流传输**已在 Protocol 契约内**，走 SignalR Hub `/hubs/terminals`（见 §6 Terminal Hub）。契约文件位于 `Shared/RemoteOS.Protocol/Hubs/`：
 
-调研结论：RoyalTerminal（`royalapplications/RoyalTerminal`）是传输无关的终端 UI 栈，通过 `ITerminalTransport` 抽象开放传输方式，SignalR 与裸 WebSocket 均可行。RemoteOS 可用 `RoyalTerminal.Avalonia` 作为终端控件 + 自实现 transport 适配器。
+| 文件 | 职责 |
+|------|------|
+| `ITerminalHubClient.cs` | server→client 接口（`OnOutput`/`OnProcessExited`） |
+| `TerminalHubEvents.cs` | server→client 事件名常量 |
+| `TerminalHubMethods.cs` | client→server 方法名常量（`Start`/`Input`/`Resize`/`Close`/`ListSessions`） |
+| `StartTerminalRequest.cs` | 启动请求 DTO（columns/rows/widthPixels/heightPixels/shell/workingDirectory） |
+| `AttachTerminalResponse.cs` | `Start` 返回值（`SessionId` + `Created`） |
+| `TerminalSessionInfo.cs` | 会话摘要 DTO（`ListSessions` 用） |
+
+**实现要点**：
+- RoyalTerminal（`royalapplications/RoyalTerminal`）是传输无关的终端 UI 栈，通过 `ITerminalTransport` 抽象开放传输方式。RemoteOS 用 `RoyalApps.RoyalTerminal.Avalonia` 作为终端控件 + 自实现 `SignalRTerminalTransport`（`ITerminalTransport`）适配器，位于 `Client/RemoteOS.Client/Apps/`。
+- 传输层未引入裸 WebSocket 端点（选 SignalR：JWT + 强类型 Hub + 一次性连接拉取列表）。
+- 不启用 `WithAutomaticReconnect`（自动重连后服务端不会自动重新附加会话）；恢复路径是"再次登录打开终端 → 重新 `Start(Attach)` → 回放 1MB 缓冲快照"。
+- `MaximumReceiveMessageSize = null` 解除 SignalR 默认 32KB 上限，允许大块 PTY 输出与 1MB 缓冲快照单帧传输。
+
+完整实现细节（Hub 行为、断开语义、会话生命周期、焦点修复等）见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
 
 ---
 
@@ -163,6 +214,10 @@ RemoteTerminal 的 PTY 流传输**不在当前 Protocol 契约**。未来 Remote
 |------|------|
 | [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) | 模块定位、依赖约束、架构原则 |
 | [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录、身份模型、User/Session/Device 表 |
+| [`RemoteOS.Login.md`](./RemoteOS.Login.md) | 登录模块：auth 端点、JWT、IIdentityProvider |
 | [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | Workspace 生命周期、Controller/Observer |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | Session 安全、权限提升 |
+| [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | Terminal Hub 实现、持久会话、断开语义 |
+| [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理端点实现、宿主 OS 权限复用 |
+| [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | EF Core + SQLite 持久化、表结构 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、当前进度 |

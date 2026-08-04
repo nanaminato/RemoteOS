@@ -262,12 +262,12 @@ RemoteOS 应用分为两类。
 
 - **运行位置**：`RemoteOS.Server`。
 - **特点**：Server 执行 Runtime、Client 提供交互 UI、状态持久保存。
-- **例如 RemoteTerminal**（**已实现 MVP**）：
+- **例如 RemoteTerminal**（**已实现 MVP**，含持久会话）：
   - Client：Terminal Window、Input、Output Rendering（VT 解析在客户端 `TerminalControl` 完成）
-  - Server：PTY（ConPTY/forkpty）、Shell、Process（`TerminalHub` 哑中继，只转发字节）
+  - Server：PTY（ConPTY/forkpty）、Shell、Process（`TerminalHub` 哑中继，只转发字节）；PTY 由 `TerminalSessionManager`（Singleton）持有，与 Hub 连接解耦
   - 传输：SignalR Hub（`/hubs/terminals`），JWT 鉴权，详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)
-- **断开**：Client Offline 不会导致 Runtime Destroy。
-- **重新连接**：Restore Terminal Session（MVP 阶段断开即释放 PTY，重连恢复为后续演进）。
+- **断开**：Client Offline 不会导致 Runtime Destroy。`TerminalHub.OnDisconnectedAsync` 仅 `session.Detach`，**保留 PTY**；只有显式 `Close`（关闭终端窗口 / "断开"按钮）才 `manager.Remove` 杀 PTY。PTY 输出始终追加进 1MB 环形缓冲（ConPTY 读线程持续排空管道，shell 不阻塞）。
+- **重新连接**：Restore Terminal Session —— 再次登录打开终端，`Start(Attach)` 命中存活会话则回放 1MB 缓冲快照重现历史输出，可继续输入。这是"再次登录恢复原桌面"的前提。
 
 ---
 

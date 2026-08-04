@@ -54,7 +54,7 @@ Framework/
     RemoteOS.App.SDK             应用开发面（AppContext / IRemoteApplication）
     RemoteOS.Runtime             应用运行时（ApplicationManager）
 Shared/
-    RemoteOS.Protocol            通信协议契约（占位）
+    RemoteOS.Protocol            通信协议契约（Common/Identity/Workspace/Desktop/Files/Hubs，已完整定义）
 RemoteOS.Server/                 服务端（ASP.NET Core，跨平台，已实现 auth 端点）
 Windows Server Test/             跨平台能力验证测试床（原生 API 探针）
 ```
@@ -153,9 +153,9 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.8 RemoteOS.Protocol
 
-- **定位**：通信协议契约。当前为占位。
-- **包含**：DTO、Message、API Contract、Client Proxy 契约（契约位于 Protocol，代理实现位于 Client）。详见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)。
-- **规则**：所有 Client / Server 通信必须经过 Protocol。禁止业务代码直接调用 HTTP / WebSocket。
+- **定位**：Client↔Server 通信契约层。已完整定义全部 DTO/路由/Hub 契约（Common/Identity/Workspace/Desktop/Files/Hubs）。
+- **包含**：DTO（sealed record + `[property: JsonPropertyName]`）、API Contract（`*ApiRoutes` 路由常量）、SignalR Hub 接口（`IWorkspaceHubClient` / `ITerminalHubClient` + Methods/Events 常量）、序列化约定。Client Proxy 实现位于 `RemoteOS.Client`，Hub/端点实现位于 `RemoteOS.Server`。详见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)。
+- **规则**：所有 Client / Server 通信必须经过 Protocol。禁止业务代码直接调用 HTTP / WebSocket。Protocol 程序集零 PackageReference。
 
 ### 4.9 RemoteOS.Server
 

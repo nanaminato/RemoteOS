@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS 的用户环境模型：User、Workspace、Device、Session、Controller / Observer、Workspace 生命周期、多设备连接模型。
 >
-> 本文档描述 RemoteOS 作为**云操作系统**时的运行模型，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位）。
+> 本文档描述 RemoteOS 作为**云操作系统**时的运行模型。**落地状态**：Workspace 持久化已实现（EF Core + SQLite，User/Workspace(含 TerminalSettings)/Device 落库）；终端 PTY 会话由 `TerminalSessionManager` 持有，断开仅 detach 保留、再次登录 `Start(Attach)` 回放 1MB 缓冲恢复；多设备 Controller/Observer 协调、Workspace 生命周期（Idle/Sleep）等待后续实现。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) 与 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
 >
 > - 模块架构见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 当前代码实现见 [`RemoteOS.md`](./RemoteOS.md)
@@ -434,7 +434,7 @@ User → One Persistent Workspace → Multiple Device Session
 - Session 只是连接关系
 - Controller 管理控制权
 
-> 落地状态：Workspace 持久化已实现（EF Core + SQLite，User / Workspace(含 TerminalSettings) / Device 落库；Session / 刷新令牌 / PTY 进程维持内存，各有语义理由）。终端外观配置 TerminalSettings 随 Workspace 以 JSON 列持久，跨重启保留。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+> 落地状态：Workspace 持久化已实现（EF Core + SQLite，User / Workspace(含 TerminalSettings) / Device 落库；Session / 刷新令牌 / PTY 进程维持内存，各有语义理由）。终端外观配置 TerminalSettings 随 Workspace 以 JSON 列持久，跨重启保留。终端 PTY 会话由 `TerminalSessionManager` 持有（与 Hub 连接解耦），断开仅 detach 保留、再次登录 `Start(Attach)` 回放 1MB 环形缓冲恢复历史输出——契合 §7 Runtime State "Client 断开 → Workspace Running → Runtime Continue → 重新连接 Restore" 模型。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) 与 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
 
 RemoteOS 的目标：
 

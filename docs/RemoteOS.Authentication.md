@@ -1,4 +1,4 @@
-﻿# RemoteOS Authentication & Identity Design
+# RemoteOS Authentication & Identity Design
 
 > 本文档定义 RemoteOS 登录系统、用户身份模型以及**跨平台**操作系统用户集成方式。
 >
@@ -6,7 +6,7 @@
 >
 > RemoteOS 的定位是云原生桌面操作系统：Server 端跨平台运行，复用宿主 OS 用户与权限体系；Client 端提供跨平台桌面 Shell。主要应用场景为个人服务器、小型团队服务器的桌面化管理。
 >
-> 本文档属服务端身份层设计，将随系统逐步实现（当前 `RemoteOS.Server` 尚为占位，Windows 凭据验证已在 `Windows Server Test` 项目中验证）。
+> 本文档属服务端身份层设计。**落地状态**：`RemoteOS.Server` 已实现 auth 端点（login/refresh/logout/me）+ JWT（HMACSHA256）+ `IIdentityProvider` 抽象（`WindowsLogonProvider` 迁移自测试床、`LinuxPamProvider` 占位）+ EF Core/SQLite 持久化（User/Workspace/Device）。安全提权（sudo/UAC）、审计日志等能力将随系统逐步实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 >
 > 相关文档：
 >
@@ -116,7 +116,7 @@ Windows 平台使用 Win32 `LogonUser` API 验证账号密码，支持：
 
 错误码映射：用户名或密码错误 / 用户不存在 / 账户禁用 / 账户锁定 / 密码过期 / 账户过期 / 账户受限 / 未授予网络登录权限。
 
-> 参考实现：`Windows Server Test/Categories/Authentication/WindowsCredentialVerifier.cs`
+> 参考实现：`RemoteOS.Server/Identity/WindowsLogonProvider.cs`（迁移自 `Windows Server Test` 测试床，现为 Server 端 `IIdentityProvider` 的 Windows 实现，单一真源；`Windows Server Test` 项目改为引用 Server 调用 `IIdentityProvider` 验证）。
 
 ### 3.3 Linux 凭据验证
 
@@ -428,6 +428,8 @@ Windows:  elevated command  → UAC prompt         → Execute
 - Session 管理
 - Device 管理
 - Platform Identity Mapping
+
+> **落地状态（8/4）**：Windows Account 登录（LogonUser）已实现于 `RemoteOS.Server/Identity/WindowsLogonProvider.cs`；Linux PAM 仍为占位（`LinuxPamProvider`）。Workspace 创建 / Device 管理 / Platform Identity Mapping 已通过 EF Core/SQLite 持久化仓储落地（User/Workspace/Device 落库）；Session 维持内存（连接关系，重启失效合理）。auth 端点（login/refresh/logout/me）+ JWT 已实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 
 后续逐步完善：
 
