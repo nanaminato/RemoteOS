@@ -1,5 +1,7 @@
 # RemoteOS Terminal 模块设计
 
+> **当前 UI 行为（优先于下文早期工具条描述）**：一个服务端 PTY 对应一个桌面终端窗口；不提供会话切换、新建、断开、Restart 或 Clear 按钮。再次打开 Terminal 时，所有存活会话各自恢复为一个窗口。只有关闭某个终端窗口才会显式终止对应的服务端进程。字体、字号和配色为 Workspace 级设置，经 `GET`/`PUT /api/v1/workspaces/{id}/terminal-settings` 保存在服务器端。
+
 > 内置终端应用：基于 [RoyalTerminal](https://github.com/royalapplications/RoyalTerminal) NuGet 包引入终端能力，支持 **Remote Mode**（SignalR 远端 PTY）与 **Local Mode**（本地 PTY 回退）。
 >
 > - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)（§6 Application Execution Model / §6.2 Remote Service Application）

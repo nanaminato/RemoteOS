@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using RoyalTerminal.Avalonia.Controls;
 using RoyalTerminal.Avalonia.Services;
@@ -11,18 +12,7 @@ using RoyalTerminal.Terminal.Transport.Ssh.SshNet;
 
 namespace Client.Apps;
 
-/// <summary>
-/// Hosts the RoyalTerminal <c>TerminalControl</c>. The control is created in code-behind (not XAML) because
-/// <c>TerminalControl.TerminalTransportFactory</c> is read-only and can only be injected via the 9-parameter
-/// constructor — we pass our <see cref="SignalRTransportFactory"/> so SignalR transport (remote PTY) is selected
-/// for <see cref="SignalRTransportOptions"/> while local PTY falls through to the inner composite factory.
-/// </summary>
-/// <remarks>
-/// <see cref="RemoteOS.WindowManager.RemoteWindow"/> brings itself to front on every pointer press via
-/// <c>WindowManager.Focus</c>→<c>window.View.Focus()</c>. Because <c>TerminalControl.Focusable</c> defaults to
-/// <c>false</c> (set on the constructed control) and that focus call would otherwise land on the <c>RemoteWindow</c>,
-/// we explicitly (re)focus the terminal: once on load, and deferred (after the bubbling press) on every click.
-/// </remarks>
+/// <summary>Hosts one terminal session and applies the active workspace's appearance settings.</summary>
 public partial class TerminalView : UserControl
 {
     private readonly SignalRTransportFactory _transportFactory;
@@ -31,17 +21,12 @@ public partial class TerminalView : UserControl
     public TerminalView()
     {
         InitializeComponent();
-
         _transportFactory = new SignalRTransportFactory();
         _terminal = CreateTerminalControl(_transportFactory);
         TerminalHost.Children.Add(_terminal);
         _terminal.PointerPressed += OnTerminalPressed;
     }
 
-    /// <summary>
-    /// Creates a <c>TerminalControl</c> with explicit service dependencies, mirroring the parameterless
-    /// constructor's defaults but injecting our <see cref="SignalRTransportFactory"/> as the transport factory.
-    /// </summary>
     private static TerminalControl CreateTerminalControl(ITerminalTransportFactory transportFactory)
     {
         var control = new TerminalControl(
@@ -66,29 +51,69 @@ public partial class TerminalView : UserControl
     protected override async void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
+        if (DataContext is not TerminalViewModel vm)
+            return;
 
-        if (DataContext is TerminalViewModel vm)
-        {
-            try { await vm.AttachAsync(_terminal, _transportFactory); }
-            catch { /* keep the view alive even if the first session fails */ }
-            FocusTerminal();
-        }
+        vm.PropertyChanged += OnViewModelPropertyChanged;
+        try { await vm.AttachAsync(_terminal, _transportFactory); }
+        catch { /* keep the window usable if the first connection fails */ }
+        ApplyAppearance(vm.Appearance);
+        FocusTerminal();
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         if (DataContext is TerminalViewModel vm)
+        {
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
             vm.Detach();
-
+        }
         base.OnUnloaded(e);
     }
 
-    private void OnTerminalPressed(object? sender, PointerPressedEventArgs e)
-    {
-        // Defer past the bubbling press so RemoteWindow's focus-bring-to-front does not
-        // steal keyboard focus from the terminal control.
+    private void OnTerminalPressed(object? sender, PointerPressedEventArgs e) =>
         Dispatcher.UIThread.Post(FocusTerminal);
-    }
 
     private void FocusTerminal() => _terminal.Focus();
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is TerminalViewModel { Appearance: var appearance }
+            && e.PropertyName == nameof(TerminalViewModel.Appearance))
+            ApplyAppearance(appearance);
+    }
+
+    private void ApplyAppearance(RemoteOS.Protocol.Workspace.TerminalSettingsDto appearance)
+    {
+        _terminal.FontFamilyName = appearance.FontFamily;
+        _terminal.TerminalFontSize = appearance.FontSize;
+        TerminalHost.Background = new SolidColorBrush(Color.Parse(appearance.BackgroundColor));
+
+        // Renderer palette APIs differ between RoyalTerminal renderers; apply values when present.
+        ApplyColor(_terminal, "TextColor", appearance.ForegroundColor);
+        ApplyColor(_terminal, "CursorColor", appearance.CursorColor);
+        ApplyColor(_terminal.Theme, "BackgroundColor", appearance.BackgroundColor);
+        ApplyColor(_terminal.Theme, "ForegroundColor", appearance.ForegroundColor);
+        ApplyColor(_terminal.Theme, "CursorColor", appearance.CursorColor);
+    }
+
+    private static void ApplyColor(object? target, string propertyName, string value)
+    {
+        if (target is null || target.GetType().GetProperty(propertyName) is not { CanWrite: true } property)
+            return;
+
+        try
+        {
+            if (property.PropertyType == typeof(Color))
+            {
+                property.SetValue(target, Color.Parse(value));
+                return;
+            }
+
+            var parse = property.PropertyType.GetMethod("Parse", [typeof(string)]);
+            if (parse is not null)
+                property.SetValue(target, parse.Invoke(null, [value]));
+        }
+        catch { /* unsupported renderer palette value */ }
+    }
 }

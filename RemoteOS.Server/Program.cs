@@ -113,6 +113,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
+app.MapWorkspaceEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 
 app.Run();

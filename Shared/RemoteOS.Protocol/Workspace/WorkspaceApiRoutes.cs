@@ -25,6 +25,9 @@ public static class WorkspaceApiRoutes
     /// <summary>Workspace 桌面状态全量快照（GET） / 更新（PUT，仅 Controller）。{id} 为 Workspace ID。</summary>
     public const string Desktop = $"/{V1}/workspaces/{{id}}/desktop";
 
+    /// <summary>Workspace terminal appearance preferences (GET/PUT).</summary>
+    public const string TerminalSettings = $"/{V1}/workspaces/{{id}}/terminal-settings";
+
     /// <summary>请求控制权（POST）。{id} 为 Workspace ID。</summary>
     public const string RequestControl = $"/{V1}/workspaces/{{id}}/control/request";
 

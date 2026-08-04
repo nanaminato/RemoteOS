@@ -27,6 +27,7 @@ public static class Bootstrapper
 
         // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
         services.AddHttpClient<IRemoteOsClient, RemoteOsClient>();
+        services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>();
         services.AddSingleton<IAuthSession, AuthSession>();
         services.AddSingleton<LoginViewModel>();
 
