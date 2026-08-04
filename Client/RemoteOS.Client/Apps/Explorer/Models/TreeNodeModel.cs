@@ -28,6 +28,12 @@ public sealed partial class TreeNodeModel : ObservableObject
     public bool IsDrive { get; }
     public bool IsComputer { get; }
 
+    /// <summary>
+    /// Indicates the internal placeholder used to make an unloaded node expandable.
+    /// Placeholders do not represent a filesystem location and must never be navigated to.
+    /// </summary>
+    public bool IsPlaceholder => Label is null && Path is null && !IsDrive && !IsComputer;
+
     /// <summary>子节点。加载前含一个 dummy 占位项以保证显示展开箭头；首次展开后替换为真实子目录。</summary>
     public ObservableCollection<TreeNodeModel> Children { get; }
 

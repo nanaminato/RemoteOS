@@ -112,7 +112,10 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     partial void OnSelectedNodeChanged(Models.TreeNodeModel? value)
     {
-        if (value is null) return;
+        // Unloaded tree nodes contain a dummy child solely to show the expand glyph.
+        // Its path is null, which used to be interpreted as the Computer root and
+        // therefore replaced the current directory with the drive list.
+        if (value is null || value.IsPlaceholder) return;
         _ = value.IsComputer ? NavigateToAsync(null) : NavigateToAsync(value.Path);
     }
 
