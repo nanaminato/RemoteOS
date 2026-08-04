@@ -8,6 +8,7 @@
 > - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 > - 桌面外壳与模态对话框见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
 > - 文件管理器见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)
+> - 服务端持久化见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
 ---
@@ -158,11 +159,12 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 内存仓储（User/Workspace/Session/Device）+ 文件管理端点（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含终端外观配置 TerminalSettings）+ 文件管理端点（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
+- **持久化**：User/Workspace(含 TerminalSettings)/Device 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
-- **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+- **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)、[`RemoteOS.Storage.md`](./RemoteOS.Storage.md)
 
 ### 4.10 Windows Server Test
 
@@ -249,7 +251,7 @@ Application Package
 | MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
 | MVP 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
 | MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（RemoteTerminal Local Mode 已实现；雏形：Welcome/Notepad/Settings） |
-| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成） |
+| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成；服务端 SQLite 持久化 MVP 已完成——User/Workspace(含 TerminalSettings)/Device 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)） |
 
 ---
 
@@ -321,5 +323,6 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) | 桌面外壳：宿主窗口控制、mstsc 连接栏、模态对话框机制 |
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
+| [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings JSON 列、建库策略 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

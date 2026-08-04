@@ -434,6 +434,8 @@ User → One Persistent Workspace → Multiple Device Session
 - Session 只是连接关系
 - Controller 管理控制权
 
+> 落地状态：Workspace 持久化已实现（EF Core + SQLite，User / Workspace(含 TerminalSettings) / Device 落库；Session / 刷新令牌 / PTY 进程维持内存，各有语义理由）。终端外观配置 TerminalSettings 随 Workspace 以 JSON 列持久，跨重启保留。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+
 RemoteOS 的目标：
 
 - **不是**：多用户远程桌面服务器。
