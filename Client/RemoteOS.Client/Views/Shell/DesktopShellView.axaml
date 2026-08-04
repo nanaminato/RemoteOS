@@ -60,6 +60,35 @@
             <Setter Property="Background" Value="#330078D4" />
         </Style>
 
+        <Style Selector="Border.taskbar-preview">
+            <Setter Property="Background" Value="#FAFAFA" />
+            <Setter Property="BorderBrush" Value="#D6D6D6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BoxShadow" Value="0 12 28 0 #44000000" />
+        </Style>
+        <Style Selector="Button.window-preview">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.window-preview:pointerover /template/ Border">
+            <Setter Property="Background" Value="#220078D4" />
+        </Style>
+        <Style Selector="Button.window-preview-close">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Button.window-preview-close:pointerover">
+            <Setter Property="Background" Value="#22D13438" />
+        </Style>
+
         <Style Selector="Button.start-item">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -143,7 +172,7 @@
                     </Grid>
                 </Button>
 
-                <ItemsControl Grid.Column="1" ItemsSource="{Binding Windows}"
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding TaskbarGroups}"
                               VerticalAlignment="Center" Focusable="False">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -151,13 +180,21 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="wm:ManagedWindow">
+                        <DataTemplate x:DataType="vm:TaskbarGroupViewModel">
                             <Button Classes="taskbar-item"
-                                    Command="{Binding TaskbarToggleCommand}"
-                                    ToolTip.Tip="{Binding Title}">
+                                    Command="{Binding DataContext.ToggleTaskbarGroupCommand, ElementName=Root}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="{Binding DisplayName}">
                                 <Grid RowDefinitions="*,4">
                                     <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="18"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Border Grid.Row="0" Width="16" Height="16" CornerRadius="8"
+                                            Background="{DynamicResource AccentBrush}"
+                                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                                            Margin="0,4,4,0" IsVisible="{Binding HasMultipleWindows}">
+                                        <TextBlock Text="{Binding WindowCount}" FontSize="10" Foreground="White"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                     <Border Grid.Row="1" Height="2" CornerRadius="1" Width="16"
                                             HorizontalAlignment="Center"
                                             Background="{DynamicResource AccentBrush}"
@@ -176,6 +213,51 @@
                     </StackPanel>
                 </StackPanel>
             </Grid>
+        </Border>
+
+        <!-- Click-away surface and multi-window preview strip, similar to the Windows taskbar. -->
+        <Border Grid.Row="0" Background="Transparent"
+                IsVisible="{Binding IsTaskbarPreviewOpen}"
+                PointerPressed="TaskbarPreviewBackdrop_OnPointerPressed" />
+        <Border Grid.Row="0" Classes="taskbar-preview"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="66,0,0,58" Padding="10"
+                MaxWidth="760" IsVisible="{Binding IsTaskbarPreviewOpen}">
+            <ItemsControl ItemsSource="{Binding OpenTaskbarGroup.Windows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="wm:ManagedWindow">
+                        <Grid Width="180" Height="126" Margin="4">
+                            <Button Classes="window-preview" Grid.Column="0"
+                                    Command="{Binding DataContext.ActivateTaskbarWindowCommand, ElementName=Root}"
+                                    CommandParameter="{Binding}">
+                                <Border Background="#FFF3F3F3" CornerRadius="6" Padding="10">
+                                    <Grid RowDefinitions="*,Auto">
+                                        <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="34"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Row="1" Spacing="2">
+                                            <TextBlock Text="{Binding Title}" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding State}" FontSize="10" Opacity="0.6"
+                                                       IsVisible="{Binding !IsOnScreen}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Button>
+                            <Button Classes="window-preview-close"
+                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
+                                    Command="{Binding DataContext.CloseTaskbarWindowCommand, ElementName=Root}"
+                                    CommandParameter="{Binding}" ToolTip.Tip="Close window">
+                                <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </Border>
 
         <!-- Start menu overlay -->

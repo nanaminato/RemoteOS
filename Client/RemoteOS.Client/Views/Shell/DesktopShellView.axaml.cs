@@ -46,4 +46,10 @@ public partial class DesktopShellView : UserControl
         if (DataContext is DesktopShellViewModel vm)
             vm.CloseStartCommand.Execute(null);
     }
+
+    private void TaskbarPreviewBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (DataContext is DesktopShellViewModel vm)
+            vm.CloseTaskbarPreviewCommand.Execute(null);
+    }
 }

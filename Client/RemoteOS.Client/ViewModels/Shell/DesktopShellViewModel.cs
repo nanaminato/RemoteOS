@@ -36,6 +36,10 @@ public partial class DesktopShellViewModel : ObservableObject
         _session = session;
         _shutdown = shutdown;
 
+        _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
+        _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
+        _windowManager.ActiveWindowChanged += (_, _) => RefreshTaskbarGroups();
+
         StartClock();
     }
 
@@ -45,13 +49,16 @@ public partial class DesktopShellViewModel : ObservableObject
     public string ConnectionUser => _session.CurrentUser?.Username ?? "未知用户";
     public string ConnectionWorkspace => _session.CurrentWorkspace?.Name ?? "默认工作区";
 
-    /// <summary>Live list of open windows (bound to the taskbar). Source is the window manager.</summary>
-    public IReadOnlyList<ManagedWindow> Windows => _windowManager.Windows;
+    /// <summary>Live, application-grouped taskbar items.</summary>
+    public ObservableCollection<TaskbarGroupViewModel> TaskbarGroups { get; } = new();
 
     public ObservableCollection<AppEntryViewModel> DesktopIcons { get; } = new();
     public ObservableCollection<AppEntryViewModel> StartApps { get; } = new();
 
     [ObservableProperty] private bool _isStartOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTaskbarPreviewOpen))]
+    private TaskbarGroupViewModel? _openTaskbarGroup;
     [ObservableProperty] private string _clock = string.Empty;
     [ObservableProperty] private string _dateText = string.Empty;
 
@@ -69,6 +76,8 @@ public partial class DesktopShellViewModel : ObservableObject
             DesktopIcons.Add(entry);
             StartApps.Add(entry);
         }
+
+        RefreshTaskbarGroups();
     }
 
     [RelayCommand]
@@ -87,9 +96,26 @@ public partial class DesktopShellViewModel : ObservableObject
     [RelayCommand]
     private void Shutdown() => _shutdown.Invoke();
 
-    /// <summary>Taskbar button click: restore minimized windows, or minimize the active one.</summary>
+    /// <summary>
+    /// A single-window group keeps the familiar taskbar toggle behavior. A multi-window
+    /// group opens its preview strip so the user can choose the exact window to activate or close.
+    /// </summary>
     [RelayCommand]
-    private void ToggleTaskbarItem(ManagedWindow window)
+    private void ToggleTaskbarGroup(TaskbarGroupViewModel group)
+    {
+        IsStartOpen = false;
+
+        if (group.HasMultipleWindows)
+        {
+            OpenTaskbarGroup = ReferenceEquals(OpenTaskbarGroup, group) ? null : group;
+            return;
+        }
+
+        if (group.Windows.FirstOrDefault() is { } window)
+            ToggleSingleTaskbarWindow(window);
+    }
+
+    private void ToggleSingleTaskbarWindow(ManagedWindow window)
     {
         if (window.State == WindowState.Minimized)
             _windowManager.Restore(window);
@@ -97,6 +123,58 @@ public partial class DesktopShellViewModel : ObservableObject
             _windowManager.Minimize(window);
         else
             _windowManager.Focus(window);
+    }
+
+    [RelayCommand]
+    private void ActivateTaskbarWindow(ManagedWindow window)
+    {
+        if (window.State == WindowState.Minimized)
+            _windowManager.Restore(window);
+        else
+            _windowManager.Focus(window);
+        OpenTaskbarGroup = null;
+    }
+
+    [RelayCommand]
+    private void CloseTaskbarWindow(ManagedWindow window)
+        => _windowManager.Close(window);
+
+    public bool IsTaskbarPreviewOpen => OpenTaskbarGroup is not null;
+
+    [RelayCommand]
+    private void CloseTaskbarPreview() => OpenTaskbarGroup = null;
+
+    private void RefreshTaskbarGroups()
+    {
+        var groupedWindows = _windowManager.Windows
+            .GroupBy(window => window.Info.OwnerAppId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        foreach (var group in TaskbarGroups.ToList())
+        {
+            if (groupedWindows.Remove(group.AppId, out var windows))
+            {
+                group.Update(windows);
+                if (ReferenceEquals(OpenTaskbarGroup, group) && !group.HasMultipleWindows)
+                    OpenTaskbarGroup = null;
+            }
+            else
+            {
+                if (ReferenceEquals(OpenTaskbarGroup, group))
+                    OpenTaskbarGroup = null;
+                TaskbarGroups.Remove(group);
+            }
+        }
+
+        foreach (var (appId, windows) in groupedWindows)
+        {
+            var app = _applications.Get(appId);
+            var displayName = app?.Manifest.DisplayName ?? windows[0].Title;
+            TaskbarGroups.Add(new TaskbarGroupViewModel(
+                appId,
+                displayName,
+                windows));
+        }
     }
 
     private void StartClock()
