@@ -30,11 +30,15 @@ public static class Bootstrapper
         services.AddSingleton<IAuthSession, AuthSession>();
         services.AddSingleton<LoginViewModel>();
 
+        // Explorer（文件管理器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
+        services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>();
+
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
         services.AddSingleton<IRemoteApplication, TerminalApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {

@@ -1,0 +1,149 @@
+<!-- 布局结构移植自 Jaya Views/Windows/MainView.xaml（BSD-3）。
+     Copyright (c) 2020, Rubal Walia. 原始许可见 LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。 -->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:Client.Apps.Explorer.Converters"
+             xmlns:vm="clr-namespace:Client.Apps.Explorer.ViewModels"
+             xmlns:d="clr-namespace:RemoteOS.Protocol.Files;assembly=RemoteOS.Protocol"
+             x:Class="Client.Apps.Explorer.Views.ExplorerMainView"
+             x:DataType="vm:ExplorerViewModel"
+             Background="#FFFFFF">
+
+    <UserControl.Resources>
+        <!-- 文件/目录图标 -->
+        <c:EntryTypeToGlyphConverter x:Key="TypeGlyphConverter" />
+        <c:EntrySizeToStringConverter x:Key="SizeConverter" />
+        <c:EntryTypeToStringConverter x:Key="TypeTextConverter" />
+    </UserControl.Resources>
+
+    <DockPanel LastChildFill="True">
+        <!-- 顶部菜单栏（简化 MVP） -->
+        <Menu DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+            <MenuItem Header="文件(_F)">
+                <MenuItem Header="新建文件夹(_N)..." Command="{Binding NewFolderCommand}" />
+                <MenuItem Header="上传(_U)..." Command="{Binding UploadCommand}" />
+                <Separator />
+                <MenuItem Header="退出(_X)" Command="{Binding CloseCommand}" />
+            </MenuItem>
+            <MenuItem Header="编辑(_E)">
+                <MenuItem Header="删除(_D)" Command="{Binding DeleteCommand}" />
+                <MenuItem Header="重命名(_R)..." Command="{Binding RenameCommand}" />
+                <Separator />
+                <MenuItem Header="复制(_C)..." Command="{Binding CopyCommand}" />
+                <MenuItem Header="移动(_M)..." Command="{Binding MoveCommand}" />
+            </MenuItem>
+            <MenuItem Header="查看(_V)">
+                <MenuItem Header="刷新(_R)" Command="{Binding RefreshCommand}" />
+            </MenuItem>
+            <MenuItem Header="帮助(_H)">
+                <MenuItem Header="关于 RemoteExplorer" Command="{Binding AboutCommand}" />
+            </MenuItem>
+        </Menu>
+
+        <!-- 工具栏 -->
+        <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="后退" />
+                <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="前进" />
+                <Button Classes="icon" Content="↑" Command="{Binding GoUpCommand}" ToolTip.Tip="向上" />
+                <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新" />
+                <Separator Margin="6,0" />
+                <Button Content="新建文件夹" Command="{Binding NewFolderCommand}" Padding="12,6" />
+                <Button Content="删除" Command="{Binding DeleteCommand}" Padding="12,6" />
+                <Button Content="重命名" Command="{Binding RenameCommand}" Padding="12,6" />
+                <Separator Margin="6,0" />
+                <Button Content="下载" Command="{Binding DownloadCommand}" Padding="12,6" />
+                <Button Content="上传" Command="{Binding UploadCommand}" Padding="12,6" />
+            </StackPanel>
+        </Border>
+
+        <!-- 地址栏 -->
+        <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="📁" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="14" />
+                <TextBox x:Name="AddressBox"
+                         Text="{Binding AddressbarPath, Mode=TwoWay}"
+                         PlaceholderText="Computer"
+                         IsReadOnly="False"
+                         MinWidth="500"
+                         KeyDown="AddressBox_KeyDown" />
+                <Button Content="转到" Click="GoButton_Click" Padding="16,6" />
+            </StackPanel>
+        </Border>
+
+        <!-- 状态栏 -->
+        <Border DockPanel.Dock="Bottom" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,5">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="1" Text="{Binding IsBusy, StringFormat='{}{0:加载中...;加载中...;就绪}'}"
+                           FontSize="12" Opacity="0.6" />
+            </Grid>
+        </Border>
+
+        <!-- 主体：左导航树 | 分隔 | 右条目列表 -->
+        <Grid ColumnDefinitions="240,Auto,*">
+            <!-- 导航树 -->
+            <TreeView Grid.Column="0"
+                      ItemsSource="{Binding Nodes}"
+                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}">
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="💽" FontSize="13"
+                                       IsVisible="{Binding IsComputer}" />
+                            <TextBlock Text="💾" FontSize="13"
+                                       IsVisible="{Binding IsDrive}" />
+                            <TextBlock Text="📁" FontSize="13"
+                                       IsVisible="{Binding !IsDrive}" />
+                            <TextBlock Text="{Binding Label}" />
+                        </StackPanel>
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+            <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns" />
+
+            <!-- 条目列表 -->
+            <Grid Grid.Column="2" RowDefinitions="Auto,*">
+                <!-- 列标题 -->
+                <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,120,100,150">
+                        <TextBlock Grid.Column="0" Text="名称" FontWeight="SemiBold" Padding="12,6" FontSize="12" />
+                        <TextBlock Grid.Column="1" Text="修改日期" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
+                        <TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
+                        <TextBlock Grid.Column="3" Text="大小" FontWeight="SemiBold" Padding="8,6" FontSize="12"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                </Border>
+
+                <ListBox Grid.Row="1"
+                         x:Name="EntriesList"
+                         ItemsSource="{Binding Entries}"
+                         SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                         Background="#FFFFFF"
+                         BorderThickness="0"
+                         DoubleTapped="EntriesList_DoubleTapped">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="d:FileSystemEntryDto">
+                            <Grid ColumnDefinitions="*,120,100,150">
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                    <TextBlock Text="💾" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=drive}" />
+                                    <TextBlock Text="📁" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=dir}" />
+                                    <TextBlock Text="📄" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=file}" />
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}"
+                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding Type, Converter={StaticResource TypeTextConverter}}"
+                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding Size, Converter={StaticResource SizeConverter}}"
+                                           Padding="8,6" FontSize="12" Opacity="0.8"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</UserControl>

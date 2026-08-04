@@ -86,6 +86,10 @@ builder.Services.AddSingleton<Server.Terminal.TerminalSessionManager>();
 builder.Services.AddSingleton<IUserIdProvider, Server.Terminal.TerminalUserIdProvider>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null);
 
+// 文件管理：以宿主 OS 进程身份执行 IO，复用宿主用户/权限（不另建 ACL——见 project_memory 硬约束）。
+// LocalFileService 移植自 Jaya FileSystemService 的目录枚举逻辑并扩展为完整文件操作；平台感知（Windows 盘符 / Linux "/" 根）。
+builder.Services.AddSingleton<Server.Files.IFileService, Server.Files.LocalFileService>();
+
 // CORS（开发期允许客户端跨域）
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -108,6 +112,7 @@ else
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthEndpoints();
+app.MapFileEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 
 app.Run();

@@ -7,7 +7,7 @@
 > - 登录与身份模型见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 > - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 > - 桌面外壳与模态对话框见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
->
+> - 文件管理器见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
 ---
@@ -31,6 +31,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 桌面外壳已增强：宿主窗口控制（标题栏拖动 / 8 向 resize / 最小化·最大化·关闭 / 全屏）、mstsc 风格连接栏（全屏切换、固定与自动隐藏、连接信息、关闭连接 = 登出）、可复用模态对话框机制（`AppContext.ShowDialogAsync`，支持嵌套与任意结果类型）。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)。
 
 内置终端应用已落地（Remote Mode MVP）：通过 NuGet 包 `RoyalApps.RoyalTerminal.Avalonia` 引入 `TerminalControl`，嵌入 `RemoteWindow`；认证后经 SignalR Hub 连接 Server 端 PTY（哑中继），VT 渲染在客户端完成；未登录时回退本地 PTY。输入焦点问题已修复（`Focusable=true` + 延迟聚焦）。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+
+内置文件管理器已落地（RemoteExplorer MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
@@ -72,7 +74,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **类型**：Class Library
 - **定位**：RemoteOS Shell，类似 `explorer.exe`。
 - **职责**：Desktop、Taskbar、StartMenu、MainWindow、Shell 生命周期。
-- **包含内置应用**：Welcome、Notepad、Settings、Terminal。
+- **包含内置应用**：Welcome、Notepad、Settings、Terminal、Explorer。
 - **系统启动时装配**：`WindowManager`、`ApplicationManager`、Shell Services。
 
 ### 4.3 RemoteOS.Core
@@ -156,7 +158,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 内存仓储（User/Workspace/Session/Device）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 内存仓储（User/Workspace/Session/Device）+ 文件管理端点（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
@@ -198,6 +200,7 @@ Application Package
 | **Notepad** | 验证 Application Lifecycle、Window Interaction | 已实现 |
 | **Settings** | 系统设置入口 | 已实现 |
 | **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode MVP） | 已实现（Remote Mode + Local 回退） |
+| **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（MVP：浏览 + 基本操作） |
 
 ---
 
@@ -235,6 +238,7 @@ Application Package
 
 - **定位**：远程文件管理，**不是**远程桌面文件浏览。
 - **结构**：`Explorer UI → RemoteServer API → Remote File System`。
+- **已实现**（MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树（懒加载）+ Explorer 网格 + 地址栏 + 工具栏 + 状态栏。所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL——project_memory 硬约束）。支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载；危险操作（删除）弹确认对话框。JWT 复用 `IAuthSession`。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
 ---
 
@@ -316,5 +320,6 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Login.md`](./RemoteOS.Login.md) | 登录模块：mstsc 风格登录窗、auth 端点、JWT、IIdentityProvider、错误处理 |
 | [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) | 桌面外壳：宿主窗口控制、mstsc 连接栏、模态对话框机制 |
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
+| [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

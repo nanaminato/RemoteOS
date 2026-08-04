@@ -1,0 +1,39 @@
+using RemoteOS.Protocol.Files;
+
+namespace Client.Apps.Explorer;
+
+/// <summary>RemoteOS Server 文件管理 HTTP 客户端抽象。typed HttpClient 实现（见 <see cref="ExplorerClient"/>）。
+/// 所有方法从 <c>IAuthSession</c> 取 <c>serverUrl</c> + <c>accessToken</c> 构造绝对 URI 与 Authorization 头。
+/// 路由常量见 <see cref="FileApiRoutes"/>。错误统一为 <see cref="RemoteOsAuthException"/>（含 ProblemDetails）。</summary>
+public interface IExplorerClient
+{
+    /// <summary>列举驱动器/根挂载点（GET /files/drives）。</summary>
+    Task<IReadOnlyList<DriveDto>> GetDrivesAsync(CancellationToken ct = default);
+
+    /// <summary>列举目录内容（GET /files/list）。path 为空表示盘符根。</summary>
+    Task<DirectoryDto> GetDirectoryAsync(string? path, CancellationToken ct = default);
+
+    /// <summary>获取单个条目元数据（GET /files/info）。</summary>
+    Task<FileSystemEntryDto?> GetInfoAsync(string path, CancellationToken ct = default);
+
+    /// <summary>下载文件（GET /files/download）。返回字节流；调用方负责释放。</summary>
+    Task<(Stream Stream, string FileName)?> DownloadAsync(string path, CancellationToken ct = default);
+
+    /// <summary>创建目录（POST /files/directory）。</summary>
+    Task<FileSystemEntryDto> CreateDirectoryAsync(string path, CancellationToken ct = default);
+
+    /// <summary>删除文件或目录（DELETE /files）。</summary>
+    Task DeleteAsync(string path, CancellationToken ct = default);
+
+    /// <summary>同目录重命名（POST /files/rename）。</summary>
+    Task<FileSystemEntryDto> RenameAsync(string sourcePath, string newName, CancellationToken ct = default);
+
+    /// <summary>移动（POST /files/move）。</summary>
+    Task<FileSystemEntryDto> MoveAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken ct = default);
+
+    /// <summary>复制（POST /files/copy）。</summary>
+    Task<FileSystemEntryDto> CopyAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken ct = default);
+
+    /// <summary>上传文件（POST /files/upload）。</summary>
+    Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content, CancellationToken ct = default);
+}
