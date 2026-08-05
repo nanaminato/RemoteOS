@@ -62,13 +62,16 @@
     </Window.Styles>
 
     <Grid PointerMoved="Root_OnPointerMoved">
-        <Grid x:Name="Root" PointerMoved="Root_OnPointerMoved">
+        <!-- Reserve the host window's caption area.  Maximized managed windows are
+             sized from DesktopShell's bounds, so without this inset their own
+             caption buttons sit beneath the host title bar and cannot be clicked. -->
+        <Grid x:Name="Root" Margin="0,34,0,0" PointerMoved="Root_OnPointerMoved">
             <shell:DesktopShellView />
         </Grid>
 
         <!-- The title bar and mstsc connection bar deliberately share the same top layer. -->
         <Border x:Name="WindowTitleBar" Classes="window-titlebar" Height="34"
-                VerticalAlignment="Top" PointerPressed="TitleBar_OnPointerPressed">
+                VerticalAlignment="Top" ZIndex="10" PointerPressed="TitleBar_OnPointerPressed">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border Width="26" Height="26" Background="#1976C2" Margin="8,0,6,0" CornerRadius="4"
                         VerticalAlignment="Center">
@@ -90,6 +93,7 @@
         <!-- mstsc-style connection bar. The centre is intentionally reserved for future actions. -->
         <Border x:Name="ConnectionBar" Classes="connection-bar"
                 HorizontalAlignment="Center" VerticalAlignment="Top" Width="520" Height="34"
+                ZIndex="20"
                 PointerEntered="ConnectionBar_OnPointerEntered"
                 PointerExited="ConnectionBar_OnPointerExited">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
@@ -114,6 +118,7 @@
 
         <Border x:Name="ConnectionInfo" IsVisible="False"
                 HorizontalAlignment="Center" VerticalAlignment="Top" Width="360" Margin="0,42,0,0"
+                ZIndex="30"
                 Background="#F9F9F9" BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="4"
                 BoxShadow="0 8 18 0 #66000000" Padding="16">
             <StackPanel Spacing="8">

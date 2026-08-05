@@ -113,7 +113,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid x:Name="Root">
+    <Grid x:Name="Root" x:DataType="vm:DesktopShellViewModel">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
