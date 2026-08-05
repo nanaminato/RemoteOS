@@ -18,6 +18,15 @@ public sealed record WorkspacePreferencesDto(
     [property: JsonPropertyName("region")] string Region,
     [property: JsonPropertyName("defaultApps")] IReadOnlyList<DefaultAppMappingDto> DefaultApps)
 {
+    // EF Core materializes the scalar JSON properties after constructing the owned type.
+    // The public positional constructor cannot be used because DefaultApps is an owned
+    // collection navigation rather than a scalar property.
+    private WorkspacePreferencesDto()
+        : this(string.Empty, default, string.Empty, string.Empty, string.Empty, string.Empty,
+            new List<DefaultAppMappingDto>())
+    {
+    }
+
     /// <summary>24 小时制标识。</summary>
     public const string TimeFormat24H = "24h";
 

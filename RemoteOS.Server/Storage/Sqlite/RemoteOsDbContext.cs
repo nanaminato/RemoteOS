@@ -66,6 +66,7 @@ public sealed class RemoteOsDbContext : DbContext
             e.OwnsOne(w => w.Preferences, p =>
             {
                 p.ToJson("preferences");
+                p.OwnsMany(x => x.DefaultApps);
             });
         });
 
