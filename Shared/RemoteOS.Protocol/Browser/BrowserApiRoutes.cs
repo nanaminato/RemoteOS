@@ -8,6 +8,24 @@ public static class BrowserApiRoutes
 {
     private const string V1 = RemoteOsEndpoints.ApiVersionPrefix;
 
+    /// <summary>Read or persist browser preferences for the authenticated user's workspace.</summary>
+    public const string Settings = $"/{V1}/browser/settings";
+
+    /// <summary>Prefix reserved for authenticated HTTP forwarding to the server's loopback interface.</summary>
+    public const string LocalPortForwardingPrefix = $"/{V1}/browser/local";
+
+    /// <summary>
+    /// HTTP forwarding route. The host is deliberately a route value and is validated server-side
+    /// to the two loopback names only; it is never an arbitrary proxy target.
+    /// </summary>
+    public const string LocalPortForwarding = LocalPortForwardingPrefix + "/{host}/{scheme}/{port:int}/{**path}";
+
+    /// <summary>HttpOnly cookie used only by the embedded WebView while it loads proxy subresources.</summary>
+    public const string LocalPortForwardingAuthCookie = "RemoteOS.LocalPortForwarding.Auth";
+
+    /// <summary>One-time WebView bootstrap query key; it is removed before forwarding upstream.</summary>
+    public const string LocalPortForwardingTokenQuery = "remoteos_port_forwarding_token";
+
     // ── bookmarks ──
 
     /// <summary>列举当前用户书签（GET，需 JWT）。</summary>

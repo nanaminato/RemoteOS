@@ -1,3 +1,4 @@
+using RemoteOS.Protocol.Browser;
 using RemoteOS.Protocol.Workspace;
 
 namespace Server.Domain;
@@ -12,6 +13,7 @@ public sealed class Workspace
     public WorkspaceState State { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public TerminalSettingsDto TerminalSettings { get; set; } = TerminalSettingsDto.Default;
+    public BrowserSettingsDto BrowserSettings { get; set; } = BrowserSettingsDto.Default;
 
     public Guid? ControllerDeviceId { get; set; }
     public DateTimeOffset? ControllerGrantedAt { get; set; }

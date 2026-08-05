@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RemoteOS.Protocol.Browser;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
@@ -56,6 +57,10 @@ public sealed class RemoteOsDbContext : DbContext
             e.OwnsOne(w => w.TerminalSettings, t =>
             {
                 t.ToJson("terminal_settings");
+            });
+            e.OwnsOne(w => w.BrowserSettings, b =>
+            {
+                b.ToJson("browser_settings");
             });
         });
 

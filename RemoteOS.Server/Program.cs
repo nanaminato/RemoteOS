@@ -6,7 +6,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using RemoteOS.Protocol.Browser;
 using RoyalTerminal.Terminal;
+using Server.Browser;
 using Server.Endpoints;
 using Server.Hubs;
 using Server.Identity;
@@ -62,11 +64,30 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 {
                     context.Token = accessToken;
                 }
+                else if (path.StartsWithSegments(BrowserApiRoutes.LocalPortForwardingPrefix))
+                {
+                    var proxyToken = context.Request.Query[BrowserApiRoutes.LocalPortForwardingTokenQuery];
+                    context.Token = !string.IsNullOrEmpty(proxyToken)
+                        ? proxyToken
+                        : context.Request.Cookies[BrowserApiRoutes.LocalPortForwardingAuthCookie];
+                }
                 return Task.CompletedTask;
             }
         };
     });
 builder.Services.AddAuthorization();
+
+// The forwarding client has no cookie jar and never follows redirects automatically.
+// This prevents requests or session state from one RemoteOS user reaching another user's
+// loopback service; redirects are validated and rewritten by LocalPortForwarder instead.
+builder.Services.AddHttpClient(LocalPortForwarder.HttpClientName, client =>
+    client.Timeout = TimeSpan.FromMinutes(5))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = false,
+        UseCookies = false,
+    });
+builder.Services.AddSingleton<LocalPortForwarder>();
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -135,6 +156,13 @@ if (storageProvider == "sqlite")
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RemoteOsDbContext>();
     db.Database.EnsureCreated();
+
+    // EnsureCreated does not add columns to an existing database. Browser settings are an
+    // owned JSON value on Workspace, so upgrade older deployments before reading/writing it.
+    var hasBrowserSettings = db.Database.SqlQueryRaw<long>(
+        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'browser_settings'").Single() > 0;
+    if (!hasBrowserSettings)
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"browser_settings\" TEXT NULL;");
 
     // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
     db.Database.ExecuteSqlRaw("""

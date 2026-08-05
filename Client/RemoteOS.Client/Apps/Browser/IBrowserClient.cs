@@ -7,6 +7,12 @@ namespace Client.Apps.Browser;
 /// 路由常量见 <see cref="BrowserApiRoutes"/>。错误统一为 <see cref="RemoteOsAuthException"/>（含 ProblemDetails）。</summary>
 public interface IBrowserClient
 {
+    // ── persistent browser settings / loopback forwarding ──
+    Task<BrowserSettingsDto> GetSettingsAsync(CancellationToken ct = default);
+    Task<BrowserSettingsDto> SaveSettingsAsync(BrowserSettingsDto settings, CancellationToken ct = default);
+    Uri CreateLocalPortForwardingUri(Uri target);
+    Uri? TryGetLocalPortForwardingTarget(Uri proxyUri);
+
     // ── bookmarks ──
     Task<IReadOnlyList<BookmarkDto>> ListBookmarksAsync(CancellationToken ct = default);
     Task<BookmarkDto> AddBookmarkAsync(string title, string url, CancellationToken ct = default);

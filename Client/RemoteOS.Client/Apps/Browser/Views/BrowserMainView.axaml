@@ -38,6 +38,12 @@
                         ToolTip.Tip="加入书签 / 删除书签" />
                 <Separator Margin="6,0" />
                 <Button Classes="icon" Content="📑" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="显示/隐藏侧边栏" />
+                <Separator Margin="6,0" />
+                <CheckBox Content="本地端口映射"
+                          IsChecked="{Binding IsLocalPortForwardingEnabled, Mode=TwoWay}"
+                          Command="{Binding SaveLocalPortForwardingCommand}"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="开启后，localhost/127.0.0.1 将通过 RemoteOS 访问远程计算机的对应端口" />
             </StackPanel>
         </Border>
 

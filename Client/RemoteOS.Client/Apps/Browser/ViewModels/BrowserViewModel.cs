@@ -20,6 +20,7 @@ namespace Client.Apps.Browser.ViewModels;
 public sealed partial class BrowserViewModel : ObservableObject
 {
     private readonly IBrowserClient _client;
+    private bool _savedLocalPortForwardingEnabled;
     private Uri? _currentUri;          // 当前 WebView 实际加载的 URI（区别于地址栏文本，可能正在输入未提交）
 
     public BrowserViewModel(IBrowserClient client)
@@ -44,6 +45,8 @@ public sealed partial class BrowserViewModel : ObservableObject
     [ObservableProperty] private bool _isCurrentBookmarked;
     [ObservableProperty] private SidebarTab _activeSidebarTab = SidebarTab.Bookmarks;
     [ObservableProperty] private bool _isSidebarVisible = true;
+    [ObservableProperty] private bool _isLocalPortForwardingEnabled;
+    [ObservableProperty] private string _localPortForwardingStatus = "本地端口映射：关闭";
 
     /// <summary>主页 URI（地址栏"主页"按钮的目标）。可空：未设置时不显示主页按钮或 no-op。</summary>
     public Uri? HomePage { get; set; } = new("https://www.bing.com");
@@ -62,10 +65,11 @@ public sealed partial class BrowserViewModel : ObservableObject
     /// 更新地址栏为实际正在加载的 URI；记录"开始加载"状态。</summary>
     public void OnNavigationStarted(Uri url)
     {
-        _currentUri = url;
-        AddressText = url.IsAbsoluteUri ? url.ToString() : url.OriginalString;
+        var displayUrl = ToDisplayUrl(url);
+        _currentUri = displayUrl;
+        AddressText = displayUrl.IsAbsoluteUri ? displayUrl.ToString() : displayUrl.OriginalString;
         IsLoading = true;
-        StatusText = $"正在加载 {url}...";
+        StatusText = $"正在加载 {displayUrl}...";
     }
 
     /// <summary>由 View code-behind 在 NativeWebView.NavigationCompleted 触发时调用。
@@ -75,10 +79,13 @@ public sealed partial class BrowserViewModel : ObservableObject
         IsLoading = false;
         if (url is not null && isSuccess)
         {
-            StatusText = $"完成 — {url}";
+            var displayUrl = ToDisplayUrl(url);
+            _currentUri = displayUrl;
+            AddressText = displayUrl.ToString();
+            StatusText = $"完成 — {displayUrl}";
             // 异步记录到服务端历史（fire-and-forget 友好：失败只更新状态栏不阻塞 UI）
-            _ = RecordVisitAsync(url);
-            _ = RefreshBookmarkStarAsync(url);
+            _ = RecordVisitAsync(displayUrl);
+            _ = RefreshBookmarkStarAsync(displayUrl);
         }
         else
         {
@@ -90,9 +97,10 @@ public sealed partial class BrowserViewModel : ObservableObject
     /// 同步当前 URI（用于历史记录与书签星标刷新）。</summary>
     public void OnNavigatedToExisting(Uri url)
     {
-        _currentUri = url;
-        AddressText = url.IsAbsoluteUri ? url.ToString() : url.OriginalString;
-        _ = RefreshBookmarkStarAsync(url);
+        var displayUrl = ToDisplayUrl(url);
+        _currentUri = displayUrl;
+        AddressText = displayUrl.IsAbsoluteUri ? displayUrl.ToString() : displayUrl.OriginalString;
+        _ = RefreshBookmarkStarAsync(displayUrl);
     }
 
     // ---- 导航命令 ----
@@ -106,14 +114,25 @@ public sealed partial class BrowserViewModel : ObservableObject
             StatusText = "地址无效";
             return;
         }
+        var displayUri = uri;
+        if (IsLocalPortForwardingEnabled && IsLoopbackTarget(uri))
+        {
+            try { uri = _client.CreateLocalPortForwardingUri(uri); }
+            catch (Exception ex)
+            {
+                StatusText = $"无法创建本地端口映射：{ex.Message}";
+                return;
+            }
+        }
+
         WebViewSource = uri;
         // OnNavigationStarted 由 View 转发；这里也同步一份防事件丢失
         if (_currentUri != uri)
         {
-            _currentUri = uri;
-            AddressText = uri.ToString();
+            _currentUri = displayUri;
+            AddressText = displayUri.ToString();
             IsLoading = true;
-            StatusText = $"正在加载 {uri}...";
+            StatusText = $"正在加载 {displayUri}...";
         }
     }
 
@@ -264,6 +283,27 @@ public sealed partial class BrowserViewModel : ObservableObject
     [RelayCommand]
     private void Close() => CloseAction?.Invoke();
 
+    [RelayCommand]
+    private async Task SaveLocalPortForwardingAsync()
+    {
+        try
+        {
+            var saved = await _client.SaveSettingsAsync(new BrowserSettingsDto(IsLocalPortForwardingEnabled));
+            IsLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
+            _savedLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
+            LocalPortForwardingStatus = saved.LocalPortForwardingEnabled
+                ? "本地端口映射：已开启（localhost 请求将访问远程计算机）"
+                : "本地端口映射：已关闭";
+            StatusText = LocalPortForwardingStatus;
+        }
+        catch (Exception ex)
+        {
+            IsLocalPortForwardingEnabled = _savedLocalPortForwardingEnabled;
+            LocalPortForwardingStatus = $"本地端口映射保存失败：{ex.Message}";
+            StatusText = LocalPortForwardingStatus;
+        }
+    }
+
     // ---- 初始化加载 ----
 
     /// <summary>登录后由 BrowserApp 调用：加载书签列表 + 最近历史。</summary>
@@ -279,6 +319,12 @@ public sealed partial class BrowserViewModel : ObservableObject
             var hist = await _client.ListHistoryAsync(limit: 100);
             History.Clear();
             foreach (var h in hist) History.Add(h);
+            var settings = await _client.GetSettingsAsync();
+            IsLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
+            _savedLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
+            LocalPortForwardingStatus = settings.LocalPortForwardingEnabled
+                ? "本地端口映射：已开启（localhost 请求将访问远程计算机）"
+                : "本地端口映射：已关闭";
             StatusText = $"就绪 — {Bookmarks.Count} 个书签，{History.Count} 条历史";
         }
         catch (Exception ex)
@@ -332,12 +378,24 @@ public sealed partial class BrowserViewModel : ObservableObject
         var trimmed = address.Trim();
         if (Uri.IsWellFormedUriString(trimmed, UriKind.Absolute))
             return new Uri(trimmed);
+        // localhost:9999 is a normal browser address even without an explicit scheme.
+        if (Uri.TryCreate("http://" + trimmed, UriKind.Absolute, out var loopback)
+            && IsLoopbackTarget(loopback))
+            return loopback;
         // 看起来像域名（无 scheme）—— 补 https://
         if (trimmed.Contains('.') && !trimmed.Contains(' '))
             return new Uri("https://" + trimmed);
         // 否则当作搜索查询
         return new Uri("https://www.bing.com/search?q=" + Uri.EscapeDataString(trimmed));
     }
+
+    private Uri ToDisplayUrl(Uri url) => _client.TryGetLocalPortForwardingTarget(url) ?? url;
+
+    private static bool IsLoopbackTarget(Uri uri)
+        => uri.IsAbsoluteUri
+           && (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1")
+           && (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+               || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>侧边栏标签页枚举。</summary>

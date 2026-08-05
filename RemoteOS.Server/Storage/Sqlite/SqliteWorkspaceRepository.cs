@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RemoteOS.Protocol.Browser;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
 
@@ -36,6 +37,8 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
     {
         if (w is not null && w.TerminalSettings is null)
             w.TerminalSettings = TerminalSettingsDto.Default;
+        if (w is not null && w.BrowserSettings is null)
+            w.BrowserSettings = BrowserSettingsDto.Default;
         return w;
     }
 }
