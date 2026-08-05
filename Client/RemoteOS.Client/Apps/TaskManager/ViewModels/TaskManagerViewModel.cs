@@ -88,8 +88,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
             UpdateCharts(metrics);
             HasGpu = metrics.Gpus.Count > 0;
 
-            _allProcesses = procs.ToList();
-            ApplyFilter();
+            UpdateProcesses(procs);
             StatusText = $"已更新 — {DateTime.Now:HH:mm:ss}　CPU {metrics.Cpu.TotalPercent:0.0}%　进程 {procs.Count}";
         }
         catch (Exception ex)
@@ -165,8 +164,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
         try
         {
             var procs = await _client.ListProcessesAsync();
-            _allProcesses = procs.ToList();
-            ApplyFilter();
+            UpdateProcesses(procs);
         }
         catch { /* 忽略，定时刷新会重试 */ }
     }
@@ -184,6 +182,26 @@ public sealed partial class TaskManagerViewModel : ObservableObject
         }
         FilteredProcesses.Clear();
         foreach (var p in source) FilteredProcesses.Add(p);
+
+        // Do not leave a selectable process that has been filtered out.
+        if (SelectedProcess is not null && !FilteredProcesses.Contains(SelectedProcess))
+            SelectedProcess = null;
+    }
+
+    private void UpdateProcesses(IReadOnlyList<ProcessInfoDto> processes)
+    {
+        var selected = SelectedProcess;
+        _allProcesses = processes.ToList();
+
+        // A refresh creates new DTO instances. Keep the selection only when it still
+        // identifies the same running process in the latest snapshot.
+        if (selected is not null)
+        {
+            SelectedProcess = _allProcesses.FirstOrDefault(p =>
+                p.Id == selected.Id && p.StartTime == selected.StartTime);
+        }
+
+        ApplyFilter();
     }
 
     private void UpdateCharts(SystemMetricsDto metrics)

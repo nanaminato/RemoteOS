@@ -132,10 +132,10 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </Border>
-                            <StackPanel Orientation="Horizontal" Spacing="16" FontSize="12" Opacity="0.75">
-                                <TextBlock Text="{Binding Metrics.Memory.UsedBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='已用 {0}'}" />
-                                <TextBlock Text="{Binding Metrics.Memory.AvailableBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='可用 {0}'}" />
-                                <TextBlock Text="{Binding Metrics.Memory.TotalBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='总计 {0}'}" />
+                            <StackPanel Orientation="Horizontal" Spacing="16" Opacity="0.75">
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.UsedBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='已用 {0}'}" />
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.AvailableBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='可用 {0}'}" />
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.TotalBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='总计 {0}'}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -206,7 +206,7 @@
                                                 <Run Text="{Binding MemoryTotalBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
                                             </TextBlock>
                                             <TextBlock Grid.Column="3" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
-                                                       Text="{Binding TemperatureCelsius, Converter={x:Static conv:NullableDoubleTextConverter.Instance}, StringFormat='{0}°C'}" />
+                                                       Text="{Binding TemperatureCelsius, Converter={x:Static conv:NullableDoubleTextConverter.Instance}, StringFormat='{}{0}°C'}" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -252,14 +252,16 @@
                 <Border Grid.Row="2">
                     <Grid RowDefinitions="Auto,*">
                         <!-- 表头 -->
-                        <Grid Grid.Row="0" ColumnDefinitions="2*,70,80,120,120,60" Background="#F0F0F0" Padding="8,6">
-                            <TextBlock Grid.Column="0" Text="名称" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="2" Text="CPU" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="3" Text="内存" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="4" Text="用户" FontSize="12" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="5" Text="线程" FontSize="12" FontWeight="SemiBold" />
-                        </Grid>
+                        <Border Grid.Row="0" Background="#F0F0F0" Padding="8,6">
+                            <Grid ColumnDefinitions="2*,70,80,120,120,60">
+                                <TextBlock Grid.Column="0" Text="名称" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="2" Text="CPU" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="3" Text="内存" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="4" Text="用户" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="5" Text="线程" FontSize="12" FontWeight="SemiBold" />
+                            </Grid>
+                        </Border>
                         <ListBox Grid.Row="1" x:Name="ProcessList"
                                  ItemsSource="{Binding FilteredProcesses}"
                                  SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"

@@ -91,7 +91,10 @@
                      仅会展开不可见的 dummy child，TreeNodeModel 无法发起目录懒加载。 -->
                 <TreeView.Styles>
                     <Style Selector="TreeViewItem">
-                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <!-- 编译绑定无法在 Style setter 中推断 TreeViewItem 的 DataContext 类型，
+                             会回退到页面级 x:DataType(ExplorerViewModel) 而 AVLN2000 报错。
+                             这里用 ReflectionBinding 显式退化为运行时反射绑定。 -->
+                        <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
                     </Style>
                 </TreeView.Styles>
                 <TreeView.ItemTemplate>

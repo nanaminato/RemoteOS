@@ -8,6 +8,8 @@
 > - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 > - 桌面外壳与模态对话框见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
 > - 文件管理器见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)
+> - 浏览器见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)
+> - 设置中心见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)
 > - 服务端持久化见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
@@ -36,6 +38,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 内置文件管理器已落地（RemoteExplorer MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
 内置浏览器已落地（RemoteBrowser MVP）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；UI 含顶部工具栏（后退/前进/刷新/停止/主页/加入·删除书签/侧边栏切换）+ 地址栏 + 状态栏 + 左侧边栏双标签页（书签 / 历史，支持双击导航、单条删除、清空全部）。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+
+内置设置中心已落地（RemoteSettings MVP）：Windows 11 / GNOME 风格，5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用）。用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）经 Server 端 REST API（`/api/v1/workspaces/{id}/preferences`）持久化到 Workspace（`OwnsOne + ToJson` 单列 JSON，多设备共享）；登录时 `PreferencesSync` 自动加载应用到桌面外壳（壁纸 / 任务栏底色 / 时钟格式即时生效），设置应用编辑后防抖 300ms 保存。宿主 OS 级设置（时区 / 网卡）只读展示（硬约束「权限提升委托宿主 OS」）。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
 
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
@@ -77,7 +81,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **类型**：Class Library
 - **定位**：RemoteOS Shell，类似 `explorer.exe`。
 - **职责**：Desktop、Taskbar、StartMenu、MainWindow、Shell 生命周期。
-- **包含内置应用**：Welcome、Notepad、Settings、Terminal、Explorer、Browser。
+- **包含内置应用**：Welcome、Notepad、Settings、Terminal、Explorer、Browser、TaskManager。
 - **系统启动时装配**：`WindowManager`、`ApplicationManager`、Shell Services。
 
 ### 4.3 RemoteOS.Core
@@ -161,10 +165,10 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含终端外观配置 TerminalSettings）+ 文件管理端点（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
-- **持久化**：User/Workspace(含 TerminalSettings)/Device 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+- **持久化**：User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
 - **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)、[`RemoteOS.Storage.md`](./RemoteOS.Storage.md)
 
@@ -202,10 +206,11 @@ Application Package
 |------|------|------|
 | **Welcome** | 验证 Runtime、WindowManager | 已实现 |
 | **Notepad** | 验证 Application Lifecycle、Window Interaction | 已实现 |
-| **Settings** | 系统设置入口 | 已实现 |
+| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（MVP：壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
 | **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode MVP） | 已实现（Remote Mode + Local 回退） |
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（MVP：浏览 + 基本操作） |
 | **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server） | 已实现（MVP：导航 + 书签 + 历史） |
+| **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表） | 已实现（MVP） |
 
 ---
 
@@ -255,7 +260,7 @@ Application Package
 | MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
 | MVP 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
 | MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（RemoteTerminal Local+Remote Mode 已实现；RemoteExplorer MVP 已实现；RemoteBrowser MVP 已实现） |
-| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成；服务端 SQLite 持久化 MVP 已完成——User/Workspace(含 TerminalSettings)/Device 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)） |
+| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成；服务端 SQLite 持久化 MVP 已完成——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)；设置中心 MVP 已完成——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)） |
 
 ---
 
@@ -328,6 +333,7 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
 | [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、按用户隔离持久化 |
-| [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings JSON 列、建库策略 |
+| [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | 设置中心：5 分类页、Workspace 偏好持久化、PreferencesSync 多设备同步、默认程序映射 |
+| [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings/BrowserSettings/Preferences JSON 列、建库策略 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

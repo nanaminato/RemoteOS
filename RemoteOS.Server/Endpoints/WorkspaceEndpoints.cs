@@ -109,10 +109,10 @@ public static class WorkspaceEndpoints
         if (string.IsNullOrWhiteSpace(dateFormat) || dateFormat.Length > 32)
             return false;
         var language = request.Language?.Trim();
-        if (language.Length > 16)
+        if (language is { Length: > 16 })
             return false;
         var region = request.Region?.Trim();
-        if (region.Length > 16)
+        if (region is { Length: > 16 })
             return false;
 
         var sourceApps = request.DefaultApps ?? Array.Empty<DefaultAppMappingDto>();

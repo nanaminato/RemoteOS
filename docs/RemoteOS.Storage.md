@@ -56,7 +56,7 @@
 | 实体 | 是否持久化 | 理由 |
 |------|-----------|------|
 | **User** | ✅ SQLite | 登录 `FindByUsername` 命中后复用；若不持久化，重启后 User.Id 变化 → `FindByUserId` 找不到旧 Workspace → TerminalSettings 成孤儿丢失。**必须与 Workspace 配套**。 |
-| **Workspace**（含 TerminalSettings） | ✅ SQLite | 用户核心诉求；文档定义为 Persistent。TerminalSettings 以 JSON 列随 Workspace 持久。 |
+| **Workspace**（含 TerminalSettings / BrowserSettings / Preferences） | ✅ SQLite | 用户核心诉求；文档定义为 Persistent。三组配置均以 JSON 列随 Workspace 持久（`OwnsOne + ToJson`）。TerminalSettings = 终端外观；BrowserSettings = 浏览器配置；Preferences = 设置中心偏好（壁纸/主题/时间格式/语言/区域/默认程序，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)）。 |
 | **Device** | ✅ SQLite | 设备登记历史，与 User/Workspace 同属「持久实体」，保持一致。 |
 | Session | ❌ 内存 | 「连接关系」是运行时状态（Created→Active→Disconnected→Expired），重启后旧 Session 本就应失效，用户重新登录即可。持久化反而引入状态不一致。 |
 | AuthSessionStore（refresh token） | ❌ 内存 | 安全令牌重启失效 = 强制重新登录，符合安全语义（与 mstsc 默认不保存凭据一致）。 |
@@ -93,6 +93,8 @@
 | State | TEXT | NOT NULL，≤32（枚举字符串） |
 | CreatedAt | TEXT | NOT NULL |
 | terminal_settings | TEXT | NOT NULL（JSON，TerminalSettingsDto 序列化） |
+| browser_settings | TEXT | NULL（JSON，BrowserSettingsDto 序列化；既有库增量补齐） |
+| preferences | TEXT | NULL（JSON，WorkspacePreferencesDto 序列化；既有库增量补齐） |
 | ControllerDeviceId | TEXT | NULL |
 | ControllerGrantedAt | TEXT | NULL |
 | ControllerLeaseExpiresAt | TEXT | NULL |
@@ -102,6 +104,7 @@
   ```json
   {"fontFamily":"Cascadia Mono","fontSize":14,"colorScheme":"Campbell","backgroundColor":"#0C0C0C","foregroundColor":"#CCCCCC","cursorColor":"#FFFFFF"}
   ```
+- `browser_settings` / `preferences`：同 `OwnsOne + ToJson` 模式，单列 JSON（BrowserSettingsDto / WorkspacePreferencesDto）。列允许 NULL——读取 NULL 时回退领域模型默认值。既有库（建库时无此列）由 `Program.cs` 启动时 `ALTER TABLE ... ADD COLUMN ... TEXT NULL` 增量补齐（见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) §4.2 / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) §3.3）。
 
 ### 5.3 devices
 
@@ -237,9 +240,9 @@ if (storageProvider == "sqlite")
 
 实现 RemoteOS.Server 持久化时必须遵守：
 
-- **持久化范围**：只持久化 User / Workspace（含 TerminalSettings）/ Device。**不要**把 Session、refresh token（AuthSessionStore）、PTY 会话（TerminalSessionManager）写入数据库——它们是运行时/安全/进程状态，持久化会引入不一致或安全风险。
-- **接口稳定**：新增 EF 实现时**不要**改动 `IUserRepository` / `IWorkspaceRepository` / `IDeviceRepository` 接口；端点与领域模型不动。
-- **TerminalSettings 存 JSON 列**：用 `OwnsOne + ToJson`，**不要**拆成 6 个独立列——配置应可演进，新增外观字段不改 schema。
+- **持久化范围**：持久化 User / Workspace（含 TerminalSettings / BrowserSettings / Preferences）/ Device / Bookmark / HistoryEntry。**不要**把 Session、refresh token（AuthSessionStore）、PTY 会话（TerminalSessionManager）写入数据库——它们是运行时/安全/进程状态，持久化会引入不一致或安全风险。
+- **接口稳定**：新增 EF 实现时**不要**改动 `IUserRepository` / `IWorkspaceRepository` / `IDeviceRepository` / `IBrowserRepository` 接口；端点与领域模型不动。
+- **配置存 JSON 列**：TerminalSettings / BrowserSettings / Preferences 均用 `OwnsOne + ToJson`，**不要**拆成独立列——配置应可演进，新增字段不改 schema。新增 Workspace 级 JSON 列时，`Program.cs` 启动时检测 `pragma_table_info` 并 `ALTER TABLE ... ADD COLUMN ... TEXT NULL` 增量补齐既有库（`EnsureCreated` 不为已存在 db 追加列）。
 - **索引对齐**：SQLite 唯一索引必须与内存仓储的字典键（`_byName`/`_byUserId`/`_byKey`）一一对应，保证切换实现后查询语义不变。
 - **Session 始终内存**：`ISessionRepository` 永远是 `InMemorySessionRepository`，不接入 DbContext。
 - **建库用 EnsureCreated（当前）**：未来切 Migrations 时需先删旧库或初始化迁移历史（EnsureCreated 与 Migrations 互斥）。
