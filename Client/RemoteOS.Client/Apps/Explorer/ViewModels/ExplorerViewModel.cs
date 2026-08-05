@@ -137,6 +137,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private async Task OnNodeExpandRequested(TreeNodeModel node)
     {
         if (node.IsComputer || string.IsNullOrEmpty(node.Path)) { node.MarkChildrenLoaded(); return; }
+        if (node.IsLoading) return;
         node.IsLoading = true;
         try
         {
@@ -151,7 +152,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
             }
             node.MarkChildrenLoaded();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 展开操作由 TreeNodeModel 以 fire-and-forget 方式发起，不能让异常丢失，
+            // 否则权限、网络或服务端错误都会表现为一个无法展开的空节点。
+            StatusText = $"无法加载 {node.Path}：{ex.Message}";
+        }
         finally { node.IsLoading = false; }
     }
 

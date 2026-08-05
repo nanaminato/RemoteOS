@@ -87,6 +87,13 @@
             <TreeView Grid.Column="0"
                       ItemsSource="{Binding Nodes}"
                       SelectedItem="{Binding SelectedNode, Mode=TwoWay}">
+                <!-- TreeViewItem 的 IsExpanded 不会自动与数据项同步。没有这条绑定时，
+                     仅会展开不可见的 dummy child，TreeNodeModel 无法发起目录懒加载。 -->
+                <TreeView.Styles>
+                    <Style Selector="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.Styles>
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal" Spacing="6"
