@@ -62,6 +62,11 @@ public sealed class RemoteOsDbContext : DbContext
             {
                 b.ToJson("browser_settings");
             });
+            // Preferences 同模式：壁纸/主题/时间格式/语言/区域/默认程序，单列 JSON 文本（可演进，新增字段不改 schema）。
+            e.OwnsOne(w => w.Preferences, p =>
+            {
+                p.ToJson("preferences");
+            });
         });
 
         // ── devices ──

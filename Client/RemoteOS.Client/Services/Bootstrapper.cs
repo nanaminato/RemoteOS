@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
+using Client.Apps.Settings;
 using Client.Services.Auth;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
@@ -39,6 +40,17 @@ public static class Bootstrapper
         // Server 仅持久化书签与历史记录（按用户隔离）。
         services.AddHttpClient<Client.Apps.Browser.IBrowserClient, Client.Apps.Browser.BrowserClient>();
 
+        // TaskManager（任务管理器）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
+        // 拉取服务端采集的宿主 OS 资源占用（CPU/内存/磁盘/网络/GPU）与进程列表；结束进程权限不足提示需在宿主 OS 提权。
+        services.AddHttpClient<Client.Apps.TaskManager.ITaskManagerClient, Client.Apps.TaskManager.TaskManagerClient>();
+
+        // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
+        // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
+        services.AddHttpClient<ISettingsClient, SettingsClient>();
+        services.AddSingleton<DefaultAppRegistry>();
+        // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
+        services.AddSingleton<PreferencesSync>();
+
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
@@ -46,6 +58,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.TaskManager.TaskManagerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {
@@ -70,6 +83,10 @@ public static class Bootstrapper
 
         // Build the desktop / start menu entries.
         provider.GetRequiredService<DesktopShellViewModel>().PopulateDesktop();
+
+        // Eagerly start preferences sync so it catches the login StateChanged event and
+        // applies server-side preferences to the shell as soon as the workspace connects.
+        provider.GetRequiredService<PreferencesSync>();
 
         return provider;
     }

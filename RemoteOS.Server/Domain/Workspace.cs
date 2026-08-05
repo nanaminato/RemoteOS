@@ -14,6 +14,7 @@ public sealed class Workspace
     public DateTimeOffset CreatedAt { get; set; }
     public TerminalSettingsDto TerminalSettings { get; set; } = TerminalSettingsDto.Default;
     public BrowserSettingsDto BrowserSettings { get; set; } = BrowserSettingsDto.Default;
+    public WorkspacePreferencesDto Preferences { get; set; } = WorkspacePreferencesDto.Default;
 
     public Guid? ControllerDeviceId { get; set; }
     public DateTimeOffset? ControllerGrantedAt { get; set; }

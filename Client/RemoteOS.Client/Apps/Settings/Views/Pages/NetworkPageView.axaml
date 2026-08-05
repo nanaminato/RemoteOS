@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             x:Class="Client.Apps.Settings.Views.Pages.NetworkPageView"
+             x:DataType="vm:NetworkPageViewModel">
+    <StackPanel Spacing="16" MaxWidth="640">
+        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="连接状态" Classes="title" />
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="状态" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding ConnectionState}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="服务器" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="用户" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding UserName}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="工作区" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding WorkspaceName}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="连接测试" Classes="title" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button Content="测试连接" Command="{Binding TestConnectionCommand}"
+                            Classes="primary" Padding="16,8" />
+                    <TextBlock Text="{Binding LatencyText}" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                           Text="测量到 RemoteOS Server 的往返延迟（GET /api/v1/auth/me）。宿主 OS 网络配置变更需提权，RemoteOS 不代为修改。" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

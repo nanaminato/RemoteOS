@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             x:Class="Client.Apps.Settings.Views.Pages.SystemPageView"
+             x:DataType="vm:SystemPageViewModel">
+    <StackPanel Spacing="16" MaxWidth="640">
+        <StackPanel Spacing="2">
+            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="RemoteOS 云原生桌面环境" Opacity="0.65" />
+        </StackPanel>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="关于" Classes="title" />
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="版本" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding AppVersion}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="连接状态" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding ConnectionState}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="服务器" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="账户与工作区" Classes="title" />
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="用户名" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding UserName}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="宿主平台" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding Platform}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="工作区" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding WorkspaceName}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="设备" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding DeviceName}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="设备角色" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding DeviceRole}" />
+                </Grid>
+                <Grid ColumnDefinitions="140,*">
+                    <TextBlock Grid.Column="0" Text="最近登录" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding LastLogin}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                   Text="RemoteOS 复用宿主 OS 用户/权限体系，认证委托宿主 OS（Linux: PAM / Windows: LogonUser）。应用在客户端本地渲染，RemoteServer 提供数据、状态与持久化。" />
+    </StackPanel>
+</UserControl>

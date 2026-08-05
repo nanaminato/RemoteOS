@@ -1,0 +1,46 @@
+using Avalonia.Threading;
+using Client.Apps.Settings.ViewModels;
+using Client.Apps.Settings.Views;
+using Client.Services;
+using Client.Services.Auth;
+using Microsoft.Extensions.DependencyInjection;
+using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
+using RemoteOS.Core.Primitives;
+using RemoteOS.Runtime;
+using AppContext = RemoteOS.AppSDK.AppContext;
+
+namespace Client.Apps.Settings;
+
+/// <summary>Built-in Settings application — Windows 11 / GNOME 风格的设置中心。
+/// 5 个分类：系统 / 个性化 / 时间和语言 / 网络 / 应用（含默认程序）。用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）
+/// 持久化到服务端 Workspace（<c>/workspaces/{id}/preferences</c>），多设备登录同一 Workspace 共享。
+/// 未登录时仍可打开（仅本地 ShellSettings，不持久化）。</summary>
+public sealed class SettingsApp : RemoteApplicationBase
+{
+    public override ApplicationManifest Manifest { get; } = new(
+        Id: new AppId("remoteos.settings"),
+        DisplayName: "Settings",
+        Version: "1.0.0",
+        IconGlyph: "⚙️",
+        Description: "个性化与系统设置");
+
+    public override void Activate(AppContext context)
+    {
+        var settings = context.Services.GetRequiredService<ShellSettings>();
+        var session = context.Services.GetRequiredService<IAuthSession>();
+        var settingsClient = context.Services.GetRequiredService<ISettingsClient>();
+        var apps = context.Services.GetRequiredService<ApplicationManager>();
+        var remote = context.Services.GetRequiredService<IRemoteOsClient>();
+        var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
+
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, registry);
+        var view = new SettingsView { DataContext = viewModel };
+        var window = context.ShowWindow("Settings", view,
+            bounds: new Rect(180, 90, 820, 560),
+            iconGlyph: Manifest.IconGlyph);
+
+        // 窗口打开后异步加载服务端偏好。
+        _ = viewModel.InitializeAsync();
+    }
+}

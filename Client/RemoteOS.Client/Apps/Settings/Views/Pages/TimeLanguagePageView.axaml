@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             x:Class="Client.Apps.Settings.Views.Pages.TimeLanguagePageView"
+             x:DataType="vm:TimeLanguagePageViewModel">
+    <StackPanel Spacing="16" MaxWidth="640">
+        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="时间" Classes="title" />
+                <Grid ColumnDefinitions="180,*,Auto">
+                    <TextBlock Grid.Column="0" Text="时间格式" Opacity="0.7" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimeLanguagePageViewModel.TimeFormats}"
+                              SelectedItem="{Binding TimeFormat, Mode=TwoWay}" MinWidth="160" />
+                    <TextBlock Grid.Column="2" Text="{Binding TimeSample}" VerticalAlignment="Center"
+                               Margin="12,0,0,0" Opacity="0.8" />
+                </Grid>
+                <Grid ColumnDefinitions="180,*,Auto">
+                    <TextBlock Grid.Column="0" Text="日期格式" Opacity="0.7" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimeLanguagePageViewModel.DateFormats}"
+                              SelectedItem="{Binding DateFormat, Mode=TwoWay}" MinWidth="160" />
+                    <TextBlock Grid.Column="2" Text="{Binding DateSample}" VerticalAlignment="Center"
+                               Margin="12,0,0,0" Opacity="0.8" />
+                </Grid>
+                <Grid ColumnDefinitions="180,*">
+                    <TextBlock Grid.Column="0" Text="时区" Opacity="0.7" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding TimeZone}" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                           Text="时区切换属宿主 OS 级设置，需提权（sudo / UAC），RemoteOS 不代为修改。" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="语言与区域" Classes="title" />
+                <Grid ColumnDefinitions="180,*">
+                    <TextBlock Grid.Column="0" Text="界面语言" Opacity="0.7" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimeLanguagePageViewModel.Languages}"
+                              SelectedItem="{Binding Language, Mode=TwoWay}" MinWidth="160" />
+                </Grid>
+                <Grid ColumnDefinitions="180,*">
+                    <TextBlock Grid.Column="0" Text="区域格式" Opacity="0.7" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimeLanguagePageViewModel.Regions}"
+                              SelectedItem="{Binding Region, Mode=TwoWay}" MinWidth="160" />
+                </Grid>
+                <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
+                           Text="语言/区域影响任务栏时钟与日期的格式化。完整界面本地化将在后续版本接入。" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

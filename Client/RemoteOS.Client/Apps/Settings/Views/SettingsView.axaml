@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             xmlns:pages="clr-namespace:Client.Apps.Settings.Views.Pages"
+             x:Class="Client.Apps.Settings.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel"
+             Background="#F3F3F3">
+
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="vm:SystemPageViewModel">
+            <pages:SystemPageView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:PersonalizationPageViewModel">
+            <pages:PersonalizationPageView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:TimeLanguagePageViewModel">
+            <pages:TimeLanguagePageView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:NetworkPageViewModel">
+            <pages:NetworkPageView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:AppsPageViewModel">
+            <pages:AppsPageView />
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid ColumnDefinitions="220,*">
+        <!-- 左侧导航 -->
+        <Border Grid.Column="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,1,0">
+            <DockPanel LastChildFill="True">
+                <TextBlock DockPanel.Dock="Top" Text="设置" FontSize="20" FontWeight="SemiBold"
+                           Margin="18,18,18,12" />
+                <ListBox ItemsSource="{Binding Pages}"
+                         SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0" Padding="6,0,6,8">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SettingsPageViewModel">
+                            <StackPanel Orientation="Horizontal" Spacing="10" Margin="4,2">
+                                <TextBlock Text="{Binding Glyph}" FontSize="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- 右侧内容 -->
+        <ScrollViewer Grid.Column="1" Padding="28,22">
+            <ContentControl Content="{Binding SelectedPage}" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

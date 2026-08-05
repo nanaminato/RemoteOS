@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Threading;
 using Client.Services;
 using Client.Services.Auth;
@@ -182,12 +183,21 @@ public partial class DesktopShellViewModel : ObservableObject
         void Tick()
         {
             var now = DateTime.Now;
-            Clock = now.ToString("HH:mm");
-            DateText = now.ToString("M/d ddd");
+            var culture = SafeCulture(_settings.Language);
+            var timeFmt = _settings.TimeFormat == "12h" ? "h:mm tt" : "HH:mm";
+            Clock = now.ToString(timeFmt, culture);
+            var dateFmt = string.IsNullOrWhiteSpace(_settings.DateFormat) ? "M/d ddd" : _settings.DateFormat;
+            DateText = now.ToString(dateFmt, culture);
         }
 
         Tick();
         var timer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, (_, _) => Tick());
         timer.Start();
+
+        static CultureInfo SafeCulture(string name)
+        {
+            try { return CultureInfo.GetCultureInfo(name); }
+            catch { return CultureInfo.InvariantCulture; }
+        }
     }
 }

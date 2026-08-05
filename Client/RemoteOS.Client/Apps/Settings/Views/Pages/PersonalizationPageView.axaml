@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             xmlns:ss="clr-namespace:Client.Services"
+             x:Class="Client.Apps.Settings.Views.Pages.PersonalizationPageView"
+             x:DataType="vm:PersonalizationPageViewModel">
+    <StackPanel Spacing="16" MaxWidth="640">
+        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="壁纸" Classes="title" />
+                <TextBlock Text="选择桌面背景预设。" Opacity="0.7" />
+                <ListBox ItemsSource="{Binding Wallpapers}"
+                         SelectedIndex="{Binding WallpaperIndex, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0" Padding="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="ss:WallpaperOption">
+                            <Grid ColumnDefinitions="44,*" Height="40" Margin="0,2">
+                                <Border Grid.Column="0" Width="36" Height="26" CornerRadius="4"
+                                        Background="{Binding Brush}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="主题" Classes="title" />
+                <TextBlock Text="切换任务栏与开始菜单的明暗底色（MVP：桌面外壳基础外观）。" Opacity="0.7" />
+                <StackPanel Spacing="6">
+                    <RadioButton Content="浅色" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
+                    <RadioButton Content="深色" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />
+                    <RadioButton Content="跟随系统" IsChecked="{Binding IsSystemTheme, Mode=TwoWay}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

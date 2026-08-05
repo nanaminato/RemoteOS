@@ -157,7 +157,7 @@
                 PointerPressed="StartBackdrop_OnPointerPressed" />
 
         <!-- Taskbar -->
-        <Border Grid.Row="1" Height="48" Background="#F7F7F7"
+        <Border Grid.Row="1" Height="48" Background="{Binding Settings.TaskbarBackground}"
                 BorderBrush="#D6D6D6" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="56,*,Auto">
                 <Button Grid.Column="0" Classes="start-button"
@@ -187,7 +187,8 @@
                                     ToolTip.Tip="{Binding DisplayName}">
                                 <Grid RowDefinitions="*,4">
                                     <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="18"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{Binding DataContext.Settings.TaskbarForeground, ElementName=Root}" />
                                     <Border Grid.Row="0" Width="16" Height="16" CornerRadius="8"
                                             Background="{DynamicResource AccentBrush}"
                                             HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -208,8 +209,10 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
                             Margin="0,0,12,0" Spacing="10">
                     <StackPanel Orientation="Vertical" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding Clock}" FontSize="13" HorizontalAlignment="Right" />
-                        <TextBlock Text="{Binding DateText}" FontSize="11" HorizontalAlignment="Right" Opacity="0.7" />
+                        <TextBlock Text="{Binding Clock}" FontSize="13" HorizontalAlignment="Right"
+                                   Foreground="{Binding Settings.TaskbarForeground}" />
+                        <TextBlock Text="{Binding DateText}" FontSize="11" HorizontalAlignment="Right" Opacity="0.7"
+                                   Foreground="{Binding Settings.TaskbarForeground}" />
                     </StackPanel>
                 </StackPanel>
             </Grid>

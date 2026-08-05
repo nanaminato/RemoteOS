@@ -95,6 +95,14 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 else
     builder.Services.AddSingleton<IIdentityProvider, LinuxPamProvider>();
 
+// 任务管理器：系统指标采集 Provider（按宿主 OS 平台选择，与 IIdentityProvider 同模式）。
+// CPU/内存平台特定（Linux 读 /proc；Windows 走 P/Invoke），磁盘/网络/GPU/进程跨平台共享。
+// 以宿主 OS 进程身份读取，复用宿主用户/权限（不另建 ACL）。Singleton 持相邻采样差分状态。
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    builder.Services.AddSingleton<Server.SystemMonitor.ISystemMetricsProvider, Server.SystemMonitor.WindowsMetricsProvider>();
+else
+    builder.Services.AddSingleton<Server.SystemMonitor.ISystemMetricsProvider, Server.SystemMonitor.LinuxMetricsProvider>();
+
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
 // 详见 docs/RemoteOS.Storage.md。
@@ -164,6 +172,12 @@ if (storageProvider == "sqlite")
     if (!hasBrowserSettings)
         db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"browser_settings\" TEXT NULL;");
 
+    // 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）——与 browser_settings 同模式：OwnsOne ToJson 单列。
+    var hasPreferences = db.Database.SqlQueryRaw<long>(
+        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'preferences'").Single() > 0;
+    if (!hasPreferences)
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"preferences\" TEXT NULL;");
+
     // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
     db.Database.ExecuteSqlRaw("""
         CREATE TABLE IF NOT EXISTS "bookmarks" (
@@ -207,6 +221,7 @@ app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
+app.MapSystemMonitorEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 
 app.Run();
