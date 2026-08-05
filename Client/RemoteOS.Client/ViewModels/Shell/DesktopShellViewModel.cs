@@ -57,6 +57,7 @@ public partial class DesktopShellViewModel : ObservableObject
     public ObservableCollection<AppEntryViewModel> StartApps { get; } = new();
 
     [ObservableProperty] private bool _isStartOpen;
+    [ObservableProperty] private bool _areDesktopIconsVisible = true;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTaskbarPreviewOpen))]
     private TaskbarGroupViewModel? _openTaskbarGroup;
@@ -96,6 +97,32 @@ public partial class DesktopShellViewModel : ObservableObject
 
     [RelayCommand]
     private void Shutdown() => _shutdown.Invoke();
+
+    /// <summary>Restores the desktop launcher list from the current application registry.</summary>
+    [RelayCommand]
+    private void RefreshDesktop() => PopulateDesktop();
+
+    [RelayCommand]
+    private void OpenFileExplorer() => LaunchApplication("remoteos.explorer");
+
+    [RelayCommand]
+    private void OpenTerminal() => LaunchApplication("remoteos.terminal");
+
+    [RelayCommand]
+    private void OpenSettings() => LaunchApplication("remoteos.settings");
+
+    [RelayCommand]
+    private void OpenTaskManager() => LaunchApplication("remoteos.taskmanager");
+
+    [RelayCommand]
+    private void ShowDesktop()
+    {
+        foreach (var window in _windowManager.Windows.Where(window => window.State != WindowState.Minimized).ToList())
+            _windowManager.Minimize(window);
+
+        IsStartOpen = false;
+        OpenTaskbarGroup = null;
+    }
 
     /// <summary>
     /// A single-window group keeps the familiar taskbar toggle behavior. A multi-window
@@ -144,6 +171,13 @@ public partial class DesktopShellViewModel : ObservableObject
 
     [RelayCommand]
     private void CloseTaskbarPreview() => OpenTaskbarGroup = null;
+
+    private void LaunchApplication(string id)
+    {
+        _applications.Launch(new AppId(id));
+        IsStartOpen = false;
+        OpenTaskbarGroup = null;
+    }
 
     private void RefreshTaskbarGroups()
     {
