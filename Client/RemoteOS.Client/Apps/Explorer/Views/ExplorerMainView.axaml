@@ -19,7 +19,7 @@
 
     <DockPanel LastChildFill="True">
         <!-- 顶部菜单栏（简化 MVP） -->
-        <Menu DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+        <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsFilePickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
             <MenuItem Header="文件(_F)">
                 <MenuItem Header="新建文件夹(_N)..." Command="{Binding NewFolderCommand}" />
                 <MenuItem Header="上传(_U)..." Command="{Binding UploadCommand}" />
@@ -48,13 +48,15 @@
                 <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="前进" />
                 <Button Classes="icon" Content="↑" Command="{Binding GoUpCommand}" ToolTip.Tip="向上" />
                 <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新" />
-                <Separator Margin="6,0" />
-                <Button Content="新建文件夹" Command="{Binding NewFolderCommand}" Padding="12,6" />
-                <Button Content="删除" Command="{Binding DeleteCommand}" Padding="12,6" />
-                <Button Content="重命名" Command="{Binding RenameCommand}" Padding="12,6" />
-                <Separator Margin="6,0" />
-                <Button Content="下载" Command="{Binding DownloadCommand}" Padding="12,6" />
-                <Button Content="上传" Command="{Binding UploadCommand}" Padding="12,6" />
+                <StackPanel IsVisible="{Binding !IsFilePickerMode}" Orientation="Horizontal" Spacing="4">
+                    <Separator Margin="6,0" />
+                    <Button Content="新建文件夹" Command="{Binding NewFolderCommand}" Padding="12,6" />
+                    <Button Content="删除" Command="{Binding DeleteCommand}" Padding="12,6" />
+                    <Button Content="重命名" Command="{Binding RenameCommand}" Padding="12,6" />
+                    <Separator Margin="6,0" />
+                    <Button Content="下载" Command="{Binding DownloadCommand}" Padding="12,6" />
+                    <Button Content="上传" Command="{Binding UploadCommand}" Padding="12,6" />
+                </StackPanel>
             </StackPanel>
         </Border>
 
@@ -78,6 +80,16 @@
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
                 <TextBlock Grid.Column="1" Text="{Binding IsBusy, StringFormat='{}{0:加载中...;加载中...;就绪}'}"
                            FontSize="12" Opacity="0.6" />
+            </Grid>
+        </Border>
+
+        <!-- Picker mode reuses the full Explorer navigation surface, but only returns files. -->
+        <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsFilePickerMode}"
+                Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,8">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock Text="选择要打开的远程文件" VerticalAlignment="Center" Opacity="0.7" />
+                <Button Grid.Column="1" Content="取消" Command="{Binding CancelPickerCommand}" />
+                <Button Grid.Column="2" Classes="primary" Content="打开" Command="{Binding SelectFileCommand}" />
             </Grid>
         </Border>
 

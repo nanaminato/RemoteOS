@@ -31,7 +31,8 @@ public interface IWindowManager
     Task<TResult?> ShowDialogAsync<TResult>(
         ManagedWindow owner,
         string title,
-        Func<ModalDialog<TResult>, Control> contentFactory);
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Rect? bounds = null);
 
     void Close(ManagedWindow window);
     void Focus(ManagedWindow window);

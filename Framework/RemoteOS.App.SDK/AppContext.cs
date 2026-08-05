@@ -52,6 +52,7 @@ public sealed class AppContext
     public Task<TResult?> ShowDialogAsync<TResult>(
         ManagedWindow owner,
         string title,
-        Func<ModalDialog<TResult>, Control> contentFactory)
-        => WindowManager.ShowDialogAsync(owner, title, contentFactory);
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Rect? bounds = null)
+        => WindowManager.ShowDialogAsync(owner, title, contentFactory, bounds);
 }

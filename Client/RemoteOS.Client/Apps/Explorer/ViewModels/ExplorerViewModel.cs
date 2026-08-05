@@ -25,6 +25,7 @@ namespace Client.Apps.Explorer.ViewModels;
 public sealed partial class ExplorerViewModel : ObservableObject
 {
     private readonly IExplorerClient _client;
+    private readonly Action<string>? _selectFile;
     private readonly List<string?> _history = new();
     private int _historyIndex = -1;
 
@@ -32,9 +33,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// 再调 NavigateToAsync 形成循环（重复 API 调用 + 重复历史入栈）。</summary>
     private bool _isSyncingTreeSelection;
 
-    public ExplorerViewModel(IExplorerClient client)
+    /// <summary>
+    /// Creates the Explorer view model. Supplying <paramref name="selectFile"/> enables
+    /// file-picker mode: folders remain navigable, while selecting a file returns its path
+    /// to the modal-dialog host instead of launching its associated application.
+    /// </summary>
+    public ExplorerViewModel(IExplorerClient client, Action<string>? selectFile = null)
     {
         _client = client;
+        _selectFile = selectFile;
         Nodes = new ObservableCollection<TreeNodeModel>();
         Entries = new ObservableCollection<FileSystemEntryDto>();
     }
@@ -70,11 +77,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public Func<string, string, Task>? ShowMessageAsync { get; set; }
     /// <summary>关闭 Explorer 窗口。</summary>
     public Action? CloseAction { get; set; }
+    /// <summary>Cancels the surrounding picker dialog when file-picker mode is active.</summary>
+    public Action? CancelAction { get; set; }
 
     public bool CanGoBack => _historyIndex > 0;
     public bool CanGoForward => _historyIndex < _history.Count - 1;
     public bool CanGoUp => !string.IsNullOrEmpty(AddressbarPath);
     public bool HasSelection => SelectedEntry is not null;
+    public bool IsFilePickerMode => _selectFile is not null;
+    public bool CanSelectFile => SelectedEntry?.Type == FileSystemEntryType.File;
 
     // ---- 加载根 ----
 
@@ -202,7 +213,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         OpenCommand.NotifyCanExecuteChanged();
         OpenWithSelectedCommand.NotifyCanExecuteChanged();
         PropertiesCommand.NotifyCanExecuteChanged();
+        SelectFileCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(CanSelectFile));
     }
 
     // ---- 导航 ----
@@ -399,9 +412,21 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (entry.Type == FileSystemEntryType.Directory || entry.Type == FileSystemEntryType.Drive)
             await NavigateToAsync(entry.Path);
+        else if (IsFilePickerMode)
+            SelectFile();
         else
             await OpenEntryAsync(entry);
     }
+
+    [RelayCommand(CanExecute = nameof(CanSelectFile))]
+    private void SelectFile()
+    {
+        if (SelectedEntry is { Type: FileSystemEntryType.File } entry)
+            _selectFile?.Invoke(entry.Path);
+    }
+
+    [RelayCommand]
+    private void CancelPicker() => CancelAction?.Invoke();
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task OpenAsync()

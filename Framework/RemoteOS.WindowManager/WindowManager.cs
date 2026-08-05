@@ -105,7 +105,8 @@ public sealed class WindowManager : IWindowManager
     public Task<TResult?> ShowDialogAsync<TResult>(
         ManagedWindow owner,
         string title,
-        Func<ModalDialog<TResult>, Control> contentFactory)
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Rect? bounds = null)
     {
         if (_host == null)
             throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
@@ -114,7 +115,7 @@ public sealed class WindowManager : IWindowManager
 
         var dialog = new ModalDialog<TResult>(this, owner);
         var ownerBounds = owner.Info.Bounds;
-        var bounds = new Rect(
+        bounds ??= new Rect(
             ownerBounds.X + Math.Max(24, (ownerBounds.Width - 460) / 2),
             ownerBounds.Y + Math.Max(28, (ownerBounds.Height - 300) / 2),
             Math.Min(460, Math.Max(320, ownerBounds.Width - 48)),
@@ -123,7 +124,7 @@ public sealed class WindowManager : IWindowManager
             OwnerAppId: owner.Info.OwnerAppId,
             Title: title,
             Content: contentFactory(dialog),
-            Bounds: bounds,
+            Bounds: bounds.Value,
             IconGlyph: owner.IconGlyph,
             CanResize: true,
             CanMinimize: false,

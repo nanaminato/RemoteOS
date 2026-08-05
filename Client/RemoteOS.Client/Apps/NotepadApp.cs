@@ -1,5 +1,7 @@
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.Dialogs;
+using Client.Apps.Explorer.ViewModels;
+using Client.Apps.Explorer.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -34,10 +36,15 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
 
         viewModel.RequestFileAsync = () => files is null
             ? Task.FromResult<string?>(null)
-            : context.ShowDialogAsync<string>(window, "Open remote file", dialog => new RemoteFilePickerView
+            : context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
             {
-                DataContext = new RemoteFilePickerViewModel(files, path => dialog.Close(path), dialog.Cancel),
-            });
+                var picker = new ExplorerViewModel(files, path => dialog.Close(path))
+                {
+                    CancelAction = dialog.Cancel,
+                };
+                _ = picker.LoadRootAsync();
+                return new ExplorerMainView { DataContext = picker };
+            }, GetFilePickerBounds(window));
         viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, "Save remote file", dialog =>
         {
             var vm = new TextInputDialogViewModel("Enter a full remote path:", defaultName, path => dialog.Close(path ?? string.Empty), "Save",
@@ -46,5 +53,19 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         });
         if (!string.IsNullOrWhiteSpace(path))
             _ = viewModel.OpenPathAsync(path);
+    }
+
+    private static Rect GetFilePickerBounds(RemoteOS.WindowManager.ManagedWindow owner)
+    {
+        var bounds = owner.Info.Bounds;
+        const double width = 760;
+        const double height = 520;
+        var actualWidth = Math.Min(width, Math.Max(480, bounds.Width - 48));
+        var actualHeight = Math.Min(height, Math.Max(320, bounds.Height - 56));
+        return new Rect(
+            bounds.X + Math.Max(24, (bounds.Width - actualWidth) / 2),
+            bounds.Y + Math.Max(28, (bounds.Height - actualHeight) / 2),
+            actualWidth,
+            actualHeight);
     }
 }
