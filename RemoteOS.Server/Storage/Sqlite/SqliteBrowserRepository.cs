@@ -61,10 +61,22 @@ public sealed class SqliteBrowserRepository : IBrowserRepository
 
     public IReadOnlyList<HistoryEntry> ListHistory(Guid userId, int limit)
     {
-        var q = _db.History.AsNoTracking()
-                   .Where(h => h.UserId == userId)
-                   .OrderByDescending(h => h.LastVisitedAt);
-        return (limit <= 0 ? q : q.Take(limit)).ToList();
+        // SQLite's EF Core provider cannot translate an ORDER BY over DateTimeOffset. These
+        // values are written in UTC, so ordering their ISO-8601 text representation is chronological.
+        return (limit <= 0
+                ? _db.History.FromSqlInterpolated($"""
+                    SELECT * FROM "history_entries"
+                    WHERE "UserId" = {userId}
+                    ORDER BY "LastVisitedAt" DESC
+                    """)
+                : _db.History.FromSqlInterpolated($"""
+                    SELECT * FROM "history_entries"
+                    WHERE "UserId" = {userId}
+                    ORDER BY "LastVisitedAt" DESC
+                    LIMIT {limit}
+                    """))
+            .AsNoTracking()
+            .ToList();
     }
 
     public HistoryEntry UpsertHistory(Guid userId, string title, string url)

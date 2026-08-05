@@ -82,7 +82,7 @@ public static class FileEndpoints
 
         app.MapPut(FileApiRoutes.Content, async (string path, HttpRequest request, IFileService fs) =>
         {
-            try { return Results.Ok(fs.WriteFile(path, request.Body)); }
+            try { return Results.Ok(await fs.WriteFileAsync(path, request.Body, request.HttpContext.RequestAborted)); }
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "Target directory not found", ex.Message); }
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
             catch (IOException ex) { return Problem(500, "io-error", "I/O error", ex.Message); }
@@ -195,7 +195,7 @@ public static class FileEndpoints
             try
             {
                 await using var stream = file.OpenReadStream();
-                var dto = fs.Upload(path, file.FileName, stream);
+                var dto = await fs.UploadAsync(path, file.FileName, stream, ctx.RequestAborted);
                 return Results.Created(dto.Path, dto);
             }
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "目标目录不存在", ex.Message); }

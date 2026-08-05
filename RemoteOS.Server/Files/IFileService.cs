@@ -27,7 +27,7 @@ public interface IFileService
     (Stream Stream, string ContentType, string FileName)? OpenRead(string path);
 
     /// <summary>以提供的字节覆盖保存文件，并返回保存后的文件元数据。</summary>
-    FileEntryDto WriteFile(string path, Stream content);
+    Task<FileEntryDto> WriteFileAsync(string path, Stream content, CancellationToken cancellationToken = default);
 
     /// <summary>获取属性和宿主 OS 权限摘要。不存在时返回 null。</summary>
     FilePropertiesDto? GetProperties(string path);
@@ -48,5 +48,5 @@ public interface IFileService
     FileSystemEntryDto Copy(string sourcePath, string destinationPath, bool overwrite);
 
     /// <summary>上传文件到目标目录。返回新建文件条目。</summary>
-    FileEntryDto Upload(string targetDirectoryPath, string fileName, Stream content);
+    Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content, CancellationToken cancellationToken = default);
 }

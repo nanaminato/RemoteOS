@@ -199,16 +199,13 @@ public sealed class LocalFileService : IFileService
         return (fi.OpenRead(), "application/octet-stream", fi.Name);
     }
 
-    public FileEntryDto WriteFile(string path, Stream content)
+    public async Task<FileEntryDto> WriteFileAsync(string path, Stream content, CancellationToken cancellationToken = default)
     {
         var directory = Path.GetDirectoryName(path);
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
             throw new DirectoryNotFoundException($"Target directory does not exist: {directory}");
 
-        using (var output = File.Create(path))
-            content.CopyTo(output);
-
-        return ToFileEntry(new FileInfo(path));
+        return await WriteAtomicallyAsync(path, content, cancellationToken);
     }
 
     public FilePropertiesDto? GetProperties(string path)
@@ -309,16 +306,49 @@ public sealed class LocalFileService : IFileService
         return GetInfo(destinationPath)!;
     }
 
-    public FileEntryDto Upload(string targetDirectoryPath, string fileName, Stream content)
+    public async Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(targetDirectoryPath))
             throw new DirectoryNotFoundException($"目标目录不存在: {targetDirectoryPath}");
         var dest = System.IO.Path.Combine(targetDirectoryPath, fileName);
-        using (var fs = File.Create(dest))
+        return await WriteAtomicallyAsync(dest, content, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes to a sibling temporary file before replacing the destination, preserving any
+    /// existing document when the request is cancelled or its body cannot be read.
+    /// </summary>
+    private static async Task<FileEntryDto> WriteAtomicallyAsync(string path, Stream content, CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new DirectoryNotFoundException($"Target directory does not exist: {path}");
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+
+        try
         {
-            content.CopyTo(fs);
+            await using (var output = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 81920,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                await content.CopyToAsync(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+
+            File.Move(temporaryPath, path, overwrite: true);
+            return ToFileEntry(new FileInfo(path));
         }
-        return ToFileEntry(new FileInfo(dest));
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                try { File.Delete(temporaryPath); }
+                catch { /* Preserve the original write exception if cleanup also fails. */ }
+            }
+        }
     }
 
     private static FileEntryDto ToFileEntry(FileInfo file)
