@@ -25,6 +25,11 @@ public sealed class ApplicationManager
     public IReadOnlyList<ApplicationInfo> Registered =>
         _apps.Values.Select(a => a.Manifest.ToInfo()).OrderBy(i => i.DisplayName).ToList();
 
+    /// <summary>Applications that explicitly support receiving a file path.</summary>
+    public IReadOnlyList<ApplicationInfo> FileOpeners =>
+        _apps.Values.Where(a => a is IFileOpenApplication).Select(a => a.Manifest.ToInfo())
+            .OrderBy(i => i.DisplayName).ToList();
+
     /// <summary>Register an application so it can be launched.</summary>
     public void Register(IRemoteApplication application)
     {
@@ -42,6 +47,16 @@ public sealed class ApplicationManager
 
         var context = new AppContext(id, _windowManager, _services);
         app.Activate(context);
+        return true;
+    }
+
+    /// <summary>Open a file in a registered file-opening application.</summary>
+    public bool OpenFile(AppId id, string path)
+    {
+        if (!_apps.TryGetValue(id, out var app) || app is not IFileOpenApplication fileOpener)
+            return false;
+
+        fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
         return true;
     }
 }

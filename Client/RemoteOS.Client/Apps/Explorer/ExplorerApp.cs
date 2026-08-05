@@ -7,10 +7,15 @@ using Avalonia.Threading;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Apps.Settings;
+using Client.Services;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Workspace;
+using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 using Rect = RemoteOS.Core.Primitives.Rect;
@@ -144,6 +149,67 @@ public sealed class ExplorerApp : RemoteApplicationBase
             });
             return file?.TryGetLocalPath();
         };
+
+        var applications = context.Services.GetService(typeof(ApplicationManager)) as ApplicationManager;
+        var defaults = context.Services.GetService(typeof(DefaultAppRegistry)) as DefaultAppRegistry;
+        vm.OpenFileAsync = async entry =>
+        {
+            var extension = Path.GetExtension(entry.Name);
+            var applicationId = defaults?.Resolve(extension) ?? "remoteos.notepad";
+            if (applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
+                await (vm.ShowMessageAsync?.Invoke("Open file", "No application is registered for this file type.") ?? Task.CompletedTask);
+        };
+
+        vm.RequestOpenWithAsync = async entry =>
+        {
+            var owner = FindOwnerWindow(context, vm);
+            var openers = applications?.FileOpeners ?? Array.Empty<ApplicationInfo>();
+            if (owner is null || openers.Count == 0) return;
+            var extension = Path.GetExtension(entry.Name);
+            var choice = await context.ShowDialogAsync<OpenWithChoice>(owner, "Open with", dialog =>
+                new OpenWithDialogView
+                {
+                    DataContext = new OpenWithDialogViewModel(openers, extension, result =>
+                    {
+                        if (result is null) dialog.Cancel();
+                        else dialog.Close(result);
+                    }),
+                });
+            if (choice is null) return;
+
+            if (choice.SetAsDefault && !string.IsNullOrWhiteSpace(extension))
+                await SaveDefaultAppAsync(context, defaults, extension, choice.ApplicationId);
+
+            if (!applications!.OpenFile(new AppId(choice.ApplicationId), entry.Path))
+                await (vm.ShowMessageAsync?.Invoke("Open file", "The selected application is no longer available.") ?? Task.CompletedTask);
+        };
+
+        vm.ShowPropertiesAsync = async properties =>
+        {
+            var owner = FindOwnerWindow(context, vm);
+            if (owner is null) return;
+            await context.ShowDialogAsync<bool>(owner, "Properties", dialog => new FilePropertiesDialogView
+            {
+                DataContext = new FilePropertiesDialogViewModel(properties, () => dialog.Close(true)),
+            });
+        };
+    }
+
+    private static async Task SaveDefaultAppAsync(AppContext context, DefaultAppRegistry? defaults, string extension, string applicationId)
+    {
+        if (defaults is null) return;
+        var mappings = defaults.Snapshot.Where(m => !m.Scheme.Equals(extension, StringComparison.OrdinalIgnoreCase))
+            .Append(new DefaultAppMappingDto(extension, applicationId)).ToArray();
+        defaults.SetMappings(mappings);
+
+        var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
+        var settings = context.Services.GetService(typeof(ShellSettings)) as ShellSettings;
+        var settingsClient = context.Services.GetService(typeof(ISettingsClient)) as ISettingsClient;
+        if (session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } workspace }
+            || settings is null || settingsClient is null)
+            return;
+
+        await settingsClient.SaveAsync(url, tokens.AccessToken, workspace.Id, settings.ToPreferences(mappings));
     }
 
     /// <summary>查找 VM 对应的 ManagedWindow（遍历 WindowManager 已创建窗口，匹配 DataContext）。</summary>

@@ -60,6 +60,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public Func<Task<string?>>? RequestLocalOpenFileAsync { get; set; }
     /// <summary>请求本地保存路径（用于下载目标）。参数：默认文件名。返回本地路径或 null。</summary>
     public Func<string, Task<string?>>? RequestLocalSaveFileAsync { get; set; }
+    /// <summary>使用默认程序打开一个远程文件。</summary>
+    public Func<FileSystemEntryDto, Task>? OpenFileAsync { get; set; }
+    /// <summary>选择程序后打开一个远程文件。</summary>
+    public Func<FileSystemEntryDto, Task>? RequestOpenWithAsync { get; set; }
+    /// <summary>显示远程文件或目录的属性。</summary>
+    public Func<FilePropertiesDto, Task>? ShowPropertiesAsync { get; set; }
     /// <summary>显示消息（About 等）。参数：(title, message)。</summary>
     public Func<string, string, Task>? ShowMessageAsync { get; set; }
     /// <summary>关闭 Explorer 窗口。</summary>
@@ -193,6 +199,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         DownloadCommand.NotifyCanExecuteChanged();
         CopyCommand.NotifyCanExecuteChanged();
         MoveCommand.NotifyCanExecuteChanged();
+        OpenCommand.NotifyCanExecuteChanged();
+        OpenWithSelectedCommand.NotifyCanExecuteChanged();
+        PropertiesCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasSelection));
     }
 
@@ -390,6 +399,45 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (entry.Type == FileSystemEntryType.Directory || entry.Type == FileSystemEntryType.Drive)
             await NavigateToAsync(entry.Path);
+        else
+            await OpenEntryAsync(entry);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task OpenAsync()
+    {
+        if (SelectedEntry is { } entry && entry.Type == FileSystemEntryType.File)
+            await OpenEntryAsync(entry);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task OpenWithSelectedAsync()
+    {
+        if (SelectedEntry is { } entry && entry.Type == FileSystemEntryType.File)
+            await (RequestOpenWithAsync?.Invoke(entry) ?? Task.CompletedTask);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private async Task PropertiesAsync()
+    {
+        if (SelectedEntry is not { } entry) return;
+        try
+        {
+            var properties = await _client.GetPropertiesAsync(entry.Path);
+            if (properties is null) { StatusText = "The item no longer exists."; return; }
+            await (ShowPropertiesAsync?.Invoke(properties) ?? Task.CompletedTask);
+        }
+        catch (Exception ex) { StatusText = $"Cannot read properties: {ex.Message}"; }
+    }
+
+    private async Task OpenEntryAsync(FileSystemEntryDto entry)
+    {
+        try
+        {
+            if (OpenFileAsync is null) { StatusText = "No file-opening application is available."; return; }
+            await OpenFileAsync(entry);
+        }
+        catch (Exception ex) { StatusText = $"Cannot open file: {ex.Message}"; }
     }
 
     // ---- 文件操作 ----

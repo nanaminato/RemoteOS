@@ -9,8 +9,12 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="New" Command="{Binding NewDocumentCommand}" />
                 <Button Content="Open..." Command="{Binding OpenDocumentCommand}" />
-                <Button Content="Insert text..." Command="{Binding InsertTextCommand}" />
-                <TextBlock Text="Untitled" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
+                <Button Content="Save" Command="{Binding SaveCommand}" />
+                <Button Content="Save as..." Command="{Binding SaveAsCommand}" />
+                <TextBlock Text="Encoding:" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <ComboBox ItemsSource="{Binding AvailableEncodings}" SelectedItem="{Binding EncodingName, Mode=TwoWay}" Width="120" />
+                <Button Content="Reopen" Command="{Binding ReopenWithEncodingCommand}" />
+                <TextBlock Text="{Binding DocumentName}" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
             </StackPanel>
         </Border>
 
@@ -26,8 +30,11 @@
                  CaretBrush="#4CC2FF" />
 
         <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
-            <TextBlock Text="{Binding CharCount, StringFormat='{}{0} characters'}"
-                       FontSize="12" Opacity="0.7" />
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+                <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding LineCount, StringFormat='{}Ln {0}'}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="2" Text="{Binding CharCount, StringFormat='{}{0} characters'}" FontSize="12" Opacity="0.7" />
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

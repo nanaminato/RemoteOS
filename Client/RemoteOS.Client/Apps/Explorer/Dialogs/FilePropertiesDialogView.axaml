@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
+             x:Class="Client.Apps.Explorer.Dialogs.FilePropertiesDialogView"
+             x:DataType="vm:FilePropertiesDialogViewModel"
+             Background="#FFFFFF" Width="500">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="20" RowSpacing="7">
+        <TextBlock Text="{Binding Properties.Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock Grid.Row="1" Text="{Binding Properties.Path}" TextWrapping="Wrap" Opacity="0.7" />
+        <TextBlock Grid.Row="2" Text="{Binding Properties.Type, StringFormat='{}Type: {0}'}" />
+        <TextBlock Grid.Row="3" Text="{Binding SizeText, StringFormat='{}Size: {0}'}" />
+        <TextBlock Grid.Row="4" Text="{Binding Properties.Created, StringFormat='{}Created: {0:yyyy-MM-dd HH:mm:ss}'}" />
+        <TextBlock Grid.Row="5" Text="{Binding Properties.Modified, StringFormat='{}Modified: {0:yyyy-MM-dd HH:mm:ss}'}" />
+        <TextBlock Grid.Row="6" Text="{Binding Properties.Permissions, StringFormat='{}Permissions: {0}'}" TextWrapping="Wrap" />
+        <TextBlock Grid.Row="7" Text="{Binding Properties.Attributes, StringFormat='{}Attributes: {0}'}" TextWrapping="Wrap" />
+        <Button Grid.Row="8" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Right" Padding="16,6" />
+    </Grid>
+</UserControl>

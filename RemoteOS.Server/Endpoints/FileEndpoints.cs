@@ -65,6 +65,45 @@ public static class FileEndpoints
         .RequireAuthorization()
         .WithTags("Files");
 
+        app.MapGet(FileApiRoutes.Content, (string path, IFileService fs) =>
+        {
+            try
+            {
+                var result = fs.OpenRead(path);
+                if (result is not (var stream, var contentType, _))
+                    return Problem(404, "not-found", "Not found", $"Cannot find {path}");
+                return Results.File(stream, contentType);
+            }
+            catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
+            catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
+        })
+        .RequireAuthorization()
+        .WithTags("Files");
+
+        app.MapPut(FileApiRoutes.Content, async (string path, HttpRequest request, IFileService fs) =>
+        {
+            try { return Results.Ok(fs.WriteFile(path, request.Body)); }
+            catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "Target directory not found", ex.Message); }
+            catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
+            catch (IOException ex) { return Problem(500, "io-error", "I/O error", ex.Message); }
+            catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
+        })
+        .RequireAuthorization()
+        .WithTags("Files");
+
+        app.MapGet(FileApiRoutes.Properties, (string path, IFileService fs) =>
+        {
+            try
+            {
+                var properties = fs.GetProperties(path);
+                return properties is null ? Problem(404, "not-found", "Not found", $"Cannot find {path}") : Results.Ok(properties);
+            }
+            catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
+            catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
+        })
+        .RequireAuthorization()
+        .WithTags("Files");
+
         // POST directory?path=
         app.MapPost(FileApiRoutes.Directory, (string path, IFileService fs) =>
         {

@@ -24,6 +24,12 @@ public static class FileApiRoutes
     /// <summary>下载文件（GET，需 JWT）。query: path。返回字节流。</summary>
     public const string Download = $"/{V1}/files/download";
 
+    /// <summary>读取或覆盖保存单个文件内容（GET/PUT，需 JWT）。Query: path。</summary>
+    public const string Content = $"/{V1}/files/content";
+
+    /// <summary>获取文件或目录的属性与宿主 OS 权限摘要（GET，需 JWT）。Query: path。</summary>
+    public const string Properties = $"/{V1}/files/properties";
+
     /// <summary>创建目录（POST，需 JWT）。query: path。</summary>
     public const string Directory = $"/{V1}/files/directory";
 

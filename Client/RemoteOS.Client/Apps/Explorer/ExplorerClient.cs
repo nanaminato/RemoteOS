@@ -47,6 +47,33 @@ public sealed class ExplorerClient : IExplorerClient
         return (stream, fileName);
     }
 
+    public async Task<byte[]?> ReadFileAsync(string path, CancellationToken ct = default)
+    {
+        using var resp = await SendRawAsync(HttpMethod.Get, FileApiRoutes.Content, query: ("path", path), ct: ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        if (!resp.IsSuccessStatusCode) await EnsureSuccessAsync(resp, ct);
+        return await resp.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    public async Task<FileEntryDto> WriteFileAsync(string path, byte[] content, CancellationToken ct = default)
+    {
+        var serverUrl = RequireSession();
+        using var req = new HttpRequestMessage(HttpMethod.Put, BuildUri(serverUrl, FileApiRoutes.Content, ("path", path)))
+        {
+            Content = new ByteArrayContent(content),
+        };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _session.Tokens!.AccessToken);
+        using var resp = await _http.SendAsync(req, ct);
+        return await ReadAsync<FileEntryDto>(resp, ct);
+    }
+
+    public async Task<FilePropertiesDto?> GetPropertiesAsync(string path, CancellationToken ct = default)
+    {
+        using var resp = await SendRawAsync(HttpMethod.Get, FileApiRoutes.Properties, query: ("path", path), ct: ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        return await ReadAsync<FilePropertiesDto>(resp, ct);
+    }
+
     public Task<FileSystemEntryDto> CreateDirectoryAsync(string path, CancellationToken ct = default)
         => SendAsync<FileSystemEntryDto>(HttpMethod.Post, FileApiRoutes.Directory, query: ("path", path), ct: ct);
 

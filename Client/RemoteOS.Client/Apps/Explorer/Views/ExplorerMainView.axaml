@@ -130,7 +130,16 @@
                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                          Background="#FFFFFF"
                          BorderThickness="0"
-                         DoubleTapped="EntriesList_DoubleTapped">
+                         DoubleTapped="EntriesList_DoubleTapped"
+                         PointerPressed="EntriesList_PointerPressed">
+                    <ListBox.ContextMenu>
+                        <ContextMenu DataContext="{Binding #EntriesList.DataContext}">
+                            <MenuItem Header="Open" Command="{Binding OpenCommand}" />
+                            <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
+                            <Separator />
+                            <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="d:FileSystemEntryDto">
                             <Grid ColumnDefinitions="*,120,100,150">

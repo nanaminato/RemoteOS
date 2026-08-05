@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using Client.Apps.Explorer.ViewModels;
 
 namespace Client.Apps.Explorer.Views;
@@ -33,5 +34,18 @@ public partial class ExplorerMainView : UserControl
     {
         if (ViewModel?.SelectedEntry is { } entry)
             _ = ViewModel.InvokeEntryAsync(entry);
+    }
+
+    private void EntriesList_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
+        for (var control = e.Source as Control; control is not null; control = control.GetVisualParent() as Control)
+        {
+            if (control.DataContext is RemoteOS.Protocol.Files.FileSystemEntryDto entry)
+            {
+                if (ViewModel is not null) ViewModel.SelectedEntry = entry;
+                return;
+            }
+        }
     }
 }

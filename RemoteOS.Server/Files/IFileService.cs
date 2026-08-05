@@ -26,6 +26,12 @@ public interface IFileService
     /// <summary>打开文件用于下载。返回 (stream, contentType, fileName)。不存在返回 null。</summary>
     (Stream Stream, string ContentType, string FileName)? OpenRead(string path);
 
+    /// <summary>以提供的字节覆盖保存文件，并返回保存后的文件元数据。</summary>
+    FileEntryDto WriteFile(string path, Stream content);
+
+    /// <summary>获取属性和宿主 OS 权限摘要。不存在时返回 null。</summary>
+    FilePropertiesDto? GetProperties(string path);
+
     /// <summary>创建目录。已存在时抛 <see cref="IOException"/>（端点映射 409 already-exists）。</summary>
     void CreateDirectory(string path);
 

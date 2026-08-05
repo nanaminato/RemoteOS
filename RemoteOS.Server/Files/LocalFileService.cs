@@ -2,6 +2,7 @@
 // Copyright (c) 2020, Rubal Walia. 原始许可见 Apps/Explorer/LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using RemoteOS.Protocol.Files;
 
 namespace Server.Files;
@@ -198,6 +199,39 @@ public sealed class LocalFileService : IFileService
         return (fi.OpenRead(), "application/octet-stream", fi.Name);
     }
 
+    public FileEntryDto WriteFile(string path, Stream content)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            throw new DirectoryNotFoundException($"Target directory does not exist: {directory}");
+
+        using (var output = File.Create(path))
+            content.CopyTo(output);
+
+        return ToFileEntry(new FileInfo(path));
+    }
+
+    public FilePropertiesDto? GetProperties(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            var directory = new DirectoryInfo(path);
+            return new FilePropertiesDto(directory.FullName, directory.Name, FileSystemEntryType.Directory,
+                null, directory.CreationTimeUtc, directory.LastWriteTimeUtc, directory.LastAccessTimeUtc,
+                GetPermissions(path, directory.Attributes), directory.Attributes.ToString());
+        }
+
+        if (File.Exists(path))
+        {
+            var file = new FileInfo(path);
+            return new FilePropertiesDto(file.FullName, file.Name, FileSystemEntryType.File,
+                file.Length, file.CreationTimeUtc, file.LastWriteTimeUtc, file.LastAccessTimeUtc,
+                GetPermissions(path, file.Attributes), file.Attributes.ToString());
+        }
+
+        return null;
+    }
+
     public void CreateDirectory(string path)
     {
         // Directory.CreateDirectory 对已存在目录是 no-op；为产生 409 我们先检查
@@ -284,18 +318,35 @@ public sealed class LocalFileService : IFileService
         {
             content.CopyTo(fs);
         }
-        var fi = new FileInfo(dest);
-        var ext = string.IsNullOrEmpty(fi.Extension) ? null : fi.Extension.Substring(1).ToLowerInvariant();
-        return new FileEntryDto(
-            Path: fi.FullName,
-            Name: fi.Name,
-            Extension: ext,
-            Size: fi.Length,
-            Created: fi.CreationTimeUtc,
-            Modified: fi.LastWriteTimeUtc,
-            Accessed: fi.LastAccessTimeUtc,
-            IsHidden: fi.Attributes.HasFlag(FileAttributes.Hidden),
-            IsSystem: fi.Attributes.HasFlag(FileAttributes.System));
+        return ToFileEntry(new FileInfo(dest));
+    }
+
+    private static FileEntryDto ToFileEntry(FileInfo file)
+    {
+        var ext = string.IsNullOrEmpty(file.Extension) ? null : file.Extension[1..].ToLowerInvariant();
+        return new FileEntryDto(file.FullName, file.Name, ext, file.Length, file.CreationTimeUtc,
+            file.LastWriteTimeUtc, file.LastAccessTimeUtc, file.Attributes.HasFlag(FileAttributes.Hidden),
+            file.Attributes.HasFlag(FileAttributes.System));
+    }
+
+    private static string GetPermissions(string path, FileAttributes attributes)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                FileSystemSecurity security = Directory.Exists(path)
+                    ? new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
+                    : new FileInfo(path).GetAccessControl(AccessControlSections.Access);
+                return "Windows ACL (SDDL): " + security.GetSecurityDescriptorSddlForm(AccessControlSections.Access);
+            }
+            catch
+            {
+                return attributes.HasFlag(FileAttributes.ReadOnly) ? "Read-only" : "Read/write";
+            }
+        }
+
+        return File.GetUnixFileMode(path).ToString();
     }
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
