@@ -38,7 +38,9 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
             ? Task.FromResult<string?>(null)
             : context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
             {
-                var picker = new ExplorerViewModel(files, path => dialog.Close(path))
+                var picker = new ExplorerViewModel(files,
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile),
+                    paths => dialog.Close(paths[0]))
                 {
                     CancelAction = dialog.Cancel,
                 };

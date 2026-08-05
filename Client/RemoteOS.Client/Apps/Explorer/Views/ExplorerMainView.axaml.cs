@@ -36,6 +36,12 @@ public partial class ExplorerMainView : UserControl
             _ = ViewModel.InvokeEntryAsync(entry);
     }
 
+    private void EntriesList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox list)
+            ViewModel?.UpdatePickerSelection(list.SelectedItems?.Cast<object>() ?? []);
+    }
+
     private void EntriesList_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;

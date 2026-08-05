@@ -19,7 +19,7 @@
 
     <DockPanel LastChildFill="True">
         <!-- 顶部菜单栏（简化 MVP） -->
-        <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsFilePickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+        <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
             <MenuItem Header="文件(_F)">
                 <MenuItem Header="新建文件夹(_N)..." Command="{Binding NewFolderCommand}" />
                 <MenuItem Header="上传(_U)..." Command="{Binding UploadCommand}" />
@@ -48,7 +48,7 @@
                 <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="前进" />
                 <Button Classes="icon" Content="↑" Command="{Binding GoUpCommand}" ToolTip.Tip="向上" />
                 <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新" />
-                <StackPanel IsVisible="{Binding !IsFilePickerMode}" Orientation="Horizontal" Spacing="4">
+                <StackPanel IsVisible="{Binding !IsPickerMode}" Orientation="Horizontal" Spacing="4">
                     <Separator Margin="6,0" />
                     <Button Content="新建文件夹" Command="{Binding NewFolderCommand}" Padding="12,6" />
                     <Button Content="删除" Command="{Binding DeleteCommand}" Padding="12,6" />
@@ -83,13 +83,26 @@
             </Grid>
         </Border>
 
-        <!-- Picker mode reuses the full Explorer navigation surface, but only returns files. -->
-        <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsFilePickerMode}"
+        <!-- Picker mode reuses the full Explorer navigation surface and adds native-like confirmation fields. -->
+        <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsPickerMode}"
                 Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,8">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                <TextBlock Text="选择要打开的远程文件" VerticalAlignment="Center" Opacity="0.7" />
-                <Button Grid.Column="1" Content="取消" Command="{Binding CancelPickerCommand}" />
-                <Button Grid.Column="2" Classes="primary" Content="打开" Command="{Binding SelectFileCommand}" />
+            <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{Binding PickerEntryLabel}" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding PickerEntryName, Mode=TwoWay}" />
+                    <ComboBox Grid.Column="2" IsVisible="{Binding IsFilePickerMode}"
+                              ItemsSource="{Binding Filters}" SelectedItem="{Binding SelectedFilter, Mode=TwoWay}" Width="180">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                    <Button Content="取消" Command="{Binding CancelPickerCommand}" />
+                    <Button Classes="primary" Content="{Binding PickerConfirmLabel}" Command="{Binding ConfirmPickerCommand}" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -140,6 +153,8 @@
                          x:Name="EntriesList"
                          ItemsSource="{Binding Entries}"
                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                         SelectionMode="{Binding EntrySelectionMode}"
+                         SelectionChanged="EntriesList_SelectionChanged"
                          Background="#FFFFFF"
                          BorderThickness="0"
                          DoubleTapped="EntriesList_DoubleTapped"

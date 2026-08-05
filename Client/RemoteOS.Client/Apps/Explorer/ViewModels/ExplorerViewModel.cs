@@ -3,6 +3,7 @@
 // Copyright (c) 2020, Rubal Walia. 原始许可见 LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。
 using System.Collections.ObjectModel;
 using System.IO;
+using System.IO.Enumeration;
 using System.Windows.Input;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,7 +26,10 @@ namespace Client.Apps.Explorer.ViewModels;
 public sealed partial class ExplorerViewModel : ObservableObject
 {
     private readonly IExplorerClient _client;
-    private readonly Action<string>? _selectFile;
+    private readonly ExplorerPickerOptions? _pickerOptions;
+    private readonly Action<IReadOnlyList<string>>? _selectPaths;
+    private bool _isUpdatingPickerText;
+    private bool _pickerInitialized;
     private readonly List<string?> _history = new();
     private int _historyIndex = -1;
 
@@ -34,16 +38,25 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private bool _isSyncingTreeSelection;
 
     /// <summary>
-    /// Creates the Explorer view model. Supplying <paramref name="selectFile"/> enables
-    /// file-picker mode: folders remain navigable, while selecting a file returns its path
-    /// to the modal-dialog host instead of launching its associated application.
+    /// Creates the Explorer view model. Supplying picker options enables selection mode:
+    /// folders remain navigable while confirmation returns the selected remote paths to the host.
     /// </summary>
-    public ExplorerViewModel(IExplorerClient client, Action<string>? selectFile = null)
+    public ExplorerViewModel(
+        IExplorerClient client,
+        ExplorerPickerOptions? pickerOptions = null,
+        Action<IReadOnlyList<string>>? selectPaths = null)
     {
         _client = client;
-        _selectFile = selectFile;
+        _pickerOptions = pickerOptions;
+        _selectPaths = selectPaths;
         Nodes = new ObservableCollection<TreeNodeModel>();
         Entries = new ObservableCollection<FileSystemEntryDto>();
+        SelectedEntries = new ObservableCollection<FileSystemEntryDto>();
+        Filters = new ObservableCollection<ExplorerFileFilter>(pickerOptions?.Filters?.Count > 0
+            ? pickerOptions.Filters
+            : [ExplorerFileFilter.AllFiles]);
+        SelectedFilter = Filters[0];
+        _pickerInitialized = true;
     }
 
     /// <summary>导航树根节点集合（主目录组 / 此电脑 / 网络占位）。</summary>
@@ -51,12 +64,17 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     /// <summary>Explorer 网格条目（当前目录的子目录 + 文件）。</summary>
     public ObservableCollection<FileSystemEntryDto> Entries { get; }
+    /// <summary>Entries currently selected in the picker; supports multi-file selection.</summary>
+    public ObservableCollection<FileSystemEntryDto> SelectedEntries { get; }
+    public ObservableCollection<ExplorerFileFilter> Filters { get; }
 
     [ObservableProperty] private string? _addressbarPath;
     [ObservableProperty] private string _statusText = "就绪";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private FileSystemEntryDto? _selectedEntry;
     [ObservableProperty] private TreeNodeModel? _selectedNode;
+    [ObservableProperty] private ExplorerFileFilter? _selectedFilter;
+    [ObservableProperty] private string _pickerEntryName = string.Empty;
 
     // 对话框/宿主回调（由 ExplorerApp 注入）
     /// <summary>请求文本输入对话框。参数：(title, prompt, defaultValue, confirmLabel) → 返回输入或 null（取消）。</summary>
@@ -84,8 +102,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public bool CanGoForward => _historyIndex < _history.Count - 1;
     public bool CanGoUp => !string.IsNullOrEmpty(AddressbarPath);
     public bool HasSelection => SelectedEntry is not null;
-    public bool IsFilePickerMode => _selectFile is not null;
-    public bool CanSelectFile => SelectedEntry?.Type == FileSystemEntryType.File;
+    public bool IsPickerMode => _pickerOptions is not null && _selectPaths is not null;
+    public bool IsFolderPickerMode => IsPickerMode && _pickerOptions!.Mode == ExplorerPickerMode.SelectFolder;
+    public bool IsFilePickerMode => IsPickerMode && !IsFolderPickerMode;
+    public bool AllowMultipleFiles => IsFilePickerMode && _pickerOptions!.AllowMultiple;
+    public SelectionMode EntrySelectionMode => AllowMultipleFiles ? SelectionMode.Multiple : SelectionMode.Single;
+    public string PickerEntryLabel => IsFolderPickerMode ? "文件夹:" : "文件名:";
+    public string PickerConfirmLabel => IsFolderPickerMode ? "选择文件夹" : "打开";
+    public bool CanConfirmPicker => IsFolderPickerMode
+        ? SelectedEntries.Any(IsFolder) || !string.IsNullOrWhiteSpace(AddressbarPath)
+        : SelectedEntries.Any(IsSelectableFile) || !string.IsNullOrWhiteSpace(PickerEntryName);
 
     // ---- 加载根 ----
 
@@ -213,9 +239,27 @@ public sealed partial class ExplorerViewModel : ObservableObject
         OpenCommand.NotifyCanExecuteChanged();
         OpenWithSelectedCommand.NotifyCanExecuteChanged();
         PropertiesCommand.NotifyCanExecuteChanged();
-        SelectFileCommand.NotifyCanExecuteChanged();
+        ConfirmPickerCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasSelection));
-        OnPropertyChanged(nameof(CanSelectFile));
+        if (IsPickerMode && !AllowMultipleFiles)
+        {
+            SelectedEntries.Clear();
+            if (value is not null) SelectedEntries.Add(value);
+            UpdatePickerEntryName();
+        }
+    }
+
+    partial void OnSelectedFilterChanged(ExplorerFileFilter? value)
+    {
+        if (_pickerInitialized && IsFilePickerMode && !IsBusy)
+            _ = RefreshAsync();
+    }
+
+    partial void OnPickerEntryNameChanged(string value)
+    {
+        if (_isUpdatingPickerText) return;
+        SelectedEntries.Clear();
+        ConfirmPickerCommand.NotifyCanExecuteChanged();
     }
 
     // ---- 导航 ----
@@ -236,6 +280,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             Entries.Clear();
+            SelectedEntries.Clear();
+            SelectedEntry = null;
+            UpdatePickerEntryName();
             string? confirmedPath;
             if (path is null)
             {
@@ -251,9 +298,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
             {
                 var dir = await _client.GetDirectoryAsync(path);
                 foreach (var d in dir.Directories) Entries.Add(d);
-                foreach (var f in dir.Files)
-                    Entries.Add(new FileSystemEntryDto(f.Path, f.Name, f.Size, FileSystemEntryType.File,
-                        f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem));
+                if (!IsFolderPickerMode)
+                {
+                    foreach (var f in dir.Files.Where(f => !IsFilePickerMode || MatchesSelectedFilter(f.Name)))
+                        Entries.Add(new FileSystemEntryDto(f.Path, f.Name, f.Size, FileSystemEntryType.File,
+                            f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem));
+                }
                 confirmedPath = dir.Path;
                 AddressbarPath = dir.Path;
                 StatusText = $"就绪 — {dir.Directories.Count} 个目录，{dir.Files.Count} 个文件";
@@ -413,20 +463,84 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (entry.Type == FileSystemEntryType.Directory || entry.Type == FileSystemEntryType.Drive)
             await NavigateToAsync(entry.Path);
         else if (IsFilePickerMode)
-            SelectFile();
+            await ConfirmPickerAsync();
         else
             await OpenEntryAsync(entry);
     }
 
-    [RelayCommand(CanExecute = nameof(CanSelectFile))]
-    private void SelectFile()
+    /// <summary>Called by the view whenever the list selection changes.</summary>
+    public void UpdatePickerSelection(IEnumerable<object> selectedItems)
     {
-        if (SelectedEntry is { Type: FileSystemEntryType.File } entry)
-            _selectFile?.Invoke(entry.Path);
+        if (!IsPickerMode) return;
+        SelectedEntries.Clear();
+        foreach (var entry in selectedItems.OfType<FileSystemEntryDto>())
+            SelectedEntries.Add(entry);
+        UpdatePickerEntryName();
     }
 
     [RelayCommand]
     private void CancelPicker() => CancelAction?.Invoke();
+
+    [RelayCommand(CanExecute = nameof(CanConfirmPicker))]
+    private async Task ConfirmPickerAsync()
+    {
+        if (!IsPickerMode || _selectPaths is null) return;
+
+        var selected = IsFolderPickerMode
+            ? SelectedEntries.Where(IsFolder).Select(entry => entry.Path).ToArray()
+            : SelectedEntries.Where(IsSelectableFile).Select(entry => entry.Path).ToArray();
+
+        if (selected.Length == 0 && IsFolderPickerMode && !string.IsNullOrWhiteSpace(AddressbarPath))
+            selected = [AddressbarPath];
+
+        if (selected.Length == 0 && IsFilePickerMode && !string.IsNullOrWhiteSpace(PickerEntryName))
+        {
+            var path = Path.IsPathRooted(PickerEntryName)
+                ? PickerEntryName
+                : string.IsNullOrWhiteSpace(AddressbarPath)
+                    ? PickerEntryName
+                    : Path.Combine(AddressbarPath, PickerEntryName);
+            try
+            {
+                var entry = await _client.GetInfoAsync(path);
+                if (entry is null || !IsSelectableFile(entry))
+                {
+                    StatusText = "The specified file does not exist or does not match the selected filter.";
+                    return;
+                }
+                selected = [entry.Path];
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"Cannot select file: {ex.Message}";
+                return;
+            }
+        }
+
+        if (selected.Length > 0)
+            _selectPaths(selected);
+    }
+
+    private bool IsSelectableFile(FileSystemEntryDto entry)
+        => entry.Type == FileSystemEntryType.File && (!IsFilePickerMode || MatchesSelectedFilter(entry.Name));
+
+    private static bool IsFolder(FileSystemEntryDto entry)
+        => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive;
+
+    private bool MatchesSelectedFilter(string name)
+        => SelectedFilter?.Patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name,
+            ignoreCase: !OperatingSystem.IsLinux())) != false;
+
+    private void UpdatePickerEntryName()
+    {
+        if (!IsPickerMode) return;
+        _isUpdatingPickerText = true;
+        PickerEntryName = IsFolderPickerMode
+            ? SelectedEntries.FirstOrDefault(IsFolder)?.Name ?? string.Empty
+            : string.Join(" ", SelectedEntries.Where(IsSelectableFile).Select(entry => $"\"{entry.Name}\""));
+        _isUpdatingPickerText = false;
+        ConfirmPickerCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task OpenAsync()
