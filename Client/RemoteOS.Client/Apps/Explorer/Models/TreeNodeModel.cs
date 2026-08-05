@@ -14,10 +14,13 @@ public sealed partial class TreeNodeModel : ObservableObject
     private bool _hasLoadedChildren;
     private bool _hasDummyChild = true;
 
-    public TreeNodeModel(string? label, string? path, bool isDrive = false, bool isComputer = false)
+    public TreeNodeModel(string? label, string? path,
+        TreeNodeIconKind iconKind = TreeNodeIconKind.Folder,
+        bool isDrive = false, bool isComputer = false)
     {
         Label = label;
         Path = path;
+        IconKind = iconKind;
         IsDrive = isDrive;
         IsComputer = isComputer;
         Children = new ObservableCollection<TreeNodeModel>();
@@ -27,6 +30,16 @@ public sealed partial class TreeNodeModel : ObservableObject
     public string? Path { get; }
     public bool IsDrive { get; }
     public bool IsComputer { get; }
+
+    /// <summary>图标种类，驱动 View 中的 emoji 渲染（converter 见 EntryConverters）。</summary>
+    public TreeNodeIconKind IconKind { get; }
+
+    /// <summary>是否为"网络"占位节点（MVP 不实现浏览，点击仅显示状态栏文本不导航）。</summary>
+    public bool IsNetwork => IconKind == TreeNodeIconKind.Network;
+
+    /// <summary>是否为顶层特殊位置快捷入口（主目录组下的叶子节点：桌面/文档/下载/图片/音乐/视频）。</summary>
+    public bool IsSpecialLocation =>
+        IconKind is >= TreeNodeIconKind.Desktop and <= TreeNodeIconKind.Videos;
 
     /// <summary>
     /// Indicates the internal placeholder used to make an unloaded node expandable.
@@ -54,6 +67,9 @@ public sealed partial class TreeNodeModel : ObservableObject
         get => _isLoading;
         set => SetProperty(ref _isLoading, value);
     }
+
+    /// <summary>子节点是否已懒加载完成（首次展开后为 true）。VM 同步选中下钻时用于判断是否需触发加载。</summary>
+    public bool HasLoadedChildren => _hasLoadedChildren;
 
     /// <summary>树节点首次展开时触发，调用方应填充 Children 并设 IsLoading=false。</summary>
     public Func<TreeNodeModel, Task>? ExpandRequested { get; set; }

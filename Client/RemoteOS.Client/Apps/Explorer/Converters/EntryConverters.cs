@@ -2,6 +2,7 @@
 // Copyright (c) 2020, Rubal Walia. 原始许可见 LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Client.Apps.Explorer.Models;
 using RemoteOS.Protocol.Files;
 
 namespace Client.Apps.Explorer.Converters;
@@ -60,6 +61,32 @@ public sealed class EntrySizeToStringConverter : IValueConverter
         }
         return $"{adjusted:n2} {Suffixes[mag]}";
     }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>导航树节点图标种类 → emoji 字符串。参考 Windows File Explorer Navigation Pane 视觉惯例。
+/// 用 emoji 与现有条目网格图标风格一致；统一矢量图标库（Material.Icons.Avalonia）列入后续 §7 与 Ribbon 一起做。</summary>
+public sealed class TreeNodeIconKindToGlyphConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is TreeNodeIconKind kind ? kind switch
+        {
+            TreeNodeIconKind.Placeholder => string.Empty,
+            TreeNodeIconKind.Computer    => "💻",
+            TreeNodeIconKind.Drive       => "💽",
+            TreeNodeIconKind.Folder      => "📁",
+            TreeNodeIconKind.Home        => "🏠",
+            TreeNodeIconKind.Desktop     => "🖥️",
+            TreeNodeIconKind.Documents   => "📄",
+            TreeNodeIconKind.Downloads   => "📥",
+            TreeNodeIconKind.Pictures    => "🖼️",
+            TreeNodeIconKind.Music       => "🎵",
+            TreeNodeIconKind.Videos      => "🎬",
+            TreeNodeIconKind.Network     => "🌐",
+            _ => "📁"
+        } : "📁";
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();

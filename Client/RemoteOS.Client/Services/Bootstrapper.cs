@@ -34,12 +34,18 @@ public static class Bootstrapper
         // Explorer（文件管理器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
         services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>();
 
+        // Browser（浏览器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
+        // NativeWebView 用平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络；
+        // Server 仅持久化书签与历史记录（按用户隔离）。
+        services.AddHttpClient<Client.Apps.Browser.IBrowserClient, Client.Apps.Browser.BrowserClient>();
+
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {

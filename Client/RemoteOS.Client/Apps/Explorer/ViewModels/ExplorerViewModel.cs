@@ -7,6 +7,7 @@ using System.Windows.Input;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Apps.Explorer.Models;
 using RemoteOS.Protocol.Files;
 
 namespace Client.Apps.Explorer.ViewModels;
@@ -17,22 +18,29 @@ namespace Client.Apps.Explorer.ViewModels;
 ///
 /// 数据流：导航树选中目录 → <see cref="NavigateToAsync"/> → <see cref="IExplorerClient.GetDirectoryAsync"/>
 /// → 填充 <see cref="Entries"/> 网格 + <see cref="AddressbarPath"/>。双击目录进入；双击文件下载。
-/// 历史栈支持前进/后退/向上。文件操作（删除/重命名/复制/移动/新建/上传/下载）通过对话框回调与宿主交互。</summary>
+/// 历史栈支持前进/后退/向上。文件操作（删除/重命名/复制/移动/新建/上传/下载）通过对话框回调与宿主交互。
+///
+/// 导航树结构（参考 Windows File Explorer Navigation Pane）：主目录组节点（家目录 + 静态快捷入口：桌面/文档/下载/图片/音乐/视频）
+/// + 此电脑节点（盘符懒加载）+ 网络占位节点。路径变化时由 <see cref="SyncTreeSelectionAsync"/> 反向同步树选中（防循环）。</summary>
 public sealed partial class ExplorerViewModel : ObservableObject
 {
     private readonly IExplorerClient _client;
     private readonly List<string?> _history = new();
     private int _historyIndex = -1;
 
+    /// <summary>路径变化时同步树选中的抑制标志：避免 SyncTreeSelectionAsync 设 SelectedNode 触发 OnSelectedNodeChanged
+    /// 再调 NavigateToAsync 形成循环（重复 API 调用 + 重复历史入栈）。</summary>
+    private bool _isSyncingTreeSelection;
+
     public ExplorerViewModel(IExplorerClient client)
     {
         _client = client;
-        Nodes = new ObservableCollection<Models.TreeNodeModel>();
+        Nodes = new ObservableCollection<TreeNodeModel>();
         Entries = new ObservableCollection<FileSystemEntryDto>();
     }
 
-    /// <summary>导航树根节点集合（Computer 下挂各盘符/根）。</summary>
-    public ObservableCollection<Models.TreeNodeModel> Nodes { get; }
+    /// <summary>导航树根节点集合（主目录组 / 此电脑 / 网络占位）。</summary>
+    public ObservableCollection<TreeNodeModel> Nodes { get; }
 
     /// <summary>Explorer 网格条目（当前目录的子目录 + 文件）。</summary>
     public ObservableCollection<FileSystemEntryDto> Entries { get; }
@@ -41,7 +49,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "就绪";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private FileSystemEntryDto? _selectedEntry;
-    [ObservableProperty] private Models.TreeNodeModel? _selectedNode;
+    [ObservableProperty] private TreeNodeModel? _selectedNode;
 
     // 对话框/宿主回调（由 ExplorerApp 注入）
     /// <summary>请求文本输入对话框。参数：(title, prompt, defaultValue, confirmLabel) → 返回输入或 null（取消）。</summary>
@@ -67,29 +75,66 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public async Task LoadRootAsync()
     {
         IsBusy = true;
-        StatusText = "加载驱动器列表...";
+        StatusText = "加载导航树...";
         try
         {
-            var drives = await _client.GetDrivesAsync();
+            // 并发加载特殊位置与盘符列表
+            var specialTask = _client.GetSpecialLocationsAsync();
+            var drivesTask = _client.GetDrivesAsync();
+            await Task.WhenAll(specialTask, drivesTask);
+            var specials = specialTask.Result;
+            var drives = drivesTask.Result;
+
             Nodes.Clear();
-            var computer = new Models.TreeNodeModel("Computer", null, isComputer: true);
-            computer.ExpandRequested = OnNodeExpandRequested;
+
+            // (1) 主目录组节点：静态填充快捷入口（不含 dummy child，叶子节点点击直接导航，不挂 ExpandRequested）。
+            // 与 Windows 11 File Explorer Home 节点行为一致：展开=精选快捷入口；点击组节点本身=导航到家目录（右侧网格列全部子项）。
+            var homeEntry = specials.FirstOrDefault(s => s.Kind == SpecialFolderKind.Home);
+            var homePath = homeEntry?.Path;
+            var homeGroup = new TreeNodeModel("主目录", homePath, iconKind: TreeNodeIconKind.Home);
+            foreach (var s in specials.Where(s => s.Kind != SpecialFolderKind.Home))
+            {
+                var icon = s.Kind switch
+                {
+                    SpecialFolderKind.Desktop   => TreeNodeIconKind.Desktop,
+                    SpecialFolderKind.Documents => TreeNodeIconKind.Documents,
+                    SpecialFolderKind.Downloads => TreeNodeIconKind.Downloads,
+                    SpecialFolderKind.Pictures  => TreeNodeIconKind.Pictures,
+                    SpecialFolderKind.Music      => TreeNodeIconKind.Music,
+                    SpecialFolderKind.Videos     => TreeNodeIconKind.Videos,
+                    _ => TreeNodeIconKind.Folder
+                };
+                // 快捷入口叶子节点：不 AddDummyChild、不挂 ExpandRequested（点击直接导航）
+                homeGroup.Children.Add(new TreeNodeModel(s.Name, s.Path, iconKind: icon));
+            }
+            Nodes.Add(homeGroup);
+
+            // (2) 此电脑节点：保留盘符列表 + dummy child 懒加载（与原 Jaya 逻辑一致）
+            var thisPc = new TreeNodeModel("此电脑", null,
+                iconKind: TreeNodeIconKind.Computer, isComputer: true);
+            thisPc.ExpandRequested = OnNodeExpandRequested;
             foreach (var d in drives)
             {
-                var node = new Models.TreeNodeModel(d.Name, d.Path, isDrive: true);
+                var node = new TreeNodeModel(d.Name, d.Path,
+                    iconKind: TreeNodeIconKind.Drive, isDrive: true);
                 node.AddDummyChild();
                 node.ExpandRequested = OnNodeExpandRequested;
-                computer.Children.Add(node);
+                thisPc.Children.Add(node);
             }
-            Nodes.Add(computer);
-            computer.IsExpanded = true;
-            StatusText = $"就绪 — {drives.Count} 个驱动器";
+            Nodes.Add(thisPc);
+
+            // (3) 网络占位节点（MVP 不实现浏览）
+            Nodes.Add(new TreeNodeModel("网络", null, iconKind: TreeNodeIconKind.Network));
+
+            homeGroup.IsExpanded = true;
+            thisPc.IsExpanded = true;
+            StatusText = $"就绪 — {drives.Count} 个驱动器，{specials.Count} 个快捷位置";
         }
         catch (Exception ex) { StatusText = $"加载失败：{ex.Message}"; }
         finally { IsBusy = false; }
     }
 
-    private async Task OnNodeExpandRequested(Models.TreeNodeModel node)
+    private async Task OnNodeExpandRequested(TreeNodeModel node)
     {
         if (node.IsComputer || string.IsNullOrEmpty(node.Path)) { node.MarkChildrenLoaded(); return; }
         node.IsLoading = true;
@@ -99,7 +144,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             node.Children.Clear();
             foreach (var sub in dir.Directories)
             {
-                var child = new Models.TreeNodeModel(sub.Name, sub.Path);
+                var child = new TreeNodeModel(sub.Name, sub.Path, iconKind: TreeNodeIconKind.Folder);
                 child.AddDummyChild();
                 child.ExpandRequested = OnNodeExpandRequested;
                 node.Children.Add(child);
@@ -110,17 +155,27 @@ public sealed partial class ExplorerViewModel : ObservableObject
         finally { node.IsLoading = false; }
     }
 
-    partial void OnSelectedNodeChanged(Models.TreeNodeModel? value)
+    partial void OnSelectedNodeChanged(TreeNodeModel? value)
     {
+        // 同步设置 SelectedNode 时抑制反向导航（避免循环 + 重复历史入栈）
+        if (_isSyncingTreeSelection) return;
         // Unloaded tree nodes contain a dummy child solely to show the expand glyph.
         // Its path is null, which used to be interpreted as the Computer root and
         // therefore replaced the current directory with the drive list.
         if (value is null || value.IsPlaceholder) return;
+        if (value.IsNetwork)
+        {
+            // 网络占位：MVP 不实现浏览，仅状态栏提示，不导航
+            StatusText = "网络浏览暂未实现";
+            return;
+        }
         _ = value.IsComputer ? NavigateToAsync(null) : NavigateToAsync(value.Path);
     }
 
     partial void OnAddressbarPathChanged(string? value)
     {
+        // 注意：不在此同步树选中。TextBox.Text TwoWay 绑定默认 PropertyChanged，每个按键都触发本方法，
+        // 路径还是半成品时去查找节点无意义且打断输入。同步在 NavigateToAsyncCore 末尾、路径被服务端确认后做。
         GoUpCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanGoUp));
     }
@@ -153,12 +208,14 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             Entries.Clear();
+            string? confirmedPath;
             if (path is null)
             {
                 var drives = await _client.GetDrivesAsync();
                 foreach (var d in drives)
                     Entries.Add(new FileSystemEntryDto(d.Path, d.Name, d.TotalSize,
                         FileSystemEntryType.Drive, null, null, null, false, false));
+                confirmedPath = null;
                 AddressbarPath = null;
                 StatusText = $"就绪 — {drives.Count} 个驱动器";
             }
@@ -169,12 +226,114 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 foreach (var f in dir.Files)
                     Entries.Add(new FileSystemEntryDto(f.Path, f.Name, f.Size, FileSystemEntryType.File,
                         f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem));
+                confirmedPath = dir.Path;
                 AddressbarPath = dir.Path;
                 StatusText = $"就绪 — {dir.Directories.Count} 个目录，{dir.Files.Count} 个文件";
             }
+            // 路径已由服务端确认，反向同步树选中（防循环：被 _isSyncingTreeSelection 抑制）
+            await SyncTreeSelectionAsync(confirmedPath);
         }
         catch (Exception ex) { StatusText = $"加载失败：{ex.Message}"; }
         finally { IsBusy = false; }
+    }
+
+    // ---- 树选中同步（防循环） ----
+
+    /// <summary>路径变化后反向同步树选中：找到对应节点，必要时逐级懒加载祖先，最终设 SelectedNode。
+    /// 失败不抛（找不到时保持原选中，不阻塞右侧网格已展示内容）。</summary>
+    private async Task SyncTreeSelectionAsync(string? path)
+    {
+        if (_isSyncingTreeSelection) return;
+        // 早退：当前已选中节点的 path 与目标一致（如树点击触发的导航场景，避免冗余查找）
+        if (SelectedNode is { } current && PathEquals(current.Path, path)) return;
+
+        _isSyncingTreeSelection = true;
+        try
+        {
+            var node = await FindAndExpandNodeAsync(path);
+            if (node is not null && !ReferenceEquals(SelectedNode, node))
+                SelectedNode = node;   // 触发 OnSelectedNodeChanged，但被 _isSyncingTreeSelection 抑制
+        }
+        finally { _isSyncingTreeSelection = false; }
+    }
+
+    /// <summary>查找路径对应的树节点，必要时逐级懒加载祖先。返回 null 表示未找到（不抛）。</summary>
+    private async Task<TreeNodeModel?> FindAndExpandNodeAsync(string? path)
+    {
+        // null 路径 → 选 "此电脑" 节点（与 NavigateToAsync(null) 的盘符聚合视图对应）
+        if (string.IsNullOrEmpty(path))
+            return Nodes.FirstOrDefault(n => n.IsComputer);
+
+        // 1) 先在顶层根节点与其快捷入口叶子里精确匹配（O(1) 命中主目录组节点 / 桌面 / 文档等）
+        foreach (var root in Nodes)
+        {
+            if (!root.IsPlaceholder && PathEquals(root.Path, path))
+                return root;
+            foreach (var child in root.Children)
+                if (!child.IsPlaceholder && PathEquals(child.Path, path))
+                    return child;
+        }
+
+        // 2) 否则按路径分段从"此电脑"下的盘符节点下钻，逐级懒加载祖先
+        var thisPc = Nodes.FirstOrDefault(n => n.IsComputer);
+        if (thisPc is null) return null;
+        var cmp = PathComparison;
+        foreach (var drive in thisPc.Children)
+        {
+            if (drive.IsPlaceholder) continue;
+            // 仅当下钻起点是目标路径的祖先时才进入（避免对每个盘符都展开）
+            if (!IsAncestorOrEqual(drive.Path, path, cmp)) continue;
+            var found = await DescendAsync(drive, path, cmp);
+            if (found is not null) return found;
+        }
+        return null;
+
+        async Task<TreeNodeModel?> DescendAsync(TreeNodeModel start, string target, StringComparison comparison)
+        {
+            var current = start;
+            while (current is not null && !PathEquals(current.Path, target, comparison))
+            {
+                // 若子节点未懒加载：直接调 OnNodeExpandRequested 并 await（绕过 IsExpanded setter 的 fire-and-forget）
+                if (!current.HasLoadedChildren && current.ExpandRequested is not null)
+                {
+                    await OnNodeExpandRequested(current);
+                    current.IsExpanded = true;   // 加载已完成，setter 检测 _hasLoadedChildren 不再 Invoke
+                }
+                current = current.Children.FirstOrDefault(c =>
+                    !c.IsPlaceholder && IsAncestorOrEqual(c.Path, target, comparison));
+            }
+            return PathEquals(current?.Path, target, comparison) ? current : null;
+        }
+    }
+
+    // ---- 路径规范化辅助 ----
+
+    /// <summary>路径比较策略：Linux 区分大小写（文件系统大小写敏感），Windows 不区分。</summary>
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+
+    /// <summary>规范化路径：去尾部目录分隔符；Linux "/" 根特殊处理（不能 trim 成空串）；非法字符兜底返回原值。</summary>
+    private static string? NormalizePath(string? p)
+    {
+        if (string.IsNullOrEmpty(p)) return p;
+        if (p == "/") return p;             // Linux 根特殊处理
+        try { return Path.GetFullPath(p).TrimEnd('\\', '/'); }
+        catch { return p; }                  // 非法字符 / 非法路径 fallback
+    }
+
+    private static bool PathEquals(string? a, string? b, StringComparison? comparison = null)
+        => string.Equals(NormalizePath(a), NormalizePath(b),
+            comparison ?? PathComparison);
+
+    /// <summary>ancestor 是否为 descendant 的祖先或相等（用于下钻时判断子节点是否包含目标路径）。</summary>
+    private static bool IsAncestorOrEqual(string? ancestor, string descendant, StringComparison comparison)
+    {
+        var a = NormalizePath(ancestor);
+        var d = NormalizePath(descendant);
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(d)) return false;
+        if (string.Equals(a, d, comparison)) return true;
+        return d.StartsWith(a + Path.DirectorySeparatorChar, comparison)
+            || d.StartsWith(a + '/', comparison);
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]

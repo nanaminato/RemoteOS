@@ -38,5 +38,8 @@
         <!-- Explorer: 移植自 Jaya 文件管理器（BSD-3）。Behaviors 用于双击导航等交互；Newtonsoft 保留 Jaya 配置模型序列化 -->
         <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.0.1" />
         <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+
+        <!-- Browser: 官方 Avalonia WebView 组件（NativeWebView），平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK） -->
+        <PackageVersion Include="Avalonia.Controls.WebView" Version="12.0.1" />
     </ItemGroup>
 </Project>

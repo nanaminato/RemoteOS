@@ -35,6 +35,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置文件管理器已落地（RemoteExplorer MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
+内置浏览器已落地（RemoteBrowser MVP）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；UI 含顶部工具栏（后退/前进/刷新/停止/主页/加入·删除书签/侧边栏切换）+ 地址栏 + 状态栏 + 左侧边栏双标签页（书签 / 历史，支持双击导航、单条删除、清空全部）。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
 ---
@@ -75,7 +77,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **类型**：Class Library
 - **定位**：RemoteOS Shell，类似 `explorer.exe`。
 - **职责**：Desktop、Taskbar、StartMenu、MainWindow、Shell 生命周期。
-- **包含内置应用**：Welcome、Notepad、Settings、Terminal、Explorer。
+- **包含内置应用**：Welcome、Notepad、Settings、Terminal、Explorer、Browser。
 - **系统启动时装配**：`WindowManager`、`ApplicationManager`、Shell Services。
 
 ### 4.3 RemoteOS.Core
@@ -203,6 +205,7 @@ Application Package
 | **Settings** | 系统设置入口 | 已实现 |
 | **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode MVP） | 已实现（Remote Mode + Local 回退） |
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（MVP：浏览 + 基本操作） |
+| **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server） | 已实现（MVP：导航 + 书签 + 历史） |
 
 ---
 
@@ -210,10 +213,11 @@ Application Package
 
 ### RemoteBrowser
 
-- **定位**：不是远程浏览器。
-- **结构**：`RemoteBrowser → Avalonia Window → WebView2 → Chromium`。
+- **定位**：不是远程浏览器。网页内容走客户端网络由平台原生引擎渲染（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK）。
+- **结构**：`RemoteBrowser → RemoteWindow → NativeWebView (Avalonia.Controls.WebView 12.0.1)`。
 - **网页**：本地加载。
-- **同步到 Server**：History、Bookmark、Cookie、Extension Config。
+- **同步到 Server**：History、Bookmark（已实现，按用户隔离，EF Core+SQLite 持久化）；Cookie/Extension Config（未实现）。
+- **已实现**（MVP）：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
 
 ### RemoteTerminal
 
@@ -250,7 +254,7 @@ Application Package
 |------|------|------|
 | MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
 | MVP 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
-| MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（RemoteTerminal Local Mode 已实现；雏形：Welcome/Notepad/Settings） |
+| MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer | 进行中（RemoteTerminal Local+Remote Mode 已实现；RemoteExplorer MVP 已实现；RemoteBrowser MVP 已实现） |
 | MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成；服务端 SQLite 持久化 MVP 已完成——User/Workspace(含 TerminalSettings)/Device 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)） |
 
 ---
@@ -323,6 +327,7 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) | 桌面外壳：宿主窗口控制、mstsc 连接栏、模态对话框机制 |
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
+| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、按用户隔离持久化 |
 | [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings JSON 列、建库策略 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

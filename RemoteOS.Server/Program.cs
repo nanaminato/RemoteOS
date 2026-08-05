@@ -93,6 +93,7 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
     builder.Services.AddScoped<IWorkspaceRepository, SqliteWorkspaceRepository>();
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
+    builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
 }
 else
 {
@@ -100,6 +101,7 @@ else
     builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
     builder.Services.AddSingleton<IWorkspaceRepository, InMemoryWorkspaceRepository>();
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
+    builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
 }
 // Session 始终内存（连接关系，不持久化）
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
@@ -126,11 +128,38 @@ var app = builder.Build();
 
 // 启动时建库/建表（SQLite 模式）。EnsureCreated 零工具依赖，适合 MVP 稳定 schema；
 // 未来 schema 需演进时切换为 EF Core Migrations（db.Database.MigrateAsync）。
+// 注意：EnsureCreated 只在库不存在时建表——已存在的 db 不会追加新表（如本次新增的 bookmarks/history_entries）。
+// 为兼容既有部署（保留测试数据），追加 CREATE TABLE IF NOT EXISTS 增量补齐浏览器相关表。
 if (storageProvider == "sqlite")
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RemoteOsDbContext>();
     db.Database.EnsureCreated();
+
+    // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS "bookmarks" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Title" TEXT,
+            "Url" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_bookmarks_UserId_Url" ON "bookmarks" ("UserId", "Url");
+        CREATE INDEX IF NOT EXISTS "IX_bookmarks_UserId" ON "bookmarks" ("UserId");
+
+        CREATE TABLE IF NOT EXISTS "history_entries" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Title" TEXT,
+            "Url" TEXT NOT NULL,
+            "VisitCount" INTEGER NOT NULL,
+            "FirstVisitedAt" TEXT NOT NULL,
+            "LastVisitedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_history_entries_UserId_Url" ON "history_entries" ("UserId", "Url");
+        CREATE INDEX IF NOT EXISTS "IX_history_entries_UserId_LastVisitedAt" ON "history_entries" ("UserId", "LastVisitedAt");
+        """);
 }
 
 if (app.Environment.IsDevelopment())
@@ -149,6 +178,7 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapWorkspaceEndpoints();
+app.MapBrowserEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 
 app.Run();

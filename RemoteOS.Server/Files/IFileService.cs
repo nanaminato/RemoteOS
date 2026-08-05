@@ -10,6 +10,12 @@ public interface IFileService
     /// <summary>列举驱动器/根挂载点。Windows 返回 C:\ 等盘符；Linux 返回单条 "/"。</summary>
     IReadOnlyList<DriveDto> GetDrives();
 
+    /// <summary>列举特殊文件夹位置（家目录/桌面/文档/下载/图片/音乐/视频）。
+    /// 跨平台枚举用 <see cref="Environment.GetFolderPath(System.Environment.SpecialFolder)"/>；Linux 下 <c>UserProfile</c> 为空回退 <c>$HOME</c>；
+    /// Downloads 不在 <see cref="System.Environment.SpecialFolder"/> 枚举中需手动拼接 <c>$HOME/Downloads</c>。
+    /// 仅返回 <see cref="System.IO.Directory.Exists"/> 的项，缺失项已被过滤。</summary>
+    IReadOnlyList<SpecialLocationDto> GetSpecialLocations();
+
     /// <summary>列举目录内容（目录自身元数据 + 子目录列表 + 文件列表）。
     /// path 为空/未提供时返回盘符根的聚合视图（Windows 顶层为各盘符目录项，Linux 为 "/" 根目录列举）。</summary>
     DirectoryDto GetDirectory(string? path);

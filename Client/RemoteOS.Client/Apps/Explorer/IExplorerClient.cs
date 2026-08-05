@@ -10,6 +10,10 @@ public interface IExplorerClient
     /// <summary>列举驱动器/根挂载点（GET /files/drives）。</summary>
     Task<IReadOnlyList<DriveDto>> GetDrivesAsync(CancellationToken ct = default);
 
+    /// <summary>列举特殊文件夹位置（GET /files/special）。家目录/桌面/文档/下载/图片/音乐/视频中已存在的项。
+    /// 服务端已 <c>Directory.Exists</c> 过滤，缺失项不返回。</summary>
+    Task<IReadOnlyList<SpecialLocationDto>> GetSpecialLocationsAsync(CancellationToken ct = default);
+
     /// <summary>列举目录内容（GET /files/list）。path 为空表示盘符根。</summary>
     Task<DirectoryDto> GetDirectoryAsync(string? path, CancellationToken ct = default);
 

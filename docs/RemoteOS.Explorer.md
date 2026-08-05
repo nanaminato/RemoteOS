@@ -120,6 +120,11 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 
 - **移植自** Jaya `FileSystemService.GetDirectoryAsync` 的目录枚举逻辑（`DirectoryInfo.EnumerateDirectories` / `EnumerateFiles`）。
 - **平台感知**：`GetDrives()` 返回 `DriveInfo.GetDrives()`；`GetDirectory(null)` 在 Windows 返回盘符聚合视图，在 Linux 返回 "/" 根列举。
+- **特殊位置枚举**（`GetSpecialLocations`）：跨平台枚举家目录/桌面/文档/下载/图片/音乐/视频，供 Explorer 导航窗格"主目录"组节点填充快捷入口。
+  - 用 `Environment.GetFolderPath(Environment.SpecialFolder.UserProfile / Desktop / MyDocuments / MyPictures / MyMusic / MyVideos)` 跨平台获取。
+  - Downloads 不在 `SpecialFolder` 枚举中 → 手动 `Path.Combine(home, "Downloads")` 拼接。
+  - Linux `UserProfile` 为空时回退 `Environment.GetEnvironmentVariable("HOME")`（headless 服务进程兜底）。
+  - **全部经 `Directory.Exists` 过滤**——headless Linux 上 Downloads/Pictures 等可能缺失，过滤后不返回失效快捷入口。
 - **UnauthorizedAccessException 吞并**：列举时部分子目录不可访问不应导致整列失败（与 Jaya 一致）。
 - **新增操作**（Jaya 原本 NotImplemented）：`CreateDirectory` / `Delete`（递归）/ `Rename` / `Move` / `Copy` / `Upload` / `OpenRead`（下载）。
 - **以宿主 OS 进程身份运行**：Server 进程的权限即文件操作权限（复用宿主用户/权限，不另建 ACL——project_memory 硬约束）。
@@ -135,6 +140,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 | 方法 | 入参 | 返回 | 错误码（type suffix） |
 |------|------|------|----------------------|
 | `GET /files/drives` | — | `IReadOnlyList<DriveDto>` | — |
+| `GET /files/special` | — | `IReadOnlyList<SpecialLocationDto>` | —（缺失项服务端 `Directory.Exists` 过滤） |
 | `GET /files/list?path=` | `string? path`（空=盘符根） | `DirectoryDto` | `not-found` / `access-denied` / `invalid-path` |
 | `GET /files/info?path=` | `string path` | `FileSystemEntryDto`（404 if 缺） | `not-found` / `access-denied` |
 | `GET /files/download?path=` | `string path` | `Results.File(stream, "application/octet-stream", fileName)` | `not-found` / `access-denied` |
@@ -165,9 +171,10 @@ Client/RemoteOS.Client/Apps/Explorer/
 ├── IExplorerClient.cs             typed HttpClient 抽象
 ├── ExplorerClient.cs              实现：JWT from IAuthSession，绝对 URI，ProblemDetails → RemoteOsAuthException
 ├── Models/
-│   └── TreeNodeModel.cs           导航树节点（懒加载 + dummy child 模式，移植自 Jaya TreeNodeModel）
+│   ├── TreeNodeModel.cs           导航树节点（懒加载 + dummy child 模式，移植自 Jaya TreeNodeModel；加 IconKind 驱动 emoji）
+│   └── TreeNodeIconKind.cs        导航树节点图标种类枚举（Computer/Drive/Folder/Home/Desktop/Documents/Downloads/Pictures/Music/Videos/Network）
 ├── ViewModels/
-│   └── ExplorerViewModel.cs       主 VM：合并 Jaya Explorer/Navigation/Addressbar/Toolbar/Statusbar VM
+│   └── ExplorerViewModel.cs       主 VM：合并 Jaya Explorer/Navigation/Addressbar/Toolbar/Statusbar VM；多根树 + 选中同步
 ├── Views/
 │   ├── ExplorerMainView.axaml     布局：Menu/Toolbar/Addressbar/Statusbar + Navigation Tree + Explorer Grid
 │   └── ExplorerMainView.axaml.cs  code-behind：地址栏回车/转到/双击进入
@@ -177,7 +184,7 @@ Client/RemoteOS.Client/Apps/Explorer/
 │   ├── ConfirmDialogView.axaml(.cs)     通用确认对话框（删除确认/About 消息）
 │   └── ConfirmDialogViewModel.cs
 └── Converters/
-    └── EntryConverters.cs         EntryType→图标可见性/类型名/大小友好字符串（SizeSuffix 移植自 Jaya）
+    └── EntryConverters.cs         EntryType→图标可见性/类型名/大小友好字符串（SizeSuffix 移植自 Jaya）+ TreeNodeIconKind→emoji
 ```
 
 ### 5.2 ExplorerViewModel 设计
@@ -188,6 +195,40 @@ Client/RemoteOS.Client/Apps/Explorer/
 - **历史栈**：`_history` + `_historyIndex` 支持 `GoBack` / `GoForward` / `GoUp`（`CanGoBack`/`CanGoForward`/`CanGoUp` 驱动命令可用性）。
 - **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → MVP 不打开（后续接入预览）。
 - **文件操作命令**：`NewFolder` / `Delete` / `Rename` / `Copy` / `Move` / `Upload` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成，操作后调 `RefreshAsync` 刷新视图。
+
+#### 多根导航树（参考 Windows File Explorer Navigation Pane）
+
+`LoadRootAsync` 并发 `Task.WhenAll(GetSpecialLocationsAsync, GetDrivesAsync)` 后构造三段树：
+
+```
+Nodes
+├── 🏠 主目录 (Home)              ← path=家目录，点击组节点本身=导航到家目录（右侧网格列全部子项）
+│   ├── 🖥️ 桌面                   ← 静态填充（GetSpecialLocationsAsync），叶子节点不挂 ExpandRequested
+│   ├── 📄 文档
+│   ├── 📥 下载
+│   ├── 🖼️ 图片
+│   ├── 🎵 音乐
+│   └── 🎬 视频
+├── 💻 此电脑 (This PC)            ← isComputer=true，挂 ExpandRequested
+│   ├── 💽 C:                     ← dummy child 懒加载（与原 Jaya 逻辑一致）
+│   └── 💽 D:
+└── 🌐 网络 (Network)             ← IsNetwork=true 占位，点击仅显示状态栏文本不导航
+```
+
+- **主目录组节点用静态填充**（不含 dummy child、不挂 `ExpandRequested`）：与 Windows 11 Home 节点行为一致——展开=精选快捷入口，点击组节点本身=导航到家目录（右侧网格列出家目录全部子项）。两套来源不重复：快捷入口是协议层枚举的固定 6 项（桌面/文档/下载/图片/音乐/视频），家目录右侧网格列出的是真实目录的全部子项。
+- **此电脑节点保留盘符列表 + dummy child 懒加载**（与原 Jaya 逻辑一致）。
+- **网络节点占位**：MVP 不实现浏览；`OnSelectedNodeChanged` 中 `value.IsNetwork` 早退仅设状态栏文本"网络浏览暂未实现"。
+
+#### 选中同步（防循环）
+
+地址栏/前进后退/双击改变路径时，树自动展开并选中对应节点（与 Windows File Explorer 行为一致）：
+
+- **同步点在 `NavigateToAsyncCore` 末尾**（不在 `OnAddressbarPathChanged`）——`TextBox.Text` TwoWay 绑定默认 `PropertyChanged`，每按键都触发 `OnAddressbarPathChanged`，路径还是半成品时去查找节点无意义且打断输入；同步必须在路径被服务端确认后做。
+- **防循环标志 `_isSyncingTreeSelection`**：仅抑制 `SyncTreeSelectionAsync` 设 `SelectedNode` → `OnSelectedNodeChanged` → `NavigateToAsync` 这条反向边。不需要双向抑制（`OnAddressbarPathChanged` 不做同步，不会反向写 `SelectedNode`）。
+- **`SyncTreeSelectionAsync` 早退**：当前 `SelectedNode.Path` 已等于目标 path 时直接返回（树点击触发导航场景的冗余查找）。
+- **`FindAndExpandNodeAsync` 下钻**：先在顶层根节点与快捷入口叶子精确匹配（O(1) 命中家目录/桌面/文档等）；否则从"此电脑"下匹配的盘符节点下钻，逐级懒加载祖先——VM 内直接调 `await OnNodeExpandRequested(node)` 绕过 `IsExpanded` setter 的 fire-and-forget（setter 用 `_ = ExpandRequested?.Invoke(this)` 无法 await），加载完成后再设 `node.IsExpanded = true`（setter 检测 `_hasLoadedChildren` 已 true 不再 Invoke）。
+- **失败不抛**：找不到对应节点时保持原选中，不阻塞右侧网格已展示内容（如路径存在但树未展开且懒加载失败）。
+- **路径规范化辅助**（`NormalizePath` / `PathEquals` / `IsAncestorOrEqual`）：Linux 区分大小写（`Ordinal`），Windows 不区分（`OrdinalIgnoreCase`）；Linux "/" 根特殊处理（不能 trim 成空串）；非法字符 try/catch 兜底返回原值。
 
 ### 5.3 对话框回调注入
 
@@ -226,8 +267,10 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 | `FileEntryDto.cs` | 文件条目（含 extension，非空 size）——用于 `DirectoryDto.Files` 列表 |
 | `DirectoryDto.cs` | 目录列举结果：目录自身元数据 + `Directories[]` + `Files[]` |
 | `DriveDto.cs` | 驱动器/根挂载点：name/path/totalSize/isReady |
+| `SpecialFolderKind.cs` | enum `Home/Desktop/Documents/Downloads/Pictures/Music/Videos`（camelCase 序列化，由 `RemoteOsJsonOptions.Default` 全局生效，无需显式 `[JsonStringEnumConverter]`） |
+| `SpecialLocationDto.cs` | 特殊文件夹位置：kind/name/path（Server `GetSpecialLocations` 返回，已 `Directory.Exists` 过滤） |
 | `RenameRequest.cs` / `MoveRequest.cs` / `CopyRequest.cs` | 操作请求 body |
-| `FileApiRoutes.cs` | 路由常量（路径含 `/api/v1` 前缀，Server 注册与 Client 拼接共用） |
+| `FileApiRoutes.cs` | 路由常量（路径含 `/api/v1` 前缀，Server 注册与 Client 拼接共用；含 `Drives`/`Special`/`List`/`Info`/`Download`/`Directory`/`Delete`/`Rename`/`Move`/`Copy`/`Upload`） |
 
 **设计说明**：`FileEntryDto` 与 `FileSystemEntryDto` 是独立 record（非继承），因为 `FileEntryDto` 多 `Extension` 字段且 `Size` 为非空 `long`。Client 网格绑定 `FileSystemEntryDto`，`ExplorerViewModel` 在填充 `Entries` 时将 `FileEntryDto` 转为 `FileSystemEntryDto`（`Type=File`），丢弃 `Extension`（网格不展示）。
 
@@ -236,12 +279,15 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 ## 7. 后续
 
 - **Ribbon**（Phase 6）：引 `AvaloniaControls.Ribbon.Flowery`（Avalonia 11.3+/net8+ 兼容 fork），移植 `RibbonView.axaml`。
+- **网络节点浏览**：当前"网络"节点为占位，点击仅显示状态栏文本。后续接入 SMB/SSH 网络共享浏览（Server 端需扩展 `IFileService` 支持非本地路径）。
+- **统一图标库**：当前导航树与条目网格均用 emoji，跨平台渲染差异（Windows Segoe UI Emoji / Linux Noto Color Emoji）。后续引 `Material.Icons.Avalonia`（或同类矢量图标库）统一替换全部图标，届时与 Ribbon 一起做（避免半 emoji 半矢量的中间态）。
 - **预览/详情面板**：移植 Jaya `PreviewView` / `DetailsView`（图片/文本预览、文件属性详情）。
 - **视图模式切换**：Details/Icons/List/Tiles/Content（Jaya `PaneConfigModel.ViewMode`）。
 - **权限提升**：危险操作（如删除系统目录）委托宿主 OS（Linux: sudo / Windows: UAC、RunAs）——project_memory 硬约束。
 - **目录 watch**：SignalR Hub 推送目录变化（`FileSystemWatcher` → Hub → Client 刷新）。
 - **大文件流式**：分块上传/断点续传（替代当前一次性 `multipart/form-data`）。
 - **配置持久化**：Jaya `PaneConfigModel` / `ToolbarConfigModel` / `ApplicationConfigModel` 本地保存（保留 Newtonsoft 序列化）。
+- **快速访问**：Windows File Explorer 的"快速访问"（Quick Access）需要持久化最近访问记录 + 用户固定项，当前"主目录"组节点仅枚举标准特殊位置，不含最近访问；后续接入。
 
 ---
 
@@ -259,3 +305,6 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 8. **不引入 Jaya 的 `ServiceLocator` / `ViewModelLocator` / `EventAggregator` 反射基础设施**。新代码用 RemoteOS DI（`Microsoft.Extensions.DependencyInjection`）+ `CommunityToolkit.Mvvm`（`[ObservableProperty]` / `[RelayCommand]`）。
 9. **对话框走 `AppContext.ShowDialogAsync`**（与 Notepad 同模式），不直接创建 Avalonia `Window`。本地文件选择走 `StorageProvider`（TopLevel = `MainWindow`）。
 10. **编译验证**：`dotnet build RemoteOS.sln -c Debug` 必须 0 错误（NU1903 Microsoft.OpenApi 与 CS0169 TerminalSession._disposed 为既有警告，非本模块引入）。
+11. **特殊位置枚举必须经 `Directory.Exists` 过滤**，禁止返回失效快捷入口；`GetSpecialLocations` 在 Linux 下必须 `HOME` 环境变量兜底（`Environment.SpecialFolder.UserProfile` 在 headless 服务进程可能为空）。Downloads 不在 `SpecialFolder` 枚举中需手动 `Path.Combine(home, "Downloads")` 拼接。
+12. **导航树选中同步必须防循环**：用 `_isSyncingTreeSelection` 标志仅抑制 `SyncTreeSelectionAsync → OnSelectedNodeChanged → NavigateToAsync` 反向边；同步点在 `NavigateToAsyncCore` 末尾（路径服务端确认后），不在 `OnAddressbarPathChanged`（每按键触发，路径半成品无意义）。`FindAndExpandNodeAsync` 下钻时直接 `await OnNodeExpandRequested(node)` 绕过 `IsExpanded` setter 的 fire-and-forget。
+13. **路径比较跨平台**：用 `OperatingSystem.IsLinux()` 区分大小写敏感性（Linux `Ordinal` / Windows `OrdinalIgnoreCase`）；`NormalizePath` 对 Linux "/" 根特殊处理（不能 trim 成空串），对非法字符 try/catch 兜底返回原值。

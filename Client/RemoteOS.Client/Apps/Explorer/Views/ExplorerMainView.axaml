@@ -14,6 +14,7 @@
         <c:EntryTypeToGlyphConverter x:Key="TypeGlyphConverter" />
         <c:EntrySizeToStringConverter x:Key="SizeConverter" />
         <c:EntryTypeToStringConverter x:Key="TypeTextConverter" />
+        <c:TreeNodeIconKindToGlyphConverter x:Key="NodeGlyphConverter" />
     </UserControl.Resources>
 
     <DockPanel LastChildFill="True">
@@ -90,12 +91,8 @@
                     <TreeDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal" Spacing="6"
                                     IsVisible="{Binding !IsPlaceholder}">
-                            <TextBlock Text="💽" FontSize="13"
-                                       IsVisible="{Binding IsComputer}" />
-                            <TextBlock Text="💾" FontSize="13"
-                                       IsVisible="{Binding IsDrive}" />
-                            <TextBlock Text="📁" FontSize="13"
-                                       IsVisible="{Binding !IsDrive}" />
+                            <TextBlock Text="{Binding IconKind, Converter={StaticResource NodeGlyphConverter}}"
+                                       FontSize="13" />
                             <TextBlock Text="{Binding Label}" />
                         </StackPanel>
                     </TreeDataTemplate>

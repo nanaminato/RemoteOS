@@ -18,6 +18,12 @@ public static class FileEndpoints
            .RequireAuthorization()
            .WithTags("Files");
 
+        // GET special — 跨平台枚举家目录/桌面/文档/下载/图片/音乐/视频（已 Directory.Exists 过滤）
+        app.MapGet(FileApiRoutes.Special, (IFileService fs) =>
+            Results.Ok(fs.GetSpecialLocations()))
+           .RequireAuthorization()
+           .WithTags("Files");
+
         // GET list?path=
         app.MapGet(FileApiRoutes.List, (string? path, IFileService fs) =>
         {

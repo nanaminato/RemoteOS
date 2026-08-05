@@ -11,6 +11,10 @@ public static class FileApiRoutes
     /// <summary>列举驱动器/根挂载点（GET，需 JWT）。</summary>
     public const string Drives = $"/{V1}/files/drives";
 
+    /// <summary>列举特殊文件夹位置（GET，需 JWT）。返回家目录/桌面/文档/下载/图片/音乐/视频中已存在的项。
+    /// 跨平台枚举由服务端 IFileService.GetSpecialLocations 完成（Environment.GetFolderPath + Directory.Exists 过滤）。</summary>
+    public const string Special = $"/{V1}/files/special";
+
     /// <summary>列举目录内容（GET，需 JWT）。query: path（空=盘符根）。</summary>
     public const string List = $"/{V1}/files/list";
 

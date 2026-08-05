@@ -24,6 +24,9 @@ public sealed class ExplorerClient : IExplorerClient
     public Task<IReadOnlyList<DriveDto>> GetDrivesAsync(CancellationToken ct = default)
         => SendAsync<IReadOnlyList<DriveDto>>(HttpMethod.Get, FileApiRoutes.Drives, ct: ct);
 
+    public Task<IReadOnlyList<SpecialLocationDto>> GetSpecialLocationsAsync(CancellationToken ct = default)
+        => SendAsync<IReadOnlyList<SpecialLocationDto>>(HttpMethod.Get, FileApiRoutes.Special, ct: ct);
+
     public Task<DirectoryDto> GetDirectoryAsync(string? path, CancellationToken ct = default)
         => SendAsync<DirectoryDto>(HttpMethod.Get, FileApiRoutes.List, query: ("path", path), ct: ct);
 

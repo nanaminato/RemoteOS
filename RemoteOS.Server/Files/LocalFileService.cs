@@ -28,6 +28,39 @@ public sealed class LocalFileService : IFileService
         return list;
     }
 
+    public IReadOnlyList<SpecialLocationDto> GetSpecialLocations()
+    {
+        // 跨平台获取家目录：Environment.SpecialFolder.UserProfile 在 Linux 上由 .NET 运行时映射到 $HOME，
+        // 但 headless/服务进程可能未设置 → 回退读 HOME 环境变量。
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(home))
+            home = Environment.GetEnvironmentVariable("HOME") ?? string.Empty;
+        if (string.IsNullOrEmpty(home))
+            return Array.Empty<SpecialLocationDto>();
+
+        // 候选列表：(协议枚举, 显示名, 路径)。
+        // Downloads 不在 SpecialFolder 枚举中，手动拼接 $HOME/Downloads（Linux 也可读 $XDG_DOWNLOAD_DIR，但 $HOME/Downloads 是合理默认）。
+        var candidates = new[]
+        {
+            (SpecialFolderKind.Home,      "主目录", home),
+            (SpecialFolderKind.Desktop,   "桌面",   Environment.GetFolderPath(Environment.SpecialFolder.Desktop)),
+            (SpecialFolderKind.Documents, "文档",   Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+            (SpecialFolderKind.Downloads, "下载",   System.IO.Path.Combine(home, "Downloads")),
+            (SpecialFolderKind.Pictures,  "图片",   Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)),
+            (SpecialFolderKind.Music,      "音乐",   Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)),
+            (SpecialFolderKind.Videos,     "视频",   Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)),
+        };
+
+        var list = new List<SpecialLocationDto>();
+        foreach (var (kind, name, path) in candidates)
+        {
+            // 仅返回真实存在的目录；headless Linux 上 Downloads/Pictures 等可能缺失，过滤后不返回。
+            if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                list.Add(new SpecialLocationDto(kind, name, path));
+        }
+        return list;
+    }
+
     public DirectoryDto GetDirectory(string? path)
     {
         // path 为空：返回盘符根聚合视图
