@@ -26,6 +26,9 @@ public sealed class WindowManager : IWindowManager
     private int _nextId;
     private ManagedWindow? _active;
 
+    /// <summary>Set by the client shell when a connected workspace can persist window dimensions.</summary>
+    public IWindowLayoutStore? LayoutStore { get; set; }
+
     public IReadOnlyList<ManagedWindow> Windows => _windows;
     public ManagedWindow? ActiveWindow => _active;
     public Rect HostBounds => _hostBounds;
@@ -59,7 +62,8 @@ public sealed class WindowManager : IWindowManager
             throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
 
         var id = new WindowId(++_nextId);
-        var bounds = ResolveInitialBounds(options.Bounds);
+        var layoutKey = GetLayoutKey(options.OwnerAppId, options.Title);
+        var bounds = ResolveInitialBounds(options.Bounds, LayoutStore?.GetSize(layoutKey));
 
         var info = new WindowInfo
         {
@@ -316,6 +320,7 @@ public sealed class WindowManager : IWindowManager
         window.Info.Bounds = resized;
         window.Info.RestoreBounds = resized;
         window.View.ApplyBounds(resized);
+        LayoutStore?.RecordSize(GetLayoutKey(window.Info.OwnerAppId, window.Info.Title), resized.Size);
         UpdateDialogs(window);
     }
 
@@ -325,14 +330,14 @@ public sealed class WindowManager : IWindowManager
             session.Blocker.ApplyBounds(owner.Info.Bounds);
     }
 
-    private Rect ResolveInitialBounds(Rect? requested)
+    private Rect ResolveInitialBounds(Rect? requested, Size? rememberedSize = null)
     {
         var host = _hostBounds;
         if (host.IsEmpty)
             host = new Rect(0, 0, 1280, 720);
 
-        double w = requested?.Width ?? Math.Min(900, host.Width - 80);
-        double h = requested?.Height ?? Math.Min(560, host.Height - 80);
+        double w = rememberedSize?.Width ?? requested?.Width ?? Math.Min(900, host.Width - 80);
+        double h = rememberedSize?.Height ?? requested?.Height ?? Math.Min(560, host.Height - 80);
         var cascade = (_windows.Count % 6) * 28;
 
         double x = requested is { } r
@@ -346,6 +351,9 @@ public sealed class WindowManager : IWindowManager
         y = Math.Clamp(y, host.Y, Math.Max(host.Y, host.Bottom - h));
         return new Rect(x, y, w, h);
     }
+
+    private static string GetLayoutKey(RemoteOS.Core.Applications.AppId appId, string title)
+        => $"{appId.Value}:{title}";
 
     private Rect ClampDrag(Rect b)
     {

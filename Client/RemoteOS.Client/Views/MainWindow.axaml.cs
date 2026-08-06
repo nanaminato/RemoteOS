@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Client.Services.Auth;
+using Client.Services.WindowLayout;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Views;
@@ -69,6 +70,7 @@ public partial class MainWindow : Window
         ConnectionInfo.IsVisible = false;
         try
         {
+            await App.Services.GetRequiredService<WindowLayoutStore>().FlushAsync();
             await App.Services.GetRequiredService<IAuthSession>().LogoutAsync();
         }
         finally

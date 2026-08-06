@@ -41,6 +41,8 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
             w.BrowserSettings = BrowserSettingsDto.Default;
         if (w is not null && w.Preferences is null)
             w.Preferences = WorkspacePreferencesDto.Default;
+        if (w is not null && w.WindowLayouts is null)
+            w.WindowLayouts = WorkspaceWindowLayoutDto.Default;
         return w;
     }
 }

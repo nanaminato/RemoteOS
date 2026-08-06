@@ -68,6 +68,11 @@ public sealed class RemoteOsDbContext : DbContext
                 p.ToJson("preferences");
                 p.OwnsMany(x => x.DefaultApps);
             });
+            e.OwnsOne(w => w.WindowLayouts, l =>
+            {
+                l.ToJson("window_layouts");
+                l.OwnsMany(x => x.Windows);
+            });
         });
 
         // ── devices ──

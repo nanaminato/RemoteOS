@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
 using Client.Apps.Settings;
 using Client.Services.Auth;
+using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,6 +48,8 @@ public static class Bootstrapper
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
         services.AddHttpClient<ISettingsClient, SettingsClient>();
+        services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>();
+        services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
@@ -75,6 +78,8 @@ public static class Bootstrapper
         });
 
         var provider = services.BuildServiceProvider();
+
+        windowManager.LayoutStore = provider.GetRequiredService<WindowLayoutStore>();
 
         // Register applications with the runtime.
         var manager = provider.GetRequiredService<ApplicationManager>();

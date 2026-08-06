@@ -178,6 +178,11 @@ if (storageProvider == "sqlite")
     if (!hasPreferences)
         db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"preferences\" TEXT NULL;");
 
+    var hasWindowLayouts = db.Database.SqlQueryRaw<long>(
+        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'window_layouts'").Single() > 0;
+    if (!hasWindowLayouts)
+        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"window_layouts\" TEXT NULL;");
+
     // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
     db.Database.ExecuteSqlRaw("""
         CREATE TABLE IF NOT EXISTS "bookmarks" (

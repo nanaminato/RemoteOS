@@ -153,13 +153,13 @@
                                    HorizontalAlignment="Right" />
                         <TextBlock Grid.Column="2" Text="修改日期" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
                         <TextBlock Grid.Column="3" Text="类型" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
-                        <Border Grid.Column="0" Tag="Name" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                        <Border Grid.Column="0" Tag="Name" Width="12" HorizontalAlignment="Right" Background="#0C000000" Cursor="SizeWestEast"
                                 PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
-                        <Border Grid.Column="1" Tag="Size" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                        <Border Grid.Column="1" Tag="Size" Width="12" HorizontalAlignment="Right" Background="#0C000000" Cursor="SizeWestEast"
                                 PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
-                        <Border Grid.Column="2" Tag="Modified" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                        <Border Grid.Column="2" Tag="Modified" Width="12" HorizontalAlignment="Right" Background="#0C000000" Cursor="SizeWestEast"
                                 PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
-                        <Border Grid.Column="3" Tag="Type" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                        <Border Grid.Column="3" Tag="Type" Width="12" HorizontalAlignment="Right" Background="#0C000000" Cursor="SizeWestEast"
                                 PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
                     </Grid>
                 </Border>

@@ -95,7 +95,7 @@ public partial class ExplorerMainView : UserControl
 
     private void ColumnResizer_PointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_resizingColumn is null || sender is not Control resizer || e.Pointer.Captured != resizer) return;
+        if (_resizingColumn is null) return;
         SetColumnWidth(_resizingColumn, _resizeStartWidth + e.GetPosition(this).X - _resizeStartX);
         e.Handled = true;
     }
