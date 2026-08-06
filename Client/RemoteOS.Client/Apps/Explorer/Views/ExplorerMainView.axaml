@@ -140,87 +140,88 @@
 
             <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns" />
 
-            <!-- 条目列表 -->
-            <Grid Grid.Column="2" RowDefinitions="Auto,*">
-                <!-- 列标题 -->
-                <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="{Binding #Root.NameColumnWidth}" MinWidth="180" />
-                            <ColumnDefinition Width="{Binding #Root.SizeColumnWidth}" MinWidth="96" />
-                            <ColumnDefinition Width="{Binding #Root.ModifiedColumnWidth}" MinWidth="150" />
-                            <ColumnDefinition Width="{Binding #Root.TypeColumnWidth}" MinWidth="96" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Tag="Name" Text="{Binding NameHeaderText}" FontWeight="SemiBold" Padding="12,6" FontSize="12"
-                                   Cursor="Hand" PointerPressed="ColumnHeader_PointerPressed" />
-                        <TextBlock Grid.Column="1" Tag="Size" Text="{Binding SizeHeaderText}" FontWeight="SemiBold" Padding="8,6" FontSize="12"
-                                   HorizontalAlignment="Right" Cursor="Hand" PointerPressed="ColumnHeader_PointerPressed" />
-                        <TextBlock Grid.Column="2" Tag="Modified" Text="{Binding ModifiedHeaderText}" FontWeight="SemiBold" Padding="8,6" FontSize="12"
-                                   Cursor="Hand" PointerPressed="ColumnHeader_PointerPressed" />
-                        <TextBlock Grid.Column="3" Tag="Type" Text="{Binding TypeHeaderText}" FontWeight="SemiBold" Padding="8,6" FontSize="12"
-                                   Cursor="Hand" PointerPressed="ColumnHeader_PointerPressed" />
-                        <!-- Keep this hit target above the header text so resizing never triggers sorting. -->
-                        <Border Grid.Column="0" Tag="Name" Width="12" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
-                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" PointerCaptureLost="ColumnResizer_PointerCaptureLost" />
-                        <Border Grid.Column="1" Tag="Size" Width="12" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
-                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" PointerCaptureLost="ColumnResizer_PointerCaptureLost" />
-                        <Border Grid.Column="2" Tag="Modified" Width="12" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
-                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" PointerCaptureLost="ColumnResizer_PointerCaptureLost" />
-                        <Border Grid.Column="3" Tag="Type" Width="12" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
-                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" PointerCaptureLost="ColumnResizer_PointerCaptureLost" />
-                    </Grid>
-                </Border>
-
-                <ListBox Grid.Row="1"
-                         x:Name="EntriesList"
-                         ItemsSource="{Binding Entries}"
-                         SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                         SelectionMode="{Binding EntrySelectionMode}"
-                         SelectionChanged="EntriesList_SelectionChanged"
-                         Background="#FFFFFF"
-                         BorderThickness="0"
-                         DoubleTapped="EntriesList_DoubleTapped"
-                         PointerPressed="EntriesList_PointerPressed"
-                         PointerMoved="EntriesList_PointerMoved"
-                         PointerReleased="EntriesList_PointerReleased"
-                         DragDrop.AllowDrop="True"
-                         DragDrop.DragOver="Explorer_DragOver"
-                         DragDrop.Drop="Explorer_Drop">
-                    <ListBox.ContextMenu>
-                        <ContextMenu DataContext="{Binding #EntriesList.DataContext}">
-                            <MenuItem Header="Open" Command="{Binding OpenCommand}" />
-                            <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
-                            <Separator />
-                            <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
-                        </ContextMenu>
-                    </ListBox.ContextMenu>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="d:FileSystemEntryDto">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="{Binding #Root.NameColumnWidth}" MinWidth="180" />
-                                    <ColumnDefinition Width="{Binding #Root.SizeColumnWidth}" MinWidth="96" />
-                                    <ColumnDefinition Width="{Binding #Root.ModifiedColumnWidth}" MinWidth="150" />
-                                    <ColumnDefinition Width="{Binding #Root.TypeColumnWidth}" MinWidth="96" />
-                                </Grid.ColumnDefinitions>
-                                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
+            <!-- File Explorer-style details view. The DataGrid owns its headers, cells,
+                 sorting indicators, and column resize handles, so every row always uses
+                 the exact same column geometry. -->
+            <DataGrid Grid.Column="2"
+                      x:Name="EntriesGrid"
+                      ItemsSource="{Binding Entries}"
+                      SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                      SelectionMode="{Binding EntrySelectionMode}"
+                      SelectionChanged="EntriesGrid_SelectionChanged"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="None"
+                      RowHeight="32"
+                      ColumnHeaderHeight="30"
+                      Background="#FFFFFF"
+                      BorderThickness="0"
+                      DoubleTapped="EntriesGrid_DoubleTapped"
+                      PointerPressed="EntriesGrid_PointerPressed"
+                      PointerMoved="EntriesGrid_PointerMoved"
+                      PointerReleased="EntriesGrid_PointerReleased"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="Explorer_DragOver"
+                      DragDrop.Drop="Explorer_Drop">
+                <DataGrid.ContextMenu>
+                    <ContextMenu DataContext="{Binding #EntriesGrid.DataContext}">
+                        <MenuItem Header="Open" Command="{Binding OpenCommand}" />
+                        <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
+                        <Separator />
+                        <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Styles>
+                    <Style Selector="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#FAFAFA" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="FontSize" Value="12" />
+                    </Style>
+                    <Style Selector="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0" />
+                    </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="名称" Width="*" MinWidth="180" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
                                     <TextBlock Text="💾" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=drive}" />
                                     <TextBlock Text="📁" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=dir}" />
                                     <TextBlock Text="📄" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=file}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
                                 </Grid>
-                                <TextBlock Grid.Column="1" Text="{Binding Size, Converter={StaticResource SizeConverter}}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="3" Text="{Binding Type, Converter={StaticResource TypeTextConverter}}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="大小" Width="110" MinWidth="96" SortMemberPath="Size">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Size, Converter={StaticResource SizeConverter}}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="修改日期" Width="160" MinWidth="150" SortMemberPath="Modified">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="类型" Width="110" MinWidth="96" SortMemberPath="Type">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Type, Converter={StaticResource TypeTextConverter}}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
     </DockPanel>
 </UserControl>

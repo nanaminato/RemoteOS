@@ -5,6 +5,7 @@
 
     <Application.Styles>
         <FluentTheme />
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
         <StyleInclude Source="avares://RemoteOS.UI/Themes/Styles.axaml" />
         <StyleInclude Source="avares://RemoteOS.WindowManager/Themes/RemoteWindowTheme.axaml" />
     </Application.Styles>
