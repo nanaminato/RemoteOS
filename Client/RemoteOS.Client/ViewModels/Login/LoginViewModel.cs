@@ -53,6 +53,15 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty]
     private SavedLoginProfile? _selectedProfile;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOptionsText))]
+    private bool _showOptions = true;
+
+    [ObservableProperty]
+    private bool _hasSavedPasswordProfiles;
+
+    public string ShowOptionsText => ShowOptions ? "隐藏选项" : "显示选项";
+
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
     [ObservableProperty] private bool _hasError;
@@ -126,6 +135,8 @@ public partial class LoginViewModel : ObservableObject
             SavedProfiles.Clear();
             foreach (var profile in profiles)
                 SavedProfiles.Add(profile);
+            HasSavedPasswordProfiles = profiles.Any(profile => profile.HasPassword);
+            ShowOptions = !HasSavedPasswordProfiles;
         }
         finally
         {
@@ -141,7 +152,9 @@ public partial class LoginViewModel : ObservableObject
         RememberServer = true;
         RememberPassword = profile.HasPassword;
 
-        if (!profile.HasPassword || IsConnecting)
+        // In compact mode, choosing a password-bearing entry is the one-action login path.
+        // When options are already visible, selection only fills the form so it can be reviewed or edited.
+        if (ShowOptions || !profile.HasPassword || IsConnecting)
             return;
 
         IsConnecting = true;
@@ -167,6 +180,10 @@ public partial class LoginViewModel : ObservableObject
             IsConnecting = false;
         }
     }
+
+    [RelayCommand]
+    private void RevealOptions()
+        => ShowOptions = true;
 
     /// <summary>运行时探测客户端宿主平台，而非硬编码。PlatformKind 目前仅 Linux/Windows。</summary>
     private static PlatformKind DetectClientPlatform()
