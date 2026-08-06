@@ -54,6 +54,16 @@ public sealed class BrowserApp : RemoteApplicationBase
             iconGlyph: Manifest.IconGlyph);
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
 
+        // NativeWebView is a platform child view and does not participate in Avalonia's
+        // normal ZIndex composition. Hide it while another managed window is active.
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ManagedWindow.IsActive) || e.PropertyName == nameof(ManagedWindow.State))
+                view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
+        };
+        window.FocusRequested += (_, _) => view.SetWebViewVisible(true);
+        view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
+
         // 窗口打开后异步加载书签 + 历史
         _ = viewModel.LoadAsync();
     }

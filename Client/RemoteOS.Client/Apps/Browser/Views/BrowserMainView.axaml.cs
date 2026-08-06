@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using System.ComponentModel;
 using Client.Apps.Browser.ViewModels;
 using RemoteOS.Protocol.Browser;
 
@@ -15,10 +16,20 @@ namespace Client.Apps.Browser.Views;
 /// 因事件委托签名为 EventHandler&lt;TArgs&gt;，handler 参数类型直接用具体 EventArgs 类型。</summary>
 public partial class BrowserMainView : UserControl
 {
+    private const double DefaultSidebarWidth = 260;
+    private const double SidebarSplitterWidth = 4;
+
+    private BrowserViewModel? _observedViewModel;
+    private double _sidebarWidth = DefaultSidebarWidth;
+
+    private ColumnDefinition SidebarColumn => BrowserContentGrid.ColumnDefinitions[0];
+    private ColumnDefinition SidebarSplitterColumn => BrowserContentGrid.ColumnDefinitions[1];
+
     public BrowserMainView()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     private BrowserViewModel? ViewModel => DataContext as BrowserViewModel;
@@ -26,11 +37,66 @@ public partial class BrowserMainView : UserControl
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         WireWebViewCommands();
+        ObserveViewModel();
         // 让 WebView 获得键盘焦点以便直接交互
         WebView.Focus();
     }
 
     /// <summary>把 VM 的 GoBack/GoForward/Refresh/Stop 命令接到 NativeWebView 的实际方法。</summary>
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (_observedViewModel is null)
+            return;
+
+        _observedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        _observedViewModel = null;
+    }
+
+    /// <summary>
+    /// NativeWebView is backed by a platform child view. Keep it hidden while this managed
+    /// window is inactive so it cannot render above another Avalonia-managed window.
+    /// </summary>
+    public void SetWebViewVisible(bool isVisible) => WebView.IsVisible = isVisible;
+
+    private void ObserveViewModel()
+    {
+        var viewModel = ViewModel;
+        if (ReferenceEquals(_observedViewModel, viewModel))
+            return;
+
+        if (_observedViewModel is not null)
+            _observedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+
+        _observedViewModel = viewModel;
+        if (viewModel is null)
+            return;
+
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        UpdateSidebarLayout(viewModel.IsSidebarVisible);
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BrowserViewModel.IsSidebarVisible) && sender is BrowserViewModel viewModel)
+            UpdateSidebarLayout(viewModel.IsSidebarVisible);
+    }
+
+    private void UpdateSidebarLayout(bool isVisible)
+    {
+        if (isVisible)
+        {
+            SidebarColumn.Width = new GridLength(_sidebarWidth, GridUnitType.Pixel);
+            SidebarSplitterColumn.Width = new GridLength(SidebarSplitterWidth, GridUnitType.Pixel);
+            return;
+        }
+
+        if (SidebarColumn.ActualWidth > 0)
+            _sidebarWidth = SidebarColumn.ActualWidth;
+
+        SidebarColumn.Width = new GridLength(0, GridUnitType.Pixel);
+        SidebarSplitterColumn.Width = new GridLength(0, GridUnitType.Pixel);
+    }
+
     private void WireWebViewCommands()
     {
         if (ViewModel is null) return;

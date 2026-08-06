@@ -73,7 +73,12 @@
         </Border>
 
         <!-- 主体：左侧边栏（书签/历史） | GridSplitter | WebView -->
-        <Grid ColumnDefinitions="260,Auto,*">
+        <Grid x:Name="BrowserContentGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
             <!-- 侧边栏 -->
             <Border Grid.Column="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,1,0"
