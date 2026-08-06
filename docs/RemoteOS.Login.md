@@ -24,7 +24,7 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 | 输入项 | 计算机 + 用户名 + 密码 | Server URL + 用户名 + 密码 |
 | 传输协议 | RDP（像素流） | HTTP REST（状态同步，非像素流） |
 | 认证后 | 全屏远程桌面 | MainWindow 桌面 Shell |
-| 凭据存储 | 默认不保存（可选 .rdp） | 可选“记住此设备”：DPAPI 加密保存刷新令牌；不保存 Windows 密码 |
+| 凭据存储 | 默认不保存（可选 .rdp） | 可选“加密保存密码并自动登录”：Windows DPAPI / macOS Keychain / Linux Secret Service |
 
 ### 1.2 MVP 范围
 
@@ -39,7 +39,6 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 - SignalR Hub `/hubs/workspace`（桌面状态增量同步，独立模块）
 - Linux PAM 真实实现
 - "显示选项"折叠面板、最近连接列表
-- Token 持久化（DPAPI / keychain）
 - 持久化仓储（SQLite / EF Core）
 
 ---
@@ -142,7 +141,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 - **不 mutate `HttpClient.BaseAddress`**：`RemoteOsClient` 每个方法接收 `serverUrl` 构造绝对 URI（`new Uri(new Uri(serverUrl), route.TrimStart('/'))`），避免 typed HttpClient 共享实例并发竞态。
 - **登录窗用顶层 `Window`**，不用 `RemoteWindow`（`RemoteWindow` 必须挂在 `DesktopShellView` 的 `PART_WindowHost` Canvas，登录前桌面尚未建立）。
-- **可选记住此设备**：首次登录时勾选后，`RefreshToken` 与必要的会话上下文使用 Windows DPAPI（CurrentUser）加密保存；应用启动时自动刷新令牌。Windows 密码绝不写入配置、数据库或日志，登出会删除本地记录。
+- **可选自动登录**：首次登录时勾选后，客户端把密码、`RefreshToken` 与必要会话上下文写入操作系统的加密凭据存储。应用启动时优先刷新令牌；若服务端重启或令牌失效，则使用受保护的密码直接重新登录。登出会删除本地记录。
 - **HTTP 调用经 `IRemoteOsClient` 抽象**，业务代码不直接 `new HttpClient`（Architecture.md §4.8）。
 
 ---
@@ -170,7 +169,7 @@ IIdentityProvider
 - `Verify(username, password) → CredentialVerifyResult`：委托宿主 OS 验证，9 种错误码映射（BadCredentials/NoSuchUser/AccountDisabled/AccountLockedOut/PasswordExpired/AccountExpired/AccountRestriction/InvalidInput/Unknown）。
 - `GetUserInfo(username) → PlatformUserInfo`：返回 Uid（Windows: `domain\user`）/ DisplayName / HomeDirectory?。
 - **平台选择**：`Program.cs` 按 `RuntimeInformation.IsOSPlatform` 注册对应 Provider。
-- **不存储密码**：认证完全委托宿主 OS（Authentication.md §17）。
+- **服务器不存储密码**：认证仍完全委托宿主 OS（Authentication.md §17）；客户端仅在用户勾选自动登录后，才将密码交给操作系统安全存储。
 
 `WindowsLogonProvider` 从 `Windows Server Test/Categories/Authentication/WindowsCredentialVerifier.cs` 迁移而来（已验证 LogonUser 可行）；`Windows Server Test` 项目改为引用 Server 调 `IIdentityProvider`，单一真源。
 
@@ -245,8 +244,8 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 
 ## 6. 安全考量
 
-- **不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），密码仅在校验瞬间传入，不落库、不日志。
-- **记住设备的安全性**：未勾选时 `AuthSession` 不写盘；勾选时仅将刷新令牌与必要会话上下文写入受当前 Windows 用户 DPAPI 保护的本地文件，不保存 Windows 密码。
+- **服务器不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），服务端密码仅在校验瞬间传入，不落库、不日志。
+- **自动登录的安全性**：未勾选时 `AuthSession` 不写盘；勾选时客户端仅通过平台凭据库保存密码和会话信息：Windows 为当前用户 DPAPI 加密文件，macOS 为 Keychain，Linux 为 Secret Service。不会写入配置、数据库或日志，登出会清除记录。
 - **JWT 对称密钥**：Production 启动校验 `Jwt:Secret` 非默认占位值；Development 用固定开发密钥。
 - **HTTPS**：Production 强制 HTTPS 重定向；Development 允许 http 方便本地测试。
 - **密码字段**：`LoginView` 用 `TextBox PasswordChar="●"`，密码不回显；`LoginViewModel` 不记录密码到日志。
@@ -262,7 +261,8 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
           |
           AccessToken 过期 → RefreshAsync(refresh) → 新 AccessToken + 新 RefreshToken（旧 refresh 吊销）
           |
-          RefreshToken 过期/失效 → 回 LoginWindow 重新登录
+          RefreshToken 过期/失效 → 从系统安全存储读取密码并直接重新登录
+          系统凭据被删除或密码已变更 → 回 LoginWindow 重新登录
           |
           登出 → LogoutAsync → 吊销 RefreshToken（AccessToken 自然过期）
 ```
@@ -282,7 +282,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | Linux PAM | 占位 | libpam / PAM 绑定库实现 |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
 | 最近连接列表 | 未实现 | 本地持久化最近 Server URL |
-| Token 持久化 | Windows DPAPI（勾选“记住此设备”） | keyring（Linux）"记住我" |
+| 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时自动登录不可用，仍可正常手动登录 |
 | 持久化仓储 | 内存 ConcurrentDictionary | SQLite + EF Core |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
 | Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
@@ -300,7 +300,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - HTTP 调用经 `IRemoteOsClient` 抽象，业务代码不直接 `new HttpClient`。
 - 凭据验证经 `IIdentityProvider` 抽象，平台差异封装在 Provider 实现。
 - 错误响应解析 `ProblemDetails`，用 `type` 字段做错误码映射（无 Errors 字典）。
-- 未勾选时 Token 仅存内存；勾选“记住此设备”时只持久化受 DPAPI 保护的刷新令牌与必要会话上下文，不保存 Windows 密码。
+- 未勾选时 Token 和密码仅存内存；勾选“加密保存密码并自动登录”时，客户端将密码、刷新令牌与必要会话上下文保存到操作系统安全存储。启动时先刷新 Token，失败后自动使用保存的密码登录，因此服务端重启后的调试启动也无需再次输入密码。
 - Server 领域模型与 Protocol DTO 分离，端点处手动 `ToDto()` 映射。
 - 序列化统一用 `RemoteOsJsonOptions.Default`（camelCase + 枚举字符串）。
 
@@ -308,7 +308,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 
 - 在 Protocol 引入 `Microsoft.AspNetCore.*` 或 `HttpClient` 包。
 - 把 `IIdentityProvider` / `CredentialVerifyResult` 放进 Protocol。
-- 把密码写入日志、配置、数据库。
+- 把密码写入日志、配置、数据库，或操作系统安全存储以外的任意文件。
 - 在登录窗阶段引入 SignalR 连接（Hub 是独立模块）。
 - mutate 共享 `HttpClient.BaseAddress`。
 - 用 `RemoteWindow` 承载登录界面。

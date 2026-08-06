@@ -1,15 +1,18 @@
+using System.Reflection;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Identity;
 using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
 
-/// <summary>IAuthSession 实现。勾选“记住此设备”时保存受 DPAPI 保护的会话；lock 保护并发登录。</summary>
+/// <summary>IAuthSession 实现。勾选“记住密码并自动登录”时保存受系统安全存储保护的凭据；lock 保护并发登录。</summary>
 public sealed class AuthSession : IAuthSession
 {
     private readonly IRemoteOsClient _client;
     private readonly IRememberedSessionStore _rememberedSessionStore;
     private readonly object _gate = new();
-    private bool _rememberDevice;
+    private bool _rememberCredentials;
+    private string? _rememberedPassword;
 
     public AuthSession(IRemoteOsClient client, IRememberedSessionStore rememberedSessionStore)
     {
@@ -31,7 +34,7 @@ public sealed class AuthSession : IAuthSession
     public async Task<LoginResponse> LoginAsync(
         string serverUrl,
         LoginRequest request,
-        bool rememberDevice,
+        bool rememberCredentials,
         CancellationToken ct = default)
     {
         lock (_gate)
@@ -46,11 +49,19 @@ public sealed class AuthSession : IAuthSession
         {
             var response = await _client.LoginAsync(serverUrl, request, ct);
             Apply(response, serverUrl);
-            _rememberDevice = rememberDevice;
-            if (rememberDevice)
-                await _rememberedSessionStore.SaveAsync(RememberedSession.From(serverUrl, response), ct);
+            _rememberCredentials = rememberCredentials;
+            if (rememberCredentials)
+            {
+                _rememberedPassword = request.Password;
+                _rememberCredentials = await _rememberedSessionStore.SaveAsync(
+                    RememberedSession.From(serverUrl, response, request.Password), ct);
+                if (!_rememberCredentials) _rememberedPassword = null;
+            }
             else
+            {
+                _rememberedPassword = null;
                 await _rememberedSessionStore.ClearAsync(ct);
+            }
             State = AuthSessionState.Authenticated;
             RaiseStateChanged();
             return response;
@@ -66,12 +77,8 @@ public sealed class AuthSession : IAuthSession
     public async Task<bool> TryRestoreAsync(CancellationToken ct = default)
     {
         var remembered = await _rememberedSessionStore.LoadAsync(ct);
-        if (remembered is null || remembered.Tokens.RefreshTokenExpiresAt <= DateTimeOffset.UtcNow)
-        {
-            if (remembered is not null)
-                await _rememberedSessionStore.ClearAsync(ct);
+        if (remembered is null)
             return false;
-        }
 
         lock (_gate)
         {
@@ -81,19 +88,27 @@ public sealed class AuthSession : IAuthSession
         }
         RaiseStateChanged();
 
+        if (remembered.Tokens.RefreshTokenExpiresAt <= DateTimeOffset.UtcNow)
+            return await RestoreWithRememberedPasswordAsync(remembered, ct);
+
         try
         {
             var refreshed = await _client.RefreshAsync(remembered.ServerUrl, remembered.Tokens.RefreshToken, ct);
             Apply(remembered.ToLoginResponse(refreshed.Tokens), remembered.ServerUrl);
-            _rememberDevice = true;
-            await _rememberedSessionStore.SaveAsync(remembered with { Tokens = refreshed.Tokens }, ct);
+            _rememberCredentials = true;
+            _rememberedPassword = remembered.Password;
+            _rememberCredentials = await _rememberedSessionStore.SaveAsync(remembered with { Tokens = refreshed.Tokens }, ct);
+            if (!_rememberCredentials) _rememberedPassword = null;
             State = AuthSessionState.Authenticated;
             RaiseStateChanged();
             return true;
         }
+        catch (RemoteOsAuthException)
+        {
+            return await RestoreWithRememberedPasswordAsync(remembered, ct);
+        }
         catch
         {
-            await _rememberedSessionStore.ClearAsync(ct);
             Reset();
             return false;
         }
@@ -123,8 +138,12 @@ public sealed class AuthSession : IAuthSession
         {
             var resp = await _client.RefreshAsync(ServerUrl, Tokens.RefreshToken, ct);
             Tokens = resp.Tokens;
-            if (_rememberDevice)
-                await _rememberedSessionStore.SaveAsync(RememberedSession.From(ServerUrl, this), ct);
+            if (_rememberCredentials)
+            {
+                _rememberCredentials = await _rememberedSessionStore.SaveAsync(
+                    RememberedSession.From(ServerUrl, this, _rememberedPassword), ct);
+                if (!_rememberCredentials) _rememberedPassword = null;
+            }
             return true;
         }
         catch
@@ -134,6 +153,51 @@ public sealed class AuthSession : IAuthSession
             return false;
         }
     }
+
+    private async Task<bool> RestoreWithRememberedPasswordAsync(RememberedSession remembered, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(remembered.Password))
+        {
+            await _rememberedSessionStore.ClearAsync(ct);
+            Reset();
+            return false;
+        }
+
+        try
+        {
+            var response = await _client.LoginAsync(
+                remembered.ServerUrl,
+                new LoginRequest(
+                    remembered.User.Username,
+                    remembered.Password,
+                    DetectClientPlatform(),
+                    Environment.MachineName,
+                    Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0"),
+                ct);
+            Apply(response, remembered.ServerUrl);
+            _rememberedPassword = remembered.Password;
+            _rememberCredentials = await _rememberedSessionStore.SaveAsync(
+                RememberedSession.From(remembered.ServerUrl, response, remembered.Password), ct);
+            if (!_rememberCredentials) _rememberedPassword = null;
+            State = AuthSessionState.Authenticated;
+            RaiseStateChanged();
+            return true;
+        }
+        catch (RemoteOsAuthException)
+        {
+            await _rememberedSessionStore.ClearAsync(ct);
+            Reset();
+            return false;
+        }
+        catch
+        {
+            Reset();
+            return false;
+        }
+    }
+
+    private static PlatformKind DetectClientPlatform()
+        => OperatingSystem.IsWindows() ? PlatformKind.Windows : PlatformKind.Linux;
 
     private void Apply(LoginResponse response, string serverUrl)
     {
@@ -155,7 +219,8 @@ public sealed class AuthSession : IAuthSession
         CurrentSession = null;
         CurrentDevice = null;
         AssignedRole = DeviceRole.Observer;
-        _rememberDevice = false;
+        _rememberCredentials = false;
+        _rememberedPassword = null;
         State = AuthSessionState.Unauthenticated;
         RaiseStateChanged();
     }

@@ -4,7 +4,7 @@ using RemoteOS.Protocol.Workspace;
 namespace Client.Services.Auth;
 
 /// <summary>客户端认证会话。持有当前登录上下文（Tokens/User/Workspace/Session/Device/Role）；
-/// 勾选“记住此设备”时，刷新令牌会受当前 Windows 用户的 DPAPI 保护后持久化。供 LoginViewModel 与桌面 Shell 共享。</summary>
+/// 勾选“加密保存密码并自动登录”时，凭据会保存到当前平台的系统安全存储。供 LoginViewModel 与桌面 Shell 共享。</summary>
 public interface IAuthSession
 {
     AuthSessionState State { get; }
@@ -23,7 +23,7 @@ public interface IAuthSession
     Task<LoginResponse> LoginAsync(
         string serverUrl,
         LoginRequest request,
-        bool rememberDevice,
+        bool rememberCredentials,
         CancellationToken ct = default);
 
     /// <summary>Attempts to resume a session saved for the current OS user. Returns false when none is saved or it has expired.</summary>

@@ -36,7 +36,8 @@ public partial class LoginViewModel : ObservableObject
     private bool _isConnecting;
 
     [ObservableProperty]
-    private bool _rememberDevice = true;
+    // Debug 和生产版本都默认启用；用户可在共享设备上取消勾选。
+    private bool _rememberCredentials = true;
 
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
@@ -66,7 +67,7 @@ public partial class LoginViewModel : ObservableObject
                 ClientPlatform: DetectClientPlatform(),
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
-            await _session.LoginAsync(ServerUrl, request, RememberDevice, ct);
+            await _session.LoginAsync(ServerUrl, request, RememberCredentials, ct);
             StatusMessage = "连接成功，正在进入桌面…";
         }
         catch (RemoteOsAuthException ex)
