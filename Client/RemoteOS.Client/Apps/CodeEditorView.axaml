@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="clr-namespace:Client.Apps"
+             xmlns:editor="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="Client.Apps.CodeEditorView"
+             x:DataType="app:CodeEditorViewModel"
+             Background="#FFFFFF">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <Button Content="New" Command="{Binding NewDocumentCommand}" />
+                <Button Content="Open..." Command="{Binding OpenDocumentCommand}" />
+                <Button Content="Save" Command="{Binding SaveCommand}" />
+                <Button Content="Save as..." Command="{Binding SaveAsCommand}" />
+                <TextBlock Text="Encoding:" VerticalAlignment="Center" Margin="12,0,0,0" />
+                <ComboBox ItemsSource="{Binding AvailableEncodings}" SelectedItem="{Binding EncodingName, Mode=TwoWay}" Width="120" />
+                <Button Content="Reopen" Command="{Binding ReopenWithEncodingCommand}" />
+                <TextBlock Text="{Binding DocumentName}" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
+            </StackPanel>
+        </Border>
+
+        <editor:TextEditor Grid.Row="1"
+                           Name="Editor"
+                           ShowLineNumbers="True"
+                           WordWrap="False"
+                           BorderThickness="0"
+                           Padding="12,10"
+                           FontFamily="Cascadia Code, Consolas, Menlo, monospace"
+                           FontSize="14" />
+
+        <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+                <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding LineCount, StringFormat='{}Ln {0}'}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="2" Text="{Binding CharCount, StringFormat='{}{0} characters'}" FontSize="12" Opacity="0.7" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

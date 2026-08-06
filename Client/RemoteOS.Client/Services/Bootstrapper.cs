@@ -58,6 +58,7 @@ public static class Bootstrapper
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
+        services.AddSingleton<IRemoteApplication, CodeEditorApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
