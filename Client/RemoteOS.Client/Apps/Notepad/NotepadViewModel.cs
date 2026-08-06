@@ -22,7 +22,7 @@ public sealed partial class NotepadViewModel : ObservableObject
 
     public int CharCount => Text.Length;
     public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Enumerable.Count<char>(Text, c => c == '\n') + 1;
-    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName((string?)CurrentPath);
+    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName(CurrentPath) ?? "Untitled";
     public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
@@ -71,7 +71,7 @@ public sealed partial class NotepadViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsAsync()
     {
-        var suggestedName = string.IsNullOrWhiteSpace(CurrentPath) ? "untitled.txt" : Path.GetFileName((string?)CurrentPath);
+        var suggestedName = string.IsNullOrWhiteSpace(CurrentPath) ? "untitled.txt" : Path.GetFileName(CurrentPath) ?? "untitled.txt";
         var path = await (RequestSavePathAsync?.Invoke(suggestedName) ?? Task.FromResult<string?>(null));
         if (!string.IsNullOrWhiteSpace(path)) await SaveToPathAsync(path);
     }

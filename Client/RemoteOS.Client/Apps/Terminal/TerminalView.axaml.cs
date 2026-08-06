@@ -79,7 +79,7 @@ public partial class TerminalView : UserControl
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (sender is TerminalViewModel { Appearance: var appearance }
-            && e.PropertyName == nameof(Apps.TerminalViewModel.Appearance))
+            && e.PropertyName == nameof(TerminalViewModel.Appearance))
             ApplyAppearance(appearance);
     }
 
