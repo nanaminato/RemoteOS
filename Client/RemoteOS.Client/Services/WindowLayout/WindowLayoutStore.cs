@@ -126,6 +126,11 @@ public sealed class WindowLayoutStore : IWindowLayoutStore, IDisposable
         }
         finally
         {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_saveDelayCts, cts))
+                    _saveDelayCts = null;
+            }
             cts.Dispose();
         }
     }
