@@ -410,8 +410,58 @@ public sealed partial class ExplorerViewModel : ObservableObject
         var d = NormalizePath(descendant);
         if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(d)) return false;
         if (string.Equals(a, d, comparison)) return true;
-        return d.StartsWith(a + Path.DirectorySeparatorChar, comparison)
+        return d.StartsWith(a + '\\', comparison)
             || d.StartsWith(a + '/', comparison);
+    }
+
+    /// <summary>Whether a list entry can initiate a move drag.</summary>
+    public bool CanDragEntry(FileSystemEntryDto entry)
+        => !IsPickerMode && !IsBusy && entry.Type != FileSystemEntryType.Drive;
+
+    /// <summary>Validates a move before advertising the drop target to Avalonia.</summary>
+    public bool CanMoveEntryToDirectory(FileSystemEntryDto entry, string targetDirectory)
+    {
+        if (!CanDragEntry(entry) || string.IsNullOrWhiteSpace(targetDirectory)) return false;
+
+        var destinationPath = CombineRemotePath(targetDirectory, entry.Name);
+        if (PathEquals(entry.Path, destinationPath)) return false;
+
+        // A directory cannot be moved into itself or into one of its descendants.
+        return entry.Type != FileSystemEntryType.Directory ||
+               !IsAncestorOrEqual(entry.Path, targetDirectory, PathComparison);
+    }
+
+    /// <summary>Moves a dragged entry into a directory and refreshes the current listing.</summary>
+    public async Task MoveEntryToDirectoryAsync(FileSystemEntryDto entry, string targetDirectory)
+    {
+        if (!CanMoveEntryToDirectory(entry, targetDirectory)) return;
+
+        var destinationPath = CombineRemotePath(targetDirectory, entry.Name);
+        IsBusy = true;
+        StatusText = $"正在移动 {entry.Name}...";
+        try
+        {
+            await _client.MoveAsync(entry.Path, destinationPath, overwrite: false);
+            StatusText = $"已将 {entry.Name} 移动到 {targetDirectory}";
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"移动失败：{ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string CombineRemotePath(string directory, string name)
+    {
+        var separator = directory.Contains('\\') ? '\\' : '/';
+        var trimmed = directory.TrimEnd('\\', '/');
+        return trimmed.Length == 0
+            ? separator + name
+            : trimmed + separator + name;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]

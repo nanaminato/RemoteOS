@@ -112,7 +112,10 @@
             <!-- 导航树 -->
             <TreeView Grid.Column="0"
                       ItemsSource="{Binding Nodes}"
-                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}">
+                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="Explorer_DragOver"
+                      DragDrop.Drop="Explorer_Drop">
                 <!-- TreeViewItem 的 IsExpanded 不会自动与数据项同步。没有这条绑定时，
                      仅会展开不可见的 dummy child，TreeNodeModel 无法发起目录懒加载。 -->
                 <TreeView.Styles>
@@ -173,7 +176,12 @@
                          Background="#FFFFFF"
                          BorderThickness="0"
                          DoubleTapped="EntriesList_DoubleTapped"
-                         PointerPressed="EntriesList_PointerPressed">
+                         PointerPressed="EntriesList_PointerPressed"
+                         PointerMoved="EntriesList_PointerMoved"
+                         PointerReleased="EntriesList_PointerReleased"
+                         DragDrop.AllowDrop="True"
+                         DragDrop.DragOver="Explorer_DragOver"
+                         DragDrop.Drop="Explorer_Drop">
                     <ListBox.ContextMenu>
                         <ContextMenu DataContext="{Binding #EntriesList.DataContext}">
                             <MenuItem Header="Open" Command="{Binding OpenCommand}" />
