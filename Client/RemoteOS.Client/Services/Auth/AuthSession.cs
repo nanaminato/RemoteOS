@@ -1,5 +1,3 @@
-using System.Reflection;
-using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Identity;
 using RemoteOS.Protocol.Workspace;
 
@@ -72,48 +70,6 @@ public sealed class AuthSession : IAuthSession
     public async Task<IReadOnlyList<SavedLoginProfile>> GetSavedProfilesAsync(CancellationToken ct = default)
         => await _rememberedSessionStore.LoadAsync(ct);
 
-    public async Task<bool> TryLoginSavedAsync(string serverUrl, string username, CancellationToken ct = default)
-    {
-        var profile = (await _rememberedSessionStore.LoadAsync(ct))
-            .FirstOrDefault(item => SavedLoginProfile.SameProfile(item.ServerUrl, item.Username, serverUrl, username));
-        if (profile is null || string.IsNullOrWhiteSpace(profile.Password))
-            return false;
-
-        lock (_gate)
-        {
-            if (State != AuthSessionState.Unauthenticated)
-                return false;
-            State = AuthSessionState.Connecting;
-        }
-        RaiseStateChanged();
-
-        try
-        {
-            var response = await _client.LoginAsync(
-                profile.ServerUrl,
-                new LoginRequest(profile.Username, profile.Password, DetectClientPlatform(), Environment.MachineName, ClientVersion),
-                ct);
-            Apply(response, profile.ServerUrl);
-            await _rememberedSessionStore.UpsertAsync(profile with { LastUsedAt = DateTimeOffset.UtcNow }, ct);
-            State = AuthSessionState.Authenticated;
-            RaiseStateChanged();
-            return true;
-        }
-        catch (RemoteOsAuthException ex)
-        {
-            // Retain the profile for account-policy errors; clear the password only when it is actually rejected.
-            if (ex.Type == "https://remoteos.app/problems/invalid-credential")
-                await _rememberedSessionStore.UpsertAsync(profile with { Password = null }, ct);
-            Reset();
-            return false;
-        }
-        catch
-        {
-            Reset();
-            return false;
-        }
-    }
-
     public async Task LogoutAsync(CancellationToken ct = default)
     {
         var url = ServerUrl;
@@ -142,11 +98,6 @@ public sealed class AuthSession : IAuthSession
             return false;
         }
     }
-
-    private static string ClientVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
-
-    private static PlatformKind DetectClientPlatform()
-        => OperatingSystem.IsWindows() ? PlatformKind.Windows : PlatformKind.Linux;
 
     private void Apply(LoginResponse response, string serverUrl)
     {

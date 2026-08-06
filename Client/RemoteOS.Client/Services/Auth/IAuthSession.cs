@@ -30,9 +30,6 @@ public interface IAuthSession
     /// <summary>Returns all connections remembered for the current operating-system user.</summary>
     Task<IReadOnlyList<SavedLoginProfile>> GetSavedProfilesAsync(CancellationToken ct = default);
 
-    /// <summary>Uses the encrypted password saved for one server. Returns false when that server has no saved password or login fails.</summary>
-    Task<bool> TryLoginSavedAsync(string serverUrl, string username, CancellationToken ct = default);
-
     /// <summary>登出（吊销 RefreshToken，清空上下文）。</summary>
     Task LogoutAsync(CancellationToken ct = default);
 

@@ -21,7 +21,9 @@ public interface IRememberedSessionStore
 public sealed record SavedLoginProfile(string ServerUrl, string Username, string? Password, DateTimeOffset LastUsedAt)
 {
     public bool HasPassword => !string.IsNullOrWhiteSpace(Password);
-    public string DisplayName => $"{ServerUrl}  ({Username})" + (HasPassword ? " — 已保存密码" : " — 需要密码");
+
+    /// <summary>ComboBox uses this value for editable selection text; never expose credentials there.</summary>
+    public override string ToString() => ServerUrl;
 
     public static bool SameServer(string left, string right)
         => string.Equals(NormalizeServer(left), NormalizeServer(right), StringComparison.OrdinalIgnoreCase);

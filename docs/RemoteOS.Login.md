@@ -141,7 +141,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 - **不 mutate `HttpClient.BaseAddress`**：`RemoteOsClient` 每个方法接收 `serverUrl` 构造绝对 URI（`new Uri(new Uri(serverUrl), route.TrimStart('/'))`），避免 typed HttpClient 共享实例并发竞态。
 - **登录窗用顶层 `Window`**，不用 `RemoteWindow`（`RemoteWindow` 必须挂在 `DesktopShellView` 的 `PART_WindowHost` Canvas，登录前桌面尚未建立）。
-- **已保存连接**：客户端可加密保存多组 `Server URL + 用户名 + 密码`；登录窗保持可见，用户从下拉列表选择任意已保存项即可连接。密码未勾选时仅保存 `Server URL + 用户名`，不会保存 `RefreshToken` 或任何可替代密码的令牌；登出不会删除已保存连接。
+- **已保存连接**：客户端可加密保存多组 `Server URL + 用户名 + 密码`；登录窗保持可见，用户从下拉列表选择任意已保存项以回填凭据，再明确点击“连接”登录。密码未勾选时仅保存 `Server URL + 用户名`，不会保存 `RefreshToken` 或任何可替代密码的令牌；登出不会删除已保存连接。
 - **HTTP 调用经 `IRemoteOsClient` 抽象**，业务代码不直接 `new HttpClient`（Architecture.md §4.8）。
 
 ---
@@ -248,7 +248,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - **自动登录的安全性**：未勾选时 `AuthSession` 不写盘；勾选时客户端仅通过平台凭据库保存密码和会话信息：Windows 为当前用户 DPAPI 加密文件，macOS 为 Keychain，Linux 为 Secret Service。不会写入配置、数据库或日志，登出会清除记录。
 - **JWT 对称密钥**：Production 启动校验 `Jwt:Secret` 非默认占位值；Development 用固定开发密钥。
 - **HTTPS**：Production 强制 HTTPS 重定向；Development 允许 http 方便本地测试。
-- **密码字段**：`LoginView` 用 `TextBox PasswordChar="●"`，密码不回显；`LoginViewModel` 不记录密码到日志。
+- **密码字段**：`LoginView` 默认用 `TextBox PasswordChar="●"` 掩码显示，并提供“查看 / 隐藏”切换；`LoginViewModel` 不记录密码到日志。
 - **RefreshToken 一次性**：刷新后旧 token 立即吊销，登出吊销 refresh。
 - **最小权限**：`WindowsLogonProvider` 用 `LOGON32_LOGON_NETWORK`（轻量登录，不加载用户配置），不默认 root/Administrator。
 
@@ -320,12 +320,14 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 
 登录窗口的“计算机”输入框同时是已保存连接的下拉列表。RemoteOS 按 **Server URL + 用户名** 保存多条独立记录；因此同一台服务器可使用不同账户，多台服务器也不会互相覆盖。
 
-启动时如果存在至少一条已保存密码的记录，窗口进入简洁选择模式：显示服务器下拉框和用户名，隐藏密码标签与输入框。用户直接选择带密码的服务器即可连接；选择“显示选项”后展开服务器、用户名和密码字段，并按当前选择项预填，便于核对或修改。没有任何已保存密码时，窗口默认展开完整表单。
+启动时如果存在至少一条已保存密码的记录，窗口进入简洁选择模式：显示服务器下拉框和用户名，隐藏密码标签与输入框。窗口默认选中最近使用的服务器，并回填服务器、用户名及（不可见的）已保存密码；用户仍需点击“连接”才会登录。选择“显示选项”后展开服务器、用户名和密码字段，并按当前选择项预填，便于核对或修改；“显示选项 / 隐藏选项”始终可切换。没有任何已保存密码时，窗口默认展开完整表单。
+
+服务器下拉项和可编辑选择文本均只显示 Server URL。客户端在发送请求前验证 URL 必须为带 `http` 或 `https` 协议的完整地址；无效地址会显示错误提示，不会导致客户端异常退出。展开的密码框提供“查看 / 隐藏”按钮，用户可确认输入内容。
 
 | 用户选择 | 本地保存内容 | 下次使用方式 |
 |---|---|---|
 | 勾选“记住此计算机和用户名”，不勾选保存密码 | Server URL、用户名 | 选择该项后会回填地址和用户名，仍需输入密码。 |
-| 同时勾选“加密保存密码” | Server URL、用户名、密码 | 在下拉列表选择该项后直接连接，不再显示密码提示。 |
+| 同时勾选“加密保存密码” | Server URL、用户名、密码 | 选择该项会回填凭据；用户点击“连接”后免密码登录。 |
 | 不勾选“记住此计算机和用户名” | 不新增或更新本地记录 | 本次登录结束后不保留新输入。 |
 
 密码不是普通配置：只有用户显式勾选后才会写入当前操作系统的安全存储（Windows DPAPI、macOS Keychain、Linux Secret Service），不会写入服务端、配置文件、日志或数据库。未保存密码的记录也不保存 RefreshToken，不能绕过密码输入。

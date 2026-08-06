@@ -73,10 +73,12 @@
                               SelectedItem="{Binding SelectedProfile}"
                               IsEditable="{Binding ShowOptions}"
                               Text="{Binding ServerUrl}"
+                              HorizontalAlignment="Stretch"
+                              MinWidth="440"
                               PlaceholderText="http://host:port">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding DisplayName}" />
+                                <TextBlock Text="{Binding ServerUrl}" />
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
@@ -90,17 +92,23 @@
                              PlaceholderText="例如：alice" />
                     </Grid>
 
-                    <Grid IsVisible="{Binding ShowOptions}" ColumnDefinitions="108,*">
+                    <Grid IsVisible="{Binding ShowOptions}" ColumnDefinitions="108,*,Auto">
                     <TextBlock Classes="login-label" Text="密码:" />
-                    <TextBox Classes="connection-input" Grid.Column="1"
+                    <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding !IsPasswordVisible}"
                              Text="{Binding Password}"
                              PasswordChar="●"
                              PlaceholderText="输入密码" />
+                    <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding IsPasswordVisible}"
+                             Text="{Binding Password}"
+                             PlaceholderText="输入密码" />
+                    <Button Grid.Column="2" Command="{Binding TogglePasswordVisibilityCommand}"
+                            Content="{Binding PasswordVisibilityText}" Margin="8,0,0,0"
+                            MinWidth="52" Height="32" Padding="8,4" />
                     </Grid>
                 </StackPanel>
 
-                <Button IsVisible="{Binding !ShowOptions}" Command="{Binding RevealOptionsCommand}"
-                        Content="显示选项" HorizontalAlignment="Left" Margin="108,12,0,0"
+                <Button Command="{Binding ToggleOptionsCommand}"
+                        Content="{Binding OptionsToggleText}" HorizontalAlignment="Left" Margin="108,12,0,0"
                         Padding="0" Background="Transparent" BorderThickness="0"
                         Foreground="{StaticResource AccentBrush}" />
 

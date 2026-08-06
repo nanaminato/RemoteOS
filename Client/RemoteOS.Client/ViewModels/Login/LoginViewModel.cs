@@ -54,13 +54,18 @@ public partial class LoginViewModel : ObservableObject
     private SavedLoginProfile? _selectedProfile;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowOptionsText))]
+    [NotifyPropertyChangedFor(nameof(OptionsToggleText))]
     private bool _showOptions = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PasswordVisibilityText))]
+    private bool _isPasswordVisible;
 
     [ObservableProperty]
     private bool _hasSavedPasswordProfiles;
 
-    public string ShowOptionsText => ShowOptions ? "隐藏选项" : "显示选项";
+    public string OptionsToggleText => ShowOptions ? "隐藏选项" : "显示选项";
+    public string PasswordVisibilityText => IsPasswordVisible ? "隐藏" : "查看";
 
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
@@ -72,7 +77,7 @@ public partial class LoginViewModel : ObservableObject
     partial void OnSelectedProfileChanged(SavedLoginProfile? value)
     {
         if (value is not null && !_loadingSavedProfiles)
-            _ = SelectSavedProfileAsync(value);
+            ApplySelectedProfile(value);
     }
 
     private void ClearError()
@@ -84,6 +89,14 @@ public partial class LoginViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ConnectAsync(CancellationToken ct)
     {
+        if (!TryGetServerUrl(out var serverUrl))
+        {
+            ErrorMessage = "服务器地址无效。请输入完整地址，例如：http://host:port。";
+            HasError = true;
+            StatusMessage = string.Empty;
+            return;
+        }
+
         IsConnecting = true;
         StatusMessage = "正在连接…";
         ClearError();
@@ -95,7 +108,7 @@ public partial class LoginViewModel : ObservableObject
                 ClientPlatform: DetectClientPlatform(),
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
-            await _session.LoginAsync(ServerUrl, request, RememberServer, RememberPassword, ct);
+            await _session.LoginAsync(serverUrl, request, RememberServer, RememberPassword, ct);
             StatusMessage = "连接成功，正在进入桌面…";
         }
         catch (RemoteOsAuthException ex)
@@ -107,6 +120,12 @@ public partial class LoginViewModel : ObservableObject
         catch (HttpRequestException ex)
         {
             ErrorMessage = MapHttpError(ex);
+            HasError = true;
+            StatusMessage = string.Empty;
+        }
+        catch (UriFormatException)
+        {
+            ErrorMessage = "服务器地址无效。请输入完整地址，例如：http://host:port。";
             HasError = true;
             StatusMessage = string.Empty;
         }
@@ -137,6 +156,14 @@ public partial class LoginViewModel : ObservableObject
                 SavedProfiles.Add(profile);
             HasSavedPasswordProfiles = profiles.Any(profile => profile.HasPassword);
             ShowOptions = !HasSavedPasswordProfiles;
+
+            // The store is ordered by LastUsedAt, so the first entry is the last selected server.
+            // Set it explicitly during startup, then populate fields without initiating a connection.
+            if (profiles.FirstOrDefault() is { } lastProfile)
+            {
+                SelectedProfile = lastProfile;
+                ApplySelectedProfile(lastProfile);
+            }
         }
         finally
         {
@@ -144,46 +171,30 @@ public partial class LoginViewModel : ObservableObject
         }
     }
 
-    private async Task SelectSavedProfileAsync(SavedLoginProfile profile)
+    private void ApplySelectedProfile(SavedLoginProfile profile)
     {
         ServerUrl = profile.ServerUrl;
         Username = profile.Username;
         Password = profile.Password ?? string.Empty;
         RememberServer = true;
         RememberPassword = profile.HasPassword;
-
-        // In compact mode, choosing a password-bearing entry is the one-action login path.
-        // When options are already visible, selection only fills the form so it can be reviewed or edited.
-        if (ShowOptions || !profile.HasPassword || IsConnecting)
-            return;
-
-        IsConnecting = true;
-        StatusMessage = "正在使用已保存的凭据连接…";
-        ClearError();
-        try
-        {
-            var connected = await _session.TryLoginSavedAsync(profile.ServerUrl, profile.Username);
-            if (connected)
-            {
-                StatusMessage = "连接成功，正在进入桌面…";
-                return;
-            }
-
-            Password = string.Empty;
-            RememberPassword = false;
-            ErrorMessage = "已保存的密码不可用，请重新输入密码。";
-            HasError = true;
-            StatusMessage = string.Empty;
-        }
-        finally
-        {
-            IsConnecting = false;
-        }
     }
 
     [RelayCommand]
-    private void RevealOptions()
-        => ShowOptions = true;
+    private void ToggleOptions()
+        => ShowOptions = !ShowOptions;
+
+    [RelayCommand]
+    private void TogglePasswordVisibility()
+        => IsPasswordVisible = !IsPasswordVisible;
+
+    private bool TryGetServerUrl(out string serverUrl)
+    {
+        serverUrl = ServerUrl.Trim();
+        return Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri)
+               && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+               && !string.IsNullOrWhiteSpace(uri.Host);
+    }
 
     /// <summary>运行时探测客户端宿主平台，而非硬编码。PlatformKind 目前仅 Linux/Windows。</summary>
     private static PlatformKind DetectClientPlatform()
