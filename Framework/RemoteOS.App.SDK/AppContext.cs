@@ -55,4 +55,12 @@ public sealed class AppContext
         Func<ModalDialog<TResult>, Control> contentFactory,
         Rect? bounds = null)
         => WindowManager.ShowDialogAsync(owner, title, contentFactory, bounds);
+
+    /// <summary>Shows a dialog centered over its owner at the requested size.</summary>
+    public Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize)
+        => WindowManager.ShowDialogAsync(owner, title, contentFactory, preferredSize);
 }

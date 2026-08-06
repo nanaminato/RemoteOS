@@ -88,7 +88,7 @@ public sealed class TerminalApp : RemoteApplicationBase
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new TerminalSettingsView { DataContext = viewModel };
-            }, new Rect(240, 150, 460, 330));
+            }, new Size(460, 330));
         };
     }
 }

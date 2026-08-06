@@ -59,7 +59,7 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new NotepadSettingsView { DataContext = viewModel };
-            }, new Rect(280, 180, 420, 300));
+            }, new Size(420, 300));
         };
         if (!string.IsNullOrWhiteSpace(path))
             _ = viewModel.OpenPathAsync(path);

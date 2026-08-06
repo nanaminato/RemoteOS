@@ -59,7 +59,7 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new CodeEditorSettingsView { DataContext = viewModel };
-            }, new Rect(260, 150, 440, 340));
+            }, new Size(440, 340));
         };
 
         if (!string.IsNullOrWhiteSpace(path))

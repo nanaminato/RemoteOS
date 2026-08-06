@@ -59,7 +59,7 @@ public sealed class BrowserApp : RemoteApplicationBase
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new BrowserSettingsView { DataContext = viewModel };
-            }, new Rect(320, 180, 480, 280));
+            }, new RemoteOS.Core.Primitives.Size(480, 280));
         };
 
         // NativeWebView is a platform child view and does not participate in Avalonia's

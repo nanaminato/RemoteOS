@@ -148,6 +148,24 @@ public sealed class WindowManager : IWindowManager
         return dialog.Result;
     }
 
+    public Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize)
+    {
+        var ownerBounds = owner.Info.Bounds;
+        var width = Math.Min(preferredSize.Width, Math.Max(320, ownerBounds.Width - 48));
+        var height = Math.Min(preferredSize.Height, Math.Max(220, ownerBounds.Height - 56));
+        var bounds = new Rect(
+            ownerBounds.X + Math.Max(24, (ownerBounds.Width - width) / 2),
+            ownerBounds.Y + Math.Max(28, (ownerBounds.Height - height) / 2),
+            width,
+            height);
+
+        return ShowDialogAsync(owner, title, contentFactory, bounds);
+    }
+
     public void Close(ManagedWindow window)
     {
         if (!_windows.Remove(window))

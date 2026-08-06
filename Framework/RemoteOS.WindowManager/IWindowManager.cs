@@ -34,6 +34,13 @@ public interface IWindowManager
         Func<ModalDialog<TResult>, Control> contentFactory,
         Rect? bounds = null);
 
+    /// <summary>Shows a modal dialog centered over its owner at the requested size.</summary>
+    Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize);
+
     void Close(ManagedWindow window);
     void Focus(ManagedWindow window);
     void Minimize(ManagedWindow window);
