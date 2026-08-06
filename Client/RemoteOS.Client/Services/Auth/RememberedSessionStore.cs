@@ -12,47 +12,35 @@ namespace Client.Services.Auth;
 /// <summary>Stores opted-in credentials in the platform's encrypted credential vault.</summary>
 public interface IRememberedSessionStore
 {
-    Task<RememberedSession?> LoadAsync(CancellationToken ct = default);
-    Task<bool> SaveAsync(RememberedSession session, CancellationToken ct = default);
+    Task<IReadOnlyList<SavedLoginProfile>> LoadAsync(CancellationToken ct = default);
+    Task<bool> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default);
     Task ClearAsync(CancellationToken ct = default);
 }
 
-/// <summary>Everything in this record, including Password, is written only to encrypted OS credential storage.</summary>
-public sealed record RememberedSession(
-    string ServerUrl,
-    AuthTokens Tokens,
-    UserDto User,
-    WorkspaceDto Workspace,
-    SessionDto Session,
-    DeviceDto Device,
-    DeviceRole AssignedRole,
-    string? Password)
+/// <summary>A saved server/user pair. Password, when opted into, only ever exists in encrypted OS credential storage.</summary>
+public sealed record SavedLoginProfile(string ServerUrl, string Username, string? Password, DateTimeOffset LastUsedAt)
 {
-    public static RememberedSession From(string serverUrl, LoginResponse response, string password)
-        => new(
-            serverUrl,
-            response.Tokens,
-            response.User,
-            response.Workspace,
-            response.Session,
-            response.Device,
-            response.AssignedRole,
-            password);
+    public bool HasPassword => !string.IsNullOrWhiteSpace(Password);
+    public string DisplayName => $"{ServerUrl}  ({Username})" + (HasPassword ? " — 已保存密码" : " — 需要密码");
 
-    public static RememberedSession From(string serverUrl, AuthSession session, string? password)
-        => new(
-            serverUrl,
-            session.Tokens!,
-            session.CurrentUser!,
-            session.CurrentWorkspace!,
-            session.CurrentSession!,
-            session.CurrentDevice!,
-            session.AssignedRole,
-            password);
+    public static bool SameServer(string left, string right)
+        => string.Equals(NormalizeServer(left), NormalizeServer(right), StringComparison.OrdinalIgnoreCase);
 
-    public LoginResponse ToLoginResponse(AuthTokens tokens)
-        => new(User, Workspace, Session, Device, tokens, AssignedRole);
+    public static bool SameProfile(string leftServer, string leftUsername, string rightServer, string rightUsername)
+        => SameServer(leftServer, rightServer)
+           && string.Equals(leftUsername.Trim(), rightUsername.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeServer(string serverUrl)
+        => Uri.TryCreate(serverUrl, UriKind.Absolute, out var uri)
+            ? uri.GetLeftPart(UriPartial.Authority).TrimEnd('/')
+            : serverUrl.Trim().TrimEnd('/');
 }
+
+internal sealed record SavedLoginProfileCollection(IReadOnlyList<SavedLoginProfile> Profiles);
+
+// Previous releases wrote this payload as one encrypted session. Keep this private shape only for a one-time migration.
+internal sealed record LegacyRememberedSession(string ServerUrl, AuthTokens Tokens, UserDto User, WorkspaceDto Workspace,
+    SessionDto Session, DeviceDto Device, DeviceRole AssignedRole, string? Password);
 
 /// <summary>
 /// Uses DPAPI on Windows, Keychain on macOS, and the Secret Service API on Linux.
@@ -66,7 +54,7 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
         "RemoteOS",
         "remembered-session.bin");
 
-    public async Task<RememberedSession?> LoadAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<SavedLoginProfile>> LoadAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         try
@@ -78,29 +66,33 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
                     : OperatingSystem.IsLinux()
                         ? LinuxSecretService.TryRead(out var linuxValue) ? linuxValue : null
                         : null;
-            return payload is null ? null : Deserialize(payload);
+            return payload is null ? Array.Empty<SavedLoginProfile>() : Deserialize(payload);
         }
         catch (CryptographicException)
         {
             await ClearAsync(ct);
-            return null;
+            return Array.Empty<SavedLoginProfile>();
         }
         catch (JsonException)
         {
             await ClearAsync(ct);
-            return null;
+            return Array.Empty<SavedLoginProfile>();
         }
         catch (FormatException)
         {
             await ClearAsync(ct);
-            return null;
+            return Array.Empty<SavedLoginProfile>();
         }
     }
 
-    public async Task<bool> SaveAsync(RememberedSession session, CancellationToken ct = default)
+    public async Task<bool> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var payload = Serialize(session);
+        var profiles = (await LoadAsync(ct)).ToList();
+        profiles.RemoveAll(item => SavedLoginProfile.SameProfile(item.ServerUrl, item.Username, profile.ServerUrl, profile.Username));
+        profiles.Add(profile with { ServerUrl = profile.ServerUrl.Trim(), Username = profile.Username.Trim() });
+        var payload = Serialize(new SavedLoginProfileCollection(
+            profiles.OrderByDescending(item => item.LastUsedAt).ToArray()));
 
         try
         {
@@ -179,11 +171,22 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
         await File.WriteAllBytesAsync(_windowsFilePath, protectedBytes, ct);
     }
 
-    private static string Serialize(RememberedSession session)
-        => Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(session, RemoteOsJsonOptions.Default));
+    private static string Serialize(SavedLoginProfileCollection profiles)
+        => Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(profiles, RemoteOsJsonOptions.Default));
 
-    private static RememberedSession? Deserialize(string payload)
-        => JsonSerializer.Deserialize<RememberedSession>(Convert.FromBase64String(payload), RemoteOsJsonOptions.Default);
+    private static IReadOnlyList<SavedLoginProfile> Deserialize(string payload)
+    {
+        var bytes = Convert.FromBase64String(payload);
+        using var document = JsonDocument.Parse(bytes);
+        if (document.RootElement.TryGetProperty("profiles", out _))
+            return JsonSerializer.Deserialize<SavedLoginProfileCollection>(bytes, RemoteOsJsonOptions.Default)?.Profiles
+                ?? Array.Empty<SavedLoginProfile>();
+
+        var legacy = JsonSerializer.Deserialize<LegacyRememberedSession>(bytes, RemoteOsJsonOptions.Default);
+        return legacy is null
+            ? Array.Empty<SavedLoginProfile>()
+            : [new SavedLoginProfile(legacy.ServerUrl, legacy.User.Username, legacy.Password, DateTimeOffset.UtcNow)];
+    }
 }
 
 internal static class MacKeychain

@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Collections.ObjectModel;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,8 +15,15 @@ namespace Client.ViewModels.Login;
 public partial class LoginViewModel : ObservableObject
 {
     private readonly IAuthSession _session;
+    private bool _loadingSavedProfiles;
 
-    public LoginViewModel(IAuthSession session) => _session = session;
+    public LoginViewModel(IAuthSession session)
+    {
+        _session = session;
+        SavedProfiles = new ObservableCollection<SavedLoginProfile>();
+    }
+
+    public ObservableCollection<SavedLoginProfile> SavedProfiles { get; }
 
     // 输入与连接状态变化时，自动通知 ConnectCommand 重新评估 CanExecute。
     // 此前缺少通知，导致填写完账号密码后按钮仍处于禁用状态（无法点击）。
@@ -37,7 +45,13 @@ public partial class LoginViewModel : ObservableObject
 
     [ObservableProperty]
     // Debug 和生产版本都默认启用；用户可在共享设备上取消勾选。
-    private bool _rememberCredentials = true;
+    private bool _rememberServer = true;
+
+    [ObservableProperty]
+    private bool _rememberPassword = true;
+
+    [ObservableProperty]
+    private SavedLoginProfile? _selectedProfile;
 
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
@@ -46,6 +60,11 @@ public partial class LoginViewModel : ObservableObject
     partial void OnServerUrlChanged(string value) => ClearError();
     partial void OnUsernameChanged(string value) => ClearError();
     partial void OnPasswordChanged(string value) => ClearError();
+    partial void OnSelectedProfileChanged(SavedLoginProfile? value)
+    {
+        if (value is not null && !_loadingSavedProfiles)
+            _ = SelectSavedProfileAsync(value);
+    }
 
     private void ClearError()
     {
@@ -67,7 +86,7 @@ public partial class LoginViewModel : ObservableObject
                 ClientPlatform: DetectClientPlatform(),
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
-            await _session.LoginAsync(ServerUrl, request, RememberCredentials, ct);
+            await _session.LoginAsync(ServerUrl, request, RememberServer, RememberPassword, ct);
             StatusMessage = "连接成功，正在进入桌面…";
         }
         catch (RemoteOsAuthException ex)
@@ -97,6 +116,57 @@ public partial class LoginViewModel : ObservableObject
            && !string.IsNullOrWhiteSpace(ServerUrl)
            && !string.IsNullOrWhiteSpace(Username)
            && !string.IsNullOrWhiteSpace(Password);
+
+    public async Task LoadSavedProfilesAsync(CancellationToken ct = default)
+    {
+        _loadingSavedProfiles = true;
+        try
+        {
+            var profiles = await _session.GetSavedProfilesAsync(ct);
+            SavedProfiles.Clear();
+            foreach (var profile in profiles)
+                SavedProfiles.Add(profile);
+        }
+        finally
+        {
+            _loadingSavedProfiles = false;
+        }
+    }
+
+    private async Task SelectSavedProfileAsync(SavedLoginProfile profile)
+    {
+        ServerUrl = profile.ServerUrl;
+        Username = profile.Username;
+        Password = profile.Password ?? string.Empty;
+        RememberServer = true;
+        RememberPassword = profile.HasPassword;
+
+        if (!profile.HasPassword || IsConnecting)
+            return;
+
+        IsConnecting = true;
+        StatusMessage = "正在使用已保存的凭据连接…";
+        ClearError();
+        try
+        {
+            var connected = await _session.TryLoginSavedAsync(profile.ServerUrl, profile.Username);
+            if (connected)
+            {
+                StatusMessage = "连接成功，正在进入桌面…";
+                return;
+            }
+
+            Password = string.Empty;
+            RememberPassword = false;
+            ErrorMessage = "已保存的密码不可用，请重新输入密码。";
+            HasError = true;
+            StatusMessage = string.Empty;
+        }
+        finally
+        {
+            IsConnecting = false;
+        }
+    }
 
     /// <summary>运行时探测客户端宿主平台，而非硬编码。PlatformKind 目前仅 Linux/Windows。</summary>
     private static PlatformKind DetectClientPlatform()

@@ -62,9 +62,18 @@
 
                 <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,12,Auto,12,Auto">
                     <TextBlock Classes="login-label" Text="计算机:" Grid.Row="0" />
-                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="0"
-                             Text="{Binding ServerUrl}"
-                             PlaceholderText="http://host:port" />
+                    <ComboBox Classes="connection-input" Grid.Column="1" Grid.Row="0"
+                              ItemsSource="{Binding SavedProfiles}"
+                              SelectedItem="{Binding SelectedProfile}"
+                              IsEditable="True"
+                              Text="{Binding ServerUrl}"
+                              PlaceholderText="http://host:port">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
 
                     <TextBlock Classes="login-label" Text="用户名:" Grid.Row="2" />
                     <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="2"
@@ -78,8 +87,11 @@
                              PlaceholderText="输入密码" />
                 </Grid>
 
-                <CheckBox IsChecked="{Binding RememberCredentials}" Content="加密保存密码并自动登录"
+                <CheckBox IsChecked="{Binding RememberServer}" Content="记住此计算机和用户名"
                           Foreground="#404040" FontSize="12" Margin="88,12,0,0" />
+                <CheckBox IsChecked="{Binding RememberPassword}" IsEnabled="{Binding RememberServer}"
+                          Content="加密保存密码；下次选择此计算机即可登录"
+                          Foreground="#404040" FontSize="12" Margin="88,6,0,0" />
 
                 <TextBlock Text="将提示你确认远程计算机的身份。"
                            Foreground="#6A6A6A" FontSize="12" Margin="88,11,0,0" />

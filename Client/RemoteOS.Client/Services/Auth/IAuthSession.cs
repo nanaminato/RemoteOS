@@ -19,15 +19,19 @@ public interface IAuthSession
     /// <summary>状态变化（Connecting / Authenticated / Unauthenticated）。</summary>
     event EventHandler<AuthSessionStateChangedEventArgs>? StateChanged;
 
-    /// <summary>登录。serverUrl 形如 "http://localhost:5090"。成功缓存全部上下文并触发 StateChanged。</summary>
+    /// <summary>登录。成功后可分别记住服务器/用户名，或额外加密保存密码。</summary>
     Task<LoginResponse> LoginAsync(
         string serverUrl,
         LoginRequest request,
-        bool rememberCredentials,
+        bool rememberServer,
+        bool rememberPassword,
         CancellationToken ct = default);
 
-    /// <summary>Attempts to resume a session saved for the current OS user. Returns false when none is saved or it has expired.</summary>
-    Task<bool> TryRestoreAsync(CancellationToken ct = default);
+    /// <summary>Returns all connections remembered for the current operating-system user.</summary>
+    Task<IReadOnlyList<SavedLoginProfile>> GetSavedProfilesAsync(CancellationToken ct = default);
+
+    /// <summary>Uses the encrypted password saved for one server. Returns false when that server has no saved password or login fails.</summary>
+    Task<bool> TryLoginSavedAsync(string serverUrl, string username, CancellationToken ct = default);
 
     /// <summary>登出（吊销 RefreshToken，清空上下文）。</summary>
     Task LogoutAsync(CancellationToken ct = default);

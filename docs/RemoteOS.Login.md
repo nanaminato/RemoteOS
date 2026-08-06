@@ -141,7 +141,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 - **不 mutate `HttpClient.BaseAddress`**：`RemoteOsClient` 每个方法接收 `serverUrl` 构造绝对 URI（`new Uri(new Uri(serverUrl), route.TrimStart('/'))`），避免 typed HttpClient 共享实例并发竞态。
 - **登录窗用顶层 `Window`**，不用 `RemoteWindow`（`RemoteWindow` 必须挂在 `DesktopShellView` 的 `PART_WindowHost` Canvas，登录前桌面尚未建立）。
-- **可选自动登录**：首次登录时勾选后，客户端把密码、`RefreshToken` 与必要会话上下文写入操作系统的加密凭据存储。应用启动时优先刷新令牌；若服务端重启或令牌失效，则使用受保护的密码直接重新登录。登出会删除本地记录。
+- **已保存连接**：客户端可加密保存多组 `Server URL + 用户名 + 密码`；登录窗保持可见，用户从下拉列表选择任意已保存项即可连接。密码未勾选时仅保存 `Server URL + 用户名`，不会保存 `RefreshToken` 或任何可替代密码的令牌；登出不会删除已保存连接。
 - **HTTP 调用经 `IRemoteOsClient` 抽象**，业务代码不直接 `new HttpClient`（Architecture.md §4.8）。
 
 ---
@@ -300,7 +300,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - HTTP 调用经 `IRemoteOsClient` 抽象，业务代码不直接 `new HttpClient`。
 - 凭据验证经 `IIdentityProvider` 抽象，平台差异封装在 Provider 实现。
 - 错误响应解析 `ProblemDetails`，用 `type` 字段做错误码映射（无 Errors 字典）。
-- 未勾选时 Token 和密码仅存内存；勾选“加密保存密码并自动登录”时，客户端将密码、刷新令牌与必要会话上下文保存到操作系统安全存储。启动时先刷新 Token，失败后自动使用保存的密码登录，因此服务端重启后的调试启动也无需再次输入密码。
+- 未勾选“记住此计算机和用户名”时，不新增本地记录；勾选后保存 `Server URL + 用户名`。只有额外勾选“加密保存密码”时才将密码写入操作系统安全存储；不保存 RefreshToken，且启动后由用户选择目标服务器，避免在多服务器环境中错误地自动连到上一台机器。
 - Server 领域模型与 Protocol DTO 分离，端点处手动 `ToDto()` 映射。
 - 序列化统一用 `RemoteOsJsonOptions.Default`（camelCase + 枚举字符串）。
 
@@ -313,3 +313,19 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - mutate 共享 `HttpClient.BaseAddress`。
 - 用 `RemoteWindow` 承载登录界面。
 - 破坏现有桌面功能（MainWindow / Bootstrapper 桌面装配 / DesktopShellViewModel / 内置 App / WindowManager 仅在 App.axaml.cs 启动顺序分叉，逻辑不动）。
+
+---
+
+## 10. 已保存连接（mstsc 风格，多服务器）
+
+登录窗口的“计算机”输入框同时是已保存连接的下拉列表。RemoteOS 按 **Server URL + 用户名** 保存多条独立记录；因此同一台服务器可使用不同账户，多台服务器也不会互相覆盖。
+
+| 用户选择 | 本地保存内容 | 下次使用方式 |
+|---|---|---|
+| 勾选“记住此计算机和用户名”，不勾选保存密码 | Server URL、用户名 | 选择该项后会回填地址和用户名，仍需输入密码。 |
+| 同时勾选“加密保存密码” | Server URL、用户名、密码 | 在下拉列表选择该项后直接连接，不再显示密码提示。 |
+| 不勾选“记住此计算机和用户名” | 不新增或更新本地记录 | 本次登录结束后不保留新输入。 |
+
+密码不是普通配置：只有用户显式勾选后才会写入当前操作系统的安全存储（Windows DPAPI、macOS Keychain、Linux Secret Service），不会写入服务端、配置文件、日志或数据库。未保存密码的记录也不保存 RefreshToken，不能绕过密码输入。
+
+旧版本的单条加密会话在首次读取时会迁移为一条新的连接记录。若保存的密码已失效，客户端会保留该服务器和用户名，但移除失效密码并提示用户重新输入；网络暂时不可达不会删除任何已保存连接。退出远程桌面只会注销当前会话，不会清除本地已保存连接，行为与 mstsc 的已保存凭据一致。

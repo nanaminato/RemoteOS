@@ -60,7 +60,9 @@ public partial class App : Application
                 });
             };
 
-            _ = session.TryRestoreAsync();
+            // Keep the login window visible so the user can choose one of several remembered servers.
+            // Selecting an entry with a saved password logs in without asking for it.
+            _ = loginViewModel.LoadSavedProfilesAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
