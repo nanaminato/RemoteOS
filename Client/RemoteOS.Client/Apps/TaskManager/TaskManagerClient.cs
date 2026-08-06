@@ -24,6 +24,9 @@ public sealed class TaskManagerClient : ITaskManagerClient
     public Task<SystemMetricsDto> GetMetricsAsync(CancellationToken ct = default)
         => SendAsync<SystemMetricsDto>(HttpMethod.Get, SystemMonitorApiRoutes.Metrics, ct: ct);
 
+    public Task<IReadOnlyList<NetworkAddressDto>> GetNetworkAddressesAsync(CancellationToken ct = default)
+        => SendAsync<IReadOnlyList<NetworkAddressDto>>(HttpMethod.Get, SystemMonitorApiRoutes.NetworkAddresses, ct: ct);
+
     public Task<IReadOnlyList<ProcessInfoDto>> ListProcessesAsync(CancellationToken ct = default)
         => SendAsync<IReadOnlyList<ProcessInfoDto>>(HttpMethod.Get, SystemMonitorApiRoutes.Processes, ct: ct);
 

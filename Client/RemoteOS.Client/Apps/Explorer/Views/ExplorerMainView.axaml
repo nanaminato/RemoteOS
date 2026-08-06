@@ -6,6 +6,7 @@
              xmlns:vm="clr-namespace:Client.Apps.Explorer.ViewModels"
              xmlns:d="clr-namespace:RemoteOS.Protocol.Files;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Explorer.Views.ExplorerMainView"
+             x:Name="Root"
              x:DataType="vm:ExplorerViewModel"
              Background="#FFFFFF">
 
@@ -140,12 +141,26 @@
             <Grid Grid.Column="2" RowDefinitions="Auto,*">
                 <!-- 列标题 -->
                 <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,120,100,150">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding #Root.NameColumnWidth}" MinWidth="180" />
+                            <ColumnDefinition Width="{Binding #Root.SizeColumnWidth}" MinWidth="96" />
+                            <ColumnDefinition Width="{Binding #Root.ModifiedColumnWidth}" MinWidth="150" />
+                            <ColumnDefinition Width="{Binding #Root.TypeColumnWidth}" MinWidth="96" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="名称" FontWeight="SemiBold" Padding="12,6" FontSize="12" />
-                        <TextBlock Grid.Column="1" Text="修改日期" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
-                        <TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
-                        <TextBlock Grid.Column="3" Text="大小" FontWeight="SemiBold" Padding="8,6" FontSize="12"
+                        <TextBlock Grid.Column="1" Text="大小" FontWeight="SemiBold" Padding="8,6" FontSize="12"
                                    HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="2" Text="修改日期" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
+                        <TextBlock Grid.Column="3" Text="类型" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
+                        <Border Grid.Column="0" Tag="Name" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
+                        <Border Grid.Column="1" Tag="Size" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
+                        <Border Grid.Column="2" Tag="Modified" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
+                        <Border Grid.Column="3" Tag="Type" Width="8" HorizontalAlignment="Right" Background="Transparent" Cursor="SizeWestEast"
+                                PointerPressed="ColumnResizer_PointerPressed" PointerMoved="ColumnResizer_PointerMoved" PointerReleased="ColumnResizer_PointerReleased" />
                     </Grid>
                 </Border>
 
@@ -169,20 +184,26 @@
                     </ListBox.ContextMenu>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="d:FileSystemEntryDto">
-                            <Grid ColumnDefinitions="*,120,100,150">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding #Root.NameColumnWidth}" MinWidth="180" />
+                                    <ColumnDefinition Width="{Binding #Root.SizeColumnWidth}" MinWidth="96" />
+                                    <ColumnDefinition Width="{Binding #Root.ModifiedColumnWidth}" MinWidth="150" />
+                                    <ColumnDefinition Width="{Binding #Root.TypeColumnWidth}" MinWidth="96" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
                                     <TextBlock Text="💾" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=drive}" />
                                     <TextBlock Text="📁" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=dir}" />
                                     <TextBlock Text="📄" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=file}" />
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Text="{Binding Type, Converter={StaticResource TypeTextConverter}}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="3" Text="{Binding Size, Converter={StaticResource SizeConverter}}"
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
+                                </Grid>
+                                <TextBlock Grid.Column="1" Text="{Binding Size, Converter={StaticResource SizeConverter}}"
                                            Padding="8,6" FontSize="12" Opacity="0.8"
                                            HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}"
+                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding Type, Converter={StaticResource TypeTextConverter}}"
+                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

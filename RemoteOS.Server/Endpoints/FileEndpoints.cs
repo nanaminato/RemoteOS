@@ -104,6 +104,20 @@ public static class FileEndpoints
         .RequireAuthorization()
         .WithTags("Files");
 
+        app.MapPut(FileApiRoutes.Permissions, (UpdateUnixPermissionsRequest request, IFileService fs) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Path))
+                return Problem(400, "invalid-path", "Invalid path", "Path cannot be empty.");
+            try { return Results.Ok(fs.SetUnixPermissions(request.Path, request.UnixMode)); }
+            catch (PlatformNotSupportedException ex) { return Problem(409, "unsupported-operation", "Unsupported operation", ex.Message); }
+            catch (FileNotFoundException ex) { return Problem(404, "not-found", "Not found", ex.Message); }
+            catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
+            catch (ArgumentOutOfRangeException ex) { return Problem(400, "invalid-mode", "Invalid permissions", ex.Message); }
+            catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
+        })
+        .RequireAuthorization()
+        .WithTags("Files");
+
         // POST directory?path=
         app.MapPost(FileApiRoutes.Directory, (string path, IFileService fs) =>
         {

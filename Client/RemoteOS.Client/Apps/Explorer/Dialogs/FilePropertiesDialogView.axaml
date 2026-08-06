@@ -3,16 +3,104 @@
              xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
              x:Class="Client.Apps.Explorer.Dialogs.FilePropertiesDialogView"
              x:DataType="vm:FilePropertiesDialogViewModel"
-             Background="#FFFFFF" Width="500">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="20" RowSpacing="7">
-        <TextBlock Text="{Binding Properties.Name}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-        <TextBlock Grid.Row="1" Text="{Binding Properties.Path}" TextWrapping="Wrap" Opacity="0.7" />
-        <TextBlock Grid.Row="2" Text="{Binding Properties.Type, StringFormat='{}Type: {0}'}" />
-        <TextBlock Grid.Row="3" Text="{Binding SizeText, StringFormat='{}Size: {0}'}" />
-        <TextBlock Grid.Row="4" Text="{Binding Properties.Created, StringFormat='{}Created: {0:yyyy-MM-dd HH:mm:ss}'}" />
-        <TextBlock Grid.Row="5" Text="{Binding Properties.Modified, StringFormat='{}Modified: {0:yyyy-MM-dd HH:mm:ss}'}" />
-        <TextBlock Grid.Row="6" Text="{Binding Properties.Permissions, StringFormat='{}Permissions: {0}'}" TextWrapping="Wrap" />
-        <TextBlock Grid.Row="7" Text="{Binding Properties.Attributes, StringFormat='{}Attributes: {0}'}" TextWrapping="Wrap" />
-        <Button Grid.Row="8" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Right" Padding="16,6" />
-    </Grid>
+             Background="#FFFFFF" Width="560" MaxHeight="620">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" Spacing="18">
+            <StackPanel Spacing="5">
+                <TextBlock Text="{Binding Properties.Name}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Properties.Path}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Border Background="#F7F9FC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="基本信息" FontSize="15" FontWeight="SemiBold" />
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*" RowSpacing="12" ColumnSpacing="24">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="类型" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Type}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="大小" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding SizeText}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Spacing="3">
+                            <TextBlock Text="创建时间" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Created, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3">
+                            <TextBlock Text="修改时间" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Modified, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Spacing="3">
+                            <TextBlock Text="访问时间" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Accessed, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Spacing="3">
+                            <TextBlock Text="属性" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Attributes}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Spacing="3">
+                            <TextBlock Text="系统权限摘要" FontSize="12" Opacity="0.62" />
+                            <TextBlock Text="{Binding Properties.Permissions}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="16"
+                    IsVisible="{Binding CanEditPermissions}">
+                <StackPanel Spacing="14">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Linux 权限" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Text="更改会立即应用到服务器上的此文件或目录。" FontSize="12" Opacity="0.62" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Background="#E0E7FF" CornerRadius="12" Padding="10,4" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding PermissionOctal}" FontFamily="Consolas" FontWeight="SemiBold" />
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                        <Border Background="#FFFFFF" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="所有者" FontWeight="SemiBold" />
+                                <CheckBox Content="读取" IsChecked="{Binding OwnerRead}" />
+                                <CheckBox Content="写入" IsChecked="{Binding OwnerWrite}" />
+                                <CheckBox Content="执行" IsChecked="{Binding OwnerExecute}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="用户组" FontWeight="SemiBold" />
+                                <CheckBox Content="读取" IsChecked="{Binding GroupRead}" />
+                                <CheckBox Content="写入" IsChecked="{Binding GroupWrite}" />
+                                <CheckBox Content="执行" IsChecked="{Binding GroupExecute}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Background="#FFFFFF" CornerRadius="6" Padding="12">
+                            <StackPanel Spacing="7">
+                                <TextBlock Text="其他用户" FontWeight="SemiBold" />
+                                <CheckBox Content="读取" IsChecked="{Binding OthersRead}" />
+                                <CheckBox Content="写入" IsChecked="{Binding OthersWrite}" />
+                                <CheckBox Content="执行" IsChecked="{Binding OthersExecute}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <TextBlock Text="{Binding PermissionStatus}" FontSize="12" Opacity="0.72" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="保存权限" Command="{Binding SavePermissionsCommand}"
+                                Classes="primary" Padding="16,7" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#F8FAFC" CornerRadius="8" Padding="12" IsVisible="{Binding !CanEditPermissions}">
+                <TextBlock Text="当前服务器不支持修改 POSIX 权限。Windows 主机仍会显示其 ACL 权限摘要。"
+                           FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
+            </Border>
+
+            <Button Content="关闭" Command="{Binding CloseCommand}" HorizontalAlignment="Right" Padding="20,7" />
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

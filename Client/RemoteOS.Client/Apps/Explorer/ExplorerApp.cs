@@ -56,7 +56,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
         }
 
         var viewModel = new ExplorerViewModel(client);
-        WireDialogs(context, viewModel);
+        WireDialogs(context, viewModel, client);
         var view = new ExplorerMainView { DataContext = viewModel };
         var window = context.ShowWindow("RemoteExplorer", view,
             bounds: new Rect(80, 60, 960, 640),
@@ -68,7 +68,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
     }
 
     /// <summary>将对话框回调注入 VM：文本输入 / 确认 / 本地文件选择（上传/下载） / 消息 / 关闭。</summary>
-    private static void WireDialogs(AppContext context, ExplorerViewModel vm)
+    private static void WireDialogs(AppContext context, ExplorerViewModel vm, IExplorerClient client)
     {
         vm.RequestTextInputAsync = async (title, prompt, defaultValue, confirmLabel) =>
         {
@@ -190,7 +190,10 @@ public sealed class ExplorerApp : RemoteApplicationBase
             if (owner is null) return;
             await context.ShowDialogAsync<bool>(owner, "Properties", dialog => new FilePropertiesDialogView
             {
-                DataContext = new FilePropertiesDialogViewModel(properties, () => dialog.Close(true)),
+                DataContext = new FilePropertiesDialogViewModel(
+                    properties,
+                    unixMode => client.SetUnixPermissionsAsync(properties.Path, unixMode),
+                    () => dialog.Close(true)),
             });
         };
     }

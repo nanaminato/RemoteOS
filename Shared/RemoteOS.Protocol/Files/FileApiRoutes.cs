@@ -30,6 +30,9 @@ public static class FileApiRoutes
     /// <summary>获取文件或目录的属性与宿主 OS 权限摘要（GET，需 JWT）。Query: path。</summary>
     public const string Properties = $"/{V1}/files/properties";
 
+    /// <summary>更新 Linux POSIX 权限（PUT，需 JWT）。Body: UpdateUnixPermissionsRequest。</summary>
+    public const string Permissions = $"/{V1}/files/permissions";
+
     /// <summary>创建目录（POST，需 JWT）。query: path。</summary>
     public const string Directory = $"/{V1}/files/directory";
 

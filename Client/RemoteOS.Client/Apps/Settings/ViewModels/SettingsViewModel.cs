@@ -1,5 +1,6 @@
 using Client.Services;
 using Client.Services.Auth;
+using Client.Apps.TaskManager;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Workspace;
@@ -18,6 +19,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IAuthSession _session;
     private readonly ApplicationManager? _apps;
     private readonly IRemoteOsClient? _remote;
+    private readonly ITaskManagerClient? _system;
     private readonly DefaultAppRegistry? _registry;
     private CancellationTokenSource? _saveCts;
     private bool _initialized;
@@ -28,6 +30,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         IAuthSession session,
         ApplicationManager? apps,
         IRemoteOsClient? remote,
+        ITaskManagerClient? system,
         DefaultAppRegistry? registry)
     {
         _settings = settings;
@@ -35,6 +38,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _session = session;
         _apps = apps;
         _remote = remote;
+        _system = system;
         _registry = registry;
 
         var save = (Action)Save;
@@ -43,7 +47,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SystemPageViewModel(settings, session, save),
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, save),
-            new NetworkPageViewModel(settings, session, remote!, save),
+            new NetworkPageViewModel(settings, session, remote!, system!, save),
             new AppsPageViewModel(settings, apps!, save),
         };
         _selectedPage = Pages[0];
@@ -62,6 +66,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } ws })
             return;
+
+        if (Pages.OfType<NetworkPageViewModel>().FirstOrDefault() is { } networkPage)
+            await networkPage.LoadServerAddressesAsync();
 
         try
         {

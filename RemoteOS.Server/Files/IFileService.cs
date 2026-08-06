@@ -32,6 +32,9 @@ public interface IFileService
     /// <summary>获取属性和宿主 OS 权限摘要。不存在时返回 null。</summary>
     FilePropertiesDto? GetProperties(string path);
 
+    /// <summary>更新 Linux POSIX 权限位；非 Linux 主机不支持此操作。</summary>
+    FilePropertiesDto SetUnixPermissions(string path, int unixMode);
+
     /// <summary>创建目录。已存在时抛 <see cref="IOException"/>（端点映射 409 already-exists）。</summary>
     void CreateDirectory(string path);
 
