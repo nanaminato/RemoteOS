@@ -1,6 +1,6 @@
 using RemoteOS.Protocol.Workspace;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>Built-in terminal palettes. Saved values are the resolved colours, not just a preset name.</summary>
 public static class TerminalAppearance

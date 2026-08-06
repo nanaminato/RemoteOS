@@ -3,7 +3,7 @@ using Client.Apps.Explorer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Client.Apps;
+namespace Client.Apps.Notepad;
 
 /// <summary>RemoteOS 的基础文本编辑器。文件内容始终通过远程文件 API 打开和保存。</summary>
 public sealed partial class NotepadViewModel : ObservableObject
@@ -21,8 +21,8 @@ public sealed partial class NotepadViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "Ready";
 
     public int CharCount => Text.Length;
-    public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Text.Count(c => c == '\n') + 1;
-    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName(CurrentPath);
+    public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Enumerable.Count<char>(Text, c => c == '\n') + 1;
+    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName((string?)CurrentPath);
     public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
@@ -71,7 +71,7 @@ public sealed partial class NotepadViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsAsync()
     {
-        var suggestedName = string.IsNullOrWhiteSpace(CurrentPath) ? "untitled.txt" : Path.GetFileName(CurrentPath);
+        var suggestedName = string.IsNullOrWhiteSpace(CurrentPath) ? "untitled.txt" : Path.GetFileName((string?)CurrentPath);
         var path = await (RequestSavePathAsync?.Invoke(suggestedName) ?? Task.FromResult<string?>(null));
         if (!string.IsNullOrWhiteSpace(path)) await SaveToPathAsync(path);
     }
@@ -117,7 +117,7 @@ public sealed partial class NotepadViewModel : ObservableObject
         if (_files is null) { StatusText = "Connect to RemoteOS Server before saving files."; return; }
         try
         {
-            await _files.WriteFileAsync(path, GetEncoding(EncodingName).GetBytes(Text));
+            await _files.WriteFileAsync(path, GetEncoding(EncodingName).GetBytes((string)Text));
             CurrentPath = path;
             IsDirty = false;
             StatusText = $"Saved {Path.GetFileName(path)} as {EncodingName}";

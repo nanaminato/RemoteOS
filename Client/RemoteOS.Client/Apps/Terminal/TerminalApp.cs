@@ -3,11 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
-using RemoteOS.Protocol.Hubs;
 using RoyalTerminal.Terminal;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// Built-in terminal application. A restored server session always receives its own desktop

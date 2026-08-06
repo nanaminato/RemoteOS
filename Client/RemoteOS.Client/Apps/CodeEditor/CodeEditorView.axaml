@@ -2,8 +2,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
              xmlns:editor="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
-             x:Class="Client.Apps.CodeEditorView"
-             x:DataType="app:CodeEditorViewModel"
+             xmlns:codeEditor="clr-namespace:Client.Apps.CodeEditor"
+             x:Class="Client.Apps.CodeEditor.CodeEditorView"
+             x:DataType="codeEditor:CodeEditorViewModel"
              Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto">
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">

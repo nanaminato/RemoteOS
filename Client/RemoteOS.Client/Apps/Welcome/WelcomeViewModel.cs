@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
 
-namespace Client.Apps;
+namespace Client.Apps.Welcome;
 
 public partial class WelcomeViewModel : ObservableObject
 {

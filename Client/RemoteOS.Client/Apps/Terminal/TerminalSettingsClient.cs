@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 public sealed class TerminalSettingsClient : ITerminalSettingsClient
 {

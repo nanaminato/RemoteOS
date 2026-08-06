@@ -1,8 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
-             x:Class="Client.Apps.TerminalView"
-             x:DataType="app:TerminalViewModel"
+             xmlns:terminal="clr-namespace:Client.Apps.Terminal"
+             x:Class="Client.Apps.Terminal.TerminalView"
+             x:DataType="terminal:TerminalViewModel"
              Background="#0C0C0C">
     <Grid RowDefinitions="Auto,*">
         <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="8,6">

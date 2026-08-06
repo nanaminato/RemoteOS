@@ -1,6 +1,6 @@
 using RoyalTerminal.Terminal;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// SignalR 远端终端传输选项。<see cref="HubUrl"/> 指向服务端 Terminal Hub（<c>/hubs/terminals</c>），

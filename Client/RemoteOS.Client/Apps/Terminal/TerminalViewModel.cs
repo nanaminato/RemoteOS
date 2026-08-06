@@ -1,12 +1,11 @@
 using System.Collections.Concurrent;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
-using RemoteOS.Protocol.Hubs;
 using RemoteOS.Protocol.Workspace;
 using RoyalTerminal.Avalonia.Controls;
 using RoyalTerminal.Terminal;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// One view-model owns exactly one terminal session. Session switching is intentionally absent:

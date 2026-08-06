@@ -2,7 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using AvaloniaEdit.Highlighting;
 
-namespace Client.Apps;
+namespace Client.Apps.CodeEditor;
 
 public partial class CodeEditorView : UserControl
 {
@@ -31,9 +31,9 @@ public partial class CodeEditorView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName == nameof(CodeEditorViewModel.Text) && Editor.Text != _viewModel?.Text)
+        if (eventArgs.PropertyName == nameof(Apps.CodeEditorViewModel.Text) && Editor.Text != _viewModel?.Text)
             Editor.Text = _viewModel?.Text ?? string.Empty;
-        else if (eventArgs.PropertyName == nameof(CodeEditorViewModel.CurrentPath))
+        else if (eventArgs.PropertyName == nameof(Apps.CodeEditorViewModel.CurrentPath))
             UpdateSyntaxHighlighting(_viewModel?.CurrentPath);
     }
 

@@ -10,7 +10,7 @@ using RoyalTerminal.Terminal.Services;
 using RoyalTerminal.Terminal.Transport.Ssh;
 using RoyalTerminal.Terminal.Transport.Ssh.SshNet;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>Hosts one terminal session and applies the active workspace's appearance settings.</summary>
 public partial class TerminalView : UserControl
@@ -79,7 +79,7 @@ public partial class TerminalView : UserControl
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (sender is TerminalViewModel { Appearance: var appearance }
-            && e.PropertyName == nameof(TerminalViewModel.Appearance))
+            && e.PropertyName == nameof(Apps.TerminalViewModel.Appearance))
             ApplyAppearance(appearance);
     }
 

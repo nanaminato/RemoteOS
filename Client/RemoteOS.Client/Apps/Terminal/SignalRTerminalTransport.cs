@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using RemoteOS.Protocol.Hubs;
 using RoyalTerminal.Terminal;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// RoyalTerminal <see cref="ITerminalTransport"/> 的 SignalR 实现：把终端 I/O 桥接到 RemoteOS Server 的

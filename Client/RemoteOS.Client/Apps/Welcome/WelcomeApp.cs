@@ -3,7 +3,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
-namespace Client.Apps;
+namespace Client.Apps.Welcome;
 
 /// <summary>Built-in "Welcome" application — a first-run intro window.</summary>
 public sealed class WelcomeApp : RemoteApplicationBase

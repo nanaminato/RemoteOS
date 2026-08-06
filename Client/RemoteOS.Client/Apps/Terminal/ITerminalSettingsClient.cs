@@ -1,6 +1,6 @@
 using RemoteOS.Protocol.Workspace;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>Loads and saves terminal appearance preferences in the active workspace.</summary>
 public interface ITerminalSettingsClient

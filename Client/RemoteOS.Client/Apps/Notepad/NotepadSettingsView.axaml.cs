@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Client.Apps;
+namespace Client.Apps.Notepad;
 
 public partial class NotepadSettingsView : UserControl
 {

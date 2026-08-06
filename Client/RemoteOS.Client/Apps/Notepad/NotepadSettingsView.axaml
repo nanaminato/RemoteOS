@@ -1,8 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
-             x:Class="Client.Apps.NotepadSettingsView"
-             x:DataType="app:NotepadViewModel"
+             xmlns:notepad="clr-namespace:Client.Apps.Notepad"
+             x:Class="Client.Apps.Notepad.NotepadSettingsView"
+             x:DataType="notepad:NotepadViewModel"
              Width="420">
     <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
         <TextBlock Text="Notebook settings" FontSize="18" FontWeight="SemiBold" />

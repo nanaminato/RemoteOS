@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using RemoteOS.Protocol.Hubs;
-using RoyalTerminal.Terminal;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// 构建终端 Hub 的 <see cref="HubConnection"/>（未启动）。传输层与"拉取会话列表"的临时查询连接共用，

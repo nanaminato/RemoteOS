@@ -7,7 +7,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
-namespace Client.Apps;
+namespace Client.Apps.CodeEditor;
 
 /// <summary>A code-focused editor that opens and saves files through the remote file service.</summary>
 public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication

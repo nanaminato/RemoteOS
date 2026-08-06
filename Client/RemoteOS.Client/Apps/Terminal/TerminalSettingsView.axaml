@@ -1,8 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
-             x:Class="Client.Apps.TerminalSettingsView"
-             x:DataType="app:TerminalViewModel"
+             xmlns:terminal="clr-namespace:Client.Apps.Terminal"
+             x:Class="Client.Apps.Terminal.TerminalSettingsView"
+             x:DataType="terminal:TerminalViewModel"
              Width="460">
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
         <TextBlock Text="Terminal settings" FontSize="18" FontWeight="SemiBold" />

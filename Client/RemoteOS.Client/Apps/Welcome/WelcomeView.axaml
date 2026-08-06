@@ -1,8 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:Client.Apps"
-             x:Class="Client.Apps.WelcomeView"
-             x:DataType="app:WelcomeViewModel"
+             xmlns:welcome="clr-namespace:Client.Apps.Welcome"
+             x:Class="Client.Apps.Welcome.WelcomeView"
+             x:DataType="welcome:WelcomeViewModel"
              Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto" Margin="28">
         <StackPanel Grid.Row="0" Spacing="6">

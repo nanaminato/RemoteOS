@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Client.Apps;
+namespace Client.Apps.CodeEditor;
 
 public partial class CodeEditorSettingsView : UserControl
 {

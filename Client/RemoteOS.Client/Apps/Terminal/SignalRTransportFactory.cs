@@ -1,7 +1,7 @@
 using RoyalTerminal.Terminal;
 using RoyalTerminal.Terminal.Transport.Pty;
 
-namespace Client.Apps;
+namespace Client.Apps.Terminal;
 
 /// <summary>
 /// 自包含的终端传输工厂：对 <see cref="SignalRTransportOptions"/> 返回 SignalR 传输（远端 PTY），

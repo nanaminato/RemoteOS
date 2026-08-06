@@ -7,7 +7,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
-namespace Client.Apps;
+namespace Client.Apps.Notepad;
 
 /// <summary>内置 Notebook：可编辑远程文本文件，并支持指定编码打开与保存。</summary>
 public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication

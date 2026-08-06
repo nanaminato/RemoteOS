@@ -1,7 +1,11 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
+using Client.Apps.CodeEditor;
+using Client.Apps.Notepad;
 using Client.Apps.Settings;
+using Client.Apps.Terminal;
+using Client.Apps.Welcome;
 using Client.Services.Auth;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
