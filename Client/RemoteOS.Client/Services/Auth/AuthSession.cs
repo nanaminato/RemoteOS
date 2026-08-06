@@ -3,13 +3,19 @@ using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
 
-/// <summary>IAuthSession 实现。单例，仅内存。lock 保护并发登录。</summary>
+/// <summary>IAuthSession 实现。勾选“记住此设备”时保存受 DPAPI 保护的会话；lock 保护并发登录。</summary>
 public sealed class AuthSession : IAuthSession
 {
     private readonly IRemoteOsClient _client;
+    private readonly IRememberedSessionStore _rememberedSessionStore;
     private readonly object _gate = new();
+    private bool _rememberDevice;
 
-    public AuthSession(IRemoteOsClient client) => _client = client;
+    public AuthSession(IRemoteOsClient client, IRememberedSessionStore rememberedSessionStore)
+    {
+        _client = client;
+        _rememberedSessionStore = rememberedSessionStore;
+    }
 
     public AuthSessionState State { get; private set; } = AuthSessionState.Unauthenticated;
     public string? ServerUrl { get; private set; }
@@ -22,7 +28,11 @@ public sealed class AuthSession : IAuthSession
 
     public event EventHandler<AuthSessionStateChangedEventArgs>? StateChanged;
 
-    public async Task<LoginResponse> LoginAsync(string serverUrl, LoginRequest request, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginAsync(
+        string serverUrl,
+        LoginRequest request,
+        bool rememberDevice,
+        CancellationToken ct = default)
     {
         lock (_gate)
         {
@@ -35,13 +45,12 @@ public sealed class AuthSession : IAuthSession
         try
         {
             var response = await _client.LoginAsync(serverUrl, request, ct);
-            ServerUrl = serverUrl;
-            Tokens = response.Tokens;
-            CurrentUser = response.User;
-            CurrentWorkspace = response.Workspace;
-            CurrentSession = response.Session;
-            CurrentDevice = response.Device;
-            AssignedRole = response.AssignedRole;
+            Apply(response, serverUrl);
+            _rememberDevice = rememberDevice;
+            if (rememberDevice)
+                await _rememberedSessionStore.SaveAsync(RememberedSession.From(serverUrl, response), ct);
+            else
+                await _rememberedSessionStore.ClearAsync(ct);
             State = AuthSessionState.Authenticated;
             RaiseStateChanged();
             return response;
@@ -51,6 +60,42 @@ public sealed class AuthSession : IAuthSession
             State = AuthSessionState.Unauthenticated;
             RaiseStateChanged();
             throw;
+        }
+    }
+
+    public async Task<bool> TryRestoreAsync(CancellationToken ct = default)
+    {
+        var remembered = await _rememberedSessionStore.LoadAsync(ct);
+        if (remembered is null || remembered.Tokens.RefreshTokenExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            if (remembered is not null)
+                await _rememberedSessionStore.ClearAsync(ct);
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (State != AuthSessionState.Unauthenticated)
+                return false;
+            State = AuthSessionState.Connecting;
+        }
+        RaiseStateChanged();
+
+        try
+        {
+            var refreshed = await _client.RefreshAsync(remembered.ServerUrl, remembered.Tokens.RefreshToken, ct);
+            Apply(remembered.ToLoginResponse(refreshed.Tokens), remembered.ServerUrl);
+            _rememberDevice = true;
+            await _rememberedSessionStore.SaveAsync(remembered with { Tokens = refreshed.Tokens }, ct);
+            State = AuthSessionState.Authenticated;
+            RaiseStateChanged();
+            return true;
+        }
+        catch
+        {
+            await _rememberedSessionStore.ClearAsync(ct);
+            Reset();
+            return false;
         }
     }
 
@@ -64,7 +109,11 @@ public sealed class AuthSession : IAuthSession
             return;
         }
         try { await _client.LogoutAsync(url, tokens.AccessToken, tokens.RefreshToken, ct); }
-        finally { Reset(); }
+        finally
+        {
+            await _rememberedSessionStore.ClearAsync(ct);
+            Reset();
+        }
     }
 
     public async Task<bool> RefreshAsync(CancellationToken ct = default)
@@ -74,13 +123,27 @@ public sealed class AuthSession : IAuthSession
         {
             var resp = await _client.RefreshAsync(ServerUrl, Tokens.RefreshToken, ct);
             Tokens = resp.Tokens;
+            if (_rememberDevice)
+                await _rememberedSessionStore.SaveAsync(RememberedSession.From(ServerUrl, this), ct);
             return true;
         }
         catch
         {
+            await _rememberedSessionStore.ClearAsync(ct);
             Reset();
             return false;
         }
+    }
+
+    private void Apply(LoginResponse response, string serverUrl)
+    {
+        ServerUrl = serverUrl;
+        Tokens = response.Tokens;
+        CurrentUser = response.User;
+        CurrentWorkspace = response.Workspace;
+        CurrentSession = response.Session;
+        CurrentDevice = response.Device;
+        AssignedRole = response.AssignedRole;
     }
 
     private void Reset()
@@ -92,6 +155,7 @@ public sealed class AuthSession : IAuthSession
         CurrentSession = null;
         CurrentDevice = null;
         AssignedRole = DeviceRole.Observer;
+        _rememberDevice = false;
         State = AuthSessionState.Unauthenticated;
         RaiseStateChanged();
     }

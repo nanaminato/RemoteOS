@@ -5,6 +5,7 @@
         x:Class="Client.Views.MainWindow"
         x:DataType="vm:DesktopShellViewModel"
         Title="RemoteOS"
+        Icon="/Assets/RemoteOS-client-icon.ico"
         WindowState="Maximized"
         WindowDecorations="None"
         CanResize="True"
@@ -73,11 +74,8 @@
         <Border x:Name="WindowTitleBar" Classes="window-titlebar" Height="34"
                 VerticalAlignment="Top" ZIndex="10" PointerPressed="TitleBar_OnPointerPressed">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Width="26" Height="26" Background="#1976C2" Margin="8,0,6,0" CornerRadius="4"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="R" Foreground="White" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
+                <Image Width="26" Height="26" Margin="8,0,6,0" VerticalAlignment="Center"
+                       Source="/Assets/RemoteOS-client-icon.png" />
                 <TextBlock Grid.Column="1" Text="RemoteOS 远程桌面" Foreground="#2A2A2A" FontSize="12"
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">

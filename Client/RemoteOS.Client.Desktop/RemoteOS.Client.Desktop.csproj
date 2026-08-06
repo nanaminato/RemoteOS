@@ -6,6 +6,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <RootNamespace>Client.Desktop</RootNamespace>
+        <ApplicationIcon>..\RemoteOS.Client\Assets\RemoteOS-client-icon.ico</ApplicationIcon>
     </PropertyGroup>
 
     <PropertyGroup>

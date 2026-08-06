@@ -35,6 +35,9 @@ public partial class LoginViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     private bool _isConnecting;
 
+    [ObservableProperty]
+    private bool _rememberDevice = true;
+
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
     [ObservableProperty] private bool _hasError;
@@ -63,7 +66,7 @@ public partial class LoginViewModel : ObservableObject
                 ClientPlatform: DetectClientPlatform(),
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
-            await _session.LoginAsync(ServerUrl, request, ct);
+            await _session.LoginAsync(ServerUrl, request, RememberDevice, ct);
             StatusMessage = "连接成功，正在进入桌面…";
         }
         catch (RemoteOsAuthException ex)

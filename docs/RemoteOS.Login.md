@@ -24,13 +24,13 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 | 输入项 | 计算机 + 用户名 + 密码 | Server URL + 用户名 + 密码 |
 | 传输协议 | RDP（像素流） | HTTP REST（状态同步，非像素流） |
 | 认证后 | 全屏远程桌面 | MainWindow 桌面 Shell |
-| 凭据存储 | 默认不保存（可选 .rdp） | 仅内存（符合 mstsc 默认） |
+| 凭据存储 | 默认不保存（可选 .rdp） | 可选“记住此设备”：DPAPI 加密保存刷新令牌；不保存 Windows 密码 |
 
 ### 1.2 MVP 范围
 
 **已实现**：
 
-- 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（仅内存）+ 启动分叉
+- 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（可选记住设备）+ 启动分叉
 - 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser 迁移）+ 内存仓储（User/Workspace/Session/Device）+ `LinuxPamProvider` 占位
 - 协议：零改动（复用 Protocol 已有的 `LoginRequest`/`LoginResponse`/`AuthTokens`/`AuthApiRoutes`/`ProblemDetails`）
 
@@ -113,7 +113,7 @@ LoginWindow (顶层 Window)
               ├── [RelayCommand] ConnectCommand → ConnectAsync
               └── IAuthSession (DI 注入)
 
-IAuthSession (AuthSession, 单例, 仅内存)
+IAuthSession (AuthSession, 单例；可选记住设备)
   ├── State (Unauthenticated / Connecting / Authenticated)
   ├── ServerUrl / Tokens / CurrentUser / CurrentWorkspace / CurrentSession / CurrentDevice / AssignedRole
   ├── event StateChanged
@@ -142,7 +142,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 - **不 mutate `HttpClient.BaseAddress`**：`RemoteOsClient` 每个方法接收 `serverUrl` 构造绝对 URI（`new Uri(new Uri(serverUrl), route.TrimStart('/'))`），避免 typed HttpClient 共享实例并发竞态。
 - **登录窗用顶层 `Window`**，不用 `RemoteWindow`（`RemoteWindow` 必须挂在 `DesktopShellView` 的 `PART_WindowHost` Canvas，登录前桌面尚未建立）。
-- **Token 仅内存**：`AuthSession` 字段进程退出即丢失，符合 mstsc 默认不保存凭据。
+- **可选记住此设备**：首次登录时勾选后，`RefreshToken` 与必要的会话上下文使用 Windows DPAPI（CurrentUser）加密保存；应用启动时自动刷新令牌。Windows 密码绝不写入配置、数据库或日志，登出会删除本地记录。
 - **HTTP 调用经 `IRemoteOsClient` 抽象**，业务代码不直接 `new HttpClient`（Architecture.md §4.8）。
 
 ---
@@ -246,7 +246,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 ## 6. 安全考量
 
 - **不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），密码仅在校验瞬间传入，不落库、不日志。
-- **Token 仅内存**：`AuthSession` 不写盘，进程退出即丢失（符合 mstsc 默认不保存凭据）。
+- **记住设备的安全性**：未勾选时 `AuthSession` 不写盘；勾选时仅将刷新令牌与必要会话上下文写入受当前 Windows 用户 DPAPI 保护的本地文件，不保存 Windows 密码。
 - **JWT 对称密钥**：Production 启动校验 `Jwt:Secret` 非默认占位值；Development 用固定开发密钥。
 - **HTTPS**：Production 强制 HTTPS 重定向；Development 允许 http 方便本地测试。
 - **密码字段**：`LoginView` 用 `TextBox PasswordChar="●"`，密码不回显；`LoginViewModel` 不记录密码到日志。
@@ -282,7 +282,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | Linux PAM | 占位 | libpam / PAM 绑定库实现 |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
 | 最近连接列表 | 未实现 | 本地持久化最近 Server URL |
-| Token 持久化 | 仅内存 | DPAPI（Windows）/ keyring（Linux）"记住我" |
+| Token 持久化 | Windows DPAPI（勾选“记住此设备”） | keyring（Linux）"记住我" |
 | 持久化仓储 | 内存 ConcurrentDictionary | SQLite + EF Core |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
 | Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
@@ -300,7 +300,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - HTTP 调用经 `IRemoteOsClient` 抽象，业务代码不直接 `new HttpClient`。
 - 凭据验证经 `IIdentityProvider` 抽象，平台差异封装在 Provider 实现。
 - 错误响应解析 `ProblemDetails`，用 `type` 字段做错误码映射（无 Errors 字典）。
-- Token 仅存内存（`IAuthSession`），不写盘。
+- 未勾选时 Token 仅存内存；勾选“记住此设备”时只持久化受 DPAPI 保护的刷新令牌与必要会话上下文，不保存 Windows 密码。
 - Server 领域模型与 Protocol DTO 分离，端点处手动 `ToDto()` 映射。
 - 序列化统一用 `RemoteOsJsonOptions.Default`（camelCase + 枚举字符串）。
 
