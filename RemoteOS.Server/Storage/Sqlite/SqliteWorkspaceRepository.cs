@@ -14,10 +14,10 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
     public SqliteWorkspaceRepository(RemoteOsDbContext db) => _db = db;
 
     public Workspace? FindByUserId(Guid userId)
-        => Normalize(_db.Workspaces.AsNoTracking().FirstOrDefault(w => w.UserId == userId));
+        => Normalize(_db.Workspaces.FirstOrDefault(w => w.UserId == userId));
 
     public Workspace? FindById(Guid id)
-        => Normalize(_db.Workspaces.AsNoTracking().FirstOrDefault(w => w.Id == id));
+        => Normalize(_db.Workspaces.FirstOrDefault(w => w.Id == id));
 
     public Workspace Add(Workspace workspace)
     {
@@ -28,7 +28,11 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
 
     public void Update(Workspace workspace)
     {
-        _db.Workspaces.Update(workspace);
+        // Workspace reads stay tracked so EF retains the synthesized ordinal keys used
+        // by the owned JSON collections. Reattaching an AsNoTracking graph loses those
+        // shadow values and makes collection updates impossible to persist.
+        if (_db.Entry(workspace).State == EntityState.Detached)
+            throw new InvalidOperationException("Cannot update a detached workspace.");
         _db.SaveChanges();
     }
 

@@ -154,7 +154,7 @@ public static class WorkspaceEndpoints
             wallpaperKey, request.Theme, timeFormat!, dateFormat!,
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
-            deduped.Values.ToArray());
+            deduped.Values.ToList());
         return true;
     }
 
@@ -176,7 +176,7 @@ public static class WorkspaceEndpoints
             normalized[key] = new WindowSizeDto(key, Math.Round(entry.Width), Math.Round(entry.Height));
         }
 
-        layouts = new WorkspaceWindowLayoutDto(normalized.Values.ToArray());
+        layouts = new WorkspaceWindowLayoutDto(normalized.Values.ToList());
         return true;
     }
 }

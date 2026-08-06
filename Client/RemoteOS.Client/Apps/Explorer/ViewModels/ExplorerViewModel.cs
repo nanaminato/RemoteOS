@@ -32,6 +32,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private bool _pickerInitialized;
     private readonly List<string?> _history = new();
     private int _historyIndex = -1;
+    private ExplorerSortColumn _sortColumn = ExplorerSortColumn.Name;
+    private bool _sortAscending = true;
 
     /// <summary>路径变化时同步树选中的抑制标志：避免 SyncTreeSelectionAsync 设 SelectedNode 触发 OnSelectedNodeChanged
     /// 再调 NavigateToAsync 形成循环（重复 API 调用 + 重复历史入栈）。</summary>
@@ -67,6 +69,27 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// <summary>Entries currently selected in the picker; supports multi-file selection.</summary>
     public ObservableCollection<FileSystemEntryDto> SelectedEntries { get; }
     public ObservableCollection<ExplorerFileFilter> Filters { get; }
+    public string NameHeaderText => GetHeaderText(ExplorerSortColumn.Name, "名称");
+    public string SizeHeaderText => GetHeaderText(ExplorerSortColumn.Size, "大小");
+    public string ModifiedHeaderText => GetHeaderText(ExplorerSortColumn.Modified, "修改日期");
+    public string TypeHeaderText => GetHeaderText(ExplorerSortColumn.Type, "类型");
+
+    /// <summary>Sorts the current listing and toggles direction when the same header is selected again.</summary>
+    public void SortEntries(string columnName)
+    {
+        if (!Enum.TryParse<ExplorerSortColumn>(columnName, ignoreCase: true, out var column)) return;
+
+        _sortAscending = _sortColumn == column ? !_sortAscending : true;
+        _sortColumn = column;
+        ApplySort();
+        OnPropertyChanged(nameof(NameHeaderText));
+        OnPropertyChanged(nameof(SizeHeaderText));
+        OnPropertyChanged(nameof(ModifiedHeaderText));
+        OnPropertyChanged(nameof(TypeHeaderText));
+    }
+
+    private string GetHeaderText(ExplorerSortColumn column, string caption)
+        => _sortColumn == column ? $"{caption} {(_sortAscending ? '▲' : '▼')}" : caption;
 
     [ObservableProperty] private string? _addressbarPath;
     [ObservableProperty] private string _statusText = "就绪";
@@ -309,6 +332,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 StatusText = $"就绪 — {dir.Directories.Count} 个目录，{dir.Files.Count} 个文件";
             }
             // 路径已由服务端确认，反向同步树选中（防循环：被 _isSyncingTreeSelection 抑制）
+            ApplySort();
             await SyncTreeSelectionAsync(confirmedPath);
         }
         catch (Exception ex) { StatusText = $"加载失败：{ex.Message}"; }
@@ -319,6 +343,39 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     /// <summary>路径变化后反向同步树选中：找到对应节点，必要时逐级懒加载祖先，最终设 SelectedNode。
     /// 失败不抛（找不到时保持原选中，不阻塞右侧网格已展示内容）。</summary>
+    private void ApplySort()
+    {
+        IOrderedEnumerable<FileSystemEntryDto> ordered = Entries
+            // Keep folders and drives together before files, matching Explorer's familiar grouping.
+            .OrderBy(entry => entry.Type == FileSystemEntryType.File ? 1 : 0);
+
+        ordered = _sortColumn switch
+        {
+            ExplorerSortColumn.Name => _sortAscending
+                ? ordered.ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase),
+            ExplorerSortColumn.Size => _sortAscending
+                ? ordered.ThenBy(entry => entry.Size ?? -1)
+                : ordered.ThenByDescending(entry => entry.Size ?? -1),
+            ExplorerSortColumn.Modified => _sortAscending
+                ? ordered.ThenBy(entry => entry.Modified ?? DateTimeOffset.MinValue)
+                : ordered.ThenByDescending(entry => entry.Modified ?? DateTimeOffset.MinValue),
+            ExplorerSortColumn.Type => _sortAscending
+                ? ordered.ThenBy(entry => entry.Type.ToString(), StringComparer.CurrentCultureIgnoreCase)
+                : ordered.ThenByDescending(entry => entry.Type.ToString(), StringComparer.CurrentCultureIgnoreCase),
+            _ => ordered
+        };
+
+        // A deterministic secondary key makes equal values (for example, same-sized files) stable.
+        var sorted = ordered.ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        for (var targetIndex = 0; targetIndex < sorted.Length; targetIndex++)
+        {
+            var currentIndex = Entries.IndexOf(sorted[targetIndex]);
+            if (currentIndex != targetIndex)
+                Entries.Move(currentIndex, targetIndex);
+        }
+    }
+
     private async Task SyncTreeSelectionAsync(string? path)
     {
         if (_isSyncingTreeSelection) return;
@@ -775,4 +832,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     [RelayCommand]
     private void Close() => CloseAction?.Invoke();
+
+    private enum ExplorerSortColumn
+    {
+        Name,
+        Size,
+        Modified,
+        Type
+    }
 }

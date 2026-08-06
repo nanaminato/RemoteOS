@@ -206,7 +206,7 @@ public partial class ExplorerMainView : UserControl
 
     private void ColumnResizer_PointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_resizingColumn is null) return;
+        if (_resizingColumn is null || sender is not Control resizer || e.Pointer.Captured != resizer) return;
         SetColumnWidth(_resizingColumn, _resizeStartWidth + e.GetPosition(this).X - _resizeStartX);
         e.Handled = true;
     }
@@ -215,6 +215,19 @@ public partial class ExplorerMainView : UserControl
     {
         if (sender is Control resizer && e.Pointer.Captured == resizer) e.Pointer.Capture(null);
         _resizingColumn = null;
+        e.Handled = true;
+    }
+
+    private void ColumnResizer_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+        => _resizingColumn = null;
+
+    private void ColumnHeader_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control { Tag: string column } ||
+            !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        ViewModel?.SortEntries(column);
         e.Handled = true;
     }
 
