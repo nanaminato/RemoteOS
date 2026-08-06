@@ -53,6 +53,8 @@ public sealed partial class BrowserViewModel : ObservableObject
 
     /// <summary>关闭窗口回调（由 BrowserApp 注入）。</summary>
     public Action? CloseAction { get; set; }
+    public Func<Task>? RequestSettingsAsync { get; set; }
+    public Action? CloseSettingsAction { get; set; }
 
     /// <summary>由 View code-behind 在 NativeWebView.CanGoBack/CanGoForward 变化时调用。</summary>
     public void UpdateNavigationState(bool canGoBack, bool canGoForward)
@@ -279,6 +281,13 @@ public sealed partial class BrowserViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleSidebar() => IsSidebarVisible = !IsSidebarVisible;
+
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+        => await (RequestSettingsAsync?.Invoke() ?? Task.CompletedTask);
+
+    [RelayCommand]
+    private void CloseSettings() => CloseSettingsAction?.Invoke();
 
     [RelayCommand]
     private void Close() => CloseAction?.Invoke();

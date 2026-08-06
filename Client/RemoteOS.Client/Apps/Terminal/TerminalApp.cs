@@ -75,12 +75,21 @@ public sealed class TerminalApp : RemoteApplicationBase
     private void OpenWindow(AppContext context, IAuthSession? session, string? sessionId)
     {
         var settingsClient = context.Services.GetRequiredService<ITerminalSettingsClient>();
+        var viewModel = new TerminalViewModel(session, settingsClient, sessionId);
         var view = new TerminalView
         {
-            DataContext = new TerminalViewModel(session, settingsClient, sessionId),
+            DataContext = viewModel,
         };
-        context.ShowWindow("Terminal", view,
+        var window = context.ShowWindow("Terminal", view,
             bounds: new Rect(120, 80, 820, 540),
             iconGlyph: Manifest.IconGlyph);
+        viewModel.RequestSettingsAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool>(window, "Terminal settings", dialog =>
+            {
+                viewModel.CloseSettingsAction = () => dialog.Close(true);
+                return new TerminalSettingsView { DataContext = viewModel };
+            }, new Rect(240, 150, 460, 330));
+        };
     }
 }

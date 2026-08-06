@@ -53,6 +53,14 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
                 path => !string.IsNullOrWhiteSpace(path));
             return new TextInputDialogView { DataContext = vm };
         });
+        viewModel.RequestSettingsAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool>(window, "Notebook settings", dialog =>
+            {
+                viewModel.CloseSettingsAction = () => dialog.Close(true);
+                return new NotepadSettingsView { DataContext = viewModel };
+            }, new Rect(280, 180, 420, 300));
+        };
         if (!string.IsNullOrWhiteSpace(path))
             _ = viewModel.OpenPathAsync(path);
     }

@@ -21,6 +21,7 @@ public partial class BrowserMainView : UserControl
 
     private BrowserViewModel? _observedViewModel;
     private double _sidebarWidth = DefaultSidebarWidth;
+    private bool _settingsButtonAdded;
 
     private ColumnDefinition SidebarColumn => BrowserContentGrid.ColumnDefinitions[0];
     private ColumnDefinition SidebarSplitterColumn => BrowserContentGrid.ColumnDefinitions[1];
@@ -38,8 +39,30 @@ public partial class BrowserMainView : UserControl
     {
         WireWebViewCommands();
         ObserveViewModel();
+        MoveBrowserSettingsToDialog();
         // 让 WebView 获得键盘焦点以便直接交互
         WebView.Focus();
+    }
+
+    private void MoveBrowserSettingsToDialog()
+    {
+        if (_settingsButtonAdded || Content is not DockPanel root)
+            return;
+
+        var toolbar = root.Children.OfType<Border>().FirstOrDefault()?.Child as StackPanel;
+        if (toolbar is null)
+            return;
+
+        var forwardingToggle = toolbar.Children.OfType<CheckBox>().FirstOrDefault();
+        if (forwardingToggle is not null)
+            forwardingToggle.IsVisible = false;
+
+        toolbar.Children.Add(new Button
+        {
+            Content = "Settings",
+            Command = ViewModel?.OpenSettingsCommand,
+        });
+        _settingsButtonAdded = true;
     }
 
     /// <summary>把 VM 的 GoBack/GoForward/Refresh/Stop 命令接到 NativeWebView 的实际方法。</summary>

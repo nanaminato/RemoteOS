@@ -12,9 +12,7 @@
                 <Button Content="Open..." Command="{Binding OpenDocumentCommand}" />
                 <Button Content="Save" Command="{Binding SaveCommand}" />
                 <Button Content="Save as..." Command="{Binding SaveAsCommand}" />
-                <TextBlock Text="Encoding:" VerticalAlignment="Center" Margin="12,0,0,0" />
-                <ComboBox ItemsSource="{Binding AvailableEncodings}" SelectedItem="{Binding EncodingName, Mode=TwoWay}" Width="120" />
-                <Button Content="Reopen" Command="{Binding ReopenWithEncodingCommand}" />
+                <Button Content="Settings" Command="{Binding OpenSettingsCommand}" Margin="12,0,0,0" />
                 <TextBlock Text="{Binding DocumentName}" VerticalAlignment="Center" Margin="10,0,0,0" Opacity="0.7" />
             </StackPanel>
         </Border>
@@ -22,11 +20,11 @@
         <editor:TextEditor Grid.Row="1"
                            Name="Editor"
                            ShowLineNumbers="True"
-                           WordWrap="False"
+                           WordWrap="{Binding WordWrap}"
                            BorderThickness="0"
                            Padding="12,10"
                            FontFamily="Cascadia Code, Consolas, Menlo, monospace"
-                           FontSize="14" />
+                           FontSize="{Binding FontSize}" />
 
         <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">

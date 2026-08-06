@@ -5,27 +5,26 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Client.Apps;
 
-/// <summary>View model for the remote code editor.</summary>
-public sealed partial class CodeEditorViewModel : ObservableObject
+/// <summary>RemoteOS 的基础文本编辑器。文件内容始终通过远程文件 API 打开和保存。</summary>
+public sealed partial class NotepadViewModel : ObservableObject
 {
     private readonly IExplorerClient? _files;
     private bool _isLoading;
 
-    public CodeEditorViewModel(IExplorerClient? files) => _files = files;
+    public NotepadViewModel(IExplorerClient? files) => _files = files;
 
     [ObservableProperty] private string _text = string.Empty;
     [ObservableProperty] private string? _currentPath;
     [ObservableProperty] private string _encodingName = "UTF-8";
+    [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private string _statusText = "Ready";
 
     public int CharCount => Text.Length;
-    public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Text.Count(character => character == '\n') + 1;
+    public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Text.Count(c => c == '\n') + 1;
     public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName(CurrentPath);
     public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
-
-    public Func<Task<string?>>? RequestFileAsync { get; set; }
-    public Func<string, Task<string?>>? RequestSavePathAsync { get; set; }
+    public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
     partial void OnTextChanged(string value)
     {
@@ -47,6 +46,11 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         StatusText = "New document";
         _isLoading = false;
     }
+
+    public Func<Task<string?>>? RequestFileAsync { get; set; }
+    public Func<string, Task<string?>>? RequestSavePathAsync { get; set; }
+    public Func<Task>? RequestSettingsAsync { get; set; }
+    public Action? CloseSettingsAction { get; set; }
 
     [RelayCommand]
     private async Task OpenDocumentAsync()
@@ -83,6 +87,13 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         }
         await OpenPathAsync(CurrentPath);
     }
+
+    [RelayCommand]
+    private async Task OpenSettingsAsync()
+        => await (RequestSettingsAsync?.Invoke() ?? Task.CompletedTask);
+
+    [RelayCommand]
+    private void CloseSettings() => CloseSettingsAction?.Invoke();
 
     public async Task OpenPathAsync(string path)
     {

@@ -53,6 +53,14 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                 savePath => !string.IsNullOrWhiteSpace(savePath));
             return new TextInputDialogView { DataContext = vm };
         });
+        viewModel.RequestSettingsAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool>(window, "Code Editor settings", dialog =>
+            {
+                viewModel.CloseSettingsAction = () => dialog.Close(true);
+                return new CodeEditorSettingsView { DataContext = viewModel };
+            }, new Rect(260, 150, 440, 340));
+        };
 
         if (!string.IsNullOrWhiteSpace(path))
             _ = viewModel.OpenPathAsync(path);

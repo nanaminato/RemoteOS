@@ -53,6 +53,14 @@ public sealed class BrowserApp : RemoteApplicationBase
             bounds: new Rect(60, 50, 1100, 720),
             iconGlyph: Manifest.IconGlyph);
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
+        viewModel.RequestSettingsAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool>(window, "Browser settings", dialog =>
+            {
+                viewModel.CloseSettingsAction = () => dialog.Close(true);
+                return new BrowserSettingsView { DataContext = viewModel };
+            }, new Rect(320, 180, 480, 280));
+        };
 
         // NativeWebView is a platform child view and does not participate in Avalonia's
         // normal ZIndex composition. Hide it while another managed window is active.

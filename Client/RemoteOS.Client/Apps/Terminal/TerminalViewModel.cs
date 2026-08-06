@@ -35,6 +35,8 @@ public partial class TerminalViewModel : ObservableObject
     public IReadOnlyList<string> FontFamilies => TerminalAppearance.FontFamilies;
     public IReadOnlyList<double> FontSizes => TerminalAppearance.FontSizes;
     public IReadOnlyList<string> ColorSchemes => TerminalAppearance.ColorSchemes;
+    public Func<Task>? RequestSettingsAsync { get; set; }
+    public Action? CloseSettingsAction { get; set; }
 
     public TerminalViewModel(
         IAuthSession? session,
@@ -83,6 +85,13 @@ public partial class TerminalViewModel : ObservableObject
         _terminal = null;
         _transportFactory = null;
     }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private async Task OpenSettingsAsync()
+        => await (RequestSettingsAsync?.Invoke() ?? Task.CompletedTask);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void CloseSettings() => CloseSettingsAction?.Invoke();
 
     private async Task StartSessionAsync(string? sessionId)
     {
