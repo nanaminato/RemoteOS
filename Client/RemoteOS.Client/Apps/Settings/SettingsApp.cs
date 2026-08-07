@@ -11,6 +11,7 @@ using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Runtime;
+using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.Settings;
@@ -45,6 +46,14 @@ public sealed class SettingsApp : RemoteApplicationBase
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
+        EventHandler<ManagedWindow>? closed = null;
+        closed = (_, closedWindow) =>
+        {
+            if (!ReferenceEquals(closedWindow, window)) return;
+            context.WindowManager.WindowClosed -= closed;
+            viewModel.Dispose();
+        };
+        context.WindowManager.WindowClosed += closed;
 
         // 窗口打开后异步加载服务端偏好。
         _ = viewModel.InitializeAsync();

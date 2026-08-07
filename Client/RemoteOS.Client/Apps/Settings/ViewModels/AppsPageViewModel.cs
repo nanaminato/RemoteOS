@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using Client.Services;
 using Client.Services.AppPermissions;
 using Client.Services.Developer;
@@ -13,7 +14,7 @@ namespace Client.Apps.Settings.ViewModels;
 /// <summary>「应用」页：① 只读列出已注册应用清单（来自 <see cref="ApplicationManager"/>）；
 /// ② 默认程序映射编辑器（URI scheme / 文件扩展名 → 应用 Id），映射存到 <see cref="WorkspacePreferencesDto.DefaultApps"/>。
 /// 注意：默认程序的「自动启动路由」（如点 http 链接用映射应用打开）是后续接入项；本页先完成「可设」。</summary>
-public sealed partial class AppsPageViewModel : SettingsPageViewModel
+public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposable
 {
     private readonly ApplicationManager _apps;
     private readonly IAppPermissionManager _permissions;
@@ -27,28 +28,22 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
     {
         _apps = apps;
         _permissions = permissions;
-        RegisteredApps = _apps.Registered;
-        AvailableApps = RegisteredApps
-            .Select(a => new AppOption(a.Id.Value, a.DisplayName))
-            .ToList();
-        PermissionApps = RegisteredApps
-            .Where(app => app.Permissions.Count > 0)
-            .Select(app => new AppPermissionAppViewModel(app, _permissions))
-            .ToList();
         DeveloperMode = new DeveloperModeViewModel(developerMode);
+        _apps.RegistryChanged += OnRegistryChanged;
+        RefreshApplications();
     }
 
     public override string Glyph => "📦";
     public override string DisplayName => "应用";
 
     /// <summary>已注册应用清单（只读）。</summary>
-    public IReadOnlyList<ApplicationInfo> RegisteredApps { get; }
+    public ObservableCollection<ApplicationInfo> RegisteredApps { get; } = new();
 
     /// <summary>可绑定的应用 Id 选项（id + 显示名），供默认程序下拉选择。</summary>
-    public IReadOnlyList<AppOption> AvailableApps { get; }
+    public ObservableCollection<AppOption> AvailableApps { get; } = new();
 
     /// <summary>Applications with manifest-declared host capabilities that the user can grant or revoke.</summary>
-    public IReadOnlyList<AppPermissionAppViewModel> PermissionApps { get; }
+    public ObservableCollection<AppPermissionAppViewModel> PermissionApps { get; } = new();
     public bool HasPermissionRequests => PermissionApps.Count > 0;
     public DeveloperModeViewModel DeveloperMode { get; }
 
@@ -62,6 +57,31 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
 
     /// <summary>当前默认程序映射（可编辑）。</summary>
     public ObservableCollection<DefaultAppMappingViewModel> Mappings { get; } = new();
+
+    public void Dispose() => _apps.RegistryChanged -= OnRegistryChanged;
+
+    private void OnRegistryChanged(object? sender, EventArgs eventArgs)
+        => Dispatcher.UIThread.Post(RefreshApplications);
+
+    private void RefreshApplications()
+    {
+        var apps = _apps.Registered;
+        Replace(RegisteredApps, apps);
+        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName)));
+        Replace(PermissionApps, apps
+            .Where(app => app.Permissions.Count > 0)
+            .Select(app => new AppPermissionAppViewModel(app, _permissions)));
+        foreach (var mapping in Mappings)
+            mapping.NotifyAvailableAppsChanged();
+        OnPropertyChanged(nameof(HasPermissionRequests));
+    }
+
+    private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
+    {
+        destination.Clear();
+        foreach (var item in source)
+            destination.Add(item);
+    }
 
     [RelayCommand]
     private void AddMapping()
@@ -130,6 +150,8 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
         _save?.Invoke();
         OnPropertyChanged(nameof(SelectedApp));
     }
+
+    public void NotifyAvailableAppsChanged() => OnPropertyChanged(nameof(SelectedApp));
 }
 
 /// <summary>应用下拉选项（Id + 显示名）。</summary>

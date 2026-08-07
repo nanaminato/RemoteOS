@@ -14,7 +14,7 @@ namespace Client.Apps.Settings.ViewModels;
 /// 透传编辑 <see cref="ShellSettings"/>（即时反映到桌面外壳），并由 <see cref="Save"/> 触发防抖保存到服务端
 /// （<c>/workspaces/{id}/preferences</c>，与 TerminalSettings/BrowserSettings 同模式）。
 /// <see cref="InitializeAsync"/> 在窗口打开后调用一次：从服务端拉取偏好应用到 ShellSettings + 填充默认程序映射。</summary>
-public sealed partial class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     private readonly ShellSettings _settings;
     private readonly ISettingsClient _client;
@@ -114,5 +114,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         var prefs = _settings.ToPreferences(mappings);
         try { await _client.SaveAsync(url, tokens.AccessToken, ws.Id, prefs, ct); }
         catch { /* 保留本地值，后续改动可重试 */ }
+    }
+
+    public void Dispose()
+    {
+        _saveCts?.Cancel();
+        foreach (var page in Pages.OfType<IDisposable>())
+            page.Dispose();
     }
 }
