@@ -1,5 +1,6 @@
 using Client.Apps.Settings;
 using Client.Apps.TaskManager;
+using Client.Apps.Explorer;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -21,6 +22,7 @@ public sealed class ExternalAppContextFactory
     private readonly DefaultAppRegistry _defaultApps;
     private readonly IWindowManager _windowManager;
     private readonly ITaskManagerClient _systemMonitor;
+    private readonly IExplorerClient _files;
     private readonly ISettingsNavigation _settingsNavigation;
 
     public ExternalAppContextFactory(
@@ -31,6 +33,7 @@ public sealed class ExternalAppContextFactory
         DefaultAppRegistry defaultApps,
         IWindowManager windowManager,
         ITaskManagerClient systemMonitor,
+        IExplorerClient files,
         ISettingsNavigation settingsNavigation)
     {
         _permissions = permissions;
@@ -40,6 +43,7 @@ public sealed class ExternalAppContextFactory
         _defaultApps = defaultApps;
         _windowManager = windowManager;
         _systemMonitor = systemMonitor;
+        _files = files;
         _settingsNavigation = settingsNavigation;
     }
 
@@ -48,6 +52,7 @@ public sealed class ExternalAppContextFactory
         new AppPermissionScope(appId, _permissions),
         new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
         new ServerMonitorCapability(appId, _permissions, _systemMonitor),
+        new ServerFilesCapability(appId, _permissions, _files),
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
 
@@ -56,6 +61,7 @@ public sealed class ExternalAppContextFactory
         IAppPermissionScope Permissions,
         IDesktopAppearance DesktopAppearance,
         IServerMonitor ServerMonitor,
+        IServerFiles ServerFiles,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
 
@@ -194,5 +200,35 @@ public sealed class ExternalAppContextFactory
             metrics.Networks.Select(network => new ServerNetworkMetric(network.Name, network.SendRateBytesPerSec, network.ReceiveRateBytesPerSec)).ToArray(),
             metrics.Gpus.Select(gpu => new ServerGpuMetric(gpu.Name, gpu.UsagePercent, gpu.MemoryTotalBytes, gpu.MemoryUsedBytes, gpu.TemperatureCelsius)).ToArray(),
             metrics.UptimeSeconds);
+    }
+
+    private sealed class ServerFilesCapability(
+        AppId appId,
+        IAppPermissionManager permissions,
+        IExplorerClient files) : IServerFiles
+    {
+        public async Task<ServerFileReadResult> OpenReadAsync(string path, CancellationToken cancellationToken = default)
+        {
+            if (!permissions.IsGranted(appId, CoreAppPermissions.ServerFilesRead))
+                return new ServerFileReadResult(AppCapabilityResult.PermissionDenied, null, null);
+            if (string.IsNullOrWhiteSpace(path))
+                return new ServerFileReadResult(AppCapabilityResult.InvalidArgument, null, null);
+
+            try
+            {
+                var result = await files.DownloadAsync(path, cancellationToken);
+                return result is { } download
+                    ? new ServerFileReadResult(AppCapabilityResult.Succeeded, download.Stream, download.FileName)
+                    : new ServerFileReadResult(AppCapabilityResult.InvalidArgument, null, null);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return new ServerFileReadResult(AppCapabilityResult.Unavailable, null, null);
+            }
+        }
     }
 }

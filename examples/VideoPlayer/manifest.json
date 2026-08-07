@@ -1,0 +1,10 @@
+{
+  "id": "com.remoteos.example.video-player",
+  "displayName": "Video Player",
+  "version": "0.1.0-dev",
+  "entryAssembly": "lib/net10.0/RemoteOS.Example.VideoPlayer.dll",
+  "entryType": "RemoteOS.Examples.VideoPlayer.VideoPlayerApp",
+  "iconGlyph": "🎬",
+  "description": "Example VLC-based remote video player for Windows",
+  "requestedPermissions": ["server.files.read"]
+}

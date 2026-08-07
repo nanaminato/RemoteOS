@@ -16,6 +16,12 @@ public interface IExternalRemoteApplication
     Task ActivateAsync(IExternalAppContext context, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Optional extension for package apps that can open a remote file from RemoteExplorer.</summary>
+public interface IExternalFileOpenApplication
+{
+    Task OpenFileAsync(IExternalAppContext context, string path, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Capability-only context supplied to a third-party package application.</summary>
 public interface IExternalAppContext
 {
@@ -23,6 +29,7 @@ public interface IExternalAppContext
     IAppPermissionScope Permissions { get; }
     IDesktopAppearance DesktopAppearance { get; }
     IServerMonitor ServerMonitor { get; }
+    IServerFiles ServerFiles { get; }
     ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }
 }

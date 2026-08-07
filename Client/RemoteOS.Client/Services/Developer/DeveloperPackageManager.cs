@@ -134,7 +134,9 @@ public sealed class DeveloperPackageManager
     {
         Unload(replacement.Manifest.Id.Value);
         _loaded[replacement.Manifest.Id.Value] = replacement;
-        _applications.Register(new ExternalApplicationAdapter(replacement, _contextFactory));
+        _applications.Register(replacement.Application is IExternalFileOpenApplication
+            ? new ExternalFileApplicationAdapter(replacement, _contextFactory)
+            : new ExternalApplicationAdapter(replacement, _contextFactory));
         if (launch)
             _applications.Launch(replacement.Manifest.Id);
     }
@@ -261,23 +263,54 @@ public sealed class DeveloperPackageManager
         IExternalRemoteApplication Application,
         ApplicationManifest Manifest);
 
-    private sealed class ExternalApplicationAdapter(LoadedDeveloperApp loaded, ExternalAppContextFactory contextFactory) : RemoteApplicationBase
+    private class ExternalApplicationAdapter : RemoteApplicationBase
     {
-        public override ApplicationManifest Manifest => loaded.Manifest;
+        protected readonly LoadedDeveloperApp Loaded;
+        protected readonly ExternalAppContextFactory ContextFactory;
+
+        public ExternalApplicationAdapter(LoadedDeveloperApp loaded, ExternalAppContextFactory contextFactory)
+        {
+            Loaded = loaded;
+            ContextFactory = contextFactory;
+        }
+
+        public override ApplicationManifest Manifest => Loaded.Manifest;
 
         public override void Activate(AppContext context) => _ = ActivateAsync(context);
 
-        private async Task ActivateAsync(AppContext context)
+        protected async Task ActivateAsync(AppContext context)
         {
             try
             {
-                await loaded.Application.ActivateAsync(contextFactory.Create(Manifest.Id));
+                await Loaded.Application.ActivateAsync(ContextFactory.Create(Manifest.Id));
             }
             catch (Exception exception)
             {
-                context.ShowWindow($"{Manifest.DisplayName} failed to start",
-                    new TextBlock { Text = exception.Message, Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                    iconGlyph: Manifest.IconGlyph, canResize: true);
+                ShowFailure(context, exception);
+            }
+        }
+
+        protected void ShowFailure(AppContext context, Exception exception) =>
+            context.ShowWindow($"{Manifest.DisplayName} failed to start",
+                new TextBlock { Text = exception.Message, Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                iconGlyph: Manifest.IconGlyph, canResize: true);
+    }
+
+    private sealed class ExternalFileApplicationAdapter(LoadedDeveloperApp loaded, ExternalAppContextFactory contextFactory)
+        : ExternalApplicationAdapter(loaded, contextFactory), IFileOpenApplication
+    {
+        public void OpenFile(AppContext context, string path) => _ = OpenFileAsync(context, path);
+
+        private async Task OpenFileAsync(AppContext context, string path)
+        {
+            try
+            {
+                await ((IExternalFileOpenApplication)Loaded.Application)
+                    .OpenFileAsync(ContextFactory.Create(Manifest.Id), path);
+            }
+            catch (Exception exception)
+            {
+                ShowFailure(context, exception);
             }
         }
     }

@@ -39,12 +39,20 @@ public sealed class ExplorerClient : IExplorerClient
 
     public async Task<(Stream Stream, string FileName)?> DownloadAsync(string path, CancellationToken ct = default)
     {
-        using var resp = await SendRawAsync(HttpMethod.Get, FileApiRoutes.Download, query: ("path", path), ct: ct);
-        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
-        if (!resp.IsSuccessStatusCode) await EnsureSuccessAsync(resp, ct);
+        var resp = await SendRawAsync(HttpMethod.Get, FileApiRoutes.Download, query: ("path", path), ct: ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            resp.Dispose();
+            return null;
+        }
+        if (!resp.IsSuccessStatusCode)
+        {
+            try { await EnsureSuccessAsync(resp, ct); }
+            finally { resp.Dispose(); }
+        }
         var fileName = ContentDispositionFileName(resp.Content.Headers.ContentDisposition) ?? "download";
         var stream = await resp.Content.ReadAsStreamAsync(ct);
-        return (stream, fileName);
+        return (new ResponseOwnedStream(stream, resp), fileName);
     }
 
     public async Task<byte[]?> ReadFileAsync(string path, CancellationToken ct = default)
@@ -176,6 +184,44 @@ public sealed class ExplorerClient : IExplorerClient
 
     private static string? ContentDispositionFileName(ContentDispositionHeaderValue? cd)
         => cd?.FileNameStar ?? cd?.FileName;
+
+    /// <summary>Keeps the HTTP response alive for the full lifetime of its download stream.</summary>
+    private sealed class ResponseOwnedStream(Stream stream, HttpResponseMessage response) : Stream
+    {
+        public override bool CanRead => stream.CanRead;
+        public override bool CanSeek => stream.CanSeek;
+        public override bool CanWrite => stream.CanWrite;
+        public override long Length => stream.Length;
+        public override long Position { get => stream.Position; set => stream.Position = value; }
+        public override void Flush() => stream.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => stream.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => stream.Read(buffer, offset, count);
+        public override int Read(Span<byte> buffer) => stream.Read(buffer);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => stream.ReadAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => stream.ReadAsync(buffer, cancellationToken);
+        public override long Seek(long offset, SeekOrigin origin) => stream.Seek(offset, origin);
+        public override void SetLength(long value) => stream.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => stream.Write(buffer, offset, count);
+        public override void Write(ReadOnlySpan<byte> buffer) => stream.Write(buffer);
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => stream.WriteAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => stream.WriteAsync(buffer, cancellationToken);
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                stream.Dispose();
+                response.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await stream.DisposeAsync();
+            response.Dispose();
+            GC.SuppressFinalize(this);
+        }
+    }
 
     private static ProblemDetails NoBodyProblem()
         => new("https://remoteos.app/problems/empty-response", "空响应", 500, "服务器返回空响应体", null);
