@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -7,6 +8,7 @@ using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.WindowManager;
 using RemoteRect = RemoteOS.Core.Primitives.Rect;
 
 namespace RemoteOS.Examples.VideoPlayer;
@@ -88,7 +90,22 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
 
         var handle = context.Windows.ShowWindow("Video Player", content, new RemoteRect(130, 80, 960, 640), "🎬");
         var session = new PlaybackSession(videoView);
-        handle.Closed.Register(session.Dispose);
+        void SyncVideoVisibility() => videoView.IsVisible = handle.Window.IsActive && handle.Window.IsOnScreen;
+        PropertyChangedEventHandler windowChanged = (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName is nameof(ManagedWindow.IsActive) or nameof(ManagedWindow.State))
+                SyncVideoVisibility();
+        };
+        // VideoView is backed by a native child window and ignores the managed desktop's
+        // ZIndex. Only expose it while its owning managed window is active, matching the
+        // NativeWebView behavior in the built-in browser.
+        handle.Window.PropertyChanged += windowChanged;
+        handle.Closed.Register(() =>
+        {
+            handle.Window.PropertyChanged -= windowChanged;
+            session.Dispose();
+        });
+        SyncVideoVisibility();
         playPause.Click += (_, _) =>
         {
             if (session.Player is null) return;
