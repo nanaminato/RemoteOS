@@ -40,12 +40,15 @@ public sealed class SettingsApp : RemoteApplicationBase
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
         var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
+        var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
 
         var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, permissions, developerMode);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
+        if (settingsNavigation is SettingsNavigationService navigation)
+            navigation.Register(window, viewModel);
 
         var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
         appsPage.RequestPermissionEditorAsync = app => context.ShowDialogAsync<bool>(
@@ -62,6 +65,8 @@ public sealed class SettingsApp : RemoteApplicationBase
         {
             if (!ReferenceEquals(closedWindow, window)) return;
             context.WindowManager.WindowClosed -= closed;
+            if (settingsNavigation is SettingsNavigationService navigation)
+                navigation.Unregister(window);
             viewModel.Dispose();
         };
         context.WindowManager.WindowClosed += closed;

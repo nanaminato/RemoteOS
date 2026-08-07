@@ -66,6 +66,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private SettingsPageViewModel? _selectedPage;
 
+    /// <summary>Host navigation entry point used when an application sends the user to Settings.</summary>
+    public void SelectApplicationsPage() =>
+        SelectedPage = Pages.OfType<AppsPageViewModel>().FirstOrDefault() ?? SelectedPage;
+
     /// <summary>窗口打开后调用：加载服务端偏好并应用到 ShellSettings + 默认程序映射。</summary>
     public async Task InitializeAsync()
     {

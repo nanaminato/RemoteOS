@@ -78,3 +78,13 @@ Package manifests request stable, host-defined permissions rather than defining 
 Management permissions include only the minimal inspection needed to safely perform that action (for example, process management includes listing processes); they do not grant other categories. Declaring a future catalogue permission alone never grants access to host services until a permission-gated SDK capability exposes it.
 
 Grants are local to the desktop client. On Windows they are stored with current-user DPAPI protection; other platforms use the compatible local JSON fallback.
+
+## Navigate to application settings
+
+An external application can send the user to the host-owned Applications page without receiving any additional permission:
+
+```csharp
+await context.Settings.OpenApplicationsAsync();
+```
+
+The host reuses and focuses an existing Settings window when possible; otherwise it opens Settings and selects **Applications**. This API only performs navigation and cannot read or change settings.

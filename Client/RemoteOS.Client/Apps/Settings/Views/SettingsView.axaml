@@ -8,19 +8,34 @@
 
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:SystemPageViewModel">
-            <pages:SystemPageView />
+            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:SystemPageView VerticalAlignment="Top" />
+            </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:PersonalizationPageViewModel">
-            <pages:PersonalizationPageView />
+            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:PersonalizationPageView VerticalAlignment="Top" />
+            </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:TimeLanguagePageViewModel">
-            <pages:TimeLanguagePageView />
+            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:TimeLanguagePageView VerticalAlignment="Top" />
+            </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:NetworkPageViewModel">
-            <pages:NetworkPageView />
+            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:NetworkPageView VerticalAlignment="Top" />
+            </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:AppsPageViewModel">
-            <pages:AppsPageView />
+            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:AppsPageView VerticalAlignment="Top" />
+            </ScrollViewer>
         </DataTemplate>
     </UserControl.DataTemplates>
 
@@ -47,12 +62,6 @@
         </Border>
 
         <!-- 右侧内容 -->
-        <ScrollViewer Grid.Column="1"
-                      Padding="28,22,28,40"
-                      HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto">
-            <ContentControl Content="{Binding SelectedPage}"
-                            VerticalAlignment="Top" />
-        </ScrollViewer>
+        <ContentControl Grid.Column="1" Content="{Binding SelectedPage}" />
     </Grid>
 </UserControl>

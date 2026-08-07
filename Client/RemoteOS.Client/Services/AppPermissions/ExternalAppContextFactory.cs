@@ -21,6 +21,7 @@ public sealed class ExternalAppContextFactory
     private readonly DefaultAppRegistry _defaultApps;
     private readonly IWindowManager _windowManager;
     private readonly ITaskManagerClient _systemMonitor;
+    private readonly ISettingsNavigation _settingsNavigation;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
@@ -29,7 +30,8 @@ public sealed class ExternalAppContextFactory
         IAuthSession session,
         DefaultAppRegistry defaultApps,
         IWindowManager windowManager,
-        ITaskManagerClient systemMonitor)
+        ITaskManagerClient systemMonitor,
+        ISettingsNavigation settingsNavigation)
     {
         _permissions = permissions;
         _settings = settings;
@@ -38,6 +40,7 @@ public sealed class ExternalAppContextFactory
         _defaultApps = defaultApps;
         _windowManager = windowManager;
         _systemMonitor = systemMonitor;
+        _settingsNavigation = settingsNavigation;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
@@ -45,6 +48,7 @@ public sealed class ExternalAppContextFactory
         new AppPermissionScope(appId, _permissions),
         new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
         new ServerMonitorCapability(appId, _permissions, _systemMonitor),
+        _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
 
     private sealed record ExternalAppContext(
@@ -52,6 +56,7 @@ public sealed class ExternalAppContextFactory
         IAppPermissionScope Permissions,
         IDesktopAppearance DesktopAppearance,
         IServerMonitor ServerMonitor,
+        ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
 
     private sealed class ExternalAppWindowService(AppId appId, IWindowManager windowManager) : IExternalAppWindowService

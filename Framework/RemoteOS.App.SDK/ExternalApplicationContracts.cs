@@ -23,6 +23,7 @@ public interface IExternalAppContext
     IAppPermissionScope Permissions { get; }
     IDesktopAppearance DesktopAppearance { get; }
     IServerMonitor ServerMonitor { get; }
+    ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }
 }
 
@@ -36,6 +37,13 @@ public interface IAppPermissionScope
 public interface IDesktopAppearance
 {
     Task<AppCapabilityResult> SetWallpaperAsync(string wallpaperKey, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Allows an application to bring the user to a relevant, host-owned Settings page.</summary>
+public interface ISettingsNavigation
+{
+    /// <summary>Opens Settings and selects its Applications page.</summary>
+    Task OpenApplicationsAsync();
 }
 
 /// <summary>Window creation surface for package applications. Every window is owned by the package app id.</summary>
