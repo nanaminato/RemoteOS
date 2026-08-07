@@ -55,7 +55,7 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     {
         "http", "https", "mailto", "ftp",
         ".txt", ".md", ".json", ".xml", ".log",
-        ".png", ".jpg", ".gif", ".pdf",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".pdf",
     };
 
     /// <summary>当前默认程序映射（可编辑）。</summary>

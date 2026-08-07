@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
 using Client.Apps.CodeEditor;
+using Client.Apps.ImageViewer;
 using Client.Apps.Notepad;
 using Client.Apps.Settings;
 using Client.Apps.Terminal;
@@ -71,6 +72,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
         services.AddSingleton<IRemoteApplication, CodeEditorApp>();
+        services.AddSingleton<IRemoteApplication, ImageViewerApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();

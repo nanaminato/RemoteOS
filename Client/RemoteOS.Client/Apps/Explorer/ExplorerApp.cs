@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Apps.ImageViewer;
 using Client.Apps.Settings;
 using Client.Services;
 using Client.Services.Auth;
@@ -155,7 +156,8 @@ public sealed class ExplorerApp : RemoteApplicationBase
         vm.OpenFileAsync = async entry =>
         {
             var extension = Path.GetExtension(entry.Name);
-            var applicationId = defaults?.Resolve(extension) ?? "remoteos.notepad";
+            var applicationId = defaults?.Resolve(extension)
+                ?? (ImageViewerApp.SupportedExtensions.Contains(extension) ? "remoteos.imageviewer" : "remoteos.notepad");
             if (applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
                 await (vm.ShowMessageAsync?.Invoke("Open file", "No application is registered for this file type.") ?? Task.CompletedTask);
         };
