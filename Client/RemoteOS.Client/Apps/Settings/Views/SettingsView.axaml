@@ -8,31 +8,31 @@
 
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:SystemPageViewModel">
-            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <pages:SystemPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:PersonalizationPageViewModel">
-            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <pages:PersonalizationPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:TimeLanguagePageViewModel">
-            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <pages:TimeLanguagePageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:NetworkPageViewModel">
-            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <pages:NetworkPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:AppsPageViewModel">
-            <ScrollViewer Padding="28,22,28,40" HorizontalScrollBarVisibility="Disabled"
+            <ScrollViewer  HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
                 <pages:AppsPageView VerticalAlignment="Top" />
             </ScrollViewer>
