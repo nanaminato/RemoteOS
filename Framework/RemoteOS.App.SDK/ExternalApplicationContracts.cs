@@ -22,6 +22,7 @@ public interface IExternalAppContext
     AppId AppId { get; }
     IAppPermissionScope Permissions { get; }
     IDesktopAppearance DesktopAppearance { get; }
+    IServerMonitor ServerMonitor { get; }
     IExternalAppWindowService Windows { get; }
 }
 
@@ -40,7 +41,7 @@ public interface IDesktopAppearance
 /// <summary>Window creation surface for package applications. Every window is owned by the package app id.</summary>
 public interface IExternalAppWindowService
 {
-    ManagedWindow ShowWindow(
+    IExternalAppWindowHandle ShowWindow(
         string title,
         Control content,
         Rect? bounds = null,
@@ -48,6 +49,13 @@ public interface IExternalAppWindowService
         bool canResize = true,
         bool canMinimize = true,
         bool canMaximize = true);
+}
+
+/// <summary>Window handle with a token cancelled as soon as its managed window closes.</summary>
+public interface IExternalAppWindowHandle
+{
+    ManagedWindow Window { get; }
+    CancellationToken Closed { get; }
 }
 
 /// <summary>Result returned by a host-mediated capability call.</summary>
