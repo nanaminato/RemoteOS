@@ -62,3 +62,19 @@ After installation, grant **读取服务器性能指标** to **Server Monitor** 
 Developer packages use a reserved external app ID and cannot use the `remoteos.*` built-in namespace. They are installed below the current user's local application data and do not overwrite store packages. Developer Mode does not grant manifest permissions automatically; grant or revoke each requested capability under **Application permissions**.
 
 The bridge has no LAN listener. Do not expose its pairing token. Regenerating the token invalidates existing developer tooling sessions.
+
+## Permission catalogue
+
+Package manifests request stable, host-defined permissions rather than defining their own permission types. Settings groups requested permissions by category and opens a separate editor for each application.
+
+| Category | Permission ids |
+| --- | --- |
+| Server files | `server.files.read`, `server.files.write` |
+| Server monitoring | `server.metrics.read` |
+| Server management | `server.processes.manage`, `server.services.manage`, `server.power.manage` |
+| Server network | `server.network.read`, `server.network.configure` |
+| Desktop and workspace | `desktop.wallpaper.write` |
+
+Management permissions include only the minimal inspection needed to safely perform that action (for example, process management includes listing processes); they do not grant other categories. Declaring a future catalogue permission alone never grants access to host services until a permission-gated SDK capability exposes it.
+
+Grants are local to the desktop client. On Windows they are stored with current-user DPAPI protection; other platforms use the compatible local JSON fallback.

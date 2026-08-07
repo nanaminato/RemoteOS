@@ -46,6 +46,17 @@ public sealed class SettingsApp : RemoteApplicationBase
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
+
+        var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
+        appsPage.RequestPermissionEditorAsync = app => context.ShowDialogAsync<bool>(
+            window,
+            $"{app.DisplayName} permissions",
+            dialog => new AppPermissionDialogView
+            {
+                DataContext = new AppPermissionDialogViewModel(app.App, permissions, dialog.Close),
+            },
+            new Size(560, 540));
+
         EventHandler<ManagedWindow>? closed = null;
         closed = (_, closedWindow) =>
         {

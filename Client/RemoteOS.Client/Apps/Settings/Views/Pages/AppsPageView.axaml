@@ -3,7 +3,8 @@
              xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
              xmlns:d="clr-namespace:RemoteOS.Core.Applications;assembly=RemoteOS.Core"
              x:Class="Client.Apps.Settings.Views.Pages.AppsPageView"
-             x:DataType="vm:AppsPageViewModel">
+             x:DataType="vm:AppsPageViewModel"
+             x:Name="Root">
     <StackPanel Spacing="16" MaxWidth="720">
         <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
 
@@ -33,30 +34,21 @@
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="应用权限" Classes="title" />
-                <TextBlock Text="第三方应用只能使用其在应用清单中声明、且已在此处获授权的 RemoteOS 能力。"
+                <TextBlock Text="第三方应用只能使用其在应用清单中声明、且由你在单独设置窗口中授予的 RemoteOS 权限。授权仅保存在本机。"
                            Opacity="0.7" TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding PermissionApps}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:AppPermissionAppViewModel">
-                            <StackPanel Spacing="5" Margin="0,6">
-                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                <ItemsControl ItemsSource="{Binding Permissions}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:AppPermissionGrantViewModel">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding DisplayName}" />
-                                                    <TextBlock Text="{Binding Description}" FontSize="12" Opacity="0.65"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                                <CheckBox Grid.Column="1" Content="允许"
-                                                          IsChecked="{Binding IsGranted, Mode=TwoWay}"
-                                                          VerticalAlignment="Center" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,5">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding GrantSummary}" FontSize="12" Opacity="0.65" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="配置权限"
+                                        Command="{Binding DataContext.EditPermissionsCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}" Padding="14,6"
+                                        VerticalAlignment="Center" />
+                            </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

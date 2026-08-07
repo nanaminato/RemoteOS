@@ -47,6 +47,9 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     public bool HasPermissionRequests => PermissionApps.Count > 0;
     public DeveloperModeViewModel DeveloperMode { get; }
 
+    /// <summary>Provided by the Settings window to open an app-specific permission editor.</summary>
+    public Func<AppPermissionAppViewModel, Task>? RequestPermissionEditorAsync { get; set; }
+
     /// <summary>预设的 scheme / 扩展名选项。</summary>
     public static IReadOnlyList<string> AvailableSchemes { get; } = new[]
     {
@@ -74,6 +77,14 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         foreach (var mapping in Mappings)
             mapping.NotifyAvailableAppsChanged();
         OnPropertyChanged(nameof(HasPermissionRequests));
+    }
+
+    [RelayCommand]
+    private async Task EditPermissionsAsync(AppPermissionAppViewModel app)
+    {
+        if (RequestPermissionEditorAsync is not null)
+            await RequestPermissionEditorAsync(app);
+        RefreshApplications();
     }
 
     private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
@@ -157,46 +168,24 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
 /// <summary>应用下拉选项（Id + 显示名）。</summary>
 public sealed record AppOption(string Id, string DisplayName);
 
-/// <summary>An application and the host capabilities declared in its manifest.</summary>
+/// <summary>An application whose manifest declares host capabilities.</summary>
 public sealed class AppPermissionAppViewModel
 {
     public AppPermissionAppViewModel(ApplicationInfo app, IAppPermissionManager permissions)
     {
+        App = app;
         DisplayName = app.DisplayName;
-        Permissions = app.Permissions
-            .Select(AppPermissions.Find)
-            .Where(permission => permission is not null)
-            .Select(permission => new AppPermissionGrantViewModel(app.Id, permission!, permissions))
-            .ToList();
+        RequestedPermissionCount = app.Permissions.Count;
+        GrantedPermissionCount = app.Permissions.Count(permission => permissions.IsGranted(app.Id, permission));
     }
 
+    public ApplicationInfo App { get; }
     public string DisplayName { get; }
-    public IReadOnlyList<AppPermissionGrantViewModel> Permissions { get; }
-}
-
-/// <summary>A user-controlled grant for one declared application capability.</summary>
-public sealed partial class AppPermissionGrantViewModel : ObservableObject
-{
-    private readonly AppId _appId;
-    private readonly IAppPermissionManager _permissions;
-
-    public AppPermissionGrantViewModel(AppId appId, AppPermissionDefinition permission, IAppPermissionManager permissions)
-    {
-        _appId = appId;
-        _permissions = permissions;
-        PermissionId = permission.Id;
-        DisplayName = permission.DisplayName;
-        Description = permission.Description;
-        _isGranted = permissions.IsGranted(appId, permission.Id);
-    }
-
-    public string PermissionId { get; }
-    public string DisplayName { get; }
-    public string Description { get; }
-
-    [ObservableProperty] private bool _isGranted;
-
-    partial void OnIsGrantedChanged(bool value) => _permissions.SetGranted(_appId, PermissionId, value);
+    public int RequestedPermissionCount { get; }
+    public int GrantedPermissionCount { get; }
+    public string GrantSummary => GrantedPermissionCount == 0
+        ? "未授予权限"
+        : $"已授予 {GrantedPermissionCount} / {RequestedPermissionCount} 项权限";
 }
 
 /// <summary>Settings-facing wrapper around the local Developer Mode switch and pairing secret.</summary>
