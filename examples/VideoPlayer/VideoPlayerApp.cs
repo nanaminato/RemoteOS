@@ -14,8 +14,8 @@ using RemoteRect = RemoteOS.Core.Primitives.Rect;
 namespace RemoteOS.Examples.VideoPlayer;
 
 /// <summary>
-/// Windows development-package example. Remote media is copied through the permission-gated
-/// IServerFiles stream to a temporary file, then played by LibVLC in an Avalonia VideoView.
+/// Windows development-package example. Remote media is exposed as a host-renewed, single-file
+/// HTTP lease and played by LibVLC without writing the video to a local temporary file.
 /// </summary>
 public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOpenApplication
 {
@@ -38,7 +38,7 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
                 new TextBlock { Text = "Video Player", FontSize = 22, FontWeight = Avalonia.Media.FontWeight.SemiBold },
                 new TextBlock
                 {
-                    Text = "Open a supported video from RemoteExplorer. This sample requests only server.files.read and copies the selected remote file to a private temporary location for playback.",
+                    Text = "Open a supported video from RemoteExplorer. This sample requests only server.files.read and plays the selected file through a short-lived host-managed media lease.",
                     TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                     Opacity = 0.75,
                 },
@@ -103,7 +103,7 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
         handle.Closed.Register(() =>
         {
             handle.Window.PropertyChanged -= windowChanged;
-            session.Dispose();
+            _ = session.DisposeAsync().AsTask();
         });
         SyncVideoVisibility();
         playPause.Click += (_, _) =>
@@ -128,22 +128,21 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
     {
         try
         {
-            var read = await context.ServerFiles.OpenReadAsync(remotePath, closed);
-            if (read.Status == AppCapabilityResult.PermissionDenied)
+            var playback = await context.Media.OpenPlaybackAsync(remotePath, closed);
+            if (playback.Status == AppCapabilityResult.PermissionDenied)
             {
                 SetStatus(status, "Permission denied. Grant ‘读取服务器文件’ in Settings → Applications → Video Player.");
                 return;
             }
-            if (read.Status != AppCapabilityResult.Succeeded || read.Content is null)
+            if (playback.Status != AppCapabilityResult.Succeeded || playback.Lease is null)
             {
                 SetStatus(status, "The video file is unavailable.");
                 return;
             }
 
             SetStatus(status, "Downloading remote video for playback…");
-            var localPath = await session.CopyToTemporaryFileAsync(read.Content, remotePath, closed);
+            session.Play(playback.Lease.PlaybackUri, playback.Lease);
             SetStatus(status, "Starting VLC playback…");
-            session.Play(localPath);
             Dispatcher.UIThread.Post(() =>
             {
                 status.Text = "Playing";
@@ -161,50 +160,36 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
     private static void SetStatus(TextBlock status, string value) =>
         Dispatcher.UIThread.Post(() => status.Text = value);
 
-    private sealed class PlaybackSession(VideoView videoView) : IDisposable
+    private sealed class PlaybackSession(VideoView videoView) : IAsyncDisposable
     {
         private static int _coreInitialized;
         private LibVLC? _libVlc;
         private Media? _media;
-        private string? _temporaryPath;
+        private IExternalMediaLease? _lease;
 
         public MediaPlayer? Player { get; private set; }
 
-        public async Task<string> CopyToTemporaryFileAsync(Stream content, string remotePath, CancellationToken cancellationToken)
-        {
-            var extension = Path.GetExtension(remotePath);
-            var root = Path.Combine(Path.GetTempPath(), "RemoteOS", "VideoPlayer");
-            Directory.CreateDirectory(root);
-            _temporaryPath = Path.Combine(root, $"{Guid.NewGuid():N}{extension}");
-            await using var output = File.Create(_temporaryPath);
-            using (content)
-                await content.CopyToAsync(output, cancellationToken);
-            return _temporaryPath;
-        }
-
-        public void Play(string localPath)
+        public void Play(Uri playbackUri, IExternalMediaLease lease)
         {
             InitializeCore();
             _libVlc = new LibVLC("--no-video-title-show");
             Player = new MediaPlayer(_libVlc) { EnableHardwareDecoding = true };
             videoView.MediaPlayer = Player;
-            _media = new Media(_libVlc, localPath, FromType.FromPath);
+            _lease = lease;
+            _media = new Media(_libVlc, playbackUri);
             Player.Play(_media);
         }
 
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
             Player?.Stop();
             videoView.MediaPlayer = null;
             _media?.Dispose();
             Player?.Dispose();
             _libVlc?.Dispose();
-            if (!string.IsNullOrWhiteSpace(_temporaryPath))
-            {
-                try { File.Delete(_temporaryPath); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
-            }
+            if (_lease is not null)
+                await _lease.DisposeAsync();
+            _lease = null;
         }
 
         private static void InitializeCore()

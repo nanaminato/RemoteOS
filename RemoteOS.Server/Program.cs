@@ -37,8 +37,12 @@ if (builder.Environment.IsProduction() && jwtCfg.Secret == JwtOptions.DefaultIns
 builder.Services.AddSingleton<AuthSessionStore>();
 builder.Services.AddSingleton<JwtTokenService>();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(opts =>
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = RemoteOsAuthSchemes.User;
+        options.DefaultChallengeScheme = RemoteOsAuthSchemes.User;
+    })
+    .AddJwtBearer(RemoteOsAuthSchemes.User, opts =>
     {
         opts.TokenValidationParameters = new TokenValidationParameters
         {
@@ -55,6 +59,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // 对终端 Hub 路径，从查询串 access_token 读取令牌注入 JwtBearer，修复 WebSocket 升级 401。
         opts.Events = new JwtBearerEvents
         {
+            OnTokenValidated = context =>
+            {
+                if (context.Principal?.HasClaim(RemoteOsAuthSchemes.TokenTypeClaim, RemoteOsAuthSchemes.FileCapabilityTokenType) == true)
+                    context.Fail("File capability tokens cannot be used as user access tokens.");
+                return Task.CompletedTask;
+            },
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
@@ -74,8 +84,49 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 return Task.CompletedTask;
             }
         };
+    })
+    .AddJwtBearer(RemoteOsAuthSchemes.FileCapability, opts =>
+    {
+        opts.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtCfg.Issuer,
+            ValidAudience = jwtCfg.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtCfg.Secret)),
+            ClockSkew = TimeSpan.FromSeconds(30),
+        };
+        opts.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                if (context.Principal?.HasClaim(RemoteOsAuthSchemes.TokenTypeClaim, RemoteOsAuthSchemes.FileCapabilityTokenType) != true)
+                    context.Fail("This endpoint requires a file capability token.");
+                return Task.CompletedTask;
+            },
+        };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    foreach (var policyName in new[]
+             {
+                 Server.Files.FileAuthorizationPolicies.List,
+                 Server.Files.FileAuthorizationPolicies.Read,
+                 Server.Files.FileAuthorizationPolicies.Write,
+                 Server.Files.FileAuthorizationPolicies.Manage,
+             })
+    {
+        var requiredScope = Server.Files.FileAuthorizationPolicies.ScopeForPolicy(policyName);
+        options.AddPolicy(policyName, policy => policy
+            .AddAuthenticationSchemes(RemoteOsAuthSchemes.User, RemoteOsAuthSchemes.FileCapability)
+            .RequireAuthenticatedUser()
+            .RequireAssertion(context =>
+                !context.User.HasClaim(RemoteOsAuthSchemes.TokenTypeClaim, RemoteOsAuthSchemes.FileCapabilityTokenType)
+                || context.User.HasClaim(RemoteOsAuthSchemes.ScopeClaim, requiredScope)));
+    }
+});
 
 // The forwarding client has no cookie jar and never follows redirects automatically.
 // This prevents requests or session state from one RemoteOS user reaching another user's
@@ -146,6 +197,7 @@ builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null)
 // 文件管理：以宿主 OS 进程身份执行 IO，复用宿主用户/权限（不另建 ACL——见 project_memory 硬约束）。
 // LocalFileService 移植自 Jaya FileSystemService 的目录枚举逻辑并扩展为完整文件操作；平台感知（Windows 盘符 / Linux "/" 根）。
 builder.Services.AddSingleton<Server.Files.IFileService, Server.Files.LocalFileService>();
+builder.Services.AddSingleton<Server.Files.MediaLeaseStore>();
 
 // CORS（开发期允许客户端跨域）
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>
@@ -224,6 +276,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
+app.MapAppCapabilityEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();

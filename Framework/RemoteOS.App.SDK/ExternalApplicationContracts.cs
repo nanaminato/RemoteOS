@@ -30,6 +30,8 @@ public interface IExternalAppContext
     IDesktopAppearance DesktopAppearance { get; }
     IServerMonitor ServerMonitor { get; }
     IServerFiles ServerFiles { get; }
+    IExternalFileApiAccess FileApi { get; }
+    IExternalMediaService Media { get; }
     ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }
 }

@@ -10,4 +10,4 @@ Build and package it:
 
 Install it using the Developer Mode CLI, then open a video from RemoteExplorer with **Open with → Video Player**. Grant **读取服务器文件** in Settings → Applications → Video Player before opening remote media.
 
-The example downloads the authorized server file to a per-user temporary file while it is playing, and removes that temporary file when the player window closes.
+The example plays the authorized server file through a host-renewed, single-file HTTP media lease. The URL supports HTTP Range requests for seeking and expires automatically when the player closes or the host stops renewing it.

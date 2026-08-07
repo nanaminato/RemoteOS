@@ -60,6 +60,7 @@ public static class Bootstrapper
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
+        services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>();
         services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
         services.AddSingleton<ExternalAppContextFactory>();
         services.AddSingleton<DeveloperModeService>();

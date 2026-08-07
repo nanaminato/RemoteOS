@@ -6,6 +6,7 @@ using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Workspace;
 using RemoteOS.Protocol.SystemMonitor;
+using RemoteOS.Protocol.Capabilities;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
 using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
@@ -24,6 +25,7 @@ public sealed class ExternalAppContextFactory
     private readonly ITaskManagerClient _systemMonitor;
     private readonly IExplorerClient _files;
     private readonly ISettingsNavigation _settingsNavigation;
+    private readonly IAppCapabilityClient _capabilities;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
@@ -34,7 +36,8 @@ public sealed class ExternalAppContextFactory
         IWindowManager windowManager,
         ITaskManagerClient systemMonitor,
         IExplorerClient files,
-        ISettingsNavigation settingsNavigation)
+        ISettingsNavigation settingsNavigation,
+        IAppCapabilityClient capabilities)
     {
         _permissions = permissions;
         _settings = settings;
@@ -45,6 +48,7 @@ public sealed class ExternalAppContextFactory
         _systemMonitor = systemMonitor;
         _files = files;
         _settingsNavigation = settingsNavigation;
+        _capabilities = capabilities;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
@@ -53,6 +57,8 @@ public sealed class ExternalAppContextFactory
         new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
         new ServerMonitorCapability(appId, _permissions, _systemMonitor),
         new ServerFilesCapability(appId, _permissions, _files),
+        new ExternalFileApiAccess(appId, _permissions, _session, _capabilities),
+        new ExternalMediaService(appId, _permissions, _session, _capabilities),
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
 
@@ -62,6 +68,8 @@ public sealed class ExternalAppContextFactory
         IDesktopAppearance DesktopAppearance,
         IServerMonitor ServerMonitor,
         IServerFiles ServerFiles,
+        IExternalFileApiAccess FileApi,
+        IExternalMediaService Media,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
 
@@ -116,6 +124,163 @@ public sealed class ExternalAppContextFactory
         public void EnterFullScreen() => _windowManager.EnterFullScreen(Window);
 
         public void ExitFullScreen() => _windowManager.ExitFullScreen(Window);
+    }
+
+    private sealed class ExternalFileApiAccess(
+        AppId appId,
+        IAppPermissionManager permissions,
+        IAuthSession session,
+        IAppCapabilityClient capabilities) : IExternalFileApiAccess
+    {
+        public async Task<FileApiAccessResult> GetAccessAsync(CancellationToken cancellationToken = default)
+        {
+            var scopes = new List<string>();
+            if (permissions.IsGranted(appId, CoreAppPermissions.ServerFilesRead))
+            {
+                scopes.Add(FileCapabilityScopes.List);
+                scopes.Add(FileCapabilityScopes.Read);
+            }
+            if (permissions.IsGranted(appId, CoreAppPermissions.ServerFilesWrite))
+            {
+                scopes.Add(FileCapabilityScopes.Write);
+                scopes.Add(FileCapabilityScopes.Manage);
+            }
+            if (scopes.Count == 0)
+                return new FileApiAccessResult(AppCapabilityResult.PermissionDenied, null, null, null);
+            if (session.ServerUrl is null)
+                return new FileApiAccessResult(AppCapabilityResult.Unavailable, null, null, null);
+
+            try
+            {
+                var token = await capabilities.IssueFileTokenAsync(appId.Value, scopes, cancellationToken);
+                return new FileApiAccessResult(AppCapabilityResult.Succeeded,
+                    new Uri(session.ServerUrl, UriKind.Absolute), token.AccessToken, token.ExpiresAt);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return new FileApiAccessResult(AppCapabilityResult.Unavailable, null, null, null);
+            }
+        }
+    }
+
+    private sealed class ExternalMediaService(
+        AppId appId,
+        IAppPermissionManager permissions,
+        IAuthSession session,
+        IAppCapabilityClient capabilities) : IExternalMediaService
+    {
+        public async Task<ExternalMediaLeaseResult> OpenPlaybackAsync(string path, CancellationToken cancellationToken = default)
+        {
+            if (!permissions.IsGranted(appId, CoreAppPermissions.ServerFilesRead))
+                return new ExternalMediaLeaseResult(AppCapabilityResult.PermissionDenied, null);
+            if (string.IsNullOrWhiteSpace(path))
+                return new ExternalMediaLeaseResult(AppCapabilityResult.InvalidArgument, null);
+            if (session.ServerUrl is null)
+                return new ExternalMediaLeaseResult(AppCapabilityResult.Unavailable, null);
+
+            try
+            {
+                var created = await capabilities.CreateMediaLeaseAsync(appId.Value, path, cancellationToken);
+                var playbackUri = new Uri(new Uri(session.ServerUrl, UriKind.Absolute),
+                    AppCapabilityRoutes.MediaStream(created.LeaseId).TrimStart('/'));
+                return new ExternalMediaLeaseResult(AppCapabilityResult.Succeeded,
+                    new HostMediaLease(playbackUri, created, capabilities,
+                        () => permissions.IsGranted(appId, CoreAppPermissions.ServerFilesRead)));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return new ExternalMediaLeaseResult(AppCapabilityResult.Unavailable, null);
+            }
+        }
+    }
+
+    private sealed class HostMediaLease : IExternalMediaLease
+    {
+        private readonly IAppCapabilityClient _capabilities;
+        private readonly Func<bool> _canRenew;
+        private readonly CancellationTokenSource _shutdown = new();
+        private readonly Task _renewal;
+        private readonly object _gate = new();
+        private readonly string _leaseId;
+        private DateTimeOffset _expiresAt;
+        private bool _disposed;
+
+        public HostMediaLease(Uri playbackUri, MediaLeaseDto created, IAppCapabilityClient capabilities, Func<bool> canRenew)
+        {
+            PlaybackUri = playbackUri;
+            _leaseId = created.LeaseId;
+            _expiresAt = created.ExpiresAt;
+            _capabilities = capabilities;
+            _canRenew = canRenew;
+            _renewal = RenewUntilDisposedAsync();
+        }
+
+        public Uri PlaybackUri { get; }
+        public DateTimeOffset ExpiresAt
+        {
+            get { lock (_gate) return _expiresAt; }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                    return;
+                _disposed = true;
+            }
+
+            await _shutdown.CancelAsync();
+            try { await _renewal; }
+            catch (OperationCanceledException) { }
+            try { await _capabilities.RevokeMediaLeaseAsync(_leaseId); }
+            catch { /* The short server-side expiry is the fallback revocation path. */ }
+            _shutdown.Dispose();
+        }
+
+        private async Task RenewUntilDisposedAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(45), _shutdown.Token);
+                    if (!_canRenew())
+                    {
+                        try { await _capabilities.RevokeMediaLeaseAsync(_leaseId, _shutdown.Token); }
+                        catch { /* The short lease expiry remains the fallback. */ }
+                        return;
+                    }
+                    try
+                    {
+                        var renewed = await _capabilities.RenewMediaLeaseAsync(_leaseId, _shutdown.Token);
+                        lock (_gate)
+                            _expiresAt = renewed.ExpiresAt;
+                    }
+                    catch when (!_shutdown.IsCancellationRequested && ExpiresAt > DateTimeOffset.UtcNow)
+                    {
+                        // A short network interruption should not immediately end an otherwise active player.
+                        await Task.Delay(TimeSpan.FromSeconds(10), _shutdown.Token);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+            {
+                // The owner has disposed the media lease.
+            }
+            catch
+            {
+                // Renewal failed after the lease expired or the host session became unavailable.
+            }
+        }
     }
 
     private sealed class AppPermissionScope(AppId appId, IAppPermissionManager permissions) : IAppPermissionScope

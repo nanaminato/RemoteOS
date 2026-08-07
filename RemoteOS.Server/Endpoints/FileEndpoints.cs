@@ -15,13 +15,13 @@ public static class FileEndpoints
         // GET drives
         app.MapGet(FileApiRoutes.Drives, (IFileService fs) =>
             Results.Ok(fs.GetDrives()))
-           .RequireAuthorization()
+           .RequireAuthorization(FileAuthorizationPolicies.List)
            .WithTags("Files");
 
         // GET special — 跨平台枚举家目录/桌面/文档/下载/图片/音乐/视频（已 Directory.Exists 过滤）
         app.MapGet(FileApiRoutes.Special, (IFileService fs) =>
             Results.Ok(fs.GetSpecialLocations()))
-           .RequireAuthorization()
+           .RequireAuthorization(FileAuthorizationPolicies.List)
            .WithTags("Files");
 
         // GET list?path=
@@ -32,7 +32,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.List)
         .WithTags("Files");
 
         // GET info?path=
@@ -46,7 +46,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.List)
         .WithTags("Files");
 
         // GET download?path=
@@ -62,7 +62,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Read)
         .WithTags("Files");
 
         app.MapGet(FileApiRoutes.Content, (string path, IFileService fs) =>
@@ -77,7 +77,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Read)
         .WithTags("Files");
 
         app.MapPut(FileApiRoutes.Content, async (string path, HttpRequest request, IFileService fs) =>
@@ -88,7 +88,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(500, "io-error", "I/O error", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Write)
         .WithTags("Files");
 
         app.MapGet(FileApiRoutes.Properties, (string path, IFileService fs) =>
@@ -101,7 +101,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "Access denied", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.List)
         .WithTags("Files");
 
         app.MapPut(FileApiRoutes.Permissions, (UpdateUnixPermissionsRequest request, IFileService fs) =>
@@ -130,7 +130,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Write)
         .WithTags("Files");
 
         // DELETE files?path=
@@ -147,7 +147,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(500, "io-error", "IO 错误", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Manage)
         .WithTags("Files");
 
         // POST rename
@@ -161,7 +161,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(409, "already-exists", "目标已存在", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Manage)
         .WithTags("Files");
 
         // POST move
@@ -175,7 +175,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(409, "already-exists", "目标已存在", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Manage)
         .WithTags("Files");
 
         // POST copy
@@ -189,7 +189,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(409, "already-exists", "目标已存在", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Manage)
         .WithTags("Files");
 
         // POST upload?path=
@@ -217,7 +217,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(500, "io-error", "IO 错误", ex.Message); }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
-        .RequireAuthorization()
+        .RequireAuthorization(FileAuthorizationPolicies.Write)
         .WithTags("Files");
 
         return app;
