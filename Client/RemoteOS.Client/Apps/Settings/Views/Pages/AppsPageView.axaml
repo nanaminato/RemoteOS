@@ -90,10 +90,10 @@
                         <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
                             <Grid ColumnDefinitions="*,*,Auto" Margin="0,3">
                                 <ComboBox Grid.Column="0" Margin="0,0,8,0"
-                                          ItemsSource="{x:Static vm:AppsPageViewModel.AvailableSchemes}"
+                                          ItemsSource="{Binding DataContext.AvailableSchemes, ElementName=Root}"
                                           SelectedItem="{Binding Scheme, Mode=TwoWay}" />
                                 <ComboBox Grid.Column="1" Margin="0,0,8,0"
-                                          ItemsSource="{Binding AvailableApps}"
+                                          ItemsSource="{Binding CompatibleApps}"
                                           SelectedItem="{Binding SelectedApp, Mode=TwoWay}">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate x:DataType="vm:AppOption">

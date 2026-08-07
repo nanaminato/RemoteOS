@@ -7,7 +7,6 @@ using Avalonia.Threading;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
-using Client.Apps.ImageViewer;
 using Client.Apps.Settings;
 using Client.Services;
 using Client.Services.Auth;
@@ -156,18 +155,24 @@ public sealed class ExplorerApp : RemoteApplicationBase
         vm.OpenFileAsync = async entry =>
         {
             var extension = Path.GetExtension(entry.Name);
-            var applicationId = defaults?.Resolve(extension)
-                ?? (ImageViewerApp.SupportedExtensions.Contains(extension) ? "remoteos.imageviewer" : "remoteos.notepad");
-            if (applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
+            var defaultApplicationId = defaults?.Resolve(extension);
+            var applicationId = defaultApplicationId is not null && applications?.SupportsFile(new AppId(defaultApplicationId), entry.Path) == true
+                ? defaultApplicationId
+                : applications?.FileOpenersForExtension(extension).FirstOrDefault()?.Id.Value;
+            if (applicationId is null || applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
                 await (vm.ShowMessageAsync?.Invoke("Open file", "No application is registered for this file type.") ?? Task.CompletedTask);
         };
 
         vm.RequestOpenWithAsync = async entry =>
         {
             var owner = FindOwnerWindow(context, vm);
-            var openers = applications?.FileOpeners ?? Array.Empty<ApplicationInfo>();
-            if (owner is null || openers.Count == 0) return;
             var extension = Path.GetExtension(entry.Name);
+            var openers = applications?.FileOpenersForExtension(extension) ?? Array.Empty<ApplicationInfo>();
+            if (owner is null || openers.Count == 0)
+            {
+                await (vm.ShowMessageAsync?.Invoke("Open with", "No installed application declares support for this file type.") ?? Task.CompletedTask);
+                return;
+            }
             var choice = await context.ShowDialogAsync<OpenWithChoice>(owner, "Open with", dialog =>
                 new OpenWithDialogView
                 {

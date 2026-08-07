@@ -74,7 +74,8 @@ public sealed class DeveloperPackageManager
             staging = string.Empty;
 
             var record = new DeveloperAppRecord(appId, manifest.DisplayName.Trim(), version, destination, manifest.EntryAssembly.Trim(), manifest.EntryType.Trim(),
-                manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>());
+                manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
+                manifest.SupportedFileExtensions ?? Array.Empty<string>());
             var loaded = CreateLoaded(record);
             await Dispatcher.UIThread.InvokeAsync(() => ReplaceLoaded(loaded, launch));
 
@@ -120,7 +121,7 @@ public sealed class DeveloperPackageManager
                 throw new InvalidOperationException("The package entry type must implement IExternalRemoteApplication.");
 
             var manifest = new ApplicationManifest(new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
-                record.RequestedPermissions);
+                record.RequestedPermissions, record.SupportedFileExtensions);
             return new LoadedDeveloperApp(context, application, manifest);
         }
         catch
@@ -134,7 +135,7 @@ public sealed class DeveloperPackageManager
     {
         Unload(replacement.Manifest.Id.Value);
         _loaded[replacement.Manifest.Id.Value] = replacement;
-        _applications.Register(replacement.Application is IExternalFileOpenApplication
+        _applications.Register(replacement.Application is IExternalFileOpenApplication && replacement.Manifest.FileExtensions.Count > 0
             ? new ExternalFileApplicationAdapter(replacement, _contextFactory)
             : new ExternalApplicationAdapter(replacement, _contextFactory));
         if (launch)
@@ -325,7 +326,8 @@ public sealed record DeveloperPackageManifest(
     string EntryType,
     string? IconGlyph = null,
     string? Description = null,
-    IReadOnlyList<string>? RequestedPermissions = null);
+    IReadOnlyList<string>? RequestedPermissions = null,
+    IReadOnlyList<string>? SupportedFileExtensions = null);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -336,6 +338,7 @@ internal sealed record DeveloperAppRecord(
     string EntryType,
     string? IconGlyph,
     string? Description,
-    IReadOnlyList<string> RequestedPermissions);
+    IReadOnlyList<string> RequestedPermissions,
+    IReadOnlyList<string> SupportedFileExtensions);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);

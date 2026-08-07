@@ -6,9 +6,13 @@ public sealed record ApplicationInfo(
     string DisplayName,
     string? IconGlyph = null,
     string? Description = null,
-    IReadOnlyList<string>? RequestedPermissions = null)
+    IReadOnlyList<string>? RequestedPermissions = null,
+    IReadOnlyList<string>? SupportedFileExtensions = null)
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
+
+    /// <summary>File extensions this application explicitly accepts from RemoteExplorer.</summary>
+    public IReadOnlyList<string> FileExtensions => SupportedFileExtensions ?? Array.Empty<string>();
 
     public static readonly ApplicationInfo None = new(default, string.Empty);
 }

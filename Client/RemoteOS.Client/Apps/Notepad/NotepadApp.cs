@@ -12,12 +12,16 @@ namespace Client.Apps.Notepad;
 /// <summary>内置 Notebook：可编辑远程文本文件，并支持指定编码打开与保存。</summary>
 public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
 {
+    public static IReadOnlyList<string> SupportedExtensions { get; } =
+    [".txt", ".text", ".md", ".markdown", ".rst", ".log", ".csv", ".tsv", ".ini", ".cfg", ".conf", ".properties", ".yaml", ".yml", ".toml", ".xml", ".json", ".html", ".htm", ".css"];
+
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.notepad"),
         DisplayName: "Notebook",
         Version: "1.0.0",
         IconGlyph: "📝",
-        Description: "Text editor for remote files");
+        Description: "Text editor for remote files",
+        SupportedFileExtensions: SupportedExtensions);
 
     public override void Activate(AppContext context)
         => OpenEditor(context, null);
@@ -39,7 +43,9 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
             : context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
             {
                 var picker = new ExplorerViewModel(files,
-                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile),
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
+                        new ExplorerFileFilter("Text files", SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                    ]),
                     paths => dialog.Close(paths[0]))
                 {
                     CancelAction = dialog.Cancel,

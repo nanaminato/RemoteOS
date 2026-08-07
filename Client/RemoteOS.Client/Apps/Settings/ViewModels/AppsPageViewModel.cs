@@ -50,13 +50,8 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     /// <summary>Provided by the Settings window to open an app-specific permission editor.</summary>
     public Func<AppPermissionAppViewModel, Task>? RequestPermissionEditorAsync { get; set; }
 
-    /// <summary>预设的 scheme / 扩展名选项。</summary>
-    public static IReadOnlyList<string> AvailableSchemes { get; } = new[]
-    {
-        "http", "https", "mailto", "ftp",
-        ".txt", ".md", ".json", ".xml", ".log",
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".pdf",
-    };
+    /// <summary>URI schemes plus every extension declared by an installed application.</summary>
+    public ObservableCollection<string> AvailableSchemes { get; } = new();
 
     /// <summary>当前默认程序映射（可编辑）。</summary>
     public ObservableCollection<DefaultAppMappingViewModel> Mappings { get; } = new();
@@ -70,7 +65,12 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     {
         var apps = _apps.Registered;
         Replace(RegisteredApps, apps);
-        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName)));
+        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName, app.FileExtensions)));
+        Replace(AvailableSchemes, new[] { "http", "https", "mailto", "ftp" }
+            .Concat(apps.SelectMany(app => app.FileExtensions))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(scheme => scheme.StartsWith('.') ? 1 : 0)
+            .ThenBy(scheme => scheme, StringComparer.OrdinalIgnoreCase));
         Replace(PermissionApps, apps
             .Where(app => app.Permissions.Count > 0)
             .Select(app => new AppPermissionAppViewModel(app, _permissions)));
@@ -117,7 +117,11 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         Mappings.Clear();
         if (dtos is null) return;
         foreach (var d in dtos)
+        {
+            if (AvailableSchemes.All(scheme => !string.Equals(scheme, d.Scheme, StringComparison.OrdinalIgnoreCase)))
+                AvailableSchemes.Add(d.Scheme);
             Mappings.Add(new DefaultAppMappingViewModel(d.Scheme, d.AppId, AvailableApps, Save, m => { Mappings.Remove(m); Save(); }));
+        }
     }
 
     /// <summary>导出当前映射为服务端 DTO（保存时由根 VM 调用）。</summary>
@@ -152,21 +156,35 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
         set { if (value is not null) AppId = value.Id; }
     }
 
+    /// <summary>Applications compatible with the mapped file extension; URI schemes remain unrestricted.</summary>
+    public IReadOnlyList<AppOption> CompatibleApps => Scheme.StartsWith(".", StringComparison.Ordinal)
+        ? AvailableApps.Where(app => app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray()
+        : AvailableApps;
+
     [RelayCommand]
     private void Remove() => _remove?.Invoke(this);
 
-    partial void OnSchemeChanged(string value) => _save?.Invoke();
+    partial void OnSchemeChanged(string value)
+    {
+        _save?.Invoke();
+        OnPropertyChanged(nameof(CompatibleApps));
+        OnPropertyChanged(nameof(SelectedApp));
+    }
     partial void OnAppIdChanged(string value)
     {
         _save?.Invoke();
         OnPropertyChanged(nameof(SelectedApp));
     }
 
-    public void NotifyAvailableAppsChanged() => OnPropertyChanged(nameof(SelectedApp));
+    public void NotifyAvailableAppsChanged()
+    {
+        OnPropertyChanged(nameof(CompatibleApps));
+        OnPropertyChanged(nameof(SelectedApp));
+    }
 }
 
 /// <summary>应用下拉选项（Id + 显示名）。</summary>
-public sealed record AppOption(string Id, string DisplayName);
+public sealed record AppOption(string Id, string DisplayName, IReadOnlyList<string> SupportedFileExtensions);
 
 /// <summary>An application whose manifest declares host capabilities.</summary>
 public sealed class AppPermissionAppViewModel

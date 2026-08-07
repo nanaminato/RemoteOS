@@ -28,10 +28,20 @@ public sealed class ApplicationManager
     public IReadOnlyList<ApplicationInfo> Registered =>
         _apps.Values.Select(a => a.Manifest.ToInfo()).OrderBy(i => i.DisplayName).ToList();
 
-    /// <summary>Applications that explicitly support receiving a file path.</summary>
+    /// <summary>Applications that explicitly declare one or more supported file extensions.</summary>
     public IReadOnlyList<ApplicationInfo> FileOpeners =>
-        _apps.Values.Where(a => a is IFileOpenApplication).Select(a => a.Manifest.ToInfo())
+        _apps.Values.Where(a => a is IFileOpenApplication && a.Manifest.FileExtensions.Count > 0).Select(a => a.Manifest.ToInfo())
             .OrderBy(i => i.DisplayName).ToList();
+
+    /// <summary>Applications eligible to open the specified file extension.</summary>
+    public IReadOnlyList<ApplicationInfo> FileOpenersForExtension(string extension) =>
+        FileOpeners.Where(app => app.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)).ToList();
+
+    /// <summary>Whether the registered application explicitly accepts the supplied file path.</summary>
+    public bool SupportsFile(AppId id, string path) =>
+        _apps.TryGetValue(id, out var app)
+        && app is IFileOpenApplication
+        && app.Manifest.FileExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Register an application so it can be launched.</summary>
     public void Register(IRemoteApplication application)
@@ -67,7 +77,8 @@ public sealed class ApplicationManager
     /// <summary>Open a file in a registered file-opening application.</summary>
     public bool OpenFile(AppId id, string path)
     {
-        if (!_apps.TryGetValue(id, out var app) || app is not IFileOpenApplication fileOpener)
+        if (!_apps.TryGetValue(id, out var app) || app is not IFileOpenApplication fileOpener
+            || !app.Manifest.FileExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             return false;
 
         fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);

@@ -11,17 +11,16 @@ namespace Client.Apps.ImageViewer;
 /// <summary>Lightweight built-in viewer for common remote image files.</summary>
 public sealed class ImageViewerApp : RemoteApplicationBase, IFileOpenApplication
 {
-    public static IReadOnlySet<string> SupportedExtensions { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico",
-    };
+    public static IReadOnlyList<string> SupportedExtensions { get; } =
+    [".png", ".apng", ".jpg", ".jpeg", ".jpe", ".jfif", ".gif", ".bmp", ".dib", ".webp", ".ico"];
 
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.imageviewer"),
         DisplayName: "Image Viewer",
         Version: "1.0.0",
         IconGlyph: "🖼️",
-        Description: "Lightweight viewer for remote image files");
+        Description: "Lightweight viewer for remote image files",
+        SupportedFileExtensions: SupportedExtensions);
 
     public override void Activate(AppContext context) => OpenViewer(context, null);
 

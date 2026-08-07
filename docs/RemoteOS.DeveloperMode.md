@@ -37,11 +37,14 @@ lib/net10.0/<private dependencies>.dll
   "entryType": "Example.HelloApp",
   "iconGlyph": "🧪",
   "description": "A development package",
-  "requestedPermissions": ["desktop.wallpaper.write"]
+  "requestedPermissions": ["desktop.wallpaper.write"],
+  "supportedFileExtensions": [".hello"]
 }
 ```
 
 The entry type must implement `RemoteOS.AppSDK.IExternalRemoteApplication`. It receives `IExternalAppContext`, which exposes only approved RemoteOS capabilities, including owned-window creation and the permission-gated desktop appearance service.
+
+To appear in RemoteExplorer's **Open with** menu, the entry type must also implement `IExternalFileOpenApplication` and list every accepted extension in `supportedFileExtensions`. Extensions are case-insensitive and must begin with a dot. Packages that omit this field remain launchable, but are never offered a file path.
 
 ## Server monitoring capability
 

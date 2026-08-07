@@ -12,12 +12,16 @@ namespace Client.Apps.CodeEditor;
 /// <summary>A code-focused editor that opens and saves files through the remote file service.</summary>
 public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
 {
+    public static IReadOnlyList<string> SupportedExtensions { get; } =
+    [".cs", ".csx", ".fs", ".fsx", ".vb", ".c", ".h", ".cpp", ".cxx", ".hpp", ".java", ".kt", ".kts", ".go", ".rs", ".py", ".rb", ".php", ".swift", ".sql", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".sh", ".bash", ".ps1", ".bat", ".cmd", ".dockerfile", ".csproj", ".sln", ".xaml", ".axaml"];
+
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.codeeditor"),
         DisplayName: "Code Editor",
         Version: "1.0.0",
         IconGlyph: "💻",
-        Description: "Syntax-highlighted editor for remote files");
+        Description: "Syntax-highlighted editor for remote files",
+        SupportedFileExtensions: SupportedExtensions);
 
     public override void Activate(AppContext context) => OpenEditor(context, null);
 
@@ -37,7 +41,9 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
             : context.ShowDialogAsync<string>(window, "Select remote file", dialog =>
             {
                 var picker = new ExplorerViewModel(files,
-                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile),
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
+                        new ExplorerFileFilter("Source files", SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                    ]),
                     paths => dialog.Close(paths[0]))
                 {
                     CancelAction = dialog.Cancel,
