@@ -1,4 +1,7 @@
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Primitives;
+using RemoteOS.WindowManager;
+using Avalonia.Controls;
 
 namespace RemoteOS.AppSDK;
 
@@ -19,6 +22,7 @@ public interface IExternalAppContext
     AppId AppId { get; }
     IAppPermissionScope Permissions { get; }
     IDesktopAppearance DesktopAppearance { get; }
+    IExternalAppWindowService Windows { get; }
 }
 
 /// <summary>Read-only view of the grants the current application has received from the user.</summary>
@@ -31,6 +35,19 @@ public interface IAppPermissionScope
 public interface IDesktopAppearance
 {
     Task<AppCapabilityResult> SetWallpaperAsync(string wallpaperKey, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Window creation surface for package applications. Every window is owned by the package app id.</summary>
+public interface IExternalAppWindowService
+{
+    ManagedWindow ShowWindow(
+        string title,
+        Control content,
+        Rect? bounds = null,
+        string? iconGlyph = null,
+        bool canResize = true,
+        bool canMinimize = true,
+        bool canMaximize = true);
 }
 
 /// <summary>Result returned by a host-mediated capability call.</summary>

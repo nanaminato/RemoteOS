@@ -3,6 +3,8 @@ using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Workspace;
+using RemoteOS.Core.Primitives;
+using RemoteOS.WindowManager;
 using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
 
 namespace Client.Services.AppPermissions;
@@ -15,30 +17,56 @@ public sealed class ExternalAppContextFactory
     private readonly ISettingsClient _settingsClient;
     private readonly IAuthSession _session;
     private readonly DefaultAppRegistry _defaultApps;
+    private readonly IWindowManager _windowManager;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
         ShellSettings settings,
         ISettingsClient settingsClient,
         IAuthSession session,
-        DefaultAppRegistry defaultApps)
+        DefaultAppRegistry defaultApps,
+        IWindowManager windowManager)
     {
         _permissions = permissions;
         _settings = settings;
         _settingsClient = settingsClient;
         _session = session;
         _defaultApps = defaultApps;
+        _windowManager = windowManager;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
         appId,
         new AppPermissionScope(appId, _permissions),
-        new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps));
+        new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
+        new ExternalAppWindowService(appId, _windowManager));
 
     private sealed record ExternalAppContext(
         AppId AppId,
         IAppPermissionScope Permissions,
-        IDesktopAppearance DesktopAppearance) : IExternalAppContext;
+        IDesktopAppearance DesktopAppearance,
+        IExternalAppWindowService Windows) : IExternalAppContext;
+
+    private sealed class ExternalAppWindowService(AppId appId, IWindowManager windowManager) : IExternalAppWindowService
+    {
+        public ManagedWindow ShowWindow(
+            string title,
+            Avalonia.Controls.Control content,
+            Rect? bounds = null,
+            string? iconGlyph = null,
+            bool canResize = true,
+            bool canMinimize = true,
+            bool canMaximize = true)
+            => windowManager.Create(new WindowCreateOptions(
+                OwnerAppId: appId,
+                Title: title,
+                Content: content,
+                Bounds: bounds,
+                IconGlyph: iconGlyph,
+                CanResize: canResize,
+                CanMinimize: canMinimize,
+                CanMaximize: canMaximize));
+    }
 
     private sealed class AppPermissionScope(AppId appId, IAppPermissionManager permissions) : IAppPermissionScope
     {

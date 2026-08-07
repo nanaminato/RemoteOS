@@ -67,6 +67,26 @@
 
         <Border Classes="card">
             <StackPanel Spacing="10">
+                <TextBlock Text="开发者模式" Classes="title" />
+                <TextBlock Text="仅在本机开启开发调试桥，允许已配对的开发工具安装、更新、启动和卸载开发版 .roapp 应用。"
+                           Opacity="0.7" TextWrapping="Wrap" />
+                <CheckBox Content="启用开发者模式" IsChecked="{Binding DeveloperMode.IsEnabled, Mode=TwoWay}" />
+                <Grid ColumnDefinitions="120,*" ColumnSpacing="10">
+                    <TextBlock Text="本机地址" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.Endpoint}" IsReadOnly="True" />
+                </Grid>
+                <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="配对令牌" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.PairingToken}" IsReadOnly="True" />
+                    <Button Grid.Column="2" Content="重新生成" Command="{Binding DeveloperMode.RegeneratePairingTokenCommand}" />
+                </Grid>
+                <TextBlock Text="关闭开发者模式会立即停用本机调试桥；开发版应用的权限仍需在上方单独授权。"
+                           Opacity="0.55" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">
                     <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
                     <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />

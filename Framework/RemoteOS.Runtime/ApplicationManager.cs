@@ -21,6 +21,9 @@ public sealed class ApplicationManager
         _services = services;
     }
 
+    /// <summary>Raised whenever the launchable application registry changes.</summary>
+    public event EventHandler? RegistryChanged;
+
     /// <summary>Metadata for every registered application (desktop / start menu).</summary>
     public IReadOnlyList<ApplicationInfo> Registered =>
         _apps.Values.Select(a => a.Manifest.ToInfo()).OrderBy(i => i.DisplayName).ToList();
@@ -34,6 +37,16 @@ public sealed class ApplicationManager
     public void Register(IRemoteApplication application)
     {
         _apps[application.Manifest.Id] = application;
+        RegistryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Removes a dynamically loaded application from the launch registry.</summary>
+    public bool Unregister(AppId id)
+    {
+        var removed = _apps.Remove(id);
+        if (removed)
+            RegistryChanged?.Invoke(this, EventArgs.Empty);
+        return removed;
     }
 
     public bool IsRegistered(AppId id) => _apps.ContainsKey(id);

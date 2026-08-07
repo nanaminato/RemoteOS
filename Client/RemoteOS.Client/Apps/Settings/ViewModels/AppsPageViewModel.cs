@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Client.Services;
 using Client.Services.AppPermissions;
+using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
@@ -17,7 +18,12 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
     private readonly ApplicationManager _apps;
     private readonly IAppPermissionManager _permissions;
 
-    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, IAppPermissionManager permissions, Action? save) : base(settings, save)
+    public AppsPageViewModel(
+        ShellSettings settings,
+        ApplicationManager apps,
+        IAppPermissionManager permissions,
+        DeveloperModeService developerMode,
+        Action? save) : base(settings, save)
     {
         _apps = apps;
         _permissions = permissions;
@@ -29,6 +35,7 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
             .Where(app => app.Permissions.Count > 0)
             .Select(app => new AppPermissionAppViewModel(app, _permissions))
             .ToList();
+        DeveloperMode = new DeveloperModeViewModel(developerMode);
     }
 
     public override string Glyph => "📦";
@@ -43,6 +50,7 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
     /// <summary>Applications with manifest-declared host capabilities that the user can grant or revoke.</summary>
     public IReadOnlyList<AppPermissionAppViewModel> PermissionApps { get; }
     public bool HasPermissionRequests => PermissionApps.Count > 0;
+    public DeveloperModeViewModel DeveloperMode { get; }
 
     /// <summary>预设的 scheme / 扩展名选项。</summary>
     public static IReadOnlyList<string> AvailableSchemes { get; } = new[]
@@ -167,4 +175,30 @@ public sealed partial class AppPermissionGrantViewModel : ObservableObject
     [ObservableProperty] private bool _isGranted;
 
     partial void OnIsGrantedChanged(bool value) => _permissions.SetGranted(_appId, PermissionId, value);
+}
+
+/// <summary>Settings-facing wrapper around the local Developer Mode switch and pairing secret.</summary>
+public sealed partial class DeveloperModeViewModel : ObservableObject
+{
+    private readonly DeveloperModeService _developerMode;
+
+    public DeveloperModeViewModel(DeveloperModeService developerMode)
+    {
+        _developerMode = developerMode;
+        _isEnabled = developerMode.IsEnabled;
+    }
+
+    [ObservableProperty] private bool _isEnabled;
+
+    public string Endpoint => _developerMode.Endpoint;
+    public string PairingToken => _developerMode.PairingToken;
+
+    partial void OnIsEnabledChanged(bool value) => _developerMode.SetEnabled(value);
+
+    [RelayCommand]
+    private void RegeneratePairingToken()
+    {
+        _developerMode.RegeneratePairingToken();
+        OnPropertyChanged(nameof(PairingToken));
+    }
 }

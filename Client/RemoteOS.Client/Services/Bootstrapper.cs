@@ -8,6 +8,7 @@ using Client.Apps.Terminal;
 using Client.Apps.Welcome;
 using Client.Services.Auth;
 using Client.Services.AppPermissions;
+using Client.Services.Developer;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
@@ -59,6 +60,9 @@ public static class Bootstrapper
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<ExternalAppContextFactory>();
+        services.AddSingleton<DeveloperModeService>();
+        services.AddSingleton<DeveloperPackageManager>();
+        services.AddSingleton<DeveloperBridgeService>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
 
@@ -94,6 +98,10 @@ public static class Bootstrapper
         var manager = provider.GetRequiredService<ApplicationManager>();
         foreach (var application in provider.GetServices<IRemoteApplication>())
             manager.Register(application);
+
+        // Development packages follow the same runtime registry as built-in applications.
+        provider.GetRequiredService<DeveloperPackageManager>().LoadInstalled();
+        provider.GetRequiredService<DeveloperBridgeService>();
 
         // Build the desktop / start menu entries.
         provider.GetRequiredService<DesktopShellViewModel>().PopulateDesktop();
