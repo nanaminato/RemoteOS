@@ -22,6 +22,32 @@
 
     <DockPanel LastChildFill="True">
 
+        <!-- Application menu: commands remain available even when their toolbar shortcuts are hidden. -->
+        <Menu DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+            <MenuItem Header="File">
+                <MenuItem Header="Settings..." Command="{Binding OpenSettingsCommand}" />
+                <Separator />
+                <MenuItem Header="Close" Command="{Binding CloseCommand}" />
+            </MenuItem>
+            <MenuItem Header="Navigate">
+                <MenuItem Header="Back" Command="{Binding GoBackCommand}" />
+                <MenuItem Header="Forward" Command="{Binding GoForwardCommand}" />
+                <MenuItem Header="Home" Command="{Binding GoHomeCommand}" />
+                <Separator />
+                <MenuItem Header="Refresh" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="Stop" Command="{Binding StopCommand}" />
+            </MenuItem>
+            <MenuItem Header="Bookmarks">
+                <MenuItem Header="Add or remove current bookmark" Command="{Binding ToggleBookmarkCommand}" />
+                <Separator />
+                <MenuItem Header="Show bookmarks" Command="{Binding SwitchToBookmarksCommand}" />
+                <MenuItem Header="Show history" Command="{Binding SwitchToHistoryCommand}" />
+            </MenuItem>
+            <MenuItem Header="View">
+                <MenuItem Header="Show or hide sidebar" Command="{Binding ToggleSidebarCommand}" />
+            </MenuItem>
+        </Menu>
+
         <!-- 顶部工具栏 -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
             <StackPanel Orientation="Horizontal" Spacing="4">

@@ -274,10 +274,18 @@ public sealed partial class BrowserViewModel : ObservableObject
     // ---- 侧边栏切换 ----
 
     [RelayCommand]
-    private void SwitchToBookmarks() => ActiveSidebarTab = SidebarTab.Bookmarks;
+    private void SwitchToBookmarks()
+    {
+        ActiveSidebarTab = SidebarTab.Bookmarks;
+        IsSidebarVisible = true;
+    }
 
     [RelayCommand]
-    private void SwitchToHistory() => ActiveSidebarTab = SidebarTab.History;
+    private void SwitchToHistory()
+    {
+        ActiveSidebarTab = SidebarTab.History;
+        IsSidebarVisible = true;
+    }
 
     [RelayCommand]
     private void ToggleSidebar() => IsSidebarVisible = !IsSidebarVisible;
