@@ -18,10 +18,14 @@ public sealed class WindowManager : IWindowManager
 {
     private readonly ObservableCollection<ManagedWindow> _windows = new();
     private readonly Dictionary<WindowId, WindowState> _preMinimizeState = new();
+    private readonly Dictionary<WindowId, WindowState> _preFullScreenState = new();
+    private readonly Dictionary<WindowId, Canvas> _windowHosts = new();
     private readonly List<IModalSession> _modalSessions = new();
 
     private Canvas? _host;
+    private Canvas? _fullScreenHost;
     private Rect _hostBounds;
+    private Rect _fullScreenHostBounds;
     private int _zCounter;
     private int _nextId;
     private ManagedWindow? _active;
@@ -32,12 +36,19 @@ public sealed class WindowManager : IWindowManager
     public IReadOnlyList<ManagedWindow> Windows => _windows;
     public ManagedWindow? ActiveWindow => _active;
     public Rect HostBounds => _hostBounds;
+    public Rect FullScreenHostBounds => _fullScreenHostBounds;
 
     public event EventHandler<ManagedWindow>? WindowOpened;
     public event EventHandler<ManagedWindow>? WindowClosed;
     public event EventHandler<ManagedWindow?>? ActiveWindowChanged;
 
     public void Attach(Canvas host) => _host = host;
+
+    public void AttachFullScreenHost(Canvas host)
+    {
+        _fullScreenHost = host;
+        UpdateFullScreenHostInteractivity();
+    }
 
     public void SetHostBounds(Rect bounds)
     {
@@ -54,6 +65,17 @@ public sealed class WindowManager : IWindowManager
 
         foreach (var session in _modalSessions)
             session.Blocker.ApplyBounds(session.Owner.Info.Bounds);
+    }
+
+    public void SetFullScreenHostBounds(Rect bounds)
+    {
+        _fullScreenHostBounds = bounds;
+        foreach (var window in _windows.Where(w => w.Info.State == WindowState.FullScreen))
+        {
+            window.Info.Bounds = bounds;
+            window.View.ApplyBounds(bounds);
+            UpdateDialogs(window);
+        }
     }
 
     public ManagedWindow Create(WindowCreateOptions options)
@@ -95,6 +117,7 @@ public sealed class WindowManager : IWindowManager
         view.FocusRequested += (_, _) => Focus(managed);
 
         _host.Children.Add(view);
+        _windowHosts[id] = _host;
         view.ApplyBounds(info.Bounds);
         view.ApplyState(WindowState.Normal);
 
@@ -133,15 +156,17 @@ public sealed class WindowManager : IWindowManager
             CanResize: true,
             CanMinimize: false,
             CanMaximize: false));
+        var dialogHost = GetWindowHost(owner);
+        MoveToHost(dialogWindow, dialogHost);
         dialog.Attach(dialogWindow);
 
         var blocker = new ModalBlocker(owner);
         blocker.ApplyBounds(owner.Info.Bounds);
         // Place the shield above only its owner and below the newly-created dialog window.
         blocker.ZIndex = dialogWindow.View.ZIndex - 1;
-        _host.Children.Add(blocker);
+        dialogHost.Children.Add(blocker);
 
-        var session = new ModalSession<TResult>(owner, dialogWindow, blocker, dialog);
+        var session = new ModalSession<TResult>(owner, dialogWindow, blocker, dialogHost, dialog);
         _modalSessions.Add(session);
         _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseModalSession(session)),
             TaskScheduler.Default);
@@ -171,10 +196,11 @@ public sealed class WindowManager : IWindowManager
         if (!_windows.Remove(window))
             return;
 
-        if (_host != null)
-            _host.Children.Remove(window.View);
+        GetWindowHost(window).Children.Remove(window.View);
 
         _preMinimizeState.Remove(window.Info.Id);
+        _preFullScreenState.Remove(window.Info.Id);
+        _windowHosts.Remove(window.Info.Id);
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window) || ReferenceEquals(s.DialogWindow, window)).ToList())
             session.Cancel();
 
@@ -190,6 +216,7 @@ public sealed class WindowManager : IWindowManager
         }
 
         WindowClosed?.Invoke(this, window);
+        UpdateFullScreenHostInteractivity();
     }
 
     private void CloseModalSession(IModalSession session)
@@ -197,8 +224,7 @@ public sealed class WindowManager : IWindowManager
         if (!_modalSessions.Remove(session))
             return;
 
-        if (_host != null)
-            _host.Children.Remove(session.Blocker);
+        session.Host.Children.Remove(session.Blocker);
 
         if (_windows.Contains(session.DialogWindow))
             Close(session.DialogWindow);
@@ -235,9 +261,9 @@ public sealed class WindowManager : IWindowManager
             return;
 
         _preMinimizeState[window.Info.Id] = window.Info.State;
-        foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window)).ToList())
-            session.Cancel();
+        CancelOwnedModalSessions(window);
         SetState(window, WindowState.Minimized);
+        UpdateFullScreenHostInteractivity();
 
         if (ReferenceEquals(_active, window))
         {
@@ -255,18 +281,32 @@ public sealed class WindowManager : IWindowManager
         if (window.Info.State != WindowState.Minimized)
             return;
 
-        _preMinimizeState.TryGetValue(window.Info.Id, out var prev);
-        SetState(window, prev == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal);
-        if (window.Info.State == WindowState.Maximized)
+        _preMinimizeState.TryGetValue(window.Info.Id, out var previousState);
+        _preMinimizeState.Remove(window.Info.Id);
+        var restoredState = previousState is WindowState.Maximized or WindowState.FullScreen
+            ? previousState
+            : WindowState.Normal;
+        SetState(window, restoredState);
+        if (restoredState == WindowState.FullScreen)
         {
+            MoveToHost(window, GetFullScreenHost());
+            window.Info.Bounds = GetFullScreenBounds();
+            window.View.ApplyBounds(window.Info.Bounds);
+        }
+        else if (restoredState == WindowState.Maximized)
+        {
+            MoveToHost(window, GetRegularHost());
             window.Info.Bounds = _hostBounds;
             window.View.ApplyBounds(_hostBounds);
         }
         else
         {
+            MoveToHost(window, GetRegularHost());
+            window.Info.Bounds = window.Info.RestoreBounds;
             window.View.ApplyBounds(window.Info.RestoreBounds);
         }
         Focus(window);
+        UpdateFullScreenHostInteractivity();
     }
 
     /// <summary>Taskbar click: restore minimized windows, minimize the active one, otherwise focus.</summary>
@@ -300,6 +340,9 @@ public sealed class WindowManager : IWindowManager
                 UpdateDialogs(window);
                 Focus(window);
                 break;
+            case WindowState.FullScreen:
+                ExitFullScreen(window);
+                break;
             default:
                 window.Info.RestoreBounds = window.Info.Bounds;
                 SetState(window, WindowState.Maximized);
@@ -308,6 +351,56 @@ public sealed class WindowManager : IWindowManager
                 UpdateDialogs(window);
                 break;
         }
+    }
+
+    /// <summary>Moves a managed window into the shell-wide full-screen overlay.</summary>
+    public void EnterFullScreen(ManagedWindow window)
+    {
+        if (!_windows.Contains(window) || window.Info.State == WindowState.FullScreen)
+            return;
+
+        if (window.Info.State == WindowState.Minimized)
+        {
+            Restore(window);
+            if (window.Info.State == WindowState.FullScreen)
+                return;
+        }
+
+        CancelOwnedModalSessions(window);
+        _preFullScreenState[window.Info.Id] = window.Info.State;
+        MoveToHost(window, GetFullScreenHost());
+        SetState(window, WindowState.FullScreen);
+        window.Info.Bounds = GetFullScreenBounds();
+        window.View.ApplyBounds(window.Info.Bounds);
+        Focus(window);
+        UpdateFullScreenHostInteractivity();
+    }
+
+    /// <summary>Returns a full-screen managed window to the state it had before entering full screen.</summary>
+    public void ExitFullScreen(ManagedWindow window)
+    {
+        if (!_windows.Contains(window) || window.Info.State != WindowState.FullScreen)
+            return;
+
+        CancelOwnedModalSessions(window);
+        _preFullScreenState.TryGetValue(window.Info.Id, out var previousState);
+        _preFullScreenState.Remove(window.Info.Id);
+        var restoredState = previousState == WindowState.Maximized ? WindowState.Maximized : WindowState.Normal;
+        MoveToHost(window, GetRegularHost());
+        SetState(window, restoredState);
+        if (restoredState == WindowState.Maximized)
+        {
+            window.Info.Bounds = _hostBounds;
+            window.View.ApplyBounds(_hostBounds);
+        }
+        else
+        {
+            window.Info.Bounds = window.Info.RestoreBounds;
+            window.View.ApplyBounds(window.Info.RestoreBounds);
+        }
+        UpdateDialogs(window);
+        Focus(window);
+        UpdateFullScreenHostInteractivity();
     }
 
     private void SetState(ManagedWindow window, WindowState state)
@@ -319,7 +412,7 @@ public sealed class WindowManager : IWindowManager
 
     private void OnDrag(ManagedWindow window, DragBoundsEventArgs e)
     {
-        if (window.Info.State == WindowState.Maximized)
+        if (window.Info.State != WindowState.Normal)
             return;
 
         var moved = e.StartBounds.WithPosition(e.StartBounds.Position + e.Delta);
@@ -331,7 +424,7 @@ public sealed class WindowManager : IWindowManager
 
     private void OnResize(ManagedWindow window, ResizeBoundsEventArgs e)
     {
-        if (window.Info.State == WindowState.Maximized)
+        if (window.Info.State != WindowState.Normal)
             return;
 
         var resized = ComputeResize(e.StartBounds, e.Edge, e.Delta, window.Info.MinSize, _hostBounds);
@@ -346,6 +439,39 @@ public sealed class WindowManager : IWindowManager
     {
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, owner)))
             session.Blocker.ApplyBounds(owner.Info.Bounds);
+    }
+
+    private void CancelOwnedModalSessions(ManagedWindow owner)
+    {
+        foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, owner)).ToList())
+            session.Cancel();
+    }
+
+    private Canvas GetRegularHost()
+        => _host ?? throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
+
+    private Canvas GetFullScreenHost() => _fullScreenHost ?? GetRegularHost();
+
+    private Rect GetFullScreenBounds() => _fullScreenHostBounds.IsEmpty ? _hostBounds : _fullScreenHostBounds;
+
+    private Canvas GetWindowHost(ManagedWindow window)
+        => _windowHosts.TryGetValue(window.Info.Id, out var host) ? host : GetRegularHost();
+
+    private void MoveToHost(ManagedWindow window, Canvas destination)
+    {
+        var source = GetWindowHost(window);
+        if (ReferenceEquals(source, destination))
+            return;
+
+        source.Children.Remove(window.View);
+        destination.Children.Add(window.View);
+        _windowHosts[window.Info.Id] = destination;
+    }
+
+    private void UpdateFullScreenHostInteractivity()
+    {
+        if (_fullScreenHost is not null)
+            _fullScreenHost.IsHitTestVisible = _windows.Any(w => w.Info.State == WindowState.FullScreen);
     }
 
     private Rect ResolveInitialBounds(Rect? requested, Size? rememberedSize = null)

@@ -51,6 +51,12 @@ public sealed class AppContext
             CanMaximize: canMaximize));
     }
 
+    /// <summary>Displays an application window over the entire desktop, including shell chrome.</summary>
+    public void EnterFullScreen(ManagedWindow window) => WindowManager.EnterFullScreen(window);
+
+    /// <summary>Returns a full-screen application window to its prior size and state.</summary>
+    public void ExitFullScreen(ManagedWindow window) => WindowManager.ExitFullScreen(window);
+
     /// <summary>Shows a dialog that blocks its owner until it is confirmed or cancelled.</summary>
     public Task<TResult?> ShowDialogAsync<TResult>(
         ManagedWindow owner,

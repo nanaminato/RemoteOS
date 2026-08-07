@@ -59,6 +59,11 @@ public partial class BrowserMainView : UserControl
 
         toolbar.Children.Add(new Button
         {
+            Content = "Full screen",
+            Command = ViewModel?.ToggleFullScreenCommand,
+        });
+        toolbar.Children.Add(new Button
+        {
             Content = "Settings",
             Command = ViewModel?.OpenSettingsCommand,
         });

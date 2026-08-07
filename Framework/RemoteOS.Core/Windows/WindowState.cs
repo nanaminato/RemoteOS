@@ -5,5 +5,7 @@ public enum WindowState
 {
     Normal,
     Minimized,
-    Maximized
+    Maximized,
+    /// <summary>Fills the entire desktop, including shell chrome such as the taskbar.</summary>
+    FullScreen
 }

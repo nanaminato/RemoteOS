@@ -111,6 +111,11 @@ public sealed class ExternalAppContextFactory
 
         public ManagedWindow Window { get; }
         public CancellationToken Closed => _closed.Token;
+        public bool IsFullScreen => Window.IsFullScreen;
+
+        public void EnterFullScreen() => _windowManager.EnterFullScreen(Window);
+
+        public void ExitFullScreen() => _windowManager.ExitFullScreen(Window);
     }
 
     private sealed class AppPermissionScope(AppId appId, IAppPermissionManager permissions) : IAppPermissionScope

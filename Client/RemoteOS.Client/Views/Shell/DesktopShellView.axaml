@@ -333,5 +333,9 @@
                 </Border>
             </Grid>
         </Border>
+
+        <!-- Full-screen managed windows sit above every shell surface, including the taskbar. -->
+        <Canvas x:Name="PART_FullScreenWindowHost" Grid.Row="0" Grid.RowSpan="2" ClipToBounds="True"
+                IsHitTestVisible="False" />
     </Grid>
 </UserControl>

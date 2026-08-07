@@ -45,6 +45,7 @@
             </MenuItem>
             <MenuItem Header="View">
                 <MenuItem Header="Show or hide sidebar" Command="{Binding ToggleSidebarCommand}" />
+                <MenuItem Header="{Binding FullScreenMenuText}" Command="{Binding ToggleFullScreenCommand}" />
             </MenuItem>
         </Menu>
 

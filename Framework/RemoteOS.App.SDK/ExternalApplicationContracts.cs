@@ -71,6 +71,9 @@ public interface IExternalAppWindowHandle
 {
     ManagedWindow Window { get; }
     CancellationToken Closed { get; }
+    bool IsFullScreen { get; }
+    void EnterFullScreen();
+    void ExitFullScreen();
 }
 
 /// <summary>Result returned by a host-mediated capability call.</summary>

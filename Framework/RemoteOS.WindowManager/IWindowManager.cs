@@ -21,8 +21,17 @@ public interface IWindowManager
     /// <summary>Binds the manager to the canvas that physically hosts window visuals.</summary>
     void Attach(Canvas host);
 
+    /// <summary>
+    /// Binds the optional shell-wide overlay used by full-screen windows. If no overlay is
+    /// attached, full-screen windows fall back to the regular window host.
+    /// </summary>
+    void AttachFullScreenHost(Canvas host);
+
     /// <summary>Updates the available desktop area (e.g. on shell resize).</summary>
     void SetHostBounds(Rect bounds);
+
+    /// <summary>Updates the area occupied by the shell-wide full-screen overlay.</summary>
+    void SetFullScreenHostBounds(Rect bounds);
 
     /// <summary>Creates, lays out and shows a new window for the given application content.</summary>
     ManagedWindow Create(WindowCreateOptions options);
@@ -46,6 +55,8 @@ public interface IWindowManager
     void Minimize(ManagedWindow window);
     void Restore(ManagedWindow window);
     void ToggleMaximize(ManagedWindow window);
+    void EnterFullScreen(ManagedWindow window);
+    void ExitFullScreen(ManagedWindow window);
 
     event EventHandler<ManagedWindow>? WindowOpened;
     event EventHandler<ManagedWindow>? WindowClosed;

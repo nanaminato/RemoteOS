@@ -46,6 +46,7 @@ internal interface IModalSession
     ManagedWindow Owner { get; }
     ManagedWindow DialogWindow { get; }
     ModalBlocker Blocker { get; }
+    Canvas Host { get; }
     void Cancel();
 }
 
@@ -53,11 +54,13 @@ internal sealed class ModalSession<TResult>(
     ManagedWindow owner,
     ManagedWindow dialogWindow,
     ModalBlocker blocker,
+    Canvas host,
     ModalDialog<TResult> dialog) : IModalSession
 {
     public ManagedWindow Owner { get; } = owner;
     public ManagedWindow DialogWindow { get; } = dialogWindow;
     public ModalBlocker Blocker { get; } = blocker;
+    public Canvas Host { get; } = host;
     public void Cancel() => dialog.Cancel();
 }
 

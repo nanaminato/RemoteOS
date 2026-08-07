@@ -20,7 +20,8 @@
                                     Grid.Row="0"
                                     Height="36"
                                     Background="#F5F5F5"
-                                    CornerRadius="8,8,0,0">
+                                    CornerRadius="8,8,0,0"
+                                    IsVisible="{Binding !IsFullScreen}">
                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                     <Border x:Name="PART_TitleDrag" Grid.Column="0" Grid.ColumnSpan="2" Background="Transparent" />
                                     <TextBlock Grid.Column="0"
@@ -100,6 +101,10 @@
     </Style>
     <Style Selector="wm|RemoteWindow:active /template/ Border#PART_Frame">
         <Setter Property="BorderBrush" Value="#8AB9E5" />
+    </Style>
+    <Style Selector="wm|RemoteWindow:fullscreen /template/ Border#PART_Frame">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
     </Style>
 
 </Styles>

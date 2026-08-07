@@ -8,6 +8,7 @@ namespace Client.Views.Shell;
 public partial class DesktopShellView : UserControl
 {
     private Canvas? _host;
+    private Canvas? _fullScreenHost;
 
     public DesktopShellView()
     {
@@ -18,17 +19,21 @@ public partial class DesktopShellView : UserControl
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         _host = this.FindControl<Canvas>("PART_WindowHost");
-        if (_host == null || DataContext is not DesktopShellViewModel vm)
+        _fullScreenHost = this.FindControl<Canvas>("PART_FullScreenWindowHost");
+        if (_host == null || _fullScreenHost == null || DataContext is not DesktopShellViewModel vm)
             return;
 
         vm.WindowManager.Attach(_host);
+        vm.WindowManager.AttachFullScreenHost(_fullScreenHost);
         _host.SizeChanged += (_, _) => UpdateHostBounds();
+        _fullScreenHost.SizeChanged += (_, _) => UpdateFullScreenHostBounds();
         this.LayoutUpdated += OnFirstLayout;
     }
 
     private void OnFirstLayout(object? sender, EventArgs e)
     {
         UpdateHostBounds();
+        UpdateFullScreenHostBounds();
         this.LayoutUpdated -= OnFirstLayout;
     }
 
@@ -39,6 +44,15 @@ public partial class DesktopShellView : UserControl
 
         var b = _host.Bounds;
         vm.WindowManager.SetHostBounds(new Rect(0, 0, b.Width, b.Height));
+    }
+
+    private void UpdateFullScreenHostBounds()
+    {
+        if (_fullScreenHost == null || DataContext is not DesktopShellViewModel vm)
+            return;
+
+        var b = _fullScreenHost.Bounds;
+        vm.WindowManager.SetFullScreenHostBounds(new Rect(0, 0, b.Width, b.Height));
     }
 
     private void StartBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)

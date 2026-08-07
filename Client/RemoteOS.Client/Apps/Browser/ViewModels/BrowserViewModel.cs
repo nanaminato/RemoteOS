@@ -45,6 +45,9 @@ public sealed partial class BrowserViewModel : ObservableObject
     [ObservableProperty] private bool _isCurrentBookmarked;
     [ObservableProperty] private SidebarTab _activeSidebarTab = SidebarTab.Bookmarks;
     [ObservableProperty] private bool _isSidebarVisible = true;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FullScreenMenuText))]
+    private bool _isFullScreen;
     [ObservableProperty] private bool _isLocalPortForwardingEnabled;
     [ObservableProperty] private string _localPortForwardingStatus = "本地端口映射：关闭";
 
@@ -53,6 +56,8 @@ public sealed partial class BrowserViewModel : ObservableObject
 
     /// <summary>关闭窗口回调（由 BrowserApp 注入）。</summary>
     public Action? CloseAction { get; set; }
+    /// <summary>Host-provided action that switches the owning desktop window in or out of full screen.</summary>
+    public Action? ToggleFullScreenAction { get; set; }
     public Func<Task>? RequestSettingsAsync { get; set; }
     public Action? CloseSettingsAction { get; set; }
 
@@ -162,6 +167,11 @@ public sealed partial class BrowserViewModel : ObservableObject
     public Action? ViewGoForwardRequested { get; set; }
     public Action? ViewRefreshRequested { get; set; }
     public Action? ViewStopRequested { get; set; }
+
+    public string FullScreenMenuText => IsFullScreen ? "Exit full screen" : "Enter full screen";
+
+    [RelayCommand]
+    private void ToggleFullScreen() => ToggleFullScreenAction?.Invoke();
 
     // ---- 书签 ----
 
