@@ -111,8 +111,10 @@
         <Grid ColumnDefinitions="240,Auto,*">
             <!-- 导航树 -->
             <TreeView Grid.Column="0"
+                      x:Name="NavigationTree"
                       ItemsSource="{Binding Nodes}"
                       SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                      SelectionChanged="NavigationTree_SelectionChanged"
                       DragDrop.AllowDrop="True"
                       DragDrop.DragOver="Explorer_DragOver"
                       DragDrop.Drop="Explorer_Drop">
