@@ -5,7 +5,10 @@ public sealed record ApplicationInfo(
     AppId Id,
     string DisplayName,
     string? IconGlyph = null,
-    string? Description = null)
+    string? Description = null,
+    IReadOnlyList<string>? RequestedPermissions = null)
 {
+    public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
+
     public static readonly ApplicationInfo None = new(default, string.Empty);
 }

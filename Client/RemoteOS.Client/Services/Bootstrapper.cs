@@ -7,6 +7,7 @@ using Client.Apps.Settings;
 using Client.Apps.Terminal;
 using Client.Apps.Welcome;
 using Client.Services.Auth;
+using Client.Services.AppPermissions;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
@@ -56,6 +57,8 @@ public static class Bootstrapper
         services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
+        services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
+        services.AddSingleton<ExternalAppContextFactory>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
 

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Client.Services;
+using Client.Services.AppPermissions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
@@ -14,13 +15,19 @@ namespace Client.Apps.Settings.ViewModels;
 public sealed partial class AppsPageViewModel : SettingsPageViewModel
 {
     private readonly ApplicationManager _apps;
+    private readonly IAppPermissionManager _permissions;
 
-    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, Action? save) : base(settings, save)
+    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, IAppPermissionManager permissions, Action? save) : base(settings, save)
     {
         _apps = apps;
+        _permissions = permissions;
         RegisteredApps = _apps.Registered;
         AvailableApps = RegisteredApps
             .Select(a => new AppOption(a.Id.Value, a.DisplayName))
+            .ToList();
+        PermissionApps = RegisteredApps
+            .Where(app => app.Permissions.Count > 0)
+            .Select(app => new AppPermissionAppViewModel(app, _permissions))
             .ToList();
     }
 
@@ -32,6 +39,10 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel
 
     /// <summary>可绑定的应用 Id 选项（id + 显示名），供默认程序下拉选择。</summary>
     public IReadOnlyList<AppOption> AvailableApps { get; }
+
+    /// <summary>Applications with manifest-declared host capabilities that the user can grant or revoke.</summary>
+    public IReadOnlyList<AppPermissionAppViewModel> PermissionApps { get; }
+    public bool HasPermissionRequests => PermissionApps.Count > 0;
 
     /// <summary>预设的 scheme / 扩展名选项。</summary>
     public static IReadOnlyList<string> AvailableSchemes { get; } = new[]
@@ -115,3 +126,45 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
 
 /// <summary>应用下拉选项（Id + 显示名）。</summary>
 public sealed record AppOption(string Id, string DisplayName);
+
+/// <summary>An application and the host capabilities declared in its manifest.</summary>
+public sealed class AppPermissionAppViewModel
+{
+    public AppPermissionAppViewModel(ApplicationInfo app, IAppPermissionManager permissions)
+    {
+        DisplayName = app.DisplayName;
+        Permissions = app.Permissions
+            .Select(AppPermissions.Find)
+            .Where(permission => permission is not null)
+            .Select(permission => new AppPermissionGrantViewModel(app.Id, permission!, permissions))
+            .ToList();
+    }
+
+    public string DisplayName { get; }
+    public IReadOnlyList<AppPermissionGrantViewModel> Permissions { get; }
+}
+
+/// <summary>A user-controlled grant for one declared application capability.</summary>
+public sealed partial class AppPermissionGrantViewModel : ObservableObject
+{
+    private readonly AppId _appId;
+    private readonly IAppPermissionManager _permissions;
+
+    public AppPermissionGrantViewModel(AppId appId, AppPermissionDefinition permission, IAppPermissionManager permissions)
+    {
+        _appId = appId;
+        _permissions = permissions;
+        PermissionId = permission.Id;
+        DisplayName = permission.DisplayName;
+        Description = permission.Description;
+        _isGranted = permissions.IsGranted(appId, permission.Id);
+    }
+
+    public string PermissionId { get; }
+    public string DisplayName { get; }
+    public string Description { get; }
+
+    [ObservableProperty] private bool _isGranted;
+
+    partial void OnIsGrantedChanged(bool value) => _permissions.SetGranted(_appId, PermissionId, value);
+}

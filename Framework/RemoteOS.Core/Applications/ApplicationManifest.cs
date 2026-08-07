@@ -10,7 +10,15 @@ public sealed record ApplicationManifest(
     string DisplayName,
     string Version = "1.0.0",
     string? IconGlyph = null,
-    string? Description = null)
+    string? Description = null,
+    IReadOnlyList<string>? RequestedPermissions = null)
 {
-    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description);
+    /// <summary>Normalised permission identifiers requested by this application package.</summary>
+    public IReadOnlyList<string> Permissions => RequestedPermissions?
+        .Where(AppPermissions.IsKnown)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray()
+        ?? Array.Empty<string>();
+
+    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions);
 }

@@ -3,6 +3,7 @@ using Client.Apps.Settings.ViewModels;
 using Client.Apps.Settings.Views;
 using Client.Services;
 using Client.Services.Auth;
+using Client.Services.AppPermissions;
 using Client.Apps.TaskManager;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
@@ -35,8 +36,9 @@ public sealed class SettingsApp : RemoteApplicationBase
         var remote = context.Services.GetRequiredService<IRemoteOsClient>();
         var system = context.Services.GetRequiredService<ITaskManagerClient>();
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
+        var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, permissions);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),

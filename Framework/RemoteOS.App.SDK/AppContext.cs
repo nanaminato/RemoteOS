@@ -24,7 +24,10 @@ public sealed class AppContext
     /// <summary>The desktop window manager — used to create application windows.</summary>
     public IWindowManager WindowManager { get; }
 
-    /// <summary>DI container for resolving shared services.</summary>
+    /// <summary>
+    /// DI container for first-party applications compiled with the host. This is not exposed to
+    /// package applications; they receive <see cref="IExternalAppContext"/> instead.
+    /// </summary>
     public IServiceProvider Services { get; }
 
     /// <summary>Convenience: create and show a window owned by this application.</summary>

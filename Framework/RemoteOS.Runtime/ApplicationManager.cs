@@ -38,6 +38,7 @@ public sealed class ApplicationManager
 
     public bool IsRegistered(AppId id) => _apps.ContainsKey(id);
     public IRemoteApplication? Get(AppId id) => _apps.GetValueOrDefault(id);
+    public ApplicationManifest? GetManifest(AppId id) => _apps.GetValueOrDefault(id)?.Manifest;
 
     /// <summary>Launch the application with the given id (no-op if not registered).</summary>
     public bool Launch(AppId id)
