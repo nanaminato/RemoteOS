@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Threading;
 using Client.Services;
 using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
 
@@ -14,13 +16,16 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
 {
     private readonly ApplicationManager _apps;
     private readonly DeveloperPackageManager _packages;
+    private readonly LocalizationService _localization;
 
-    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, DeveloperPackageManager packages)
+    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, DeveloperPackageManager packages, LocalizationService localization)
         : base(settings, save: null)
     {
         _apps = apps;
         _packages = packages;
+        _localization = localization;
         _apps.RegistryChanged += OnRegistryChanged;
+        _localization.LanguageChanged += OnLanguageChanged;
         RefreshApplications();
     }
 
@@ -46,19 +51,26 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     public bool CanUninstallSelectedApp => !IsUninstalling && SelectedApp is not null
         && _packages.FindInstalled(SelectedApp.Id.Value) is not null;
     public string SelectedAppPermissionSummary => SelectedApp is null || SelectedApp.Permissions.Count == 0
-        ? "此应用未请求 RemoteOS 权限。"
-        : $"此应用请求了 {SelectedApp.Permissions.Count} 项 RemoteOS 权限。";
+        ? T("settings.apps.no_permissions", "This application does not request RemoteOS permissions.")
+        : string.Format(CultureInfo.CurrentCulture,
+            T("settings.apps.permissions_requested", "This application requests {0} RemoteOS permissions."),
+            SelectedApp.Permissions.Count);
     public string UninstallAvailabilityText => CanUninstallSelectedApp
-        ? "此第三方应用可以从本机卸载。"
-        : "内置应用由 RemoteOS 管理，不能在此卸载。";
+        ? T("settings.apps.uninstall_available", "This third-party application can be uninstalled from this device.")
+        : T("settings.apps.built_in", "Built-in applications are managed by RemoteOS and cannot be uninstalled here.");
 
-    public void Dispose() => _apps.RegistryChanged -= OnRegistryChanged;
+    public void Dispose()
+    {
+        _apps.RegistryChanged -= OnRegistryChanged;
+        _localization.LanguageChanged -= OnLanguageChanged;
+    }
 
     private void OnRegistryChanged(object? sender, EventArgs eventArgs) => Dispatcher.UIThread.Post(RefreshApplications);
+    private void OnLanguageChanged(object? sender, SystemLanguageChangedEventArgs eventArgs) => Dispatcher.UIThread.Post(RefreshApplications);
 
     private void RefreshApplications()
     {
-        var apps = _apps.Registered;
+        var apps = _apps.Registered.Select(Localize).ToArray();
         Replace(RegisteredApps, apps);
         if (SelectedApp is not null)
             SelectedApp = apps.FirstOrDefault(app => app.Id == SelectedApp.Id);
@@ -80,8 +92,8 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     {
         if (SelectedApp is null) return;
         ActionStatus = _apps.Launch(SelectedApp.Id)
-            ? $"已打开 {SelectedApp.DisplayName}。"
-            : "该应用已不在可启动列表中。";
+            ? string.Format(CultureInfo.CurrentCulture, T("settings.apps.opened", "Opened {0}."), SelectedApp.DisplayName)
+            : T("settings.apps.not_launchable", "This application is no longer available to launch.");
     }
 
     [RelayCommand]
@@ -106,14 +118,14 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
             {
                 SelectedApp = null;
                 Subpage = AppsSubpage.InstalledApps;
-                ActionStatus = $"已卸载 {displayName}。";
+                ActionStatus = string.Format(CultureInfo.CurrentCulture, T("settings.apps.uninstalled", "Uninstalled {0}."), displayName);
             }
             else
-                ActionStatus = "该应用已被卸载，或不支持卸载。";
+                ActionStatus = T("settings.apps.already_uninstalled", "This application has already been uninstalled or does not support uninstallation.");
         }
         catch (Exception exception)
         {
-            ActionStatus = $"卸载失败：{exception.Message}";
+            ActionStatus = string.Format(CultureInfo.CurrentCulture, T("settings.apps.uninstall_failed", "Uninstall failed: {0}"), exception.Message);
         }
         finally { IsUninstalling = false; }
     }
@@ -144,6 +156,14 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     }
 
     partial void OnActionStatusChanged(string value) => OnPropertyChanged(nameof(HasActionStatus));
+
+    private ApplicationInfo Localize(ApplicationInfo app) => app with
+    {
+        DisplayName = T($"application.{app.Id.Value}.display_name", app.DisplayName),
+        Description = app.Description is null
+            ? null
+            : T($"application.{app.Id.Value}.description", app.Description),
+    };
 
     private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
     {

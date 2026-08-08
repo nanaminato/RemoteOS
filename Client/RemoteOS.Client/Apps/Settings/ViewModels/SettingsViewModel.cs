@@ -58,7 +58,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, localization, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
-            new AppsPageViewModel(settings, apps!, packages!),
+            new AppsPageViewModel(settings, apps!, packages!, localization),
             new DefaultAppsPageViewModel(settings, apps!, save),
             new DeveloperPageViewModel(settings, developerMode!, save),
         };

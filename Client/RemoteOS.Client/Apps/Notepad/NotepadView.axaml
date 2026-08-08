@@ -40,8 +40,8 @@
         <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
                 <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="1" Text="{Binding LineCount, StringFormat={loc:Loc common.line_count_format}}" FontSize="12" Opacity="0.7" />
-                <TextBlock Grid.Column="2" Text="{Binding CharCount, StringFormat={loc:Loc common.character_count_format}}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="1" Text="{Binding LineCountText}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="2" Text="{Binding CharacterCountText}" FontSize="12" Opacity="0.7" />
             </Grid>
         </Border>
     </Grid>

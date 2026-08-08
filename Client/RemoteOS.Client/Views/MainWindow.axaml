@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:Client.Localization"
         xmlns:shell="clr-namespace:Client.Views.Shell"
         xmlns:vm="clr-namespace:Client.ViewModels.Shell"
         x:Class="Client.Views.MainWindow"
@@ -76,14 +77,14 @@
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Image Width="26" Height="26" Margin="8,0,6,0" VerticalAlignment="Center"
                        Source="/Assets/RemoteOS-client-icon.png" />
-                <TextBlock Grid.Column="1" Text="RemoteOS 远程桌面" Foreground="#2A2A2A" FontSize="12"
+                <TextBlock Grid.Column="1" Text="{loc:Loc shell.window_title}" Foreground="#2A2A2A" FontSize="12"
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button Classes="window-control" Content="&#xE921;" Click="Minimize_OnClick" ToolTip.Tip="最小化" />
+                    <Button Classes="window-control" Content="&#xE921;" Click="Minimize_OnClick" ToolTip.Tip="{loc:Loc common.minimize}" />
                     <Button x:Name="MaximizeButton" Classes="window-control" Content="&#xE922;"
-                            Click="Maximize_OnClick" ToolTip.Tip="最大化" />
+                            Click="Maximize_OnClick" ToolTip.Tip="{loc:Loc common.maximize}" />
                     <Button Classes="window-control window-close" Content="&#xE8BB;"
-                            Click="CloseWindow_OnClick" ToolTip.Tip="关闭连接" />
+                            Click="CloseWindow_OnClick" ToolTip.Tip="{loc:Loc shell.connection.close}" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -96,7 +97,7 @@
                 PointerExited="ConnectionBar_OnPointerExited">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
                 <Button Grid.Column="0" Classes="connection-action" Click="ConnectionInfo_OnClick"
-                        ToolTip.Tip="查看连接信息">
+                        ToolTip.Tip="{loc:Loc shell.connection.info_tooltip}">
                     <StackPanel Orientation="Horizontal" Spacing="7">
                         <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
                         <TextBlock Text="{Binding ConnectionServer}" FontSize="12" VerticalAlignment="Center" />
@@ -104,13 +105,13 @@
                 </Button>
                 <Border Grid.Column="1" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
-                        Content="固定" ToolTip.Tip="固定连接栏" />
+                        Content="{loc:Loc shell.connection_bar.pin}" ToolTip.Tip="{loc:Loc shell.connection_bar.pin_tooltip}" />
                 <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Center" />
                 <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
-                        Click="FullScreen_OnClick" Content="全屏" ToolTip.Tip="进入全屏" />
+                        Click="FullScreen_OnClick" Content="{loc:Loc shell.full_screen.enter}" ToolTip.Tip="{loc:Loc shell.full_screen.enter_tooltip}" />
                 <Border Grid.Column="5" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="6" Classes="connection-action disconnect-action" Click="Disconnect_OnClick"
-                        Content="关闭连接" ToolTip.Tip="断开连接并退出" />
+                        Content="{loc:Loc shell.connection.close}" ToolTip.Tip="{loc:Loc shell.connection.close_tooltip}" />
             </Grid>
         </Border>
 
@@ -120,13 +121,13 @@
                 Background="#F9F9F9" BorderBrush="#BDBDBD" BorderThickness="1" CornerRadius="4"
                 BoxShadow="0 8 18 0 #66000000" Padding="16">
             <StackPanel Spacing="8">
-                <TextBlock Text="连接信息" FontWeight="SemiBold" FontSize="14" />
+                <TextBlock Text="{loc:Loc shell.connection.info}" FontWeight="SemiBold" FontSize="14" />
                 <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto">
-                    <TextBlock Text="服务器" Foreground="#666666" />
+                    <TextBlock Text="{loc:Loc shell.connection.server}" Foreground="#666666" />
                     <TextBlock Grid.Column="1" Text="{Binding ConnectionServer}" TextWrapping="Wrap" />
-                    <TextBlock Grid.Row="1" Text="用户" Foreground="#666666" Margin="0,7,0,0" />
+                    <TextBlock Grid.Row="1" Text="{loc:Loc shell.connection.user}" Foreground="#666666" Margin="0,7,0,0" />
                     <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding ConnectionUser}" Margin="0,7,0,0" />
-                    <TextBlock Grid.Row="2" Text="工作区" Foreground="#666666" Margin="0,7,0,0" />
+                    <TextBlock Grid.Row="2" Text="{loc:Loc shell.connection.workspace}" Foreground="#666666" Margin="0,7,0,0" />
                     <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding ConnectionWorkspace}" Margin="0,7,0,0" />
                 </Grid>
             </StackPanel>

@@ -23,6 +23,8 @@ public sealed partial class NotepadViewModel : ObservableObject
 
     public int CharCount => Text.Length;
     public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Enumerable.Count<char>(Text, c => c == '\n') + 1;
+    public string LineCountText => LocalizedText.Format("common.line_count_format", LineCount);
+    public string CharacterCountText => LocalizedText.Format("common.character_count_format", CharCount);
     public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? LocalizedText.Get("notepad.document.untitled") : Path.GetFileName(CurrentPath) ?? LocalizedText.Get("notepad.document.untitled");
     public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
@@ -31,6 +33,8 @@ public sealed partial class NotepadViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CharCount));
         OnPropertyChanged(nameof(LineCount));
+        OnPropertyChanged(nameof(LineCountText));
+        OnPropertyChanged(nameof(CharacterCountText));
         if (!_isLoading) IsDirty = true;
     }
 
