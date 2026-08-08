@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.ImageViewer.ViewModels"
              x:Class="Client.Apps.ImageViewer.Views.ImageViewerView"
              x:DataType="vm:ImageViewerViewModel"
@@ -12,11 +13,11 @@
                     <TextBlock Text="{Binding DimensionsText}" FontSize="12" Opacity="0.62" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <Button Content="−" Command="{Binding ZoomOutCommand}" Width="32" Padding="0" />
+                    <Button Content="−" Command="{Binding ZoomOutCommand}" ToolTip.Tip="{loc:Loc image_viewer.zoom_out}" Width="32" Padding="0" />
                     <Slider Minimum="25" Maximum="400" Width="130" Value="{Binding ZoomPercent, Mode=TwoWay}" />
                     <TextBlock Text="{Binding ZoomPercent, StringFormat={}{0}%}" MinWidth="42" VerticalAlignment="Center" />
-                    <Button Content="100%" Command="{Binding ResetZoomCommand}" />
-                    <Button Content="+" Command="{Binding ZoomInCommand}" Width="32" Padding="0" />
+                    <Button Content="{loc:Loc image_viewer.reset_zoom}" Command="{Binding ResetZoomCommand}" />
+                    <Button Content="+" Command="{Binding ZoomInCommand}" ToolTip.Tip="{loc:Loc image_viewer.zoom_in}" Width="32" Padding="0" />
                 </StackPanel>
             </Grid>
         </Border>

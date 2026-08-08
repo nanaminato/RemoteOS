@@ -2,6 +2,7 @@
      Copyright (c) 2020, Rubal Walia. 原始许可见 LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:c="clr-namespace:Client.Apps.Explorer.Converters"
              xmlns:vm="clr-namespace:Client.Apps.Explorer.ViewModels"
              xmlns:d="clr-namespace:RemoteOS.Protocol.Files;assembly=RemoteOS.Protocol"
@@ -21,42 +22,42 @@
     <DockPanel LastChildFill="True">
         <!-- 顶部菜单栏（简化版） -->
         <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
-            <MenuItem Header="文件(_F)">
-                <MenuItem Header="新建文件夹(_N)..." Command="{Binding NewFolderCommand}" />
-                <MenuItem Header="上传(_U)..." Command="{Binding UploadCommand}" />
+            <MenuItem Header="{loc:Loc explorer.menu.file}">
+                <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.upload}" Command="{Binding UploadCommand}" />
                 <Separator />
-                <MenuItem Header="退出(_X)" Command="{Binding CloseCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.exit}" Command="{Binding CloseCommand}" />
             </MenuItem>
-            <MenuItem Header="编辑(_E)">
-                <MenuItem Header="删除(_D)" Command="{Binding DeleteCommand}" />
-                <MenuItem Header="重命名(_R)..." Command="{Binding RenameCommand}" />
+            <MenuItem Header="{loc:Loc explorer.menu.edit}">
+                <MenuItem Header="{loc:Loc explorer.menu.delete}" Command="{Binding DeleteCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.rename}" Command="{Binding RenameCommand}" />
                 <Separator />
-                <MenuItem Header="复制(_C)..." Command="{Binding CopyCommand}" />
-                <MenuItem Header="移动(_M)..." Command="{Binding MoveCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.copy}" Command="{Binding CopyCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.move}" Command="{Binding MoveCommand}" />
             </MenuItem>
-            <MenuItem Header="查看(_V)">
-                <MenuItem Header="刷新(_R)" Command="{Binding RefreshCommand}" />
+            <MenuItem Header="{loc:Loc explorer.menu.view}">
+                <MenuItem Header="{loc:Loc explorer.menu.refresh}" Command="{Binding RefreshCommand}" />
             </MenuItem>
-            <MenuItem Header="帮助(_H)">
-                <MenuItem Header="关于 RemoteExplorer" Command="{Binding AboutCommand}" />
+            <MenuItem Header="{loc:Loc explorer.menu.help}">
+                <MenuItem Header="{loc:Loc explorer.menu.about}" Command="{Binding AboutCommand}" />
             </MenuItem>
         </Menu>
 
         <!-- 工具栏 -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="后退" />
-                <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="前进" />
-                <Button Classes="icon" Content="↑" Command="{Binding GoUpCommand}" ToolTip.Tip="向上" />
-                <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新" />
+                <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="{loc:Loc common.back}" />
+                <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="{loc:Loc common.forward}" />
+                <Button Classes="icon" Content="↑" Command="{Binding GoUpCommand}" ToolTip.Tip="{loc:Loc explorer.up}" />
+                <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="{loc:Loc common.refresh}" />
                 <StackPanel IsVisible="{Binding !IsPickerMode}" Orientation="Horizontal" Spacing="4">
                     <Separator Margin="6,0" />
-                    <Button Content="新建文件夹" Command="{Binding NewFolderCommand}" Padding="12,6" />
-                    <Button Content="删除" Command="{Binding DeleteCommand}" Padding="12,6" />
-                    <Button Content="重命名" Command="{Binding RenameCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc explorer.new_folder}" Command="{Binding NewFolderCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc common.rename}" Command="{Binding RenameCommand}" Padding="12,6" />
                     <Separator Margin="6,0" />
-                    <Button Content="下载" Command="{Binding DownloadCommand}" Padding="12,6" />
-                    <Button Content="上传" Command="{Binding UploadCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc common.download}" Command="{Binding DownloadCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc common.upload}" Command="{Binding UploadCommand}" Padding="12,6" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -71,7 +72,7 @@
                          IsReadOnly="False"
                          MinWidth="500"
                          KeyDown="AddressBox_KeyDown" />
-                <Button Content="转到" Click="GoButton_Click" Padding="16,6" />
+                <Button Content="{loc:Loc common.go}" Click="GoButton_Click" Padding="16,6" />
             </StackPanel>
         </Border>
 
@@ -169,10 +170,10 @@
                       DragDrop.Drop="Explorer_Drop">
                 <DataGrid.ContextMenu>
                     <ContextMenu DataContext="{Binding #EntriesGrid.DataContext}">
-                        <MenuItem Header="Open" Command="{Binding OpenCommand}" />
-                        <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
+                        <MenuItem Header="{loc:Loc common.open}" Command="{Binding OpenCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.open_with}" Command="{Binding OpenWithSelectedCommand}" />
                         <Separator />
-                        <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.properties}" Command="{Binding PropertiesCommand}" />
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.Styles>
@@ -186,7 +187,7 @@
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="名称" Width="*" MinWidth="180" SortMemberPath="Name">
+                    <DataGridTemplateColumn Header="{loc:Loc common.name}" Width="*" MinWidth="180" SortMemberPath="Name">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
@@ -198,7 +199,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="大小" Width="110" MinWidth="96" SortMemberPath="Size">
+                    <DataGridTemplateColumn Header="{loc:Loc explorer.size}" Width="110" MinWidth="96" SortMemberPath="Size">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Size, Converter={StaticResource SizeConverter}}" Padding="8,0"
@@ -206,7 +207,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="修改日期" Width="160" MinWidth="150" SortMemberPath="Modified">
+                    <DataGridTemplateColumn Header="{loc:Loc explorer.modified}" Width="160" MinWidth="150" SortMemberPath="Modified">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}" Padding="8,0"
@@ -214,7 +215,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="类型" Width="110" MinWidth="96" SortMemberPath="Type">
+                    <DataGridTemplateColumn Header="{loc:Loc common.type}" Width="110" MinWidth="96" SortMemberPath="Type">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Type, Converter={StaticResource TypeTextConverter}}" Padding="8,0"

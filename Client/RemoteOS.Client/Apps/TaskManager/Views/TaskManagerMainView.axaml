@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.TaskManager.ViewModels"
              xmlns:conv="clr-namespace:Client.Apps.TaskManager.Converters"
              xmlns:dto="clr-namespace:RemoteOS.Protocol.SystemMonitor;assembly=RemoteOS.Protocol"
@@ -69,7 +70,7 @@
                         <StackPanel Orientation="Vertical" Spacing="6">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="🖥 CPU" FontSize="14" FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:Loc task_manager.cpu}" FontSize="14" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding Metrics.Cpu.CoreCount, StringFormat='{}{0} 核'}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="#0078D7"
@@ -91,7 +92,7 @@
                                 </ItemsControl>
                             </Border>
                             <!-- 每核占用 -->
-                            <TextBlock Text="每核占用" FontSize="11" Opacity="0.6" Margin="0,4,0,0" />
+                            <TextBlock Text="{loc:Loc task_manager.per_core_usage}" FontSize="11" Opacity="0.6" Margin="0,4,0,0" />
                             <ItemsControl ItemsSource="{Binding Metrics.Cpu.PerCorePercent}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -114,7 +115,7 @@
                     <Border Classes="card">
                         <StackPanel Orientation="Vertical" Spacing="6">
                             <Grid ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0" Text="💾 内存" FontSize="14" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="0" Text="{loc:Loc task_manager.memory}" FontSize="14" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="#107C10"
                                            Text="{Binding Metrics.Memory.Percent, StringFormat='{}{0:0.0}%'}" />
                             </Grid>
@@ -143,7 +144,7 @@
                     <!-- 磁盘卡片 -->
                     <Border Classes="card">
                         <StackPanel Orientation="Vertical" Spacing="4">
-                            <TextBlock Text="💿 磁盘" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{loc:Loc task_manager.disk}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <ItemsControl ItemsSource="{Binding Metrics.Disks}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="dto:DiskUsageDto">
@@ -167,7 +168,7 @@
                     <!-- 网络卡片 -->
                     <Border Classes="card">
                         <StackPanel Orientation="Vertical" Spacing="4">
-                            <TextBlock Text="🌐 网络" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{loc:Loc task_manager.network}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <ItemsControl ItemsSource="{Binding Metrics.Networks}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="dto:NetworkUsageDto">
@@ -191,7 +192,7 @@
                     <!-- GPU 卡片 -->
                     <Border Classes="card" IsVisible="{Binding HasGpu}">
                         <StackPanel Orientation="Vertical" Spacing="4">
-                            <TextBlock Text="🎮 GPU" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <TextBlock Text="{loc:Loc task_manager.gpu}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
                             <ItemsControl ItemsSource="{Binding Metrics.Gpus}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="dto:GpuUsageDto">
@@ -219,7 +220,7 @@
 
                     <!-- 运行时间 -->
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,6" Opacity="0.7">
-                        <TextBlock Text="⏱ 运行时间：" FontSize="12" />
+                        <TextBlock Text="{loc:Loc task_manager.uptime}" FontSize="12" />
                         <TextBlock FontSize="12" Text="{Binding Metrics.UptimeSeconds, Converter={x:Static conv:UptimeConverter.Instance}}" />
                     </StackPanel>
                 </StackPanel>
@@ -233,12 +234,12 @@
                 <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,6">
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <TextBox Grid.Column="0" Text="{Binding ProcessFilter, Mode=TwoWay}"
-                                 PlaceholderText="按名称 / PID / 用户过滤..."
+                                 PlaceholderText="{loc:Loc task_manager.filter_placeholder}"
                                  KeyDown="FilterBox_KeyDown" />
-                        <Button Grid.Column="1" Content="清除" Command="{Binding ClearFilterCommand}" Padding="12,6" Margin="6,0,0,0" />
-                        <Button Grid.Column="2" Content="结束任务" Command="{Binding KillProcessCommand}"
+                        <Button Grid.Column="1" Content="{loc:Loc common.clear}" Command="{Binding ClearFilterCommand}" Padding="12,6" Margin="6,0,0,0" />
+                        <Button Grid.Column="2" Content="{loc:Loc task_manager.end_task}" Command="{Binding KillProcessCommand}"
                                 Classes="primary" Padding="16,6" Margin="6,0,0,0"
-                                ToolTip.Tip="结束所选进程（权限不足需在宿主 OS 提权）" />
+                                ToolTip.Tip="{loc:Loc task_manager.end_task_tooltip}" />
                     </Grid>
                 </Border>
 
@@ -254,12 +255,12 @@
                         <!-- 表头 -->
                         <Border Grid.Row="0" Background="#F0F0F0" Padding="8,6">
                             <Grid ColumnDefinitions="2*,70,80,120,120,60">
-                                <TextBlock Grid.Column="0" Text="名称" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="0" Text="{loc:Loc common.name}" FontSize="12" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="2" Text="CPU" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="3" Text="内存" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="4" Text="用户" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="5" Text="线程" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="3" Text="{loc:Loc task_manager.memory}" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="4" Text="{loc:Loc common.user}" FontSize="12" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="5" Text="{loc:Loc task_manager.threads}" FontSize="12" FontWeight="SemiBold" />
                             </Grid>
                         </Border>
                         <ListBox Grid.Row="1" x:Name="ProcessList"

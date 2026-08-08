@@ -1,22 +1,23 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:app="clr-namespace:Client.Apps"
              xmlns:codeEditor="clr-namespace:Client.Apps.CodeEditor"
              x:Class="Client.Apps.CodeEditor.CodeEditorSettingsView"
              x:DataType="codeEditor:CodeEditorViewModel"
              Width="440">
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
-        <TextBlock Text="Code Editor settings" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="{loc:Loc code_editor.settings.title}" FontSize="18" FontWeight="SemiBold" />
         <Grid Grid.Row="1" ColumnDefinitions="160,*" ColumnSpacing="12">
-            <TextBlock Text="Editor font size" VerticalAlignment="Center" />
+            <TextBlock Text="{loc:Loc code_editor.settings.font_size}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" ItemsSource="{Binding FontSizes}" SelectedItem="{Binding FontSize, Mode=TwoWay}" />
         </Grid>
         <CheckBox Grid.Row="2" Content="Wrap long lines" IsChecked="{Binding WordWrap, Mode=TwoWay}" />
         <Grid Grid.Row="3" ColumnDefinitions="160,*" ColumnSpacing="12">
-            <TextBlock Text="File encoding" VerticalAlignment="Center" />
+            <TextBlock Text="{loc:Loc common.file_encoding}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableEncodings}" SelectedItem="{Binding EncodingName, Mode=TwoWay}" />
         </Grid>
-        <TextBlock Grid.Row="4" Text="Syntax highlighting is selected automatically from the remote file extension."
+        <TextBlock Grid.Row="4" Text="{loc:Loc code_editor.settings.syntax_note}"
                    TextWrapping="Wrap" Opacity="0.7" />
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="Reopen file" Command="{Binding ReopenWithEncodingCommand}" />

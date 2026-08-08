@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Localization;
 using RemoteOS.Protocol.Browser;
 
 namespace Client.Apps.Browser.ViewModels;
@@ -39,7 +40,7 @@ public sealed partial class BrowserViewModel : ObservableObject
     [ObservableProperty] private Uri? _webViewSource;
     [ObservableProperty] private string _addressText = string.Empty;
     [ObservableProperty] private bool _isLoading;
-    [ObservableProperty] private string _statusText = "就绪";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("browser.status.ready");
     [ObservableProperty] private bool _canGoBack;
     [ObservableProperty] private bool _canGoForward;
     [ObservableProperty] private bool _isCurrentBookmarked;
@@ -49,7 +50,7 @@ public sealed partial class BrowserViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FullScreenMenuText))]
     private bool _isFullScreen;
     [ObservableProperty] private bool _isLocalPortForwardingEnabled;
-    [ObservableProperty] private string _localPortForwardingStatus = "本地端口映射：关闭";
+    [ObservableProperty] private string _localPortForwardingStatus = LocalizedText.Get("browser.port_forwarding.off");
 
     /// <summary>主页 URI（地址栏"主页"按钮的目标）。可空：未设置时不显示主页按钮或 no-op。</summary>
     public Uri? HomePage { get; set; } = new("https://www.bing.com");
@@ -168,7 +169,7 @@ public sealed partial class BrowserViewModel : ObservableObject
     public Action? ViewRefreshRequested { get; set; }
     public Action? ViewStopRequested { get; set; }
 
-    public string FullScreenMenuText => IsFullScreen ? "Exit full screen" : "Enter full screen";
+    public string FullScreenMenuText => IsFullScreen ? LocalizedText.Get("browser.exit_full_screen") : LocalizedText.Get("browser.enter_full_screen");
 
     [RelayCommand]
     private void ToggleFullScreen() => ToggleFullScreenAction?.Invoke();

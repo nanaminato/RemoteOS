@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
              xmlns:core="clr-namespace:RemoteOS.Core.Applications;assembly=RemoteOS.Core"
              x:Class="Client.Apps.Explorer.Dialogs.OpenWithDialogView"
@@ -18,10 +19,10 @@
             </ListBox.ItemTemplate>
         </ListBox>
         <CheckBox Grid.Row="2" IsChecked="{Binding SetAsDefault, Mode=TwoWay}"
-                  Content="Always use this application for this extension" />
+                  Content="{loc:Loc explorer.open_with.always_use}" />
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="16,6" />
-            <Button Classes="primary" Content="Open" Command="{Binding OpenCommand}" Padding="16,6" />
+            <Button Content="{loc:Loc common.cancel}" Command="{Binding CancelCommand}" Padding="16,6" />
+            <Button Classes="primary" Content="{loc:Loc common.open}" Command="{Binding OpenCommand}" Padding="16,6" />
         </StackPanel>
     </Grid>
 </UserControl>

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Client.Services.AppPackages;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
@@ -19,12 +20,12 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
     public Func<string, string, Task>? ShowMessageAsync { get; set; }
 
     [ObservableProperty] private AppPackageCandidate? _currentPackage;
-    [ObservableProperty] private string _status = "选择本机或服务器上的 .roapp 应用包。";
+    [ObservableProperty] private string _status = LocalizedText.Get("app_installer.status.choose_package");
     [ObservableProperty] private bool _isBusy;
 
     public bool HasPackage => CurrentPackage is not null;
-    public string ActionLabel => CurrentPackage?.IsUpdate == true ? "更新" : "安装";
-    public string CurrentVersionText => CurrentPackage?.InstalledVersion is null ? "未安装" : $"当前版本：{CurrentPackage.InstalledVersion}";
+    public string ActionLabel => CurrentPackage?.IsUpdate == true ? LocalizedText.Get("common.update") : LocalizedText.Get("common.install");
+    public string CurrentVersionText => CurrentPackage?.InstalledVersion is null ? LocalizedText.Get("app_installer.not_installed") : LocalizedText.Format("app_installer.current_version", CurrentPackage.InstalledVersion);
     public int PendingCount => _pending.Count;
     public IReadOnlyList<AppPermissionDefinition> RequestedPermissions => CurrentPackage?.Manifest.RequestedPermissions
         ?.Select(AppPermissions.Find).OfType<AppPermissionDefinition>().ToArray() ?? [];
@@ -49,7 +50,7 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
         foreach (var path in paths)
         {
             try { _pending.Enqueue(await _installer.InspectLocalAsync(path)); }
-            catch (Exception exception) { await ReportAsync("无法读取应用包", $"{Path.GetFileName(path)}：{exception.Message}"); }
+            catch (Exception exception) { await ReportAsync(LocalizedText.Get("app_installer.error.read_title"), LocalizedText.Format("app_installer.error.package", Path.GetFileName(path), exception.Message)); }
         }
         ShowNext();
     }
@@ -57,13 +58,13 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
     public async Task QueueServerPackagesAsync(IEnumerable<string> paths)
     {
         IsBusy = true;
-        Status = "正在下载所选应用包到本机临时目录…";
+        Status = LocalizedText.Get("app_installer.status.downloading");
         try
         {
             foreach (var path in paths)
             {
                 try { _pending.Enqueue(await _installer.StageServerPackageAsync(path)); }
-                catch (Exception exception) { await ReportAsync("无法下载应用包", $"{Path.GetFileName(path)}：{exception.Message}"); }
+                catch (Exception exception) { await ReportAsync(LocalizedText.Get("app_installer.error.download_title"), LocalizedText.Format("app_installer.error.package", Path.GetFileName(path), exception.Message)); }
             }
         }
         finally { IsBusy = false; }
@@ -78,14 +79,14 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
         try
         {
             var installed = await _installer.InstallAsync(CurrentPackage);
-            Status = $"{(CurrentPackage.IsUpdate ? "已更新" : "已安装")} {installed.DisplayName} {installed.Version}。";
+            Status = LocalizedText.Format(CurrentPackage.IsUpdate ? "app_installer.status.updated" : "app_installer.status.installed", installed.DisplayName, installed.Version);
             CurrentPackage = null;
             ShowNext();
         }
         catch (Exception exception)
         {
-            Status = $"安装失败：{exception.Message}";
-            await ReportAsync("安装失败", Status);
+            Status = LocalizedText.Format("app_installer.status.install_failed", exception.Message);
+            await ReportAsync(LocalizedText.Get("app_installer.error.install_title"), Status);
         }
         finally { IsBusy = false; }
     }
@@ -95,7 +96,7 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
     {
         if (CurrentPackage is not null) _installer.Discard(CurrentPackage);
         CurrentPackage = null;
-        Status = "已跳过应用包。";
+        Status = LocalizedText.Get("app_installer.status.skipped");
         ShowNext();
     }
 
@@ -123,7 +124,7 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
     {
         if (CurrentPackage is not null || _pending.Count == 0) return;
         CurrentPackage = _pending.Dequeue();
-        Status = CurrentPackage.IsUpdate ? "请确认更新此应用。" : "请确认安装此应用。";
+        Status = CurrentPackage.IsUpdate ? LocalizedText.Get("app_installer.status.confirm_update") : LocalizedText.Get("app_installer.status.confirm_install");
         OnPropertyChanged(nameof(PendingCount));
     }
 

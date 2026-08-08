@@ -1,5 +1,6 @@
 using System.Text;
 using Client.Apps.Explorer;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -19,11 +20,11 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private bool _wordWrap;
     [ObservableProperty] private bool _isDirty;
-    [ObservableProperty] private string _statusText = "Ready";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("code_editor.status.ready");
 
     public int CharCount => Text.Length;
     public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Enumerable.Count<char>(Text, character => character == '\n') + 1;
-    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Untitled" : Path.GetFileName(CurrentPath) ?? "Untitled";
+    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? LocalizedText.Get("code_editor.document.untitled") : Path.GetFileName(CurrentPath) ?? LocalizedText.Get("code_editor.document.untitled");
     public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
@@ -49,7 +50,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         CurrentPath = null;
         EncodingName = "UTF-8";
         IsDirty = false;
-        StatusText = "New document";
+        StatusText = LocalizedText.Get("code_editor.status.new_document");
         _isLoading = false;
     }
 
@@ -83,7 +84,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(CurrentPath)) return;
         if (IsDirty)
         {
-            StatusText = "Save or discard edits before reopening with another encoding.";
+            StatusText = LocalizedText.Get("code_editor.status.save_or_discard");
             return;
         }
         await OpenPathAsync(CurrentPath);
@@ -98,32 +99,32 @@ public sealed partial class CodeEditorViewModel : ObservableObject
 
     public async Task OpenPathAsync(string path)
     {
-        if (_files is null) { StatusText = "Connect to RemoteOS Server before opening files."; return; }
+        if (_files is null) { StatusText = LocalizedText.Get("code_editor.status.connect_before_open"); return; }
         try
         {
             var bytes = await _files.ReadFileAsync(path);
-            if (bytes is null) { StatusText = "File no longer exists."; return; }
+            if (bytes is null) { StatusText = LocalizedText.Get("code_editor.status.file_missing"); return; }
             _isLoading = true;
             Text = Decode(bytes, EncodingName);
             CurrentPath = path;
             IsDirty = false;
-            StatusText = $"Opened {Path.GetFileName(path)} as {EncodingName}";
+            StatusText = LocalizedText.Format("code_editor.status.opened", Path.GetFileName(path), EncodingName);
         }
-        catch (Exception ex) { StatusText = $"Cannot open file: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("code_editor.status.open_failed", ex.Message); }
         finally { _isLoading = false; }
     }
 
     private async Task SaveToPathAsync(string path)
     {
-        if (_files is null) { StatusText = "Connect to RemoteOS Server before saving files."; return; }
+        if (_files is null) { StatusText = LocalizedText.Get("code_editor.status.connect_before_save"); return; }
         try
         {
             await _files.WriteFileAsync(path, GetEncoding(EncodingName).GetBytes((string)Text));
             CurrentPath = path;
             IsDirty = false;
-            StatusText = $"Saved {Path.GetFileName(path)} as {EncodingName}";
+            StatusText = LocalizedText.Format("code_editor.status.saved", Path.GetFileName(path), EncodingName);
         }
-        catch (Exception ex) { StatusText = $"Cannot save file: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("code_editor.status.save_failed", ex.Message); }
     }
 
     private static string Decode(byte[] bytes, string encodingName)

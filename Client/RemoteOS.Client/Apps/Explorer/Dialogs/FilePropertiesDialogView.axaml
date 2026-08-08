@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
              x:Class="Client.Apps.Explorer.Dialogs.FilePropertiesDialogView"
              x:DataType="vm:FilePropertiesDialogViewModel"
@@ -64,32 +65,32 @@
                         <Border Background="#FFFFFF" CornerRadius="6" Padding="12">
                             <StackPanel Spacing="7">
                                 <TextBlock Text="所有者" FontWeight="SemiBold" />
-                                <CheckBox Content="读取" IsChecked="{Binding OwnerRead}" />
-                                <CheckBox Content="写入" IsChecked="{Binding OwnerWrite}" />
-                                <CheckBox Content="执行" IsChecked="{Binding OwnerExecute}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.read}" IsChecked="{Binding OwnerRead}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.write}" IsChecked="{Binding OwnerWrite}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.execute}" IsChecked="{Binding OwnerExecute}" />
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="1" Background="#FFFFFF" CornerRadius="6" Padding="12">
                             <StackPanel Spacing="7">
                                 <TextBlock Text="用户组" FontWeight="SemiBold" />
-                                <CheckBox Content="读取" IsChecked="{Binding GroupRead}" />
-                                <CheckBox Content="写入" IsChecked="{Binding GroupWrite}" />
-                                <CheckBox Content="执行" IsChecked="{Binding GroupExecute}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.read}" IsChecked="{Binding GroupRead}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.write}" IsChecked="{Binding GroupWrite}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.execute}" IsChecked="{Binding GroupExecute}" />
                             </StackPanel>
                         </Border>
                         <Border Grid.Column="2" Background="#FFFFFF" CornerRadius="6" Padding="12">
                             <StackPanel Spacing="7">
                                 <TextBlock Text="其他用户" FontWeight="SemiBold" />
-                                <CheckBox Content="读取" IsChecked="{Binding OthersRead}" />
-                                <CheckBox Content="写入" IsChecked="{Binding OthersWrite}" />
-                                <CheckBox Content="执行" IsChecked="{Binding OthersExecute}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.read}" IsChecked="{Binding OthersRead}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.write}" IsChecked="{Binding OthersWrite}" />
+                                <CheckBox Content="{loc:Loc explorer.permission.execute}" IsChecked="{Binding OthersExecute}" />
                             </StackPanel>
                         </Border>
                     </Grid>
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <TextBlock Text="{Binding PermissionStatus}" FontSize="12" Opacity="0.72" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="保存权限" Command="{Binding SavePermissionsCommand}"
+                        <Button Grid.Column="1" Content="{loc:Loc explorer.save_permissions}" Command="{Binding SavePermissionsCommand}"
                                 Classes="primary" Padding="16,7" />
                     </Grid>
                 </StackPanel>
@@ -100,7 +101,7 @@
                            FontSize="12" Opacity="0.7" TextWrapping="Wrap" />
             </Border>
 
-            <Button Content="关闭" Command="{Binding CloseCommand}" HorizontalAlignment="Right" Padding="20,7" />
+            <Button Content="{loc:Loc common.close}" Command="{Binding CloseCommand}" HorizontalAlignment="Right" Padding="20,7" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

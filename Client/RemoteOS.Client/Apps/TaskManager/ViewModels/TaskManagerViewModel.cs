@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Avalonia.Threading;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.SystemMonitor;
@@ -41,7 +42,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
     [ObservableProperty] private ProcessInfoDto? _selectedProcess;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private bool _isLoading;
-    [ObservableProperty] private string _statusText = "正在采集系统数据...";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("task_manager.status.collecting");
     [ObservableProperty] private string _killFeedback = string.Empty;
     [ObservableProperty] private TaskManagerTab _activeTab = TaskManagerTab.Performance;
     [ObservableProperty] private string _processFilter = string.Empty;
@@ -53,7 +54,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
     public ObservableCollection<double> MemoryHistory { get; }
 
     /// <summary>GPU 不可用时的提示文案。</summary>
-    public string GpuHint => "未检测到 NVIDIA GPU（nvidia-smi 不可用或非 NVIDIA 显卡）";
+    public string GpuHint => LocalizedText.Get("task_manager.gpu_unavailable");
 
     /// <summary>关闭窗口回调（由 TaskManagerApp 注入）。关闭即停止刷新。</summary>
     public Action? CloseAction { get; set; }

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Browser.ViewModels"
              xmlns:conv="clr-namespace:Client.Apps.Browser.Converters"
              xmlns:web="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
@@ -24,27 +25,27 @@
 
         <!-- Application menu: commands remain available even when their toolbar shortcuts are hidden. -->
         <Menu DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
-            <MenuItem Header="File">
-                <MenuItem Header="Settings..." Command="{Binding OpenSettingsCommand}" />
+            <MenuItem Header="{loc:Loc common.file}">
+                <MenuItem Header="{loc:Loc common.settings_ellipsis}" Command="{Binding OpenSettingsCommand}" />
                 <Separator />
-                <MenuItem Header="Close" Command="{Binding CloseCommand}" />
+                <MenuItem Header="{loc:Loc common.close}" Command="{Binding CloseCommand}" />
             </MenuItem>
-            <MenuItem Header="Navigate">
-                <MenuItem Header="Back" Command="{Binding GoBackCommand}" />
-                <MenuItem Header="Forward" Command="{Binding GoForwardCommand}" />
-                <MenuItem Header="Home" Command="{Binding GoHomeCommand}" />
+            <MenuItem Header="{loc:Loc browser.menu.navigate}">
+                <MenuItem Header="{loc:Loc common.back}" Command="{Binding GoBackCommand}" />
+                <MenuItem Header="{loc:Loc common.forward}" Command="{Binding GoForwardCommand}" />
+                <MenuItem Header="{loc:Loc common.home}" Command="{Binding GoHomeCommand}" />
                 <Separator />
-                <MenuItem Header="Refresh" Command="{Binding RefreshCommand}" />
-                <MenuItem Header="Stop" Command="{Binding StopCommand}" />
+                <MenuItem Header="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="{loc:Loc common.stop}" Command="{Binding StopCommand}" />
             </MenuItem>
-            <MenuItem Header="Bookmarks">
-                <MenuItem Header="Add or remove current bookmark" Command="{Binding ToggleBookmarkCommand}" />
+            <MenuItem Header="{loc:Loc browser.bookmarks}">
+                <MenuItem Header="{loc:Loc browser.toggle_bookmark}" Command="{Binding ToggleBookmarkCommand}" />
                 <Separator />
-                <MenuItem Header="Show bookmarks" Command="{Binding SwitchToBookmarksCommand}" />
-                <MenuItem Header="Show history" Command="{Binding SwitchToHistoryCommand}" />
+                <MenuItem Header="{loc:Loc browser.show_bookmarks}" Command="{Binding SwitchToBookmarksCommand}" />
+                <MenuItem Header="{loc:Loc browser.show_history}" Command="{Binding SwitchToHistoryCommand}" />
             </MenuItem>
-            <MenuItem Header="View">
-                <MenuItem Header="Show or hide sidebar" Command="{Binding ToggleSidebarCommand}" />
+            <MenuItem Header="{loc:Loc common.view}">
+                <MenuItem Header="{loc:Loc browser.toggle_sidebar}" Command="{Binding ToggleSidebarCommand}" />
                 <MenuItem Header="{Binding FullScreenMenuText}" Command="{Binding ToggleFullScreenCommand}" />
             </MenuItem>
         </Menu>
@@ -52,39 +53,39 @@
         <!-- 顶部工具栏 -->
         <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
             <StackPanel Orientation="Horizontal" Spacing="4">
-                <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="后退" />
-                <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="前进" />
-                <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新" IsVisible="{Binding !IsLoading}" />
-                <Button Classes="icon" Content="✕" Command="{Binding StopCommand}" ToolTip.Tip="停止" IsVisible="{Binding IsLoading}" />
-                <Button Classes="icon" Content="🏠" Command="{Binding GoHomeCommand}" ToolTip.Tip="主页" />
+                <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="{loc:Loc common.back}" />
+                <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="{loc:Loc common.forward}" />
+                <Button Classes="icon" Content="⟳" Command="{Binding RefreshCommand}" ToolTip.Tip="{loc:Loc common.refresh}" IsVisible="{Binding !IsLoading}" />
+                <Button Classes="icon" Content="✕" Command="{Binding StopCommand}" ToolTip.Tip="{loc:Loc common.stop}" IsVisible="{Binding IsLoading}" />
+                <Button Classes="icon" Content="🏠" Command="{Binding GoHomeCommand}" ToolTip.Tip="{loc:Loc common.home}" />
                 <Separator Margin="6,0" />
                 <!-- 书签星标：当前已加书签显示实心★，未加显示空心☆ -->
                 <Button Classes="icon"
                         Content="{Binding IsCurrentBookmarked, Converter={x:Static conv:BookmarkStarConverter.Instance}}"
                         Command="{Binding ToggleBookmarkCommand}"
-                        ToolTip.Tip="加入书签 / 删除书签" />
+                        ToolTip.Tip="{loc:Loc browser.toggle_bookmark}" />
                 <Separator Margin="6,0" />
-                <Button Classes="icon" Content="📑" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="显示/隐藏侧边栏" />
+                <Button Classes="icon" Content="📑" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="{loc:Loc browser.toggle_sidebar}" />
                 <Separator Margin="6,0" />
-                <CheckBox Content="本地端口映射"
+                <CheckBox Content="{loc:Loc browser.local_port_forwarding}"
                           IsChecked="{Binding IsLocalPortForwardingEnabled, Mode=TwoWay}"
                           Command="{Binding SaveLocalPortForwardingCommand}"
                           VerticalAlignment="Center"
-                          ToolTip.Tip="开启后，localhost/127.0.0.1 将通过 RemoteOS 访问远程计算机的对应端口" />
+                          ToolTip.Tip="{loc:Loc browser.local_port_forwarding.tooltip}" />
             </StackPanel>
         </Border>
 
         <!-- 地址栏 -->
         <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,4">
             <StackPanel Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="🔒" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="13" ToolTip.Tip="连接安全指示" />
+                <TextBlock Text="🔒" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="13" ToolTip.Tip="{loc:Loc browser.security_indicator}" />
                 <TextBox x:Name="AddressBox"
                          Text="{Binding AddressText, Mode=TwoWay}"
-                         PlaceholderText="输入网址或搜索..."
+                         PlaceholderText="{loc:Loc browser.address_placeholder}"
                          IsReadOnly="False"
                          MinWidth="700"
                          KeyDown="AddressBox_KeyDown" />
-                <Button Content="转到" Click="GoButton_Click" Padding="16,6" />
+                <Button Content="{loc:Loc common.go}" Click="GoButton_Click" Padding="16,6" />
             </StackPanel>
         </Border>
 
@@ -113,10 +114,10 @@
                 <Grid RowDefinitions="Auto,*,Auto">
                     <!-- 标签页切换 -->
                     <Grid Grid.Row="0" ColumnDefinitions="*,*" Background="#F0F0F0">
-                        <Button Grid.Column="0" Content="🔖 书签" Theme="{StaticResource SidebarTabButton}"
+                        <Button Grid.Column="0" Content="{loc:Loc browser.bookmarks_tab}" Theme="{StaticResource SidebarTabButton}"
                                 Command="{Binding SwitchToBookmarksCommand}"
                                 Background="{Binding ActiveSidebarTab, Converter={x:Static conv:SidebarTabBgConverter.Instance}, ConverterParameter=Bookmarks, Mode=OneWay}" />
-                        <Button Grid.Column="1" Content="🕘 历史" Theme="{StaticResource SidebarTabButton}"
+                        <Button Grid.Column="1" Content="{loc:Loc browser.history_tab}" Theme="{StaticResource SidebarTabButton}"
                                 Command="{Binding SwitchToHistoryCommand}"
                                 Background="{Binding ActiveSidebarTab, Converter={x:Static conv:SidebarTabBgConverter.Instance}, ConverterParameter=History, Mode=OneWay}" />
                     </Grid>
@@ -144,7 +145,7 @@
                                             Background="Transparent" BorderThickness="0"
                                             Click="DeleteItemButton_Click"
                                             Tag="bookmark"
-                                            ToolTip.Tip="删除书签" />
+                                            ToolTip.Tip="{loc:Loc browser.delete_bookmark}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -178,7 +179,7 @@
                                             Background="Transparent" BorderThickness="0"
                                             Click="DeleteItemButton_Click"
                                             Tag="history"
-                                            ToolTip.Tip="删除历史记录" />
+                                            ToolTip.Tip="{loc:Loc browser.delete_history}" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -192,13 +193,13 @@
                     <!-- 底部清空按钮（按当前标签页激活对应按钮） -->
                     <Border Grid.Row="2" Background="#F0F0F0" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="8,6">
                         <StackPanel Orientation="Vertical" Spacing="4">
-                            <Button Content="清空全部书签"
+                            <Button Content="{loc:Loc browser.clear_bookmarks}"
                                     Command="{Binding ClearBookmarksCommand}"
                                     IsVisible="{Binding ActiveSidebarTab, Converter={x:Static conv:SidebarTabVisibilityConverter.Instance}, ConverterParameter=Bookmarks, Mode=OneWay}"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     Padding="12,4" />
-                            <Button Content="清空全部历史"
+                            <Button Content="{loc:Loc browser.clear_history}"
                                     Command="{Binding ClearHistoryCommand}"
                                     IsVisible="{Binding ActiveSidebarTab, Converter={x:Static conv:SidebarTabVisibilityConverter.Instance}, ConverterParameter=History, Mode=OneWay}"
                                     HorizontalAlignment="Stretch"

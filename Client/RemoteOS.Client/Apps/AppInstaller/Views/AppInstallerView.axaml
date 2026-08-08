@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.AppInstaller.ViewModels"
              xmlns:core="clr-namespace:RemoteOS.Core.Applications;assembly=RemoteOS.Core"
              x:Class="Client.Apps.AppInstaller.Views.AppInstallerView"
@@ -8,13 +9,13 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24" Spacing="16" MaxWidth="620">
             <StackPanel Spacing="4">
-                <TextBlock Text="应用安装器" FontSize="24" FontWeight="SemiBold" />
-                <TextBlock Text="安装前请检查应用信息和它请求的 RemoteOS 权限。" Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock Text="{loc:Loc app_installer.title}" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock Text="{loc:Loc app_installer.description}" Opacity="0.7" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="从本机选择" Command="{Binding ChooseLocalCommand}" Padding="16,8" />
-                <Button Content="从服务器选择" Command="{Binding ChooseServerCommand}" Padding="16,8" />
+                <Button Content="{loc:Loc app_installer.choose_local}" Command="{Binding ChooseLocalCommand}" Padding="16,8" />
+                <Button Content="{loc:Loc app_installer.choose_server}" Command="{Binding ChooseServerCommand}" Padding="16,8" />
             </StackPanel>
 
             <Border Classes="card" IsVisible="{Binding HasPackage}">
@@ -30,13 +31,13 @@
                     <TextBlock Text="{Binding CurrentPackage.Manifest.Description}" TextWrapping="Wrap" Opacity="0.78" />
                     <TextBlock Text="{Binding CurrentVersionText}" FontSize="12" Opacity="0.65" />
                     <TextBlock FontSize="12" Opacity="0.65">
-                        <Run Text="来源：" />
+                        <Run Text="{loc:Loc app_installer.source}" />
                         <Run Text="{Binding CurrentPackage.SourceName}" />
                     </TextBlock>
 
                     <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="请求的权限" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Loc app_installer.requested_permissions}" FontWeight="SemiBold" />
                             <ItemsControl ItemsSource="{Binding RequestedPermissions}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="core:AppPermissionDefinition">
@@ -47,11 +48,11 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="此应用未请求 RemoteOS 权限。" IsVisible="{Binding !HasRequestedPermissions}" Opacity="0.62" FontSize="12" />
+                            <TextBlock Text="{loc:Loc app_installer.no_requested_permissions}" IsVisible="{Binding !HasRequestedPermissions}" Opacity="0.62" FontSize="12" />
                         </StackPanel>
                     </Border>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                        <Button Content="跳过" Command="{Binding SkipCommand}" Padding="16,7" />
+                        <Button Content="{loc:Loc common.skip}" Command="{Binding SkipCommand}" Padding="16,7" />
                         <Button Classes="primary" Content="{Binding ActionLabel}" Command="{Binding InstallCommand}" Padding="18,7" />
                     </StackPanel>
                 </StackPanel>

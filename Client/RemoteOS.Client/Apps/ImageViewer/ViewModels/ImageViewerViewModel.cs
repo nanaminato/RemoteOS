@@ -1,5 +1,6 @@
 using Avalonia.Media.Imaging;
 using Client.Apps.Explorer;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -15,15 +16,15 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private Bitmap? _imageSource;
     [ObservableProperty] private string? _currentPath;
-    [ObservableProperty] private string _statusText = "Open an image from RemoteExplorer to preview it.";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("image_viewer.status.open_hint");
     [ObservableProperty] private int _pixelWidth;
     [ObservableProperty] private int _pixelHeight;
     [ObservableProperty] private int _zoomPercent = 100;
     [ObservableProperty] private double _displayWidth;
     [ObservableProperty] private double _displayHeight;
 
-    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? "Image Viewer" : Path.GetFileName(CurrentPath);
-    public string DimensionsText => PixelWidth > 0 ? $"{PixelWidth} × {PixelHeight}px" : string.Empty;
+    public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? LocalizedText.Get("image_viewer.title") : Path.GetFileName(CurrentPath);
+    public string DimensionsText => PixelWidth > 0 ? LocalizedText.Format("image_viewer.dimensions", PixelWidth, PixelHeight) : string.Empty;
 
     partial void OnCurrentPathChanged(string? value) => OnPropertyChanged(nameof(DocumentName));
     partial void OnPixelWidthChanged(int value) => OnPropertyChanged(nameof(DimensionsText));
@@ -43,7 +44,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
     {
         if (_files is null)
         {
-            StatusText = "Connect to RemoteOS Server before opening image files.";
+            StatusText = LocalizedText.Get("image_viewer.status.connect_before_open");
             return;
         }
 
@@ -51,7 +52,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var ct = _loadCts.Token;
-        StatusText = "Loading image…";
+        StatusText = LocalizedText.Get("image_viewer.status.loading");
 
         try
         {
@@ -59,7 +60,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
             ct.ThrowIfCancellationRequested();
             if (bytes is null)
             {
-                StatusText = "The image file no longer exists.";
+                StatusText = LocalizedText.Get("image_viewer.status.file_missing");
                 return;
             }
 
@@ -79,7 +80,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
             PixelHeight = bitmap.PixelSize.Height;
             ZoomPercent = 100;
             UpdateDisplaySize();
-            StatusText = $"{Path.GetFileName(path)} · {DimensionsText}";
+            StatusText = LocalizedText.Format("image_viewer.status.opened", Path.GetFileName(path), DimensionsText);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -87,7 +88,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = $"Cannot open image: {exception.Message}";
+            StatusText = LocalizedText.Format("image_viewer.status.open_failed", exception.Message);
         }
     }
 

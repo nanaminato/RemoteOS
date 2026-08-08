@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
              x:Class="Client.Apps.Explorer.Dialogs.TextInputDialogView"
              x:DataType="vm:TextInputDialogViewModel"
@@ -11,7 +12,7 @@
         <TextBlock Grid.Row="2" Text="{Binding ErrorMessage}" Foreground="#C42B1C" FontSize="12"
                    IsVisible="{Binding ErrorMessage, Converter={x:Static vm:StringToVisibilityConverter.Instance}}" />
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="取消" Command="{Binding CancelCommand}" Padding="16,6" />
+            <Button Content="{loc:Loc common.cancel}" Command="{Binding CancelCommand}" Padding="16,6" />
             <Button Classes="primary" Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}" Padding="16,6" />
         </StackPanel>
     </Grid>
