@@ -1,23 +1,23 @@
 {
-    "Culture":  "en-US",
-    "Strings":  {
-                    "code_editor.settings.title":  "Code Editor settings",
-                    "code_editor.settings.font_size":  "Editor font size",
-                    "code_editor.settings.syntax_note":  "Syntax highlighting is selected automatically from the remote file extension.",
-                    "code_editor.status.ready":  "Ready",
-                    "code_editor.document.untitled":  "Untitled",
-                    "code_editor.status.new_document":  "New document",
-                    "code_editor.status.save_or_discard":  "Save or discard edits before reopening with another encoding.",
-                    "code_editor.status.connect_before_open":  "Connect to RemoteOS Server before opening files.",
-                    "code_editor.status.file_missing":  "File no longer exists.",
-                    "code_editor.status.opened":  "Opened {0} as {1}",
-                    "code_editor.status.open_failed":  "Cannot open file: {0}",
-                    "code_editor.status.connect_before_save":  "Connect to RemoteOS Server before saving files.",
-                    "code_editor.status.saved":  "Saved {0} as {1}",
-                    "code_editor.status.save_failed":  "Cannot save file: {0}",
-                    "code_editor.open_remote_file":  "Open remote file",
-                    "code_editor.save_remote_file":  "Save remote file",
-                    "code_editor.remote_path_prompt":  "Enter a full remote path:",
-                    "code_editor.source_file_filter":  "Source files"
-                }
+    "Culture": "en-US",
+    "Strings": {
+        "code_editor.settings.title": "Code Editor settings",
+        "code_editor.settings.font_size": "Editor font size",
+        "code_editor.settings.syntax_note": "Syntax highlighting is selected automatically from the remote file extension.",
+        "code_editor.status.ready": "Ready",
+        "code_editor.document.untitled": "Untitled",
+        "code_editor.status.new_document": "New document",
+        "code_editor.status.save_or_discard": "Save or discard edits before reopening with another encoding.",
+        "code_editor.status.connect_before_open": "Connect to RemoteOS Server before opening files.",
+        "code_editor.status.file_missing": "File no longer exists.",
+        "code_editor.status.opened": "Opened {0} as {1}",
+        "code_editor.status.open_failed": "Cannot open file: {0}",
+        "code_editor.status.connect_before_save": "Connect to RemoteOS Server before saving files.",
+        "code_editor.status.saved": "Saved {0} as {1}",
+        "code_editor.status.save_failed": "Cannot save file: {0}",
+        "code_editor.open_remote_file": "Open remote file",
+        "code_editor.save_remote_file": "Save remote file",
+        "code_editor.remote_path_prompt": "Enter a full remote path:",
+        "code_editor.source_file_filter": "Source files"
+    }
 }

@@ -1,18 +1,18 @@
 {
-    "Culture":  "en-US",
-    "Strings":  {
-                    "terminal.menu":  "Terminal",
-                    "terminal.settings":  "Terminal settings",
-                    "terminal.font_family":  "Font family",
-                    "terminal.font_size":  "Font size",
-                    "terminal.color_scheme":  "Color scheme",
-                    "terminal.settings.description":  "Changes apply immediately and are saved to the current workspace.",
-                    "terminal.status.ready":  "Ready",
-                    "terminal.status.connecting":  "Connecting to remote terminal…",
-                    "terminal.status.local_fallback":  "Local terminal (not signed in)",
-                    "terminal.status.connected":  "Connected",
-                    "terminal.status.start_failed":  "Failed to start: {0}",
-                    "terminal.status.process_exited":  "Process exited",
-                    "terminal.status.process_exited_with_code":  "Process exited (code {0})"
-                }
+    "Culture": "en-US",
+    "Strings": {
+        "terminal.menu": "Terminal",
+        "terminal.settings": "Terminal settings",
+        "terminal.font_family": "Font family",
+        "terminal.font_size": "Font size",
+        "terminal.color_scheme": "Color scheme",
+        "terminal.settings.description": "Changes apply immediately and are saved to the current workspace.",
+        "terminal.status.ready": "Ready",
+        "terminal.status.connecting": "Connecting to remote terminal…",
+        "terminal.status.local_fallback": "Local terminal (not signed in)",
+        "terminal.status.connected": "Connected",
+        "terminal.status.start_failed": "Failed to start: {0}",
+        "terminal.status.process_exited": "Process exited",
+        "terminal.status.process_exited_with_code": "Process exited (code {0})"
+    }
 }
