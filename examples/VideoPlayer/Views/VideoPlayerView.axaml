@@ -14,8 +14,8 @@
       <vlc:VideoView x:Name="PlayerSurface" />
     </Border>
     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="14,10">
-      <Button Content="播放 / 暂停" Command="{Binding TogglePlayPauseCommand}" IsEnabled="{Binding CanControlPlayback}" />
-      <Button Content="停止" Command="{Binding StopCommand}" IsEnabled="{Binding CanControlPlayback}" />
+      <Button Content="{Binding PlayPauseText}" Command="{Binding TogglePlayPauseCommand}" IsEnabled="{Binding CanControlPlayback}" />
+      <Button Content="{Binding StopText}" Command="{Binding StopCommand}" IsEnabled="{Binding CanControlPlayback}" />
     </StackPanel>
   </Grid>
 </UserControl>

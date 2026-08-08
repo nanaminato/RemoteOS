@@ -12,7 +12,8 @@ public sealed record ApplicationManifest(
     string? IconGlyph = null,
     string? Description = null,
     IReadOnlyList<string>? RequestedPermissions = null,
-    IReadOnlyList<string>? SupportedFileExtensions = null)
+    IReadOnlyList<string>? SupportedFileExtensions = null,
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null)
 {
     /// <summary>Normalised permission identifiers requested by this application package.</summary>
     public IReadOnlyList<string> Permissions => RequestedPermissions?
@@ -33,5 +34,5 @@ public sealed record ApplicationManifest(
         .ToArray()
         ?? Array.Empty<string>();
 
-    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version);
+    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata);
 }

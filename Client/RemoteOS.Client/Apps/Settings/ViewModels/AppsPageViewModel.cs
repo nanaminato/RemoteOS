@@ -157,13 +157,17 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
 
     partial void OnActionStatusChanged(string value) => OnPropertyChanged(nameof(HasActionStatus));
 
-    private ApplicationInfo Localize(ApplicationInfo app) => app with
+    private ApplicationInfo Localize(ApplicationInfo app)
     {
-        DisplayName = T($"application.{app.Id.Value}.display_name", app.DisplayName),
-        Description = app.Description is null
-            ? null
-            : T($"application.{app.Id.Value}.description", app.Description),
-    };
+        var metadata = app.GetLocalizedMetadata(_localization.CurrentLanguage);
+        return app with
+        {
+            DisplayName = T($"application.{app.Id.Value}.display_name", metadata.DisplayName),
+            Description = metadata.Description is null
+                ? null
+                : T($"application.{app.Id.Value}.description", metadata.Description),
+        };
+    }
 
     private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
     {

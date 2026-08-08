@@ -1,0 +1,19 @@
+{
+  "culture": "zh-CN",
+  "strings": {
+    "app.name": "视频播放器",
+    "home.hint": "在文件资源管理器中打开受支持的视频文件，然后选择“打开方式 > 视频播放器”。应用仅请求 server.files.read 权限，并通过短期有效的宿主媒体租约播放。",
+    "command.play_pause": "播放 / 暂停",
+    "command.stop": "停止",
+    "status.preparing": "正在准备视频…",
+    "status.creating_lease": "正在创建受保护的播放连接…",
+    "status.permission_denied": "未授予读取服务器文件的权限。请在“设置 > 应用程序 > 视频播放器”中授予权限。",
+    "status.unavailable": "当前无法使用该视频。",
+    "status.unavailable_detail": "当前无法使用该视频：{0}",
+    "status.starting": "正在启动 VLC 播放器…",
+    "status.playing": "正在播放",
+    "status.paused": "已暂停",
+    "status.stopped": "已停止",
+    "status.failed": "无法播放视频：{0}"
+  }
+}

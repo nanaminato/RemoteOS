@@ -6,6 +6,20 @@
   "entryType": "RemoteOS.Examples.VideoPlayer.VideoPlayerApp",
   "iconGlyph": "🎬",
   "description": "VLC-based remote video player for Windows",
+  "localizedMetadata": {
+    "en-US": {
+      "displayName": "Video Player",
+      "description": "VLC-based remote video player for Windows"
+    },
+    "zh-CN": {
+      "displayName": "视频播放器",
+      "description": "基于 VLC 的 Windows 远程视频播放器"
+    },
+    "ja-JP": {
+      "displayName": "ビデオ プレーヤー",
+      "description": "Windows 向け VLC ベースのリモート ビデオ プレーヤー"
+    }
+  },
   "requestedPermissions": ["server.files.read"],
   "supportedFileExtensions": [".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".mpeg", ".mpg", ".3gp", ".ts"]
 }

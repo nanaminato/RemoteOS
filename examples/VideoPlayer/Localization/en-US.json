@@ -1,0 +1,19 @@
+{
+  "culture": "en-US",
+  "strings": {
+    "app.name": "Video Player",
+    "home.hint": "Open a supported video in File Explorer, then choose Open with > Video Player. The application requests only server.files.read and uses a short-lived host media lease for playback.",
+    "command.play_pause": "Play / Pause",
+    "command.stop": "Stop",
+    "status.preparing": "Preparing video…",
+    "status.creating_lease": "Creating a protected playback connection…",
+    "status.permission_denied": "Permission to read server files is not granted. Grant it in Settings > Applications > Video Player.",
+    "status.unavailable": "The video is currently unavailable.",
+    "status.unavailable_detail": "The video is currently unavailable: {0}",
+    "status.starting": "Starting VLC playback…",
+    "status.playing": "Playing",
+    "status.paused": "Paused",
+    "status.stopped": "Stopped",
+    "status.failed": "Unable to play video: {0}"
+  }
+}

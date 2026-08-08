@@ -15,4 +15,7 @@
     <PackageReference Include="LibVLCSharp.Avalonia" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Localization\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

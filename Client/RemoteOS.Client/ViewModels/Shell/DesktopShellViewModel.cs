@@ -79,11 +79,7 @@ public partial class DesktopShellViewModel : ObservableObject
     public void PopulateDesktop()
     {
         var entries = _applications.Registered
-            .Select(i => new AppEntryViewModel(i with
-            {
-                DisplayName = T($"application.{i.Id.Value}.display_name", i.DisplayName),
-                Description = i.Description is null ? null : T($"application.{i.Id.Value}.description", i.Description),
-            }, _applications))
+            .Select(i => new AppEntryViewModel(Localize(i), _applications))
             .ToList();
 
         DesktopIcons.Clear();
@@ -95,6 +91,18 @@ public partial class DesktopShellViewModel : ObservableObject
         }
 
         RefreshTaskbarGroups();
+    }
+
+    private ApplicationInfo Localize(ApplicationInfo app)
+    {
+        var metadata = app.GetLocalizedMetadata(_localization.CurrentLanguage);
+        return app with
+        {
+            DisplayName = T($"application.{app.Id.Value}.display_name", metadata.DisplayName),
+            Description = metadata.Description is null
+                ? null
+                : T($"application.{app.Id.Value}.description", metadata.Description),
+        };
     }
 
     [RelayCommand]

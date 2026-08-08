@@ -95,7 +95,7 @@ public sealed class DeveloperPackageManager
 
             var record = new DeveloperAppRecord(appId, manifest.DisplayName.Trim(), version, destination, manifest.EntryAssembly.Trim(), manifest.EntryType.Trim(),
                 manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
-                manifest.SupportedFileExtensions ?? Array.Empty<string>());
+                manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata);
             var loaded = CreateLoaded(record);
             await Dispatcher.UIThread.InvokeAsync(() => ReplaceLoaded(loaded, launch));
 
@@ -142,7 +142,7 @@ public sealed class DeveloperPackageManager
                 throw new InvalidOperationException("The package entry type must implement IExternalRemoteApplication.");
 
             var manifest = new ApplicationManifest(new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
-                record.RequestedPermissions, record.SupportedFileExtensions);
+                record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata);
             return new LoadedDeveloperApp(context, application, manifest);
         }
         catch
@@ -220,6 +220,8 @@ public sealed class DeveloperPackageManager
             throw new InvalidOperationException("manifest.json is missing a required field.");
         if (!manifest.EntryAssembly.Replace('\\', '/').StartsWith("lib/", StringComparison.Ordinal))
             throw new InvalidOperationException("entryAssembly must point to a DLL under lib/.");
+        if (manifest.LocalizedMetadata?.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value.DisplayName)) == true)
+            throw new InvalidOperationException("localizedMetadata must use non-empty culture names and display names.");
     }
 
     private string AppDirectory(string appId)
@@ -372,7 +374,8 @@ public sealed record DeveloperPackageManifest(
     string? IconGlyph = null,
     string? Description = null,
     IReadOnlyList<string>? RequestedPermissions = null,
-    IReadOnlyList<string>? SupportedFileExtensions = null);
+    IReadOnlyList<string>? SupportedFileExtensions = null,
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -384,6 +387,7 @@ internal sealed record DeveloperAppRecord(
     string? IconGlyph,
     string? Description,
     IReadOnlyList<string> RequestedPermissions,
-    IReadOnlyList<string> SupportedFileExtensions);
+    IReadOnlyList<string> SupportedFileExtensions,
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);

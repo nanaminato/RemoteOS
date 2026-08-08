@@ -1,0 +1,19 @@
+{
+  "culture": "ja-JP",
+  "strings": {
+    "app.name": "ビデオ プレーヤー",
+    "home.hint": "ファイル エクスプローラーで対応する動画を開き、[プログラムから開く] > [ビデオ プレーヤー] を選択します。アプリは server.files.read のみを要求し、短時間有効なホストのメディア リースを使って再生します。",
+    "command.play_pause": "再生 / 一時停止",
+    "command.stop": "停止",
+    "status.preparing": "動画を準備しています…",
+    "status.creating_lease": "保護された再生接続を作成しています…",
+    "status.permission_denied": "サーバー ファイルの読み取り権限がありません。[設定] > [アプリケーション] > [ビデオ プレーヤー] で許可してください。",
+    "status.unavailable": "現在この動画は利用できません。",
+    "status.unavailable_detail": "現在この動画は利用できません: {0}",
+    "status.starting": "VLC 再生を開始しています…",
+    "status.playing": "再生中",
+    "status.paused": "一時停止中",
+    "status.stopped": "停止しました",
+    "status.failed": "動画を再生できません: {0}"
+  }
+}
