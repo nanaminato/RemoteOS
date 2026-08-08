@@ -90,7 +90,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
             HasGpu = metrics.Gpus.Count > 0;
 
             UpdateProcesses(procs);
-            StatusText = $"已更新 — {DateTime.Now:HH:mm:ss}　CPU {metrics.Cpu.TotalPercent:0.0}%　进程 {procs.Count}";
+            StatusText = LocalizedText.Format("task_manager.status.updated", DateTime.Now, metrics.Cpu.TotalPercent, procs.Count);
         }
         catch (Exception ex)
         {

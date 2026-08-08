@@ -36,17 +36,17 @@
         <Border DockPanel.Dock="Top" Background="#F0F0F0" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Background="#E5E5E5" Margin="0,0,8,0">
-                    <Button Content="性能" Theme="{StaticResource TabButton}"
+                    <Button Content="{loc:Loc task_manager.performance}" Theme="{StaticResource TabButton}"
                             Command="{Binding SwitchToPerformanceCommand}"
                             Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Performance, Mode=OneWay}" />
-                    <Button Content="进程" Theme="{StaticResource TabButton}"
+                    <Button Content="{loc:Loc task_manager.processes}" Theme="{StaticResource TabButton}"
                             Command="{Binding SwitchToProcessesCommand}"
                             Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Processes, Mode=OneWay}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Content="⟳ 刷新" Command="{Binding RefreshCommand}" Padding="12,6" />
-                    <CheckBox Content="自动刷新(2s)" IsChecked="{Binding IsAutoRefresh, Mode=TwoWay}"
+                    <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" Padding="12,6" />
+                    <CheckBox Content="{loc:Loc task_manager.auto_refresh}" IsChecked="{Binding IsAutoRefresh, Mode=TwoWay}"
                               VerticalAlignment="Center" />
                 </StackPanel>
 

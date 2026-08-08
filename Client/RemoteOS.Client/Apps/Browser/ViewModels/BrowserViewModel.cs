@@ -353,7 +353,7 @@ public sealed partial class BrowserViewModel : ObservableObject
             LocalPortForwardingStatus = settings.LocalPortForwardingEnabled
                 ? "本地端口映射：已开启（localhost 请求将访问远程计算机）"
                 : "本地端口映射：已关闭";
-            StatusText = $"就绪 — {Bookmarks.Count} 个书签，{History.Count} 条历史";
+            StatusText = LocalizedText.Format("browser.status.summary", Bookmarks.Count, History.Count);
         }
         catch (Exception ex)
         {
