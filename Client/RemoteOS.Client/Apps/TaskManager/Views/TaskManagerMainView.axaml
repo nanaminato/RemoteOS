@@ -62,8 +62,8 @@
 
             <!-- ════════ 性能面板 ════════ -->
             <ScrollViewer IsVisible="{Binding ActiveTab, Converter={x:Static conv:TabVisibilityConverter.Instance}, ConverterParameter=Performance, Mode=OneWay}"
-                          Padding="12">
-                <StackPanel Orientation="Vertical" MaxWidth="980">
+                          >
+                <StackPanel Orientation="Vertical" MaxWidth="980" Margin="12">
 
                     <!-- CPU 卡片 -->
                     <Border Classes="card">
