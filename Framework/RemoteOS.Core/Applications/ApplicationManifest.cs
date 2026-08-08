@@ -33,5 +33,5 @@ public sealed record ApplicationManifest(
         .ToArray()
         ?? Array.Empty<string>();
 
-    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions);
+    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version);
 }

@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             x:Class="Client.Apps.Settings.Views.Pages.DeveloperPageView"
+             x:DataType="vm:DeveloperPageViewModel">
+    <StackPanel Spacing="16" MaxWidth="640">
+        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="开发者模式" Classes="title" />
+                <TextBlock Text="启用本机调试桥，让已配对的开发工具安装、更新、启动和卸载开发版 .roapp 应用。"
+                           Opacity="0.7" TextWrapping="Wrap" />
+                <CheckBox Content="启用开发者模式" IsChecked="{Binding DeveloperMode.IsEnabled, Mode=TwoWay}" />
+                <Grid ColumnDefinitions="120,*" ColumnSpacing="10">
+                    <TextBlock Text="本机地址" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.Endpoint}" IsReadOnly="True" />
+                </Grid>
+                <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="配对令牌" VerticalAlignment="Center" />
+                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.PairingToken}" IsReadOnly="True" />
+                    <Button Grid.Column="2" Content="重新生成" Command="{Binding DeveloperMode.RegeneratePairingTokenCommand}" />
+                </Grid>
+                <TextBlock Text="关闭后会立即停止本机调试桥；已安装应用仍可运行。"
+                           Opacity="0.55" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

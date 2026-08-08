@@ -37,6 +37,12 @@
                 <pages:AppsPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
+        <DataTemplate DataType="vm:DeveloperPageViewModel">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:DeveloperPageView VerticalAlignment="Top" />
+            </ScrollViewer>
+        </DataTemplate>
     </UserControl.DataTemplates>
 
     <Grid ColumnDefinitions="220,*">

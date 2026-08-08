@@ -1,6 +1,5 @@
 using Client.Services;
 using Client.Services.Auth;
-using Client.Services.AppPermissions;
 using Client.Services.Developer;
 using Client.Apps.TaskManager;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,7 +22,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IRemoteOsClient? _remote;
     private readonly ITaskManagerClient? _system;
     private readonly DefaultAppRegistry? _registry;
-    private readonly IAppPermissionManager? _permissions;
     private readonly DeveloperModeService? _developerMode;
     private CancellationTokenSource? _saveCts;
     private bool _initialized;
@@ -36,7 +34,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         IRemoteOsClient? remote,
         ITaskManagerClient? system,
         DefaultAppRegistry? registry,
-        IAppPermissionManager? permissions,
         DeveloperModeService? developerMode)
     {
         _settings = settings;
@@ -46,7 +43,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _remote = remote;
         _system = system;
         _registry = registry;
-        _permissions = permissions;
         _developerMode = developerMode;
 
         var save = (Action)Save;
@@ -56,7 +52,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
-            new AppsPageViewModel(settings, apps!, permissions!, developerMode!, save),
+            new AppsPageViewModel(settings, apps!, save),
+            new DeveloperPageViewModel(settings, developerMode!, save),
         };
         _selectedPage = Pages[0];
     }

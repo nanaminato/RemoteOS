@@ -45,6 +45,25 @@ public sealed class DeveloperPackageManager
         .Select(record => new DeveloperAppInfo(record.Id, record.DisplayName, record.Version, record.Path))
         .ToArray();
 
+    /// <summary>Reads package metadata without extracting or installing the archive.</summary>
+    public async Task<DeveloperPackageManifest> InspectAsync(string packagePath, CancellationToken cancellationToken = default)
+    {
+        await using var package = File.OpenRead(packagePath);
+        using var archive = new ZipArchive(package, ZipArchiveMode.Read, leaveOpen: false);
+        var manifestEntry = archive.GetEntry("manifest.json")
+            ?? throw new InvalidOperationException("The application package must contain manifest.json at its root.");
+        await using var manifestStream = manifestEntry.Open();
+        var manifest = await JsonSerializer.DeserializeAsync<DeveloperPackageManifest>(manifestStream,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken)
+            ?? throw new InvalidOperationException("manifest.json is invalid.");
+        ValidateManifest(manifest);
+        return manifest;
+    }
+
+    public DeveloperAppInfo? FindInstalled(string appId) => _catalog.TryGetValue(appId, out var record)
+        ? new DeveloperAppInfo(record.Id, record.DisplayName, record.Version, record.Path)
+        : null;
+
     /// <summary>Loads installed packages at client startup. Invalid old packages are ignored instead of breaking the shell.</summary>
     public void LoadInstalled()
     {

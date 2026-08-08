@@ -1,8 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using Client.Services;
-using Client.Services.AppPermissions;
-using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
@@ -17,18 +15,13 @@ namespace Client.Apps.Settings.ViewModels;
 public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposable
 {
     private readonly ApplicationManager _apps;
-    private readonly IAppPermissionManager _permissions;
 
     public AppsPageViewModel(
         ShellSettings settings,
         ApplicationManager apps,
-        IAppPermissionManager permissions,
-        DeveloperModeService developerMode,
         Action? save) : base(settings, save)
     {
         _apps = apps;
-        _permissions = permissions;
-        DeveloperMode = new DeveloperModeViewModel(developerMode);
         _apps.RegistryChanged += OnRegistryChanged;
         RefreshApplications();
     }
@@ -42,13 +35,19 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     /// <summary>可绑定的应用 Id 选项（id + 显示名），供默认程序下拉选择。</summary>
     public ObservableCollection<AppOption> AvailableApps { get; } = new();
 
-    /// <summary>Applications with manifest-declared host capabilities that the user can grant or revoke.</summary>
-    public ObservableCollection<AppPermissionAppViewModel> PermissionApps { get; } = new();
-    public bool HasPermissionRequests => PermissionApps.Count > 0;
-    public DeveloperModeViewModel DeveloperMode { get; }
+    /// <summary>Provided by Settings to open the selected application's permission page.</summary>
+    public Func<ApplicationInfo, Task>? RequestPermissionEditorAsync { get; set; }
 
-    /// <summary>Provided by the Settings window to open an app-specific permission editor.</summary>
-    public Func<AppPermissionAppViewModel, Task>? RequestPermissionEditorAsync { get; set; }
+    [ObservableProperty] private AppsSubpage _subpage = AppsSubpage.Overview;
+    [ObservableProperty] private ApplicationInfo? _selectedApp;
+
+    public bool IsOverview => Subpage == AppsSubpage.Overview;
+    public bool IsInstalledApps => Subpage == AppsSubpage.InstalledApps;
+    public bool IsAppDetails => Subpage == AppsSubpage.AppDetails;
+    public bool HasSelectedAppPermissions => SelectedApp?.Permissions.Count > 0;
+    public string SelectedAppPermissionSummary => SelectedApp is null || SelectedApp.Permissions.Count == 0
+        ? "此应用未请求 RemoteOS 权限。"
+        : $"此应用请求了 {SelectedApp.Permissions.Count} 项 RemoteOS 权限。";
 
     /// <summary>URI schemes plus every extension declared by an installed application.</summary>
     public ObservableCollection<string> AvailableSchemes { get; } = new();
@@ -71,20 +70,45 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(scheme => scheme.StartsWith('.') ? 1 : 0)
             .ThenBy(scheme => scheme, StringComparer.OrdinalIgnoreCase));
-        Replace(PermissionApps, apps
-            .Where(app => app.Permissions.Count > 0)
-            .Select(app => new AppPermissionAppViewModel(app, _permissions)));
         foreach (var mapping in Mappings)
             mapping.NotifyAvailableAppsChanged();
-        OnPropertyChanged(nameof(HasPermissionRequests));
+        if (SelectedApp is not null)
+            SelectedApp = apps.FirstOrDefault(app => app.Id == SelectedApp.Id);
     }
 
     [RelayCommand]
-    private async Task EditPermissionsAsync(AppPermissionAppViewModel app)
+    private void ShowInstalledApps() => Subpage = AppsSubpage.InstalledApps;
+
+    [RelayCommand]
+    private void ShowOverview() => Subpage = AppsSubpage.Overview;
+
+    [RelayCommand]
+    private void ShowAppDetails(ApplicationInfo app)
     {
-        if (RequestPermissionEditorAsync is not null)
-            await RequestPermissionEditorAsync(app);
+        SelectedApp = app;
+        Subpage = AppsSubpage.AppDetails;
+    }
+
+    [RelayCommand]
+    private async Task EditSelectedPermissionsAsync()
+    {
+        if (SelectedApp is not null && RequestPermissionEditorAsync is not null)
+            await RequestPermissionEditorAsync(SelectedApp);
         RefreshApplications();
+    }
+
+    partial void OnSubpageChanged(AppsSubpage value)
+    {
+        OnPropertyChanged(nameof(IsOverview));
+        OnPropertyChanged(nameof(IsInstalledApps));
+        OnPropertyChanged(nameof(IsAppDetails));
+    }
+
+    partial void OnSelectedAppChanged(ApplicationInfo? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedAppPermissions));
+        OnPropertyChanged(nameof(SelectedAppPermissionSummary));
+        EditSelectedPermissionsCommand.NotifyCanExecuteChanged();
     }
 
     private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
@@ -127,6 +151,13 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     /// <summary>导出当前映射为服务端 DTO（保存时由根 VM 调用）。</summary>
     public IReadOnlyList<DefaultAppMappingDto> ToMappings()
         => Mappings.Select(m => new DefaultAppMappingDto(m.Scheme, m.AppId)).ToArray();
+}
+
+public enum AppsSubpage
+{
+    Overview,
+    InstalledApps,
+    AppDetails,
 }
 
 /// <summary>一条可编辑的默认程序映射（scheme/ext → appId）。</summary>
@@ -185,49 +216,3 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
 
 /// <summary>应用下拉选项（Id + 显示名）。</summary>
 public sealed record AppOption(string Id, string DisplayName, IReadOnlyList<string> SupportedFileExtensions);
-
-/// <summary>An application whose manifest declares host capabilities.</summary>
-public sealed class AppPermissionAppViewModel
-{
-    public AppPermissionAppViewModel(ApplicationInfo app, IAppPermissionManager permissions)
-    {
-        App = app;
-        DisplayName = app.DisplayName;
-        RequestedPermissionCount = app.Permissions.Count;
-        GrantedPermissionCount = app.Permissions.Count(permission => permissions.IsGranted(app.Id, permission));
-    }
-
-    public ApplicationInfo App { get; }
-    public string DisplayName { get; }
-    public int RequestedPermissionCount { get; }
-    public int GrantedPermissionCount { get; }
-    public string GrantSummary => GrantedPermissionCount == 0
-        ? "未授予权限"
-        : $"已授予 {GrantedPermissionCount} / {RequestedPermissionCount} 项权限";
-}
-
-/// <summary>Settings-facing wrapper around the local Developer Mode switch and pairing secret.</summary>
-public sealed partial class DeveloperModeViewModel : ObservableObject
-{
-    private readonly DeveloperModeService _developerMode;
-
-    public DeveloperModeViewModel(DeveloperModeService developerMode)
-    {
-        _developerMode = developerMode;
-        _isEnabled = developerMode.IsEnabled;
-    }
-
-    [ObservableProperty] private bool _isEnabled;
-
-    public string Endpoint => _developerMode.Endpoint;
-    public string PairingToken => _developerMode.PairingToken;
-
-    partial void OnIsEnabledChanged(bool value) => _developerMode.SetEnabled(value);
-
-    [RelayCommand]
-    private void RegeneratePairingToken()
-    {
-        _developerMode.RegeneratePairingToken();
-        OnPropertyChanged(nameof(PairingToken));
-    }
-}

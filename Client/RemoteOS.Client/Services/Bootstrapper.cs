@@ -9,6 +9,7 @@ using Client.Apps.Terminal;
 using Client.Apps.Welcome;
 using Client.Services.Auth;
 using Client.Services.AppPermissions;
+using Client.Services.AppPackages;
 using Client.Services.Developer;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
@@ -65,6 +66,7 @@ public static class Bootstrapper
         services.AddSingleton<ExternalAppContextFactory>();
         services.AddSingleton<DeveloperModeService>();
         services.AddSingleton<DeveloperPackageManager>();
+        services.AddSingleton<AppPackageInstallerService>();
         services.AddSingleton<DeveloperBridgeService>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
@@ -79,6 +81,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.TaskManager.TaskManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {

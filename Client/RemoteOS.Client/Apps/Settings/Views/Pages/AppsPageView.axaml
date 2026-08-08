@@ -6,113 +6,99 @@
              x:DataType="vm:AppsPageViewModel"
              x:Name="Root">
     <StackPanel Spacing="16" MaxWidth="720">
-        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <StackPanel IsVisible="{Binding IsOverview}" Spacing="16">
+            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+            <Border Classes="card">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="已安装应用" Classes="title" />
+                        <TextBlock Text="查看应用详情、版本和它请求的 RemoteOS 权限。" Opacity="0.68" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="打开" Command="{Binding ShowInstalledAppsCommand}" VerticalAlignment="Center" Padding="16,7" />
+                </Grid>
+            </Border>
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
+                        <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />
+                    </Grid>
+                    <TextBlock Text="将 URI scheme（http/mailto）或文件扩展名（.txt）绑定到指定应用。" Opacity="0.7" />
+                    <ItemsControl ItemsSource="{Binding Mappings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
+                                <Grid ColumnDefinitions="*,*,Auto" Margin="0,3">
+                                    <ComboBox Grid.Column="0" Margin="0,0,8,0"
+                                              ItemsSource="{Binding DataContext.AvailableSchemes, ElementName=Root}"
+                                              SelectedItem="{Binding Scheme, Mode=TwoWay}" />
+                                    <ComboBox Grid.Column="1" Margin="0,0,8,0"
+                                              ItemsSource="{Binding CompatibleApps}"
+                                              SelectedItem="{Binding SelectedApp, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:AppOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="删除映射" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
 
-        <Border Classes="card">
-            <StackPanel Spacing="10">
-                <TextBlock Text="已安装应用" Classes="title" />
+        <StackPanel IsVisible="{Binding IsInstalledApps}" Spacing="16">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="← 应用" Command="{Binding ShowOverviewCommand}" />
+                <TextBlock Text="应用 > 已安装应用" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <Border Classes="card">
                 <ItemsControl ItemsSource="{Binding RegisteredApps}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="d:ApplicationInfo">
-                            <Grid ColumnDefinitions="32,*,Auto" Margin="0,3">
-                                <TextBlock Grid.Column="0" Text="{Binding IconGlyph}" FontSize="18"
-                                           VerticalAlignment="Center" />
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Description}" FontSize="11" Opacity="0.65"
-                                               TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding Id}" FontSize="11" Opacity="0.5"
-                                           VerticalAlignment="Center" />
-                            </Grid>
+                            <Button HorizontalContentAlignment="Stretch" Command="{Binding DataContext.ShowAppDetailsCommand, ElementName=Root}" CommandParameter="{Binding}">
+                                <Grid ColumnDefinitions="36,*,Auto" Margin="2" ColumnSpacing="8">
+                                    <TextBlock Text="{Binding IconGlyph}" FontSize="20" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Description}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding Version}" FontSize="12" Opacity="0.62" VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+            </Border>
+        </StackPanel>
+
+        <StackPanel IsVisible="{Binding IsAppDetails}" Spacing="16">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Content="← 已安装应用" Command="{Binding ShowInstalledAppsCommand}" />
+                <TextBlock Text="应用信息" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
-        </Border>
-
-        <Border Classes="card">
-            <StackPanel Spacing="10">
-                <TextBlock Text="应用权限" Classes="title" />
-                <TextBlock Text="第三方应用只能使用其在应用清单中声明、且由你在单独设置窗口中授予的 RemoteOS 权限。授权仅保存在本机。"
-                           Opacity="0.7" TextWrapping="Wrap" />
-                <ItemsControl ItemsSource="{Binding PermissionApps}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:AppPermissionAppViewModel">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,5">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding GrantSummary}" FontSize="12" Opacity="0.65" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Content="配置权限"
-                                        Command="{Binding DataContext.EditPermissionsCommand, ElementName=Root}"
-                                        CommandParameter="{Binding}" Padding="14,6"
-                                        VerticalAlignment="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <TextBlock IsVisible="{Binding !HasPermissionRequests}" Text="尚无已安装应用请求 RemoteOS 权限。"
-                           Opacity="0.55" FontSize="12" />
-            </StackPanel>
-        </Border>
-
-        <Border Classes="card">
-            <StackPanel Spacing="10">
-                <TextBlock Text="开发者模式" Classes="title" />
-                <TextBlock Text="仅在本机开启开发调试桥，允许已配对的开发工具安装、更新、启动和卸载开发版 .roapp 应用。"
-                           Opacity="0.7" TextWrapping="Wrap" />
-                <CheckBox Content="启用开发者模式" IsChecked="{Binding DeveloperMode.IsEnabled, Mode=TwoWay}" />
-                <Grid ColumnDefinitions="120,*" ColumnSpacing="10">
-                    <TextBlock Text="本机地址" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.Endpoint}" IsReadOnly="True" />
-                </Grid>
-                <Grid ColumnDefinitions="120,*,Auto" ColumnSpacing="10">
-                    <TextBlock Text="配对令牌" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding DeveloperMode.PairingToken}" IsReadOnly="True" />
-                    <Button Grid.Column="2" Content="重新生成" Command="{Binding DeveloperMode.RegeneratePairingTokenCommand}" />
-                </Grid>
-                <TextBlock Text="关闭开发者模式会立即停用本机调试桥；开发版应用的权限仍需在上方单独授权。"
-                           Opacity="0.55" FontSize="12" TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
-
-        <Border Classes="card">
-            <StackPanel Spacing="10">
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
-                    <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />
-                </Grid>
-                <TextBlock Text="将 URI scheme（http/mailto）或文件扩展名（.txt）绑定到指定应用。" Opacity="0.7" />
-
-                <ItemsControl ItemsSource="{Binding Mappings}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
-                            <Grid ColumnDefinitions="*,*,Auto" Margin="0,3">
-                                <ComboBox Grid.Column="0" Margin="0,0,8,0"
-                                          ItemsSource="{Binding DataContext.AvailableSchemes, ElementName=Root}"
-                                          SelectedItem="{Binding Scheme, Mode=TwoWay}" />
-                                <ComboBox Grid.Column="1" Margin="0,0,8,0"
-                                          ItemsSource="{Binding CompatibleApps}"
-                                          SelectedItem="{Binding SelectedApp, Mode=TwoWay}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:AppOption">
-                                            <TextBlock Text="{Binding DisplayName}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                                <Button Grid.Column="2" Content="✕"
-                                        Command="{Binding RemoveCommand}"
-                                        Width="36" Height="32" Padding="0"
-                                        ToolTip.Tip="删除映射" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                           Text="默认程序的自动启动路由（如点选 http 链接用映射应用打开）将在后续版本接入；当前完成映射的可设置与持久化。" />
-            </StackPanel>
-        </Border>
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="38,*" ColumnSpacing="10">
+                        <TextBlock Text="{Binding SelectedApp.IconGlyph}" FontSize="26" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Text="{Binding SelectedApp.DisplayName}" FontSize="19" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding SelectedApp.Id}" FontSize="12" Opacity="0.62" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding SelectedApp.Description}" TextWrapping="Wrap" Opacity="0.78" />
+                    <Grid ColumnDefinitions="120,*"><TextBlock Text="版本" Opacity="0.65" /><TextBlock Grid.Column="1" Text="{Binding SelectedApp.Version}" /></Grid>
+                    <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="应用权限" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding SelectedAppPermissionSummary}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="管理权限" Command="{Binding EditSelectedPermissionsCommand}" IsVisible="{Binding HasSelectedAppPermissions}" VerticalAlignment="Center" Padding="14,6" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </StackPanel>
 </UserControl>

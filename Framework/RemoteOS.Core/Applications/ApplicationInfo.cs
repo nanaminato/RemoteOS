@@ -7,7 +7,8 @@ public sealed record ApplicationInfo(
     string? IconGlyph = null,
     string? Description = null,
     IReadOnlyList<string>? RequestedPermissions = null,
-    IReadOnlyList<string>? SupportedFileExtensions = null)
+    IReadOnlyList<string>? SupportedFileExtensions = null,
+    string Version = "1.0.0")
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
 

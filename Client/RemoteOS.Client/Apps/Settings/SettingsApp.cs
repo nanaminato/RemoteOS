@@ -42,7 +42,7 @@ public sealed class SettingsApp : RemoteApplicationBase
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, permissions, developerMode);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
@@ -56,7 +56,7 @@ public sealed class SettingsApp : RemoteApplicationBase
             $"{app.DisplayName} permissions",
             dialog => new AppPermissionDialogView
             {
-                DataContext = new AppPermissionDialogViewModel(app.App, permissions, dialog.Close),
+                DataContext = new AppPermissionDialogViewModel(app, permissions, dialog.Close),
             },
             new Size(560, 540));
 
