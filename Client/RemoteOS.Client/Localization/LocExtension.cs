@@ -36,10 +36,23 @@ public sealed class LocExtension : MarkupExtension
         public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             var key = parameter as string ?? string.Empty;
-            return App.Services.GetRequiredService<LocalizationService>().Get(key, key);
+            // Never expose a resource key to the user. A missing optional translation has a
+            // readable English fallback while CI verifies that all shipped keys are present.
+            return App.Services.GetRequiredService<LocalizationService>().Get(key, ToEnglishFallback(key));
         }
 
         public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
             => BindingOperations.DoNothing;
+
+        private static string ToEnglishFallback(string key) => key switch
+        {
+            "settings.wallpaper.description" => "Choose a desktop background preset.",
+            "settings.theme.description" => "Choose the light or dark appearance for the taskbar and Start menu.",
+            "settings.theme.light" => "Light",
+            "settings.theme.dark" => "Dark",
+            "settings.theme.system" => "Use system setting",
+            _ => string.Join(" ", key.Split('.', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => char.ToUpperInvariant(part[0]) + part[1..].Replace('_', ' ')))
+        };
     }
 }
