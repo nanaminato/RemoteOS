@@ -41,7 +41,13 @@ public sealed class AppCapabilityClient(HttpClient http, IAuthSession session) :
         if (body is not null)
             request.Content = JsonContent.Create(body, options: RemoteOsJsonOptions.Default);
         using var response = await http.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(RemoteOsJsonOptions.Default, cancellationToken);
+            var message = problem?.Detail ?? problem?.Title
+                ?? $"The capability request failed with HTTP {(int)response.StatusCode}.";
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken)
                ?? throw new InvalidOperationException("The server returned an empty capability response.");
     }
@@ -63,4 +69,6 @@ public sealed class AppCapabilityClient(HttpClient http, IAuthSession session) :
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
         return request;
     }
+
+    private sealed record ProblemDetailsDto(string? Title, string? Detail);
 }

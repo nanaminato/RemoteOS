@@ -136,7 +136,7 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
             }
             if (playback.Status != AppCapabilityResult.Succeeded || playback.Lease is null)
             {
-                SetStatus(status, "The video file is unavailable.");
+                SetStatus(status, playback.Detail ?? "The video file is unavailable.");
                 return;
             }
 

@@ -195,9 +195,23 @@ public sealed class ExternalAppContextFactory
             {
                 throw;
             }
-            catch
+            catch (HttpRequestException exception)
             {
-                return new ExternalMediaLeaseResult(AppCapabilityResult.Unavailable, null);
+                var detail = exception.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.NotFound => "The file no longer exists on the server.",
+                    System.Net.HttpStatusCode.Forbidden => "The server denied access to the file.",
+                    System.Net.HttpStatusCode.Unauthorized => "Your RemoteOS session has expired.",
+                    System.Net.HttpStatusCode.BadRequest => exception.Message,
+                    { } statusCode => $"The server rejected the playback lease request (HTTP {(int)statusCode}).",
+                    _ => "The server could not create a playback lease.",
+                };
+                return new ExternalMediaLeaseResult(AppCapabilityResult.Unavailable, null, detail);
+            }
+            catch (Exception)
+            {
+                return new ExternalMediaLeaseResult(AppCapabilityResult.Unavailable, null,
+                    "The RemoteOS server could not be reached.");
             }
         }
     }

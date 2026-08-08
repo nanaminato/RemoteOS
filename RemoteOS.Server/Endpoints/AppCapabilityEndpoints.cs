@@ -46,10 +46,15 @@ public static class AppCapabilityEndpoints
             IFileService files,
             MediaLeaseStore leases) =>
         {
-            if (!TryGetOwner(principal, out var owner)
-                || string.IsNullOrWhiteSpace(request.AppId)
-                || string.IsNullOrWhiteSpace(request.Path))
-                return Results.BadRequest();
+            if (!TryGetOwner(principal, out var owner))
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid media session", detail: "The access token is missing the workspace or device identity required for media playback.");
+            if (string.IsNullOrWhiteSpace(request.AppId))
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid media request", detail: "The playback application id is missing.");
+            if (string.IsNullOrWhiteSpace(request.Path))
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid media request", detail: "The playback file path is missing.");
 
             try
             {
@@ -60,7 +65,11 @@ public static class AppCapabilityEndpoints
                 return Results.Ok(new MediaLeaseDto(lease.Id, lease.ExpiresAt));
             }
             catch (UnauthorizedAccessException) { return Results.Forbid(); }
-            catch (ArgumentException) { return Results.BadRequest(); }
+            catch (ArgumentException exception)
+            {
+                return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                    title: "Invalid media path", detail: exception.Message);
+            }
         })
         .RequireAuthorization()
         .WithTags("Application capabilities");
@@ -126,7 +135,11 @@ public static class AppCapabilityEndpoints
 
     private static bool TryGetOwner(ClaimsPrincipal principal, out CapabilityOwner owner)
     {
-        if (Guid.TryParse(principal.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId)
+        // JwtBearer maps the standard JWT "sub" claim to NameIdentifier by default.
+        // Accept both forms, matching the other authenticated endpoint handlers.
+        var subject = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(subject, out var userId)
             && Guid.TryParse(principal.FindFirstValue("workspace_id"), out var workspaceId)
             && Guid.TryParse(principal.FindFirstValue("device_id"), out var deviceId))
         {

@@ -22,7 +22,11 @@ public interface IExternalMediaService
     Task<ExternalMediaLeaseResult> OpenPlaybackAsync(string path, CancellationToken cancellationToken = default);
 }
 
-public sealed record ExternalMediaLeaseResult(AppCapabilityResult Status, IExternalMediaLease? Lease);
+/// <param name="Detail">A safe host-provided explanation when the playback lease cannot be created.</param>
+public sealed record ExternalMediaLeaseResult(
+    AppCapabilityResult Status,
+    IExternalMediaLease? Lease,
+    string? Detail = null);
 
 /// <summary>
 /// A media URL valid only while its host-owned lease remains active. Dispose it when playback ends.
