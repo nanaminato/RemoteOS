@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Localization;
 using Client.Apps.Settings;
 using Client.Services;
 using Client.Services.Auth;
@@ -44,11 +45,11 @@ public sealed class ExplorerApp : RemoteApplicationBase
         {
             var stub = new TextBlock
             {
-                Text = "RemoteExplorer 需要先登录。\n请连接到 RemoteOS Server 后再启动此应用。",
+                Text = LocalizedText.Get("explorer.login_required"),
                 Margin = new Thickness(24),
                 TextWrapping = TextWrapping.Wrap,
             };
-            context.ShowWindow("RemoteExplorer", stub,
+            context.ShowWindow(LocalizedText.Get("application.remoteos.explorer.display_name"), stub,
                 bounds: new Rect(200, 160, 460, 180),
                 iconGlyph: Manifest.IconGlyph,
                 canResize: false, canMinimize: false, canMaximize: false);
@@ -58,7 +59,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
         var viewModel = new ExplorerViewModel(client);
         WireDialogs(context, viewModel, client);
         var view = new ExplorerMainView { DataContext = viewModel };
-        var window = context.ShowWindow("RemoteExplorer", view,
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.explorer.display_name"), view,
             bounds: new Rect(80, 60, 960, 640),
             iconGlyph: Manifest.IconGlyph);
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
@@ -120,7 +121,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
                 if (owner is null) return;
                 await context.ShowDialogAsync<bool?>(owner, title, dialog =>
                 {
-                    var dvm = new ConfirmDialogViewModel(message, _ => dialog.Close(true), "知道了");
+                    var dvm = new ConfirmDialogViewModel(message, _ => dialog.Close(true), LocalizedText.Get("common.ok"));
                     return new ConfirmDialogView { DataContext = dvm };
                 });
             });
@@ -132,7 +133,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
             if (topLevel is null) return null;
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "选择要上传的本地文件",
+                Title = LocalizedText.Get("explorer.select_upload_file"),
                 AllowMultiple = false,
             });
             return files.Count > 0 ? files[0].TryGetLocalPath() : null;
@@ -144,7 +145,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
             if (topLevel is null) return null;
             var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "保存下载文件到...",
+                Title = LocalizedText.Get("explorer.save_download_file"),
                 SuggestedFileName = defaultName,
             });
             return file?.TryGetLocalPath();
@@ -160,7 +161,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
                 ? defaultApplicationId
                 : applications?.FileOpenersForExtension(extension).FirstOrDefault()?.Id.Value;
             if (applicationId is null || applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
-                await (vm.ShowMessageAsync?.Invoke("Open file", "No application is registered for this file type.") ?? Task.CompletedTask);
+                await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.no_file_opener")) ?? Task.CompletedTask);
         };
 
         vm.RequestOpenWithAsync = async entry =>
@@ -170,10 +171,10 @@ public sealed class ExplorerApp : RemoteApplicationBase
             var openers = applications?.FileOpenersForExtension(extension) ?? Array.Empty<ApplicationInfo>();
             if (owner is null || openers.Count == 0)
             {
-                await (vm.ShowMessageAsync?.Invoke("Open with", "No installed application declares support for this file type.") ?? Task.CompletedTask);
+                await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_with"), LocalizedText.Get("explorer.no_open_with_app")) ?? Task.CompletedTask);
                 return;
             }
-            var choice = await context.ShowDialogAsync<OpenWithChoice>(owner, "Open with", dialog =>
+            var choice = await context.ShowDialogAsync<OpenWithChoice>(owner, LocalizedText.Get("explorer.open_with"), dialog =>
                 new OpenWithDialogView
                 {
                     DataContext = new OpenWithDialogViewModel(openers, extension, result =>
@@ -188,14 +189,14 @@ public sealed class ExplorerApp : RemoteApplicationBase
                 await SaveDefaultAppAsync(context, defaults, extension, choice.ApplicationId);
 
             if (!applications!.OpenFile(new AppId(choice.ApplicationId), entry.Path))
-                await (vm.ShowMessageAsync?.Invoke("Open file", "The selected application is no longer available.") ?? Task.CompletedTask);
+                await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.selected_app_unavailable")) ?? Task.CompletedTask);
         };
 
         vm.ShowPropertiesAsync = async properties =>
         {
             var owner = FindOwnerWindow(context, vm);
             if (owner is null) return;
-            await context.ShowDialogAsync<bool>(owner, "Properties", dialog => new FilePropertiesDialogView
+            await context.ShowDialogAsync<bool>(owner, LocalizedText.Get("explorer.properties"), dialog => new FilePropertiesDialogView
             {
                 DataContext = new FilePropertiesDialogViewModel(
                     properties,

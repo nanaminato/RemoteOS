@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Client.Localization;
 using Client.Apps.Browser.ViewModels;
 using Client.Apps.Browser.Views;
 using Client.Services.Auth;
@@ -36,7 +37,7 @@ public sealed class BrowserApp : RemoteApplicationBase
         {
             var stub = new TextBlock
             {
-                Text = "RemoteBrowser 需要先登录。\n请连接到 RemoteOS Server 后再启动此应用。",
+                Text = LocalizedText.Get("browser.login_required"),
                 Margin = new Thickness(24),
                 TextWrapping = TextWrapping.Wrap,
             };
@@ -62,7 +63,7 @@ public sealed class BrowserApp : RemoteApplicationBase
         };
         viewModel.RequestSettingsAsync = async () =>
         {
-            await context.ShowDialogAsync<bool>(window, "Browser settings", dialog =>
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("browser.settings.title"), dialog =>
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new BrowserSettingsView { DataContext = viewModel };

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Client.Localization;
 using Client.Apps.TaskManager.ViewModels;
 
 namespace Client.Apps.TaskManager.Converters;
@@ -75,6 +76,28 @@ public sealed class NullableDoubleTextConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
+/// <summary>Formats a single value through a localized composite-format resource.</summary>
+public sealed class LocalizedFormatConverter : IValueConverter
+{
+    public static readonly LocalizedFormatConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => parameter is string key ? LocalizedText.Format(key, value ?? "—") : value;
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Formats a byte value and its localized label.</summary>
+public sealed class LocalizedBytesConverter : IValueConverter
+{
+    public static readonly LocalizedBytesConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is IConvertible convertible && parameter is string key
+            ? LocalizedText.Format(key, BytesConverter.FormatBytes(convertible.ToInt64(CultureInfo.InvariantCulture)))
+            : string.Empty;
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
 /// <summary>TaskManagerTab + ConverterParameter("Performance"/"Processes") → bool 可见性。</summary>
 public sealed class TabVisibilityConverter : IValueConverter
 {
@@ -128,7 +151,7 @@ public sealed class UptimeConverter : IValueConverter
         if (secs < 0) return "—";
         var ts = TimeSpan.FromSeconds(secs);
         return ts.TotalDays >= 1
-            ? $"{(int)ts.TotalDays}天 {ts.Hours:00}:{ts.Minutes:00}:{ts.Seconds:00}"
+            ? LocalizedText.Format("task_manager.uptime_days", (int)ts.TotalDays, ts.Hours, ts.Minutes, ts.Seconds)
             : $"{ts.Hours:00}:{ts.Minutes:00}:{ts.Seconds:00}";
     }
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

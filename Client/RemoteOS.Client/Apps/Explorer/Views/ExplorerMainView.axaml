@@ -68,7 +68,7 @@
                 <TextBlock Text="📁" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="14" />
                 <TextBox x:Name="AddressBox"
                          Text="{Binding AddressbarPath, Mode=TwoWay}"
-                         PlaceholderText="Computer"
+                         PlaceholderText="{loc:Loc explorer.computer}"
                          IsReadOnly="False"
                          MinWidth="500"
                          KeyDown="AddressBox_KeyDown" />
@@ -80,7 +80,7 @@
         <Border DockPanel.Dock="Bottom" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
-                <TextBlock Grid.Column="1" Text="{Binding IsBusy, StringFormat='{}{0:加载中...;加载中...;就绪}'}"
+                <TextBlock Grid.Column="1" Text="{Binding IsBusy, Converter={x:Static c:ExplorerLoadingStatusConverter.Instance}}"
                            FontSize="12" Opacity="0.6" />
             </Grid>
         </Border>
@@ -102,7 +102,7 @@
                     </ComboBox>
                 </Grid>
                 <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-                    <Button Content="取消" Command="{Binding CancelPickerCommand}" />
+                    <Button Content="{loc:Loc common.cancel}" Command="{Binding CancelPickerCommand}" />
                     <Button Classes="primary" Content="{Binding PickerConfirmLabel}" Command="{Binding ConfirmPickerCommand}" />
                 </StackPanel>
             </Grid>

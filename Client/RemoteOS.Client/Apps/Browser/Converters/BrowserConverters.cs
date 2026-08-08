@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Client.Localization;
 using Avalonia.Media;
 using Client.Apps.Browser.ViewModels;
 
@@ -46,6 +47,16 @@ public sealed class SidebarTabBgConverter : IValueConverter
             return tab == target ? Active : Inactive;
         return Inactive;
     }
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Formats the browser's loading indicator through localized resources.</summary>
+public sealed class LoadingStatusConverter : IValueConverter
+{
+    public static readonly LoadingStatusConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? LocalizedText.Get("browser.status.loading") : LocalizedText.Get("browser.status.ready");
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }

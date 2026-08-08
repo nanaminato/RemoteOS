@@ -2,6 +2,7 @@ using Client.Apps.Explorer;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Localization;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -34,17 +35,17 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var viewModel = new NotepadViewModel(files);
         var view = new NotepadView { DataContext = viewModel };
-        var window = context.ShowWindow("Notebook", view,
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.notepad.display_name"), view,
             bounds: new Rect(160, 100, 820, 580),
             iconGlyph: Manifest.IconGlyph);
 
         viewModel.RequestFileAsync = () => files is null
             ? Task.FromResult<string?>(null)
-            : context.ShowDialogAsync<string>(window, "选择要打开的文件", dialog =>
+            : context.ShowDialogAsync<string>(window, LocalizedText.Get("notepad.open_remote_file"), dialog =>
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
-                        new ExplorerFileFilter("Text files", SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                        new ExplorerFileFilter(LocalizedText.Get("notepad.text_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
                     ]),
                     paths => dialog.Close(paths[0]))
                 {
@@ -53,15 +54,15 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
                 _ = picker.LoadRootAsync();
                 return new ExplorerMainView { DataContext = picker };
             }, GetFilePickerBounds(window));
-        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, "Save remote file", dialog =>
+        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, LocalizedText.Get("notepad.save_remote_file"), dialog =>
         {
-            var vm = new TextInputDialogViewModel("Enter a full remote path:", defaultName, path => dialog.Close(path ?? string.Empty), "Save",
+            var vm = new TextInputDialogViewModel(LocalizedText.Get("notepad.remote_path_prompt"), defaultName, path => dialog.Close(path ?? string.Empty), LocalizedText.Get("common.save"),
                 path => !string.IsNullOrWhiteSpace(path));
             return new TextInputDialogView { DataContext = vm };
         });
         viewModel.RequestSettingsAsync = async () =>
         {
-            await context.ShowDialogAsync<bool>(window, "Notebook settings", dialog =>
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("notepad.settings.title"), dialog =>
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new NotepadSettingsView { DataContext = viewModel };

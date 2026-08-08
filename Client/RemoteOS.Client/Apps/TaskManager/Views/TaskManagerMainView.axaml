@@ -53,7 +53,7 @@
                 <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Opacity="0.7"
                            VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" />
                 <Button Grid.Column="3" Content="✕" Command="{Binding CloseCommand}"
-                        Padding="10,4" ToolTip.Tip="关闭任务管理器" />
+                        Padding="10,4" ToolTip.Tip="{loc:Loc common.close}" />
             </Grid>
         </Border>
 
@@ -71,7 +71,7 @@
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{loc:Loc task_manager.cpu}" FontSize="14" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Metrics.Cpu.CoreCount, StringFormat='{}{0} 核'}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Metrics.Cpu.CoreCount, Converter={x:Static conv:LocalizedFormatConverter.Instance}, ConverterParameter=task_manager.core_count}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="#0078D7"
                                            Text="{Binding Metrics.Cpu.TotalPercent, StringFormat='{}{0:0.0}%'}" />
@@ -134,9 +134,9 @@
                                 </ItemsControl>
                             </Border>
                             <StackPanel Orientation="Horizontal" Spacing="16" Opacity="0.75">
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.UsedBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='已用 {0}'}" />
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.AvailableBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='可用 {0}'}" />
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.TotalBytes, Converter={x:Static conv:BytesConverter.Instance}, StringFormat='总计 {0}'}" />
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.UsedBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_used}" />
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.AvailableBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_available}" />
+                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.TotalBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_total}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -199,9 +199,9 @@
                                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3" VerticalAlignment="Center">
                                             <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Column="1" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
-                                                       Text="{Binding UsagePercent, Converter={x:Static conv:NullableDoubleTextConverter.Instance}, StringFormat='利用率 {0}%'}" />
+                                                       Text="{Binding UsagePercent, Converter={x:Static conv:LocalizedFormatConverter.Instance}, ConverterParameter=task_manager.gpu_usage}" />
                                             <TextBlock Grid.Column="2" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0">
-                                                <Run Text="显存 " />
+                                                <Run Text="{loc:Loc task_manager.gpu_memory}" />
                                                 <Run Text="{Binding MemoryUsedBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
                                                 <Run Text=" / " />
                                                 <Run Text="{Binding MemoryTotalBytes, Converter={x:Static conv:BytesConverter.Instance}}" />

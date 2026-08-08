@@ -92,10 +92,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject
             UpdateProcesses(procs);
             StatusText = LocalizedText.Format("task_manager.status.updated", DateTime.Now, metrics.Cpu.TotalPercent, procs.Count);
         }
-        catch (Exception ex)
-        {
-            StatusText = $"采集失败：{ex.Message}";
-        }
+        catch (Exception ex) { StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message); }
         finally
         {
             IsLoading = false;
@@ -108,29 +105,29 @@ public sealed partial class TaskManagerViewModel : ObservableObject
     {
         var proc = SelectedProcess;
         if (proc is null) return;
-        KillFeedback = $"正在结束进程 {proc.Name} (PID {proc.Id})...";
+        KillFeedback = LocalizedText.Format("task_manager.process.terminating", proc.Name, proc.Id);
         try
         {
             var result = await _client.KillProcessAsync(proc.Id, force: false);
             if (result.Success)
             {
-                KillFeedback = $"已结束进程 {proc.Name} (PID {proc.Id})。";
+                KillFeedback = LocalizedText.Format("task_manager.process.terminated", proc.Name, proc.Id);
                 SelectedProcess = null;
             }
             else if (result.RequiresElevation)
             {
-                KillFeedback = $"权限不足，无法结束 {proc.Name} (PID {proc.Id})。{result.Error}";
+                KillFeedback = LocalizedText.Format("task_manager.process.elevation_required", proc.Name, proc.Id, result.Error);
             }
             else
             {
-                KillFeedback = $"结束进程失败：{result.Error}";
+                KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", result.Error);
             }
             // 立即刷新进程列表
             await RefreshProcessesAsync();
         }
         catch (Exception ex)
         {
-            KillFeedback = $"结束进程失败：{ex.Message}";
+            KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", ex.Message);
         }
     }
 

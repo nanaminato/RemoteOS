@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Client.Localization;
 using Client.Services.Auth;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Files;
@@ -155,7 +156,7 @@ public sealed class ExplorerClient : IExplorerClient
     private string RequireSession()
     {
         if (_session.State != AuthSessionState.Authenticated || _session.Tokens is null || _session.ServerUrl is null)
-            throw new InvalidOperationException("未登录，无法调用文件服务。");
+            throw new InvalidOperationException(LocalizedText.Get("explorer.error.not_signed_in"));
         return _session.ServerUrl;
     }
 
@@ -224,5 +225,5 @@ public sealed class ExplorerClient : IExplorerClient
     }
 
     private static ProblemDetails NoBodyProblem()
-        => new("https://remoteos.app/problems/empty-response", "空响应", 500, "服务器返回空响应体", null);
+        => new("https://remoteos.app/problems/empty-response", LocalizedText.Get("common.error.empty_response_title"), 500, LocalizedText.Get("common.error.empty_response_detail"), null);
 }

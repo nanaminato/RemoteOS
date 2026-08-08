@@ -8,6 +8,7 @@ using System.Windows.Input;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Localization;
 using Client.Apps.Explorer.Models;
 using RemoteOS.Protocol.Files;
 
@@ -68,7 +69,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public ObservableCollection<FileSystemEntryDto> SelectedEntries { get; }
     public ObservableCollection<ExplorerFileFilter> Filters { get; }
     [ObservableProperty] private string? _addressbarPath;
-    [ObservableProperty] private string _statusText = "就绪";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("explorer.status.ready");
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private FileSystemEntryDto? _selectedEntry;
     [ObservableProperty] private TreeNodeModel? _selectedNode;
@@ -106,8 +107,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public bool IsFilePickerMode => IsPickerMode && !IsFolderPickerMode;
     public bool AllowMultipleFiles => IsFilePickerMode && _pickerOptions!.AllowMultiple;
     public DataGridSelectionMode EntrySelectionMode => AllowMultipleFiles ? DataGridSelectionMode.Extended : DataGridSelectionMode.Single;
-    public string PickerEntryLabel => IsFolderPickerMode ? "文件夹:" : "文件名:";
-    public string PickerConfirmLabel => IsFolderPickerMode ? "选择文件夹" : "打开";
+    public string PickerEntryLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.folder_label") : LocalizedText.Get("explorer.picker.file_name_label");
+    public string PickerConfirmLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.select_folder") : LocalizedText.Get("common.open");
     public bool CanConfirmPicker => IsFolderPickerMode
         ? SelectedEntries.Any(IsFolder) || !string.IsNullOrWhiteSpace(AddressbarPath)
         : SelectedEntries.Any(IsSelectableFile) || !string.IsNullOrWhiteSpace(PickerEntryName);
@@ -117,7 +118,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public async Task LoadRootAsync()
     {
         IsBusy = true;
-        StatusText = "加载导航树...";
+        StatusText = LocalizedText.Get("explorer.status.loading_navigation");
         try
         {
             // 并发加载特殊位置与盘符列表
@@ -133,7 +134,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             // 与 Windows 11 File Explorer Home 节点行为一致：展开=精选快捷入口；点击组节点本身=导航到家目录（右侧网格列全部子项）。
             var homeEntry = specials.FirstOrDefault(s => s.Kind == SpecialFolderKind.Home);
             var homePath = homeEntry?.Path;
-            var homeGroup = new TreeNodeModel("主目录", homePath, iconKind: TreeNodeIconKind.Home);
+            var homeGroup = new TreeNodeModel(LocalizedText.Get("explorer.home"), homePath, iconKind: TreeNodeIconKind.Home);
             foreach (var s in specials.Where(s => s.Kind != SpecialFolderKind.Home))
             {
                 var icon = s.Kind switch
@@ -152,7 +153,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             Nodes.Add(homeGroup);
 
             // (2) 此电脑节点：保留盘符列表 + dummy child 懒加载（与原 Jaya 逻辑一致）
-            var thisPc = new TreeNodeModel("此电脑", null,
+            var thisPc = new TreeNodeModel(LocalizedText.Get("explorer.computer"), null,
                 iconKind: TreeNodeIconKind.Computer, isComputer: true);
             thisPc.ExpandRequested = OnNodeExpandRequested;
             foreach (var d in drives)
@@ -166,13 +167,13 @@ public sealed partial class ExplorerViewModel : ObservableObject
             Nodes.Add(thisPc);
 
             // (3) 网络占位节点（当前不实现浏览）
-            Nodes.Add(new TreeNodeModel("网络", null, iconKind: TreeNodeIconKind.Network));
+            Nodes.Add(new TreeNodeModel(LocalizedText.Get("explorer.network"), null, iconKind: TreeNodeIconKind.Network));
 
             homeGroup.IsExpanded = true;
             thisPc.IsExpanded = true;
-            StatusText = $"就绪 — {drives.Count} 个驱动器，{specials.Count} 个快捷位置";
+            StatusText = LocalizedText.Format("explorer.status.root_ready", drives.Count, specials.Count);
         }
-        catch (Exception ex) { StatusText = $"加载失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.load_failed", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -198,7 +199,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         {
             // 展开操作由 TreeNodeModel 以 fire-and-forget 方式发起，不能让异常丢失，
             // 否则权限、网络或服务端错误都会表现为一个无法展开的空节点。
-            StatusText = $"无法加载 {node.Path}：{ex.Message}";
+            StatusText = LocalizedText.Format("explorer.status.path_load_failed", node.Path, ex.Message);
         }
         finally { node.IsLoading = false; }
     }
@@ -214,7 +215,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (value.IsNetwork)
         {
             // 网络占位：当前不实现浏览，仅状态栏提示，不导航
-            StatusText = "网络浏览暂未实现";
+            StatusText = LocalizedText.Get("explorer.status.network_not_implemented");
             return;
         }
         _ = value.IsComputer ? NavigateToAsync(null) : NavigateToAsync(value.Path);
@@ -291,7 +292,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                         FileSystemEntryType.Drive, null, null, null, false, false));
                 confirmedPath = null;
                 AddressbarPath = null;
-                StatusText = $"就绪 — {drives.Count} 个驱动器";
+                StatusText = LocalizedText.Format("explorer.status.drives_ready", drives.Count);
             }
             else
             {
@@ -305,12 +306,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 }
                 confirmedPath = dir.Path;
                 AddressbarPath = dir.Path;
-                StatusText = $"就绪 — {dir.Directories.Count} 个目录，{dir.Files.Count} 个文件";
+                StatusText = LocalizedText.Format("explorer.status.directory_ready", dir.Directories.Count, dir.Files.Count);
             }
             // 路径已由服务端确认，反向同步树选中（防循环：被 _isSyncingTreeSelection 抑制）
             await SyncTreeSelectionAsync(confirmedPath);
         }
-        catch (Exception ex) { StatusText = $"加载失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.load_failed", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -437,16 +438,16 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
         var destinationPath = CombineRemotePath(targetDirectory, entry.Name);
         IsBusy = true;
-        StatusText = $"正在移动 {entry.Name}...";
+        StatusText = LocalizedText.Format("explorer.status.moving", entry.Name);
         try
         {
             await _client.MoveAsync(entry.Path, destinationPath, overwrite: false);
-            StatusText = $"已将 {entry.Name} 移动到 {targetDirectory}";
+            StatusText = LocalizedText.Format("explorer.status.moved", entry.Name, targetDirectory);
             await RefreshAsync();
         }
         catch (Exception ex)
         {
-            StatusText = $"移动失败：{ex.Message}";
+            StatusText = LocalizedText.Format("explorer.status.move_failed", ex.Message);
         }
         finally
         {
@@ -554,14 +555,14 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 var entry = await _client.GetInfoAsync(path);
                 if (entry is null || !IsSelectableFile(entry))
                 {
-                    StatusText = "The specified file does not exist or does not match the selected filter.";
+                    StatusText = LocalizedText.Get("explorer.status.file_not_selectable");
                     return;
                 }
                 selected = [entry.Path];
             }
             catch (Exception ex)
             {
-                StatusText = $"Cannot select file: {ex.Message}";
+                StatusText = LocalizedText.Format("explorer.status.file_select_failed", ex.Message);
                 return;
             }
         }
@@ -612,20 +613,20 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             var properties = await _client.GetPropertiesAsync(entry.Path);
-            if (properties is null) { StatusText = "The item no longer exists."; return; }
+            if (properties is null) { StatusText = LocalizedText.Get("explorer.status.item_missing"); return; }
             await (ShowPropertiesAsync?.Invoke(properties) ?? Task.CompletedTask);
         }
-        catch (Exception ex) { StatusText = $"Cannot read properties: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.properties_read_failed", ex.Message); }
     }
 
     private async Task OpenEntryAsync(FileSystemEntryDto entry)
     {
         try
         {
-            if (OpenFileAsync is null) { StatusText = "No file-opening application is available."; return; }
+            if (OpenFileAsync is null) { StatusText = LocalizedText.Get("explorer.status.no_file_opener"); return; }
             await OpenFileAsync(entry);
         }
-        catch (Exception ex) { StatusText = $"Cannot open file: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.file_open_failed", ex.Message); }
     }
 
     // ---- 文件操作 ----
@@ -635,85 +636,85 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(AddressbarPath))
         {
-            StatusText = "请先进入一个驱动器或目录";
+            StatusText = LocalizedText.Get("explorer.status.enter_directory_first");
             return;
         }
-        var name = await (RequestTextInputAsync?.Invoke("新建文件夹", "请输入文件夹名称：", "新建文件夹", "创建") ?? Task.FromResult<string?>(null));
+        var name = await (RequestTextInputAsync?.Invoke(LocalizedText.Get("explorer.new_folder"), LocalizedText.Get("explorer.new_folder_prompt"), LocalizedText.Get("explorer.new_folder"), LocalizedText.Get("common.create")) ?? Task.FromResult<string?>(null));
         if (string.IsNullOrWhiteSpace(name)) return;
         try
         {
             var target = Path.Combine(AddressbarPath, name);
             await _client.CreateDirectoryAsync(target);
-            StatusText = $"已创建文件夹：{name}";
+            StatusText = LocalizedText.Format("explorer.status.folder_created", name);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"创建失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.create_failed", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task DeleteAsync()
     {
         if (SelectedEntry is not { } entry) return;
-        var confirmed = await (RequestConfirmAsync?.Invoke("删除",
-            $"确定要删除 \"{entry.Name}\" 吗？\n如果是文件夹，其所有内容将被递归删除。",
-            "删除") ?? Task.FromResult(false));
+        var confirmed = await (RequestConfirmAsync?.Invoke(LocalizedText.Get("common.delete"),
+            LocalizedText.Format("explorer.delete_confirmation", entry.Name),
+            LocalizedText.Get("common.delete")) ?? Task.FromResult(false));
         if (!confirmed) return;
         try
         {
             await _client.DeleteAsync(entry.Path);
-            StatusText = $"已删除：{entry.Name}";
+            StatusText = LocalizedText.Format("explorer.status.deleted", entry.Name);
             SelectedEntry = null;
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"删除失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.delete_failed", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task RenameAsync()
     {
         if (SelectedEntry is not { } entry) return;
-        var newName = await (RequestTextInputAsync?.Invoke("重命名", "请输入新名称：", entry.Name, "重命名")
+        var newName = await (RequestTextInputAsync?.Invoke(LocalizedText.Get("common.rename"), LocalizedText.Get("explorer.rename_prompt"), entry.Name, LocalizedText.Get("common.rename"))
             ?? Task.FromResult<string?>(null));
         if (string.IsNullOrWhiteSpace(newName) || newName == entry.Name) return;
         try
         {
             await _client.RenameAsync(entry.Path, newName);
-            StatusText = $"已重命名为：{newName}";
+            StatusText = LocalizedText.Format("explorer.status.renamed", newName);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"重命名失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.rename_failed", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task CopyAsync()
     {
         if (SelectedEntry is not { } entry) return;
-        var dest = await (RequestTextInputAsync?.Invoke("复制", "请输入目标完整路径：", entry.Path, "复制")
+        var dest = await (RequestTextInputAsync?.Invoke(LocalizedText.Get("common.copy"), LocalizedText.Get("explorer.destination_path_prompt"), entry.Path, LocalizedText.Get("common.copy"))
             ?? Task.FromResult<string?>(null));
         if (string.IsNullOrWhiteSpace(dest) || dest == entry.Path) return;
         try
         {
             await _client.CopyAsync(entry.Path, dest, overwrite: false);
-            StatusText = $"已复制到：{dest}";
+            StatusText = LocalizedText.Format("explorer.status.copied", dest);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"复制失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.copy_failed", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task MoveAsync()
     {
         if (SelectedEntry is not { } entry) return;
-        var dest = await (RequestTextInputAsync?.Invoke("移动", "请输入目标完整路径：", entry.Path, "移动")
+        var dest = await (RequestTextInputAsync?.Invoke(LocalizedText.Get("common.move"), LocalizedText.Get("explorer.destination_path_prompt"), entry.Path, LocalizedText.Get("common.move"))
             ?? Task.FromResult<string?>(null));
         if (string.IsNullOrWhiteSpace(dest) || dest == entry.Path) return;
         try
         {
             await _client.MoveAsync(entry.Path, dest, overwrite: false);
-            StatusText = $"已移动到：{dest}";
+            StatusText = LocalizedText.Format("explorer.status.moved_to", dest);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"移动失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.move_failed", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -722,7 +723,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (SelectedEntry is not { } entry) return;
         if (entry.Type == FileSystemEntryType.Directory || entry.Type == FileSystemEntryType.Drive)
         {
-            StatusText = "暂不支持下载文件夹";
+            StatusText = LocalizedText.Get("explorer.status.folder_download_unsupported");
             return;
         }
         var localPath = await (RequestLocalSaveFileAsync?.Invoke(entry.Name) ?? Task.FromResult<string?>(null));
@@ -732,15 +733,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
             var r = await _client.DownloadAsync(entry.Path);
             if (r is not (var stream, _))
             {
-                StatusText = "下载失败：文件不存在";
+                StatusText = LocalizedText.Get("explorer.status.download_file_missing");
                 return;
             }
             using (stream)
             using (var fs = File.Create(localPath))
                 await stream.CopyToAsync(fs);
-            StatusText = $"已下载到：{localPath}";
+            StatusText = LocalizedText.Format("explorer.status.downloaded", localPath);
         }
-        catch (Exception ex) { StatusText = $"下载失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.download_failed", ex.Message); }
     }
 
     [RelayCommand]
@@ -748,7 +749,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (string.IsNullOrEmpty(AddressbarPath))
         {
-            StatusText = "请先进入一个目标目录";
+            StatusText = LocalizedText.Get("explorer.status.enter_target_directory_first");
             return;
         }
         var localPath = await (RequestLocalOpenFileAsync?.Invoke() ?? Task.FromResult<string?>(null));
@@ -758,17 +759,17 @@ public sealed partial class ExplorerViewModel : ObservableObject
             var fileName = Path.GetFileName(localPath);
             using var fs = File.OpenRead(localPath);
             await _client.UploadAsync(AddressbarPath, fileName, fs);
-            StatusText = $"已上传：{fileName}";
+            StatusText = LocalizedText.Format("explorer.status.uploaded", fileName);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = $"上传失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.upload_failed", ex.Message); }
     }
 
     [RelayCommand]
     private async Task AboutAsync()
     {
-        await (ShowMessageAsync?.Invoke("关于 RemoteExplorer",
-            "RemoteExplorer v1.0.0\nUI 移植自 Jaya File Manager (BSD-3)\n所有文件操作经 Server 端 REST API 执行，复用宿主 OS 用户/权限。")
+        await (ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.about_title"),
+            LocalizedText.Get("explorer.about_message"))
             ?? Task.CompletedTask);
     }
 

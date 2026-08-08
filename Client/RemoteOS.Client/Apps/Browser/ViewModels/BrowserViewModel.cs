@@ -77,7 +77,7 @@ public sealed partial class BrowserViewModel : ObservableObject
         _currentUri = displayUrl;
         AddressText = displayUrl.IsAbsoluteUri ? displayUrl.ToString() : displayUrl.OriginalString;
         IsLoading = true;
-        StatusText = $"正在加载 {displayUrl}...";
+        StatusText = LocalizedText.Format("browser.status.loading_url", displayUrl);
     }
 
     /// <summary>由 View code-behind 在 NativeWebView.NavigationCompleted 触发时调用。
@@ -90,14 +90,16 @@ public sealed partial class BrowserViewModel : ObservableObject
             var displayUrl = ToDisplayUrl(url);
             _currentUri = displayUrl;
             AddressText = displayUrl.ToString();
-            StatusText = $"完成 — {displayUrl}";
+            StatusText = LocalizedText.Format("browser.status.completed", displayUrl);
             // 异步记录到服务端历史（fire-and-forget 友好：失败只更新状态栏不阻塞 UI）
             _ = RecordVisitAsync(displayUrl);
             _ = RefreshBookmarkStarAsync(displayUrl);
         }
         else
         {
-            StatusText = url is null ? "已停止" : $"加载失败：{url}";
+        StatusText = url is null
+            ? LocalizedText.Get("browser.status.stopped")
+            : LocalizedText.Format("browser.status.load_failed", url);
         }
     }
 
@@ -119,7 +121,7 @@ public sealed partial class BrowserViewModel : ObservableObject
         var uri = NormalizeAddress(address);
         if (uri is null)
         {
-            StatusText = "地址无效";
+            StatusText = LocalizedText.Get("browser.status.invalid_address");
             return;
         }
         var displayUri = uri;
@@ -128,7 +130,7 @@ public sealed partial class BrowserViewModel : ObservableObject
             try { uri = _client.CreateLocalPortForwardingUri(uri); }
             catch (Exception ex)
             {
-                StatusText = $"无法创建本地端口映射：{ex.Message}";
+                StatusText = LocalizedText.Format("browser.status.port_mapping_create_failed", ex.Message);
                 return;
             }
         }
@@ -140,7 +142,7 @@ public sealed partial class BrowserViewModel : ObservableObject
             _currentUri = displayUri;
             AddressText = displayUri.ToString();
             IsLoading = true;
-            StatusText = $"正在加载 {displayUri}...";
+            StatusText = LocalizedText.Format("browser.status.loading_url", displayUri);
         }
     }
 
@@ -192,9 +194,9 @@ public sealed partial class BrowserViewModel : ObservableObject
                     await _client.DeleteBookmarkAsync(bm.Id);
                     Bookmarks.Remove(bm);
                     IsCurrentBookmarked = false;
-                    StatusText = $"已删除书签：{url}";
+                    StatusText = LocalizedText.Format("browser.status.bookmark_deleted", url);
                 }
-                catch (Exception ex) { StatusText = $"删除书签失败：{ex.Message}"; }
+                catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.bookmark_delete_failed", ex.Message); }
             }
         }
         else
@@ -205,9 +207,9 @@ public sealed partial class BrowserViewModel : ObservableObject
                 var dto = await _client.AddBookmarkAsync(title, url);
                 Bookmarks.Add(dto);
                 IsCurrentBookmarked = true;
-                StatusText = $"已添加书签：{title}";
+                StatusText = LocalizedText.Format("browser.status.bookmark_added", title);
             }
-            catch (Exception ex) { StatusText = $"添加书签失败：{ex.Message}"; }
+            catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.bookmark_add_failed", ex.Message); }
         }
     }
 
@@ -229,9 +231,9 @@ public sealed partial class BrowserViewModel : ObservableObject
             Bookmarks.Remove(bookmark);
             if (_currentUri is not null && bookmark.Url == (_currentUri.IsAbsoluteUri ? _currentUri.ToString() : _currentUri.OriginalString))
                 IsCurrentBookmarked = false;
-            StatusText = $"已删除书签：{bookmark.Title}";
+            StatusText = LocalizedText.Format("browser.status.bookmark_deleted", bookmark.Title);
         }
-        catch (Exception ex) { StatusText = $"删除书签失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.bookmark_delete_failed", ex.Message); }
     }
 
     [RelayCommand]
@@ -242,9 +244,9 @@ public sealed partial class BrowserViewModel : ObservableObject
             await _client.ClearBookmarksAsync();
             Bookmarks.Clear();
             IsCurrentBookmarked = false;
-            StatusText = "已清空全部书签";
+            StatusText = LocalizedText.Get("browser.status.bookmarks_cleared");
         }
-        catch (Exception ex) { StatusText = $"清空书签失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.bookmarks_clear_failed", ex.Message); }
     }
 
     // ---- 历史 ----
@@ -265,9 +267,9 @@ public sealed partial class BrowserViewModel : ObservableObject
         {
             await _client.DeleteHistoryAsync(entry.Id);
             History.Remove(entry);
-            StatusText = $"已删除历史记录：{entry.Title}";
+            StatusText = LocalizedText.Format("browser.status.history_deleted", entry.Title);
         }
-        catch (Exception ex) { StatusText = $"删除历史记录失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.history_delete_failed", ex.Message); }
     }
 
     [RelayCommand]
@@ -277,9 +279,9 @@ public sealed partial class BrowserViewModel : ObservableObject
         {
             await _client.ClearHistoryAsync();
             History.Clear();
-            StatusText = "已清空全部历史记录";
+            StatusText = LocalizedText.Get("browser.status.history_cleared");
         }
-        catch (Exception ex) { StatusText = $"清空历史记录失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("browser.status.history_clear_failed", ex.Message); }
     }
 
     // ---- 侧边栏切换 ----
@@ -320,14 +322,14 @@ public sealed partial class BrowserViewModel : ObservableObject
             IsLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
             _savedLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
             LocalPortForwardingStatus = saved.LocalPortForwardingEnabled
-                ? "本地端口映射：已开启（localhost 请求将访问远程计算机）"
-                : "本地端口映射：已关闭";
+                ? LocalizedText.Get("browser.port_forwarding.on")
+                : LocalizedText.Get("browser.port_forwarding.off");
             StatusText = LocalPortForwardingStatus;
         }
         catch (Exception ex)
         {
             IsLocalPortForwardingEnabled = _savedLocalPortForwardingEnabled;
-            LocalPortForwardingStatus = $"本地端口映射保存失败：{ex.Message}";
+            LocalPortForwardingStatus = LocalizedText.Format("browser.port_forwarding.save_failed", ex.Message);
             StatusText = LocalPortForwardingStatus;
         }
     }
@@ -338,7 +340,7 @@ public sealed partial class BrowserViewModel : ObservableObject
     public async Task LoadAsync()
     {
         IsLoading = true;
-        StatusText = "正在同步书签与历史记录...";
+        StatusText = LocalizedText.Get("browser.status.syncing");
         try
         {
             var bms = await _client.ListBookmarksAsync();
@@ -351,13 +353,13 @@ public sealed partial class BrowserViewModel : ObservableObject
             IsLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
             _savedLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
             LocalPortForwardingStatus = settings.LocalPortForwardingEnabled
-                ? "本地端口映射：已开启（localhost 请求将访问远程计算机）"
-                : "本地端口映射：已关闭";
+                ? LocalizedText.Get("browser.port_forwarding.on")
+                : LocalizedText.Get("browser.port_forwarding.off");
             StatusText = LocalizedText.Format("browser.status.summary", Bookmarks.Count, History.Count);
         }
         catch (Exception ex)
         {
-            StatusText = $"同步失败：{ex.Message}";
+            StatusText = LocalizedText.Format("browser.status.sync_failed", ex.Message);
         }
         finally { IsLoading = false; }
     }

@@ -7,6 +7,7 @@ using Client.Apps.AppInstaller.Views;
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Localization;
 using Client.Services.AppPackages;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -38,7 +39,7 @@ public sealed class AppInstallerApp : RemoteApplicationBase, IFileOpenApplicatio
 
         var viewModel = new AppInstallerViewModel(installer);
         var view = new AppInstallerView { DataContext = viewModel };
-        var window = context.ShowWindow("App Installer", view,
+        var window = context.ShowWindow(LocalizedText.Get("app_installer.title"), view,
             bounds: new Rect(230, 110, 620, 580), iconGlyph: "📦", canResize: true);
 
         viewModel.RequestLocalPackagesAsync = async () =>
@@ -47,9 +48,9 @@ public sealed class AppInstallerApp : RemoteApplicationBase, IFileOpenApplicatio
             if (topLevel is null) return [];
             var selected = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "选择 RemoteOS 应用包",
+                Title = LocalizedText.Get("app_installer.select_local_package"),
                 AllowMultiple = true,
-                FileTypeFilter = [new FilePickerFileType("RemoteOS 应用包") { Patterns = ["*.roapp"] }],
+                FileTypeFilter = [new FilePickerFileType(LocalizedText.Get("app_installer.package_file_type")) { Patterns = ["*.roapp"] }],
             });
             return selected.Select(file => file.TryGetLocalPath()).OfType<string>().ToArray();
         };
@@ -57,11 +58,11 @@ public sealed class AppInstallerApp : RemoteApplicationBase, IFileOpenApplicatio
         viewModel.RequestServerPackagesAsync = async () =>
         {
             if (files is null) return [];
-            var result = await context.ShowDialogAsync<IReadOnlyList<string>>(window, "选择服务器应用包", dialog =>
+            var result = await context.ShowDialogAsync<IReadOnlyList<string>>(window, LocalizedText.Get("app_installer.select_server_package"), dialog =>
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, AllowMultiple: true,
-                        Filters: [new ExplorerFileFilter("RemoteOS 应用包 (*.roapp)", ["*.roapp"])]),
+                        Filters: [new ExplorerFileFilter(LocalizedText.Get("app_installer.package_file_filter"), ["*.roapp"])]),
                     paths => dialog.Close(paths))
                 {
                     CancelAction = dialog.Cancel,
@@ -100,7 +101,7 @@ public sealed class AppInstallerApp : RemoteApplicationBase, IFileOpenApplicatio
 
     private static Control CreateMessageView(ModalDialog<bool> dialog, string message)
     {
-        var confirm = new Button { Content = "知道了", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Padding = new Thickness(16, 6) };
+        var confirm = new Button { Content = LocalizedText.Get("common.ok"), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Padding = new Thickness(16, 6) };
         confirm.Click += (_, _) => dialog.Close(true);
         return new StackPanel
         {

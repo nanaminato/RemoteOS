@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -13,13 +14,13 @@ public partial class TextInputDialogViewModel : ObservableObject
     private readonly Func<string?, bool>? _validate;
 
     public TextInputDialogViewModel(string prompt, string defaultValue, Action<string?> confirm,
-        string confirmLabel = "确定", Func<string?, bool>? validate = null)
+        string? confirmLabel = null, Func<string?, bool>? validate = null)
     {
         _confirm = confirm;
         _validate = validate;
         Prompt = prompt;
         _input = defaultValue;
-        ConfirmLabel = confirmLabel;
+        ConfirmLabel = confirmLabel ?? LocalizedText.Get("common.ok");
     }
 
     [ObservableProperty] private string _input = string.Empty;
@@ -32,7 +33,7 @@ public partial class TextInputDialogViewModel : ObservableObject
     {
         if (_validate is not null && !_validate(Input))
         {
-            ErrorMessage = "输入无效";
+            ErrorMessage = LocalizedText.Get("explorer.input_invalid");
             return;
         }
         _confirm(Input);

@@ -7,7 +7,7 @@
              x:DataType="vm:OpenWithDialogViewModel"
              Background="#FFFFFF" Width="440">
     <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20" RowSpacing="10">
-        <TextBlock Text="Choose an application to open this file:" />
+        <TextBlock Text="{loc:Loc explorer.open_with_prompt}" />
         <ListBox Grid.Row="1" ItemsSource="{Binding Applications}" SelectedItem="{Binding SelectedApplication, Mode=TwoWay}" MinHeight="140">
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="core:ApplicationInfo">

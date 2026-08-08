@@ -28,6 +28,8 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
         _remote = remote;
         _system = system;
         ServerAddresses = new ObservableCollection<NetworkAddressDto>();
+        LatencyText = T("settings.network.not_tested", "Not tested");
+        ServerAddressesStatus = T("settings.network.not_loaded", "Server addresses have not been loaded.");
     }
 
     public override string Glyph => "🌐";
@@ -47,9 +49,9 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
     public bool IsConnected => _session.State == AuthSessionState.Authenticated;
     public ObservableCollection<NetworkAddressDto> ServerAddresses { get; }
 
-    [ObservableProperty] private string _latencyText = "Not tested";
+    [ObservableProperty] private string _latencyText = string.Empty;
     [ObservableProperty] private bool _isTesting;
-    [ObservableProperty] private string _serverAddressesStatus = "Server addresses have not been loaded.";
+    [ObservableProperty] private string _serverAddressesStatus = string.Empty;
     [ObservableProperty] private bool _isLoadingServerAddresses;
 
     public async Task LoadServerAddressesAsync()

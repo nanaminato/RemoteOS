@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Localization;
 
 namespace Client.Apps.Explorer.Dialogs;
 
@@ -8,11 +9,11 @@ public partial class ConfirmDialogViewModel : ObservableObject
 {
     private readonly Action<bool> _complete;
 
-    public ConfirmDialogViewModel(string message, Action<bool> complete, string confirmLabel = "确定")
+    public ConfirmDialogViewModel(string message, Action<bool> complete, string? confirmLabel = null)
     {
         _complete = complete;
         Message = message;
-        ConfirmLabel = confirmLabel;
+        ConfirmLabel = confirmLabel ?? LocalizedText.Get("common.ok");
     }
 
     [ObservableProperty] private string _message = string.Empty;

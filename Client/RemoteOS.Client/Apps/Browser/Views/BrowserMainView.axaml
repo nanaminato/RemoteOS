@@ -95,7 +95,7 @@
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <ProgressBar IsIndeterminate="True" Width="120" Height="3" IsVisible="{Binding IsLoading}" />
-                    <TextBlock Text="{Binding IsLoading, StringFormat='{}{0:加载中...;加载中...;就绪}'}" FontSize="12" Opacity="0.6" />
+                    <TextBlock Text="{Binding IsLoading, Converter={x:Static conv:LoadingStatusConverter.Instance}}" FontSize="12" Opacity="0.6" />
                 </StackPanel>
             </Grid>
         </Border>

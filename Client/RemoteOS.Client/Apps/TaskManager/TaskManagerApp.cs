@@ -38,7 +38,7 @@ public sealed class TaskManagerApp : RemoteApplicationBase
         {
             var stub = new TextBlock
             {
-                Text = "任务管理器需要先登录。\n请连接到 RemoteOS Server 后再启动此应用。",
+                Text = LocalizedText.Get("task_manager.login_required"),
                 Margin = new Thickness(24),
                 TextWrapping = TextWrapping.Wrap,
             };

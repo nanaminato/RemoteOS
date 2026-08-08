@@ -2,6 +2,7 @@ using Client.Apps.Explorer;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Localization;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -32,17 +33,17 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var viewModel = new CodeEditorViewModel(files);
         var view = new CodeEditorView { DataContext = viewModel };
-        var window = context.ShowWindow("Code Editor", view,
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.codeeditor.display_name"), view,
             bounds: new Rect(140, 80, 920, 640),
             iconGlyph: Manifest.IconGlyph);
 
         viewModel.RequestFileAsync = () => files is null
             ? Task.FromResult<string?>(null)
-            : context.ShowDialogAsync<string>(window, "Select remote file", dialog =>
+            : context.ShowDialogAsync<string>(window, LocalizedText.Get("code_editor.open_remote_file"), dialog =>
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
-                        new ExplorerFileFilter("Source files", SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                        new ExplorerFileFilter(LocalizedText.Get("code_editor.source_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
                     ]),
                     paths => dialog.Close(paths[0]))
                 {
@@ -52,16 +53,16 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                 return new ExplorerMainView { DataContext = picker };
             }, GetFilePickerBounds(window));
 
-        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, "Save remote file", dialog =>
+        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, LocalizedText.Get("code_editor.save_remote_file"), dialog =>
         {
-            var vm = new TextInputDialogViewModel("Enter a full remote path:", defaultName,
-                savePath => dialog.Close(savePath ?? string.Empty), "Save",
+            var vm = new TextInputDialogViewModel(LocalizedText.Get("code_editor.remote_path_prompt"), defaultName,
+                savePath => dialog.Close(savePath ?? string.Empty), LocalizedText.Get("common.save"),
                 savePath => !string.IsNullOrWhiteSpace(savePath));
             return new TextInputDialogView { DataContext = vm };
         });
         viewModel.RequestSettingsAsync = async () =>
         {
-            await context.ShowDialogAsync<bool>(window, "Code Editor settings", dialog =>
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("code_editor.settings.title"), dialog =>
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new CodeEditorSettingsView { DataContext = viewModel };

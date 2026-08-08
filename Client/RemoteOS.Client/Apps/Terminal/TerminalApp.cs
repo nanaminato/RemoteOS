@@ -1,4 +1,5 @@
 using Client.Services.Auth;
+using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -79,12 +80,12 @@ public sealed class TerminalApp : RemoteApplicationBase
         {
             DataContext = viewModel,
         };
-        var window = context.ShowWindow("Terminal", view,
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.terminal.display_name"), view,
             bounds: new Rect(120, 80, 820, 540),
             iconGlyph: Manifest.IconGlyph);
         viewModel.RequestSettingsAsync = async () =>
         {
-            await context.ShowDialogAsync<bool>(window, "Terminal settings", dialog =>
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("terminal.settings"), dialog =>
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new TerminalSettingsView { DataContext = viewModel };

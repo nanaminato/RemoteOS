@@ -7,6 +7,7 @@ using Client.Services.Auth;
 using Client.Services.AppPermissions;
 using Client.Services.Developer;
 using Client.Apps.TaskManager;
+using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -46,7 +47,7 @@ public sealed class SettingsApp : RemoteApplicationBase
 
         var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages);
         var view = new SettingsView { DataContext = viewModel };
-        var window = context.ShowWindow("Settings", view,
+        var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
         if (settingsNavigation is SettingsNavigationService navigation)
@@ -55,7 +56,7 @@ public sealed class SettingsApp : RemoteApplicationBase
         var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
         appsPage.RequestPermissionEditorAsync = app => context.ShowDialogAsync<bool>(
             window,
-            $"{app.DisplayName} permissions",
+            LocalizedText.Format("settings.apps.permissions_title", app.DisplayName),
             dialog => new AppPermissionDialogView
             {
                 DataContext = new AppPermissionDialogViewModel(app, permissions, dialog.Close),
@@ -64,12 +65,12 @@ public sealed class SettingsApp : RemoteApplicationBase
         appsPage.RequestUninstallConfirmationAsync = async app =>
         {
             var confirmed = false;
-            await context.ShowDialogAsync<bool>(window, $"卸载 {app.DisplayName}", dialog => new ConfirmDialogView
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Format("settings.apps.uninstall_title", app.DisplayName), dialog => new ConfirmDialogView
             {
                 DataContext = new ConfirmDialogViewModel(
-                    $"确定要卸载“{app.DisplayName}”吗？此操作会删除本机安装的应用文件。",
+                    LocalizedText.Format("settings.apps.uninstall_confirmation", app.DisplayName),
                     result => { confirmed = result; dialog.Close(result); },
-                    "卸载"),
+                    LocalizedText.Get("settings.uninstall")),
             });
             return confirmed;
         };

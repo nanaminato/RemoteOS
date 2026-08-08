@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Client.Localization;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Protocol.Workspace;
@@ -24,7 +25,7 @@ public partial class TerminalViewModel : ObservableObject
     private SignalRTransportFactory? _transportFactory;
     private bool _loadingAppearance;
 
-    [ObservableProperty] private string _status = "准备就绪";
+    [ObservableProperty] private string _status = LocalizedText.Get("terminal.status.ready");
     [ObservableProperty] private bool _hasExited;
     [ObservableProperty] private TerminalSettingsDto _appearance = TerminalSettingsDto.Default;
     [ObservableProperty] private string _fontFamily = TerminalSettingsDto.Default.FontFamily;
@@ -103,7 +104,7 @@ public partial class TerminalViewModel : ObservableObject
 
         if (_session is { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } })
         {
-            Status = "正在连接远程终端…";
+            Status = LocalizedText.Get("terminal.status.connecting");
             options = new SignalRTransportOptions(
                 hubUrl: url.TrimEnd('/') + "/hubs/terminals",
                 dimensions: dimensions,
@@ -113,7 +114,7 @@ public partial class TerminalViewModel : ObservableObject
         }
         else
         {
-            Status = "本地终端（未登录）";
+            Status = LocalizedText.Get("terminal.status.local_fallback");
             options = new PtyTransportOptions(
                 Command: null,
                 WorkingDirectory: Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -126,12 +127,12 @@ public partial class TerminalViewModel : ObservableObject
             await _terminal.StartSessionAsync(options, CancellationToken.None);
             if (_transportFactory?.CurrentSessionId is { } id)
                 OpenSessions.TryAdd(id, 0);
-            Status = "已连接";
+            Status = LocalizedText.Get("terminal.status.connected");
         }
         catch (Exception ex)
         {
             HasExited = true;
-            Status = $"启动失败：{ex.Message}";
+            Status = LocalizedText.Format("terminal.status.start_failed", ex.Message);
         }
     }
 
@@ -197,7 +198,9 @@ public partial class TerminalViewModel : ObservableObject
     private void OnProcessExited(object? sender, int exitCode)
     {
         HasExited = true;
-        Status = exitCode == 0 ? "进程已退出" : $"进程已退出（退出码 {exitCode}）";
+        Status = exitCode == 0
+            ? LocalizedText.Get("terminal.status.process_exited")
+            : LocalizedText.Format("terminal.status.process_exited_with_code", exitCode);
     }
 
     private void OnTitleChanged(object? sender, string title)

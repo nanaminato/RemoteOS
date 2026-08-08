@@ -2,6 +2,7 @@
 // Copyright (c) 2020, Rubal Walia. 原始许可见 LICENSE-jaya.txt 与 THIRD_PARTY_NOTICES.md。
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Client.Localization;
 using Client.Apps.Explorer.Models;
 using RemoteOS.Protocol.Files;
 
@@ -33,12 +34,22 @@ public sealed class EntryTypeToStringConverter : IValueConverter
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => value is FileSystemEntryType t ? t switch
         {
-            FileSystemEntryType.Drive => "驱动器",
-            FileSystemEntryType.Directory => "文件夹",
-            FileSystemEntryType.File => "文件",
+            FileSystemEntryType.Drive => LocalizedText.Get("explorer.entry_type.drive"),
+            FileSystemEntryType.Directory => LocalizedText.Get("explorer.entry_type.directory"),
+            FileSystemEntryType.File => LocalizedText.Get("explorer.entry_type.file"),
             _ => string.Empty
         } : string.Empty;
 
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>Formats the Explorer's loading indicator through localized resources.</summary>
+public sealed class ExplorerLoadingStatusConverter : IValueConverter
+{
+    public static readonly ExplorerLoadingStatusConverter Instance = new();
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is true ? LocalizedText.Get("explorer.status.loading") : LocalizedText.Get("explorer.status.ready");
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }

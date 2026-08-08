@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Localization;
 using RemoteOS.Protocol.Files;
 
 namespace Client.Apps.Explorer.Dialogs;
@@ -33,9 +34,9 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
     [ObservableProperty] private bool _othersWrite;
     [ObservableProperty] private bool _othersExecute;
     [ObservableProperty] private bool _isSavingPermissions;
-    [ObservableProperty] private string _permissionStatus = "Select permissions, then save the changes to the server.";
+    [ObservableProperty] private string _permissionStatus = LocalizedText.Get("explorer.permissions.select_then_save");
 
-    public string SizeText => Properties.Size is { } size ? $"{size:N0} bytes" : "—";
+    public string SizeText => Properties.Size is { } size ? LocalizedText.Format("explorer.properties.size_bytes", size) : "—";
     public bool CanEditPermissions => Properties.UnixMode is not null && _saveUnixPermissions is not null;
     public string PermissionOctal => Convert.ToString(CurrentUnixMode, 8).PadLeft(4, '0');
 
@@ -64,15 +65,15 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
             return;
 
         IsSavingPermissions = true;
-        PermissionStatus = "Saving permissions…";
+        PermissionStatus = LocalizedText.Get("explorer.permissions.saving");
         try
         {
             Properties = await _saveUnixPermissions(CurrentUnixMode);
-            PermissionStatus = $"Saved as {PermissionOctal}.";
+            PermissionStatus = LocalizedText.Format("explorer.permissions.saved", PermissionOctal);
         }
         catch (Exception ex)
         {
-            PermissionStatus = $"Could not save permissions: {ex.Message}";
+            PermissionStatus = LocalizedText.Format("explorer.permissions.save_failed", ex.Message);
         }
         finally
         {
@@ -111,7 +112,7 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
             return;
 
         OnPropertyChanged(nameof(PermissionOctal));
-        PermissionStatus = "Unsaved permission changes.";
+        PermissionStatus = LocalizedText.Get("explorer.permissions.unsaved_changes");
     }
 
     private int CurrentUnixMode => _specialPermissionBits |
