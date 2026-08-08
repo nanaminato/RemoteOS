@@ -67,6 +67,7 @@ public sealed class DeveloperPackageManager
     /// <summary>Loads installed packages at client startup. Invalid old packages are ignored instead of breaking the shell.</summary>
     public void LoadInstalled()
     {
+        CleanupDeferredUninstalls();
         foreach (var record in _catalog.Values.ToArray())
         {
             try { ReplaceLoaded(CreateLoaded(record), launch: false); }
@@ -116,9 +117,10 @@ public sealed class DeveloperPackageManager
 
         await Dispatcher.UIThread.InvokeAsync(() => Unload(appId));
         SaveCatalog(_catalogPath, _catalog);
-        var appDirectory = AppDirectory(appId);
-        if (Directory.Exists(appDirectory))
-            Directory.Delete(appDirectory, recursive: true);
+        // A collectible context has been unloaded, but Windows can retain a DLL lock briefly.
+        // The application is already unregistered and absent from the catalog; defer deleting
+        // a locked directory until the next startup instead of reporting a false uninstall failure.
+        TryDeleteDirectory(AppDirectory(appId));
         return true;
     }
 
@@ -227,6 +229,30 @@ public sealed class DeveloperPackageManager
     }
 
     private string VersionPath(string appId) => Path.Combine(AppDirectory(appId), "versions", Guid.NewGuid().ToString("N"));
+
+    /// <summary>Removes package directories left behind by a prior successful logical uninstall.</summary>
+    private void CleanupDeferredUninstalls()
+    {
+        if (!Directory.Exists(_root)) return;
+        foreach (var directory in Directory.EnumerateDirectories(_root))
+        {
+            var appId = Path.GetFileName(directory);
+            if (appId.Equals(".staging", StringComparison.OrdinalIgnoreCase) || _catalog.ContainsKey(appId))
+                continue;
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static void TryDeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+        catch (IOException) { /* File is still locked; retry on the next client start. */ }
+        catch (UnauthorizedAccessException) { /* File is still locked; retry on the next client start. */ }
+    }
 
     private static string ResolvePackagePath(string packageRoot, string relativePath)
     {

@@ -29,7 +29,10 @@
                     </Grid>
                     <TextBlock Text="{Binding CurrentPackage.Manifest.Description}" TextWrapping="Wrap" Opacity="0.78" />
                     <TextBlock Text="{Binding CurrentVersionText}" FontSize="12" Opacity="0.65" />
-                    <TextBlock Text="来源：{Binding CurrentPackage.SourceName}" FontSize="12" Opacity="0.65" />
+                    <TextBlock FontSize="12" Opacity="0.65">
+                        <Run Text="来源：" />
+                        <Run Text="{Binding CurrentPackage.SourceName}" />
+                    </TextBlock>
 
                     <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="8">

@@ -55,8 +55,11 @@ public sealed class AppPackageInstallerService
 
     public async Task<DeveloperAppInfo> InstallAsync(AppPackageCandidate candidate, CancellationToken cancellationToken = default)
     {
-        await using var package = File.OpenRead(candidate.LocalPath);
-        var installed = await _packages.InstallAsync(package, launch: false, cancellationToken);
+        DeveloperAppInfo installed;
+        await using (var package = File.OpenRead(candidate.LocalPath))
+            installed = await _packages.InstallAsync(package, launch: false, cancellationToken);
+
+        // The stream must be disposed before Windows permits deleting the staged server package.
         if (candidate.DeleteWhenFinished && File.Exists(candidate.LocalPath))
             File.Delete(candidate.LocalPath);
         return installed;
