@@ -1,77 +1,64 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using Client.Services;
+using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
-using RemoteOS.Protocol.Workspace;
 using RemoteOS.Runtime;
 
 namespace Client.Apps.Settings.ViewModels;
 
-/// <summary>「应用」页：① 只读列出已注册应用清单（来自 <see cref="ApplicationManager"/>）；
-/// ② 默认程序映射编辑器（URI scheme / 文件扩展名 → 应用 Id），映射存到 <see cref="WorkspacePreferencesDto.DefaultApps"/>。
-/// 注意：默认程序的「自动启动路由」（如点 http 链接用映射应用打开）是后续接入项；本页先完成「可设」。</summary>
+/// <summary>Installed applications and the detail view for one selected application.</summary>
 public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposable
 {
     private readonly ApplicationManager _apps;
+    private readonly DeveloperPackageManager _packages;
 
-    public AppsPageViewModel(
-        ShellSettings settings,
-        ApplicationManager apps,
-        Action? save) : base(settings, save)
+    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, DeveloperPackageManager packages)
+        : base(settings, save: null)
     {
         _apps = apps;
+        _packages = packages;
         _apps.RegistryChanged += OnRegistryChanged;
         RefreshApplications();
     }
 
-    public override string Glyph => "📦";
+    public override string Glyph => "📱";
     public override string DisplayName => "应用";
-
-    /// <summary>已注册应用清单（只读）。</summary>
     public ObservableCollection<ApplicationInfo> RegisteredApps { get; } = new();
-
-    /// <summary>可绑定的应用 Id 选项（id + 显示名），供默认程序下拉选择。</summary>
-    public ObservableCollection<AppOption> AvailableApps { get; } = new();
 
     /// <summary>Provided by Settings to open the selected application's permission page.</summary>
     public Func<ApplicationInfo, Task>? RequestPermissionEditorAsync { get; set; }
+    /// <summary>Provided by Settings so an uninstall always has an explicit confirmation step.</summary>
+    public Func<ApplicationInfo, Task<bool>>? RequestUninstallConfirmationAsync { get; set; }
 
-    [ObservableProperty] private AppsSubpage _subpage = AppsSubpage.Overview;
+    [ObservableProperty] private AppsSubpage _subpage = AppsSubpage.InstalledApps;
     [ObservableProperty] private ApplicationInfo? _selectedApp;
+    [ObservableProperty] private string _actionStatus = string.Empty;
+    [ObservableProperty] private bool _isUninstalling;
 
-    public bool IsOverview => Subpage == AppsSubpage.Overview;
     public bool IsInstalledApps => Subpage == AppsSubpage.InstalledApps;
     public bool IsAppDetails => Subpage == AppsSubpage.AppDetails;
     public bool HasSelectedAppPermissions => SelectedApp?.Permissions.Count > 0;
+    public bool HasActionStatus => !string.IsNullOrWhiteSpace(ActionStatus);
+    public bool CanUninstallSelectedApp => !IsUninstalling && SelectedApp is not null
+        && _packages.FindInstalled(SelectedApp.Id.Value) is not null;
     public string SelectedAppPermissionSummary => SelectedApp is null || SelectedApp.Permissions.Count == 0
         ? "此应用未请求 RemoteOS 权限。"
         : $"此应用请求了 {SelectedApp.Permissions.Count} 项 RemoteOS 权限。";
-
-    /// <summary>URI schemes plus every extension declared by an installed application.</summary>
-    public ObservableCollection<string> AvailableSchemes { get; } = new();
-
-    /// <summary>当前默认程序映射（可编辑）。</summary>
-    public ObservableCollection<DefaultAppMappingViewModel> Mappings { get; } = new();
+    public string UninstallAvailabilityText => CanUninstallSelectedApp
+        ? "此第三方应用可以从本机卸载。"
+        : "内置应用由 RemoteOS 管理，不能在此卸载。";
 
     public void Dispose() => _apps.RegistryChanged -= OnRegistryChanged;
 
-    private void OnRegistryChanged(object? sender, EventArgs eventArgs)
-        => Dispatcher.UIThread.Post(RefreshApplications);
+    private void OnRegistryChanged(object? sender, EventArgs eventArgs) => Dispatcher.UIThread.Post(RefreshApplications);
 
     private void RefreshApplications()
     {
         var apps = _apps.Registered;
         Replace(RegisteredApps, apps);
-        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName, app.FileExtensions)));
-        Replace(AvailableSchemes, new[] { "http", "https", "mailto", "ftp" }
-            .Concat(apps.SelectMany(app => app.FileExtensions))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(scheme => scheme.StartsWith('.') ? 1 : 0)
-            .ThenBy(scheme => scheme, StringComparer.OrdinalIgnoreCase));
-        foreach (var mapping in Mappings)
-            mapping.NotifyAvailableAppsChanged();
         if (SelectedApp is not null)
             SelectedApp = apps.FirstOrDefault(app => app.Id == SelectedApp.Id);
     }
@@ -80,13 +67,20 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     private void ShowInstalledApps() => Subpage = AppsSubpage.InstalledApps;
 
     [RelayCommand]
-    private void ShowOverview() => Subpage = AppsSubpage.Overview;
-
-    [RelayCommand]
     private void ShowAppDetails(ApplicationInfo app)
     {
         SelectedApp = app;
+        ActionStatus = string.Empty;
         Subpage = AppsSubpage.AppDetails;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenSelectedApp))]
+    private void OpenSelectedApp()
+    {
+        if (SelectedApp is null) return;
+        ActionStatus = _apps.Launch(SelectedApp.Id)
+            ? $"已打开 {SelectedApp.DisplayName}。"
+            : "该应用已不在可启动列表中。";
     }
 
     [RelayCommand]
@@ -97,9 +91,36 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         RefreshApplications();
     }
 
+    [RelayCommand(CanExecute = nameof(CanUninstallSelectedApp))]
+    private async Task UninstallSelectedAppAsync()
+    {
+        if (SelectedApp is null || IsUninstalling || !CanUninstallSelectedApp) return;
+        if (RequestUninstallConfirmationAsync is not null && !await RequestUninstallConfirmationAsync(SelectedApp)) return;
+
+        IsUninstalling = true;
+        try
+        {
+            var displayName = SelectedApp.DisplayName;
+            if (await _packages.UninstallAsync(SelectedApp.Id.Value))
+            {
+                SelectedApp = null;
+                Subpage = AppsSubpage.InstalledApps;
+                ActionStatus = $"已卸载 {displayName}。";
+            }
+            else
+                ActionStatus = "该应用已被卸载，或不支持卸载。";
+        }
+        catch (Exception exception)
+        {
+            ActionStatus = $"卸载失败：{exception.Message}";
+        }
+        finally { IsUninstalling = false; }
+    }
+
+    private bool CanOpenSelectedApp() => SelectedApp is not null;
+
     partial void OnSubpageChanged(AppsSubpage value)
     {
-        OnPropertyChanged(nameof(IsOverview));
         OnPropertyChanged(nameof(IsInstalledApps));
         OnPropertyChanged(nameof(IsAppDetails));
     }
@@ -107,112 +128,31 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     partial void OnSelectedAppChanged(ApplicationInfo? value)
     {
         OnPropertyChanged(nameof(HasSelectedAppPermissions));
+        OnPropertyChanged(nameof(CanUninstallSelectedApp));
         OnPropertyChanged(nameof(SelectedAppPermissionSummary));
-        EditSelectedPermissionsCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(UninstallAvailabilityText));
+        OpenSelectedAppCommand.NotifyCanExecuteChanged();
+        UninstallSelectedAppCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsUninstallingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanUninstallSelectedApp));
+        OnPropertyChanged(nameof(UninstallAvailabilityText));
+        UninstallSelectedAppCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnActionStatusChanged(string value) => OnPropertyChanged(nameof(HasActionStatus));
 
     private static void Replace<T>(ObservableCollection<T> destination, IEnumerable<T> source)
     {
         destination.Clear();
-        foreach (var item in source)
-            destination.Add(item);
+        foreach (var item in source) destination.Add(item);
     }
-
-    [RelayCommand]
-    private void AddMapping()
-    {
-        var preset = AvailableSchemes.FirstOrDefault(s => Mappings.All(m => !string.Equals(m.Scheme, s, StringComparison.OrdinalIgnoreCase)))
-            ?? AvailableSchemes[0];
-        var defaultApp = AvailableApps.FirstOrDefault()?.Id ?? "remoteos.browser";
-        Mappings.Add(new DefaultAppMappingViewModel(preset, defaultApp, AvailableApps, Save, m => { Mappings.Remove(m); Save(); }));
-        Save();
-    }
-
-    [RelayCommand]
-    private void RemoveMapping(DefaultAppMappingViewModel mapping)
-    {
-        if (Mappings.Remove(mapping))
-            Save();
-    }
-
-    /// <summary>从服务端 DTO 填充映射（初始化时由根 VM 调用）。</summary>
-    public void SetMappings(IEnumerable<DefaultAppMappingDto>? dtos)
-    {
-        Mappings.Clear();
-        if (dtos is null) return;
-        foreach (var d in dtos)
-        {
-            if (AvailableSchemes.All(scheme => !string.Equals(scheme, d.Scheme, StringComparison.OrdinalIgnoreCase)))
-                AvailableSchemes.Add(d.Scheme);
-            Mappings.Add(new DefaultAppMappingViewModel(d.Scheme, d.AppId, AvailableApps, Save, m => { Mappings.Remove(m); Save(); }));
-        }
-    }
-
-    /// <summary>导出当前映射为服务端 DTO（保存时由根 VM 调用）。</summary>
-    public IReadOnlyList<DefaultAppMappingDto> ToMappings()
-        => Mappings.Select(m => new DefaultAppMappingDto(m.Scheme, m.AppId)).ToArray();
 }
 
 public enum AppsSubpage
 {
-    Overview,
     InstalledApps,
     AppDetails,
 }
-
-/// <summary>一条可编辑的默认程序映射（scheme/ext → appId）。</summary>
-public sealed partial class DefaultAppMappingViewModel : ObservableObject
-{
-    private readonly Action? _save;
-    private readonly Action<DefaultAppMappingViewModel>? _remove;
-    public IReadOnlyList<AppOption> AvailableApps { get; }
-
-    public DefaultAppMappingViewModel(string scheme, string appId, IReadOnlyList<AppOption> availableApps,
-        Action? save, Action<DefaultAppMappingViewModel>? remove)
-    {
-        _save = save;
-        _remove = remove;
-        AvailableApps = availableApps;
-        _scheme = scheme;
-        _appId = appId;
-    }
-
-    [ObservableProperty] private string _scheme;
-    [ObservableProperty] private string _appId;
-
-    /// <summary>当前选中的应用选项（供 ComboBox SelectedItem 绑定，与 <see cref="AppId"/> 双向同步）。</summary>
-    public AppOption? SelectedApp
-    {
-        get => AvailableApps.FirstOrDefault(a => string.Equals(a.Id, AppId, StringComparison.Ordinal));
-        set { if (value is not null) AppId = value.Id; }
-    }
-
-    /// <summary>Applications compatible with the mapped file extension; URI schemes remain unrestricted.</summary>
-    public IReadOnlyList<AppOption> CompatibleApps => Scheme.StartsWith(".", StringComparison.Ordinal)
-        ? AvailableApps.Where(app => app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray()
-        : AvailableApps;
-
-    [RelayCommand]
-    private void Remove() => _remove?.Invoke(this);
-
-    partial void OnSchemeChanged(string value)
-    {
-        _save?.Invoke();
-        OnPropertyChanged(nameof(CompatibleApps));
-        OnPropertyChanged(nameof(SelectedApp));
-    }
-    partial void OnAppIdChanged(string value)
-    {
-        _save?.Invoke();
-        OnPropertyChanged(nameof(SelectedApp));
-    }
-
-    public void NotifyAvailableAppsChanged()
-    {
-        OnPropertyChanged(nameof(CompatibleApps));
-        OnPropertyChanged(nameof(SelectedApp));
-    }
-}
-
-/// <summary>应用下拉选项（Id + 显示名）。</summary>
-public sealed record AppOption(string Id, string DisplayName, IReadOnlyList<string> SupportedFileExtensions);

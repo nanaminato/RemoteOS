@@ -23,6 +23,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly ITaskManagerClient? _system;
     private readonly DefaultAppRegistry? _registry;
     private readonly DeveloperModeService? _developerMode;
+    private readonly DeveloperPackageManager? _packages;
     private CancellationTokenSource? _saveCts;
     private bool _initialized;
 
@@ -34,7 +35,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         IRemoteOsClient? remote,
         ITaskManagerClient? system,
         DefaultAppRegistry? registry,
-        DeveloperModeService? developerMode)
+        DeveloperModeService? developerMode,
+        DeveloperPackageManager? packages)
     {
         _settings = settings;
         _client = client;
@@ -44,6 +46,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _system = system;
         _registry = registry;
         _developerMode = developerMode;
+        _packages = packages;
 
         var save = (Action)Save;
         Pages = new SettingsPageViewModel[]
@@ -52,7 +55,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
-            new AppsPageViewModel(settings, apps!, save),
+            new AppsPageViewModel(settings, apps!, packages!),
+            new DefaultAppsPageViewModel(settings, apps!, save),
             new DeveloperPageViewModel(settings, developerMode!, save),
         };
         _selectedPage = Pages[0];
@@ -83,8 +87,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         {
             var prefs = await _client.GetAsync(url, tokens.AccessToken, ws.Id);
             _settings.Apply(prefs);
-            if (Pages.FirstOrDefault(p => p is AppsPageViewModel) is AppsPageViewModel appsPage)
-                appsPage.SetMappings(prefs.DefaultApps);
+            if (Pages.OfType<DefaultAppsPageViewModel>().FirstOrDefault() is { } defaultAppsPage)
+                defaultAppsPage.SetMappings(prefs.DefaultApps);
         }
         catch
         {
@@ -97,7 +101,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         if (!_initialized) return; // 初始化 Apply 期间不保存
         // 即时同步默认程序映射到全局注册表（启动路由可立即读到最新意图）。
-        _registry?.SetMappings(Pages.OfType<AppsPageViewModel>().FirstOrDefault()?.ToMappings());
+        _registry?.SetMappings(Pages.OfType<DefaultAppsPageViewModel>().FirstOrDefault()?.ToMappings());
         _saveCts?.Cancel();
         _saveCts = new CancellationTokenSource();
         _ = SaveAsync(_saveCts.Token);
@@ -111,7 +115,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } ws })
             return;
 
-        var mappings = Pages.OfType<AppsPageViewModel>().FirstOrDefault()?.ToMappings() ?? Array.Empty<DefaultAppMappingDto>();
+        var mappings = Pages.OfType<DefaultAppsPageViewModel>().FirstOrDefault()?.ToMappings() ?? Array.Empty<DefaultAppMappingDto>();
         var prefs = _settings.ToPreferences(mappings);
         try { await _client.SaveAsync(url, tokens.AccessToken, ws.Id, prefs, ct); }
         catch { /* 保留本地值，后续改动可重试 */ }

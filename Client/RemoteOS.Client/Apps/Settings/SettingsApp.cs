@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using Client.Apps.Settings.ViewModels;
 using Client.Apps.Settings.Views;
+using Client.Apps.Explorer.Dialogs;
 using Client.Services;
 using Client.Services.Auth;
 using Client.Services.AppPermissions;
@@ -40,9 +41,10 @@ public sealed class SettingsApp : RemoteApplicationBase
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
         var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
+        var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
@@ -59,6 +61,18 @@ public sealed class SettingsApp : RemoteApplicationBase
                 DataContext = new AppPermissionDialogViewModel(app, permissions, dialog.Close),
             },
             new Size(560, 540));
+        appsPage.RequestUninstallConfirmationAsync = async app =>
+        {
+            var confirmed = false;
+            await context.ShowDialogAsync<bool>(window, $"卸载 {app.DisplayName}", dialog => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(
+                    $"确定要卸载“{app.DisplayName}”吗？此操作会删除本机安装的应用文件。",
+                    result => { confirmed = result; dialog.Close(result); },
+                    "卸载"),
+            });
+            return confirmed;
+        };
 
         EventHandler<ManagedWindow>? closed = null;
         closed = (_, closedWindow) =>

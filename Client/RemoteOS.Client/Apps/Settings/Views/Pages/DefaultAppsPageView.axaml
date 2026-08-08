@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             x:Class="Client.Apps.Settings.Views.Pages.DefaultAppsPageView"
+             x:DataType="vm:DefaultAppsPageViewModel"
+             x:Name="Root">
+    <StackPanel Spacing="16" MaxWidth="720">
+        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
+                    <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />
+                </Grid>
+                <TextBlock Text="将 URI scheme（http/mailto）或文件扩展名（.txt）绑定到指定应用。" Opacity="0.7" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Mappings}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
+                            <Grid ColumnDefinitions="*,*,Auto" Margin="0,3">
+                                <ComboBox Grid.Column="0" Margin="0,0,8,0"
+                                          ItemsSource="{Binding DataContext.AvailableSchemes, ElementName=Root}"
+                                          SelectedItem="{Binding Scheme, Mode=TwoWay}" />
+                                <ComboBox Grid.Column="1" Margin="0,0,8,0"
+                                          ItemsSource="{Binding CompatibleApps}"
+                                          SelectedItem="{Binding SelectedApp, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AppOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="删除映射" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

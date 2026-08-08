@@ -37,6 +37,12 @@
                 <pages:AppsPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
+        <DataTemplate DataType="vm:DefaultAppsPageViewModel">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <pages:DefaultAppsPageView VerticalAlignment="Top" />
+            </ScrollViewer>
+        </DataTemplate>
         <DataTemplate DataType="vm:DeveloperPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">

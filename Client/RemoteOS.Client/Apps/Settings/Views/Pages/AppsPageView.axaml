@@ -6,52 +6,9 @@
              x:DataType="vm:AppsPageViewModel"
              x:Name="Root">
     <StackPanel Spacing="16" MaxWidth="720">
-        <StackPanel IsVisible="{Binding IsOverview}" Spacing="16">
-            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
-            <Border Classes="card">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="已安装应用" Classes="title" />
-                        <TextBlock Text="查看应用详情、版本和它请求的 RemoteOS 权限。" Opacity="0.68" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button Grid.Column="1" Content="打开" Command="{Binding ShowInstalledAppsCommand}" VerticalAlignment="Center" Padding="16,7" />
-                </Grid>
-            </Border>
-            <Border Classes="card">
-                <StackPanel Spacing="10">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
-                        <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />
-                    </Grid>
-                    <TextBlock Text="将 URI scheme（http/mailto）或文件扩展名（.txt）绑定到指定应用。" Opacity="0.7" />
-                    <ItemsControl ItemsSource="{Binding Mappings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
-                                <Grid ColumnDefinitions="*,*,Auto" Margin="0,3">
-                                    <ComboBox Grid.Column="0" Margin="0,0,8,0"
-                                              ItemsSource="{Binding DataContext.AvailableSchemes, ElementName=Root}"
-                                              SelectedItem="{Binding Scheme, Mode=TwoWay}" />
-                                    <ComboBox Grid.Column="1" Margin="0,0,8,0"
-                                              ItemsSource="{Binding CompatibleApps}"
-                                              SelectedItem="{Binding SelectedApp, Mode=TwoWay}">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:AppOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                    <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="删除映射" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-
         <StackPanel IsVisible="{Binding IsInstalledApps}" Spacing="16">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="← 应用" Command="{Binding ShowOverviewCommand}" />
-                <TextBlock Text="应用 > 已安装应用" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </StackPanel>
+            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="已安装的 RemoteOS 应用。选择应用可查看信息、管理权限、打开或卸载。" Opacity="0.68" TextWrapping="Wrap" />
             <Border Classes="card">
                 <ItemsControl ItemsSource="{Binding RegisteredApps}">
                     <ItemsControl.ItemTemplate>
@@ -70,15 +27,16 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Border>
+            <TextBlock Text="{Binding ActionStatus}" IsVisible="{Binding HasActionStatus}" Opacity="0.68" />
         </StackPanel>
 
         <StackPanel IsVisible="{Binding IsAppDetails}" Spacing="16">
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="← 已安装应用" Command="{Binding ShowInstalledAppsCommand}" />
+                <Button Content="← 应用" Command="{Binding ShowInstalledAppsCommand}" />
                 <TextBlock Text="应用信息" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
             <Border Classes="card">
-                <StackPanel Spacing="10">
+                <StackPanel Spacing="12">
                     <Grid ColumnDefinitions="38,*" ColumnSpacing="10">
                         <TextBlock Text="{Binding SelectedApp.IconGlyph}" FontSize="26" />
                         <StackPanel Grid.Column="1" Spacing="2">
@@ -88,6 +46,11 @@
                     </Grid>
                     <TextBlock Text="{Binding SelectedApp.Description}" TextWrapping="Wrap" Opacity="0.78" />
                     <Grid ColumnDefinitions="120,*"><TextBlock Text="版本" Opacity="0.65" /><TextBlock Grid.Column="1" Text="{Binding SelectedApp.Version}" /></Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="primary" Content="打开" Command="{Binding OpenSelectedAppCommand}" Padding="16,7" />
+                        <Button Content="卸载" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding UninstallAvailabilityText}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
                     <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <StackPanel Spacing="3">
@@ -97,6 +60,7 @@
                             <Button Grid.Column="1" Content="管理权限" Command="{Binding EditSelectedPermissionsCommand}" IsVisible="{Binding HasSelectedAppPermissions}" VerticalAlignment="Center" Padding="14,6" />
                         </Grid>
                     </Border>
+                    <TextBlock Text="{Binding ActionStatus}" IsVisible="{Binding HasActionStatus}" Opacity="0.68" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
         </StackPanel>
