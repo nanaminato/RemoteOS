@@ -28,7 +28,7 @@ Settings 是 RemoteOS 的内置系统设置应用，参考 Windows 11 设置 / G
 | 个性化 | 🎨 | 壁纸预设选择 + 主题（Light / Dark / System） | Workspace.Preferences |
 | 时间和语言 | 🕐 | 12/24 小时制 + 日期格式 + 语言 + 区域（时区只读） | Workspace.Preferences |
 | 网络 | 🌐 | 只读连接状态 + 「测试连接」测往返延迟 | — |
-| 应用 | 📦 | 已注册应用清单（只读）+ 默认程序映射编辑器（scheme/ext → appId） | Workspace.Preferences.DefaultApps |
+| 应用 | 📦 | 已注册应用清单、第三方应用权限、开发者模式、默认程序映射编辑器（scheme/ext → appId） | 默认程序映射 → Workspace；应用授权与开发者模式 → 本机 |
 
 ---
 
@@ -48,7 +48,7 @@ SettingsApp (RemoteApplicationBase)
         └── 右侧 ContentControl（绑定 SelectedPage，DataTemplate 分发到 5 个 PageView）
 ```
 
-`SettingsApp.Activate` 注入 `ShellSettings` / `IAuthSession` / `ISettingsClient` / `ApplicationManager` / `IRemoteOsClient` / `DefaultAppRegistry`，构造 `SettingsViewModel` 后 `_ = viewModel.InitializeAsync()` 异步从服务端加载偏好。未登录时仍可打开（沿用 `ShellSettings` 默认值，不持久化）。
+`SettingsApp.Activate` 注入 `ShellSettings` / `IAuthSession` / `ISettingsClient` / `ApplicationManager` / `IRemoteOsClient` / `DefaultAppRegistry` / `IAppPermissionManager` / `DeveloperModeService`，构造 `SettingsViewModel` 后 `_ = viewModel.InitializeAsync()` 异步从服务端加载偏好。未登录时仍可打开（沿用 `ShellSettings` 默认值，不持久化）。
 
 ---
 
@@ -177,7 +177,7 @@ workspaces
 | `PersonalizationPageViewModel` | `WallpaperIndex` / `Theme` | 主题 RadioButton 辅助属性 `IsLightTheme`/`IsDarkTheme`/`IsSystemTheme`（Theme 变化时刷新） |
 | `TimeLanguagePageViewModel` | `TimeFormat` / `DateFormat` / `Language` / `Region` | `TimeSample` / `DateSample` 实时预览（`FormatTime`/`FormatDate` 供桌面外壳时钟复用）；`TimeZone` 只读展示宿主时区 |
 | `NetworkPageViewModel` | — | 只读连接状态 + `TestConnectionCommand`（`IRemoteOsClient.GetMeAsync` + `Stopwatch` 测延迟） |
-| `AppsPageViewModel` | — | `RegisteredApps`（只读）+ `Mappings`（`ObservableCollection<DefaultAppMappingViewModel>`，可增删改）+ `SetMappings`/`ToMappings` 与 DTO 互转 |
+| `AppsPageViewModel` | — | `RegisteredApps`（只读）+ 应用权限入口 + 开发者模式开关/配对令牌 + `Mappings`（`ObservableCollection<DefaultAppMappingViewModel>`，可增删改）+ `SetMappings`/`ToMappings` 与 DTO 互转 |
 
 **`DefaultAppMappingViewModel`**：单条映射（`Scheme` + `AppId` + `SelectedApp` ComboBox 双向同步），`OnSchemeChanged`/`OnAppIdChanged` 触发 `_save`。
 
@@ -227,7 +227,7 @@ Unauthenticated → ShellSettings.Apply(Default) + DefaultAppRegistry.SetMapping
 - `Resolve(string schemeOrExt)`：查询某 scheme/扩展名对应的应用 Id（供启动路由用，未配置返回 null）。
 - `Snapshot`：当前映射只读快照。
 
-> **启动路由未接入**：当前仅完成「可设」（映射存到 Workspace）。点选 http 链接自动用映射应用打开是后续接入项。
+> **已接入文件扩展名路由**：RemoteExplorer 双击文件时调用 `Resolve(extension)`，但只接受仍实现 `IFileOpenApplication` 且声明该扩展名的应用；无有效关联时从兼容应用中回退选择。“打开方式”可修改此关联并保存到 Workspace。URI scheme（如点选 http/mailto 链接）自动启动映射应用仍未接入。
 
 ### 5.6 桌面外壳时钟集成（`DesktopShellViewModel.StartClock`）
 
@@ -271,7 +271,7 @@ PreferencesSync.LoadIfAuthenticatedAsync
 PageViewModel.Setter → ShellSettings.Theme = Dark   → 桌面外壳即时生效
     ↓
 PageViewModel.Save() → SettingsViewModel.Save()
-    ├── DefaultAppRegistry.SetMappings(当前 Mappings)  ← 启动路由立即读到最新意图
+    ├── DefaultAppRegistry.SetMappings(当前 Mappings)  ← Explorer 文件打开立即读到最新关联
     └── 防抖 300ms（取消上次未发请求）
           ↓
           SettingsViewModel.SaveAsync
@@ -302,7 +302,8 @@ PreferencesSync.OnStateChanged
 6. **`DefaultAppMappingViewModel.SelectedApp` 双向同步**：ComboBox `SelectedItem` 绑 `SelectedApp`（`AppOption?`），setter 写回 `AppId`；`OnAppIdChanged` 时 `OnPropertyChanged(nameof(SelectedApp))` 让 ComboBox 跟随外部 `AppId` 变化（如 `SetMappings` 填充）。
 7. **路由常量 `{id}` 替换**：`WorkspaceApiRoutes.Preferences` 含 `{id}` 占位符，客户端 `SettingsClient.SendAsync` 用 `workspaceId.ToString("D")` 替换。禁止硬编码 URL 字符串。
 8. **时区 / 网络只读**：宿主 OS 时区切换（Linux `timedatectl` / Windows 时区设置）与网卡配置需 sudo/UAC 提权（硬约束「权限提升委托宿主 OS」），Settings 仅只读展示宿主时区 + Client→Server 连接状态，不触及宿主 OS 配置。
-9. **`AvailableApps.FirstOrDefault()?.Id`**：`AppsPageViewModel.AddMapping` 用 `?.` 防 `FirstOrDefault()` 返回 null 时 NRE（`AvailableApps` 为 `IReadOnlyList<AppOption>` 引用类型，可能空）。
+9. **扩展名关联必须受 manifest 约束**：可选扩展名从所有已注册应用的 `SupportedFileExtensions` 聚合；扩展名映射的下拉项只显示声明支持该扩展名的应用。Explorer 打开时会再次验证，历史遗留的错误关联不会把文件交给不兼容应用。
+10. **`AvailableApps.FirstOrDefault()?.Id`**：`AppsPageViewModel.AddMapping` 用 `?.` 防 `FirstOrDefault()` 返回 null 时 NRE（`AvailableApps` 为 `IReadOnlyList<AppOption>` 引用类型，可能空）。
 
 ---
 
@@ -310,7 +311,7 @@ PreferencesSync.OnStateChanged
 
 - **完整主题切换**：当前仅任务栏底色随主题切换。后续接入 `RemoteOS.UI` 的 Light/Dark 样式切换（控件级主题）。
 - **自定义壁纸**：当前仅 5 个预设渐变壁纸。后续支持上传图片壁纸（存到 Server Storage，key 用 `custom:{blobId}`）。
-- **默认程序自动路由**：当前仅「可设」。后续接入启动路由——点选 http/mailto 链接或打开 `.txt` 文件时 `DefaultAppRegistry.Resolve` 查询映射并启动对应应用。
+- **URI scheme 自动路由**：文件扩展名关联已由 RemoteExplorer 使用；后续让 http/mailto 等链接也通过 `DefaultAppRegistry.Resolve` 启动映射应用。
 - **更多语言资源**：当前语言切换仅影响时钟格式化 culture。后续接入 i18n 资源文件，UI 文案随语言切换。
 - **区域格式化**：当前区域仅存储未深度应用。后续按区域格式化数字 / 货币 / 首日星期。
 - **通知中心 / 声音 / 显示**：当前未含。后续按需新增分类页。

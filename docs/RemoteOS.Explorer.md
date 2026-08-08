@@ -19,7 +19,7 @@ RemoteExplorer 是 RemoteOS 的内置文件管理器，用于浏览与操作**�
 - **不存储密码**：认证委托宿主 OS（已完成于登录模块），Explorer 仅消费 `IAuthSession.Tokens.AccessToken`。
 - **UI 来源**：移植自 Jaya File Manager（BSD-3）。保留 Jaya 的导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏布局；**去除**插件系统（仅保留 FileSystem 单 provider）、Ribbon（后续延后）、About/ManagePlugins/Update 等非核心视图。原始版权头保留于移植文件。
 
-**实现范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/移动/上传/下载）。
+**实现范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/移动/上传/下载）+ 文件打开（默认程序或“打开方式”）+ 文件/目录属性查看（Linux 可编辑 POSIX 权限）。
 
 ---
 
@@ -143,7 +143,11 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 | `GET /files/special` | — | `IReadOnlyList<SpecialLocationDto>` | —（缺失项服务端 `Directory.Exists` 过滤） |
 | `GET /files/list?path=` | `string? path`（空=盘符根） | `DirectoryDto` | `not-found` / `access-denied` / `invalid-path` |
 | `GET /files/info?path=` | `string path` | `FileSystemEntryDto`（404 if 缺） | `not-found` / `access-denied` |
-| `GET /files/download?path=` | `string path` | `Results.File(stream, "application/octet-stream", fileName)` | `not-found` / `access-denied` |
+| `GET /files/download?path=` | `string path` | `Results.File(stream, contentType, fileName)` | `not-found` / `access-denied` |
+| `GET /files/content?path=` | `string path` | 原始文件字节流 | `not-found` / `access-denied` / `invalid-path` |
+| `PUT /files/content?path=` | `string path` + 请求体字节流 | `FileEntryDto` | `not-found` / `access-denied` / `io-error` / `invalid-path` |
+| `GET /files/properties?path=` | `string path` | `FilePropertiesDto`（404 if 缺） | `not-found` / `access-denied` / `invalid-path` |
+| `PUT /files/permissions` | body `UpdateUnixPermissionsRequest` | `FilePropertiesDto` | `not-found` / `access-denied` / `invalid-path` / `invalid-mode` / `unsupported-operation` |
 | `POST /files/directory?path=` | `string path` | `Results.Created(path, FileSystemEntryDto)` | `already-exists` / `access-denied` |
 | `DELETE /files?path=` | `string path` | `Results.NoContent()` | `not-found` / `access-denied` / `io-error` |
 | `POST /files/rename` | body `RenameRequest` | `FileSystemEntryDto` | `not-found` / `already-exists` / `access-denied` |
@@ -167,6 +171,7 @@ app.MapFileEndpoints();   // 紧随 app.MapAuthEndpoints();
 
 ```
 Client/RemoteOS.Client/Apps/Explorer/
+├── ExplorerPickerOptions.cs       可复用远端文件选择器配置（打开文件 / 选择文件夹、多选、通配符过滤）
 ├── ExplorerApp.cs                 RemoteApplicationBase，Activate 创建 VM+View+Window，注入对话框回调
 ├── IExplorerClient.cs             typed HttpClient 抽象
 ├── ExplorerClient.cs              实现：JWT from IAuthSession，绝对 URI，ProblemDetails → RemoteOsAuthException
@@ -182,7 +187,11 @@ Client/RemoteOS.Client/Apps/Explorer/
 │   ├── TextInputDialogView.axaml(.cs)   通用文本输入对话框（新建文件夹/重命名/复制/移动目标）
 │   ├── TextInputDialogViewModel.cs
 │   ├── ConfirmDialogView.axaml(.cs)     通用确认对话框（删除确认/About 消息）
-│   └── ConfirmDialogViewModel.cs
+│   ├── ConfirmDialogViewModel.cs
+│   ├── OpenWithDialogView.axaml(.cs)     按扩展名筛选的“打开方式”选择器
+│   ├── OpenWithDialogViewModel.cs
+│   ├── FilePropertiesDialogView.axaml(.cs) 文件/目录属性与 Linux POSIX 权限编辑器
+│   └── FilePropertiesDialogViewModel.cs
 └── Converters/
     └── EntryConverters.cs         EntryType→图标可见性/类型名/大小友好字符串（SizeSuffix 移植自 Jaya）+ TreeNodeIconKind→emoji
 ```
@@ -193,8 +202,11 @@ Client/RemoteOS.Client/Apps/Explorer/
 
 - **导航树懒加载**：`TreeNodeModel.AddDummyChild()` 保证展开箭头显示；首次展开触发 `ExpandRequested` 回调 → `IExplorerClient.GetDirectoryAsync` → 填充子目录（与 Jaya `OnNodeExpanded` 同模式）。
 - **历史栈**：`_history` + `_historyIndex` 支持 `GoBack` / `GoForward` / `GoUp`（`CanGoBack`/`CanGoForward`/`CanGoUp` 驱动命令可用性）。
-- **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → 当前不打开（后续接入预览）。
-- **文件操作命令**：`NewFolder` / `Delete` / `Rename` / `Copy` / `Move` / `Upload` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成，操作后调 `RefreshAsync` 刷新视图。
+- **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → `OpenEntryAsync`。先使用 `DefaultAppRegistry` 中有效的扩展名关联；未关联或关联的应用不再声明该扩展名时，回退到第一个兼容的已注册应用；没有兼容应用时给出提示。
+- **打开方式与默认关联**：右键菜单提供 `Open` / `Open with...` / `Properties`。“打开方式”仅列出同时实现 `IFileOpenApplication` 且在 manifest 声明当前扩展名的应用；可将所选应用设为该扩展名的默认程序，映射即时写入注册表并持久化到当前 Workspace。
+- **属性与权限**：属性对话框展示类型、大小、时间、属性和宿主 OS 权限摘要；Linux 返回 `UnixMode` 时可编辑并保存 POSIX 权限位。Windows 等不支持的平台仅展示只读属性。
+- **文件操作命令**：`Open` / `OpenWithSelected` / `Properties` / `NewFolder` / `Delete` / `Rename` / `Copy` / `Move` / `Upload` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成；会改变目录内容的操作后调 `RefreshAsync` 刷新视图。
+- **可复用远端文件选择器**：`ExplorerPickerOptions` 将同一导航和条目视图嵌入应用的模态对话框；支持单/多文件选择、扩展名通配符过滤及目录选择。Notebook 与 Code Editor 用它选择远端文件，不会绕过 `IExplorerClient` 直接访问服务端文件系统。
 
 #### 多根导航树（参考 Windows File Explorer Navigation Pane）
 
@@ -241,6 +253,9 @@ Nodes
 | `ShowMessageAsync` | About 消息 | `ConfirmDialogView`（单按钮） |
 | `RequestLocalOpenFileAsync` | 上传本地源文件选择 | `StorageProvider.OpenFilePickerAsync`（TopLevel = MainWindow） |
 | `RequestLocalSaveFileAsync` | 下载本地保存路径 | `StorageProvider.SaveFilePickerAsync` |
+| `OpenFileAsync` | 根据默认关联或兼容应用打开远端文件 | `ApplicationManager.OpenFile` |
+| `RequestOpenWithAsync` | 显式选择兼容应用并可保存默认关联 | `OpenWithDialogView` + `DefaultAppRegistry` |
+| `ShowPropertiesAsync` | 显示文件/目录属性与可用的 Linux 权限编辑器 | `FilePropertiesDialogView` |
 | `CloseAction` | 关闭 Explorer 窗口 | `WindowManager.Close(window)` |
 
 **TopLevel 获取**：`ManagedWindow` / `RemoteWindow` 不是 `TopLevel`（桌面外壳 Canvas 内的 `TemplatedControl`），故 `StorageProvider` 用 `Application.Current.ApplicationLifetime.MainWindow`（实际 Avalonia `Window`）作为根。
@@ -265,12 +280,13 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 | `FileSystemEntryType.cs` | enum `File/Directory/Drive`（`JsonStringEnumConverter` camelCase） |
 | `FileSystemEntryDto.cs` | 通用条目元数据：path/name/size/type/created/modified/accessed/isHidden/isSystem |
 | `FileEntryDto.cs` | 文件条目（含 extension，非空 size）——用于 `DirectoryDto.Files` 列表 |
+| `FilePropertiesDto.cs` / `UpdateUnixPermissionsRequest.cs` | 文件/目录属性、宿主权限摘要与 Linux POSIX 权限更新契约 |
 | `DirectoryDto.cs` | 目录列举结果：目录自身元数据 + `Directories[]` + `Files[]` |
 | `DriveDto.cs` | 驱动器/根挂载点：name/path/totalSize/isReady |
 | `SpecialFolderKind.cs` | enum `Home/Desktop/Documents/Downloads/Pictures/Music/Videos`（camelCase 序列化，由 `RemoteOsJsonOptions.Default` 全局生效，无需显式 `[JsonStringEnumConverter]`） |
 | `SpecialLocationDto.cs` | 特殊文件夹位置：kind/name/path（Server `GetSpecialLocations` 返回，已 `Directory.Exists` 过滤） |
 | `RenameRequest.cs` / `MoveRequest.cs` / `CopyRequest.cs` | 操作请求 body |
-| `FileApiRoutes.cs` | 路由常量（路径含 `/api/v1` 前缀，Server 注册与 Client 拼接共用；含 `Drives`/`Special`/`List`/`Info`/`Download`/`Directory`/`Delete`/`Rename`/`Move`/`Copy`/`Upload`） |
+| `FileApiRoutes.cs` | 路由常量（路径含 `/api/v1` 前缀，Server 注册与 Client 拼接共用；含 `Content` / `Properties` / `Permissions` 等文件读写与属性路由） |
 
 **设计说明**：`FileEntryDto` 与 `FileSystemEntryDto` 是独立 record（非继承），因为 `FileEntryDto` 多 `Extension` 字段且 `Size` 为非空 `long`。Client 网格绑定 `FileSystemEntryDto`，`ExplorerViewModel` 在填充 `Entries` 时将 `FileEntryDto` 转为 `FileSystemEntryDto`（`Type=File`），丢弃 `Extension`（网格不展示）。
 

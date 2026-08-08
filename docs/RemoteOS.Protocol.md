@@ -102,10 +102,15 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
 | GET | `/api/v1/files/drives` | — | `DriveDto[]` | JWT |
-| GET | `/api/v1/files/list` | query: `path`（空=盘符根） | `FileSystemEntryDto[]` | JWT |
+| GET | `/api/v1/files/special` | — | `SpecialLocationDto[]`（仅返回存在的特殊目录） | JWT |
+| GET | `/api/v1/files/list` | query: `path`（空=盘符根） | `DirectoryDto` | JWT |
 | GET | `/api/v1/files/info` | query: `path` | `FileSystemEntryDto` | JWT |
 | GET | `/api/v1/files/download` | query: `path` | 字节流 | JWT |
-| POST | `/api/v1/files/directory` | query: `path` | `DirectoryDto` | JWT |
+| GET | `/api/v1/files/content` | query: `path` | 原始文件字节流 | JWT |
+| PUT | `/api/v1/files/content` | query: `path` + 请求体字节流 | `FileEntryDto` | JWT |
+| GET | `/api/v1/files/properties` | query: `path` | `FilePropertiesDto` | JWT |
+| PUT | `/api/v1/files/permissions` | `UpdateUnixPermissionsRequest` | `FilePropertiesDto` | JWT |
+| POST | `/api/v1/files/directory` | query: `path` | `FileSystemEntryDto`（201） | JWT |
 | DELETE | `/api/v1/files` | query: `path`（目录递归） | 204 | JWT |
 | POST | `/api/v1/files/rename` | `RenameRequest` | `FileSystemEntryDto` | JWT |
 | POST | `/api/v1/files/move` | `MoveRequest` | `FileSystemEntryDto` | JWT |

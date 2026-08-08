@@ -279,7 +279,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | SignalR Hub `/hubs/workspace` | 不含 | 独立模块，登录后建立 Hub 连接（携带 JWT） |
 | Linux PAM | 占位 | libpam / PAM 绑定库实现 |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
-| 最近连接列表 | 未实现 | 本地持久化最近 Server URL |
+| 已保存连接列表 | 已实现：按 Server URL + 用户名保存多条记录；有已保存密码时可在简洁选择模式下免密码连接 | 仅扩展 mstsc 风格显示选项（显示大小/颜色深度/本地资源） |
 | 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时自动登录不可用，仍可正常手动登录 |
 | 持久化仓储 | SQLite + EF Core（User/Workspace/Device/Bookmark/HistoryEntry），Session/刷新令牌内存 | 全量持久化按需扩展 |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
