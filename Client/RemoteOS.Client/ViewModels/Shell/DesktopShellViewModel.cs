@@ -57,9 +57,9 @@ public partial class DesktopShellViewModel : ObservableObject
 
     public WindowManager WindowManager => _windowManager;
     public ShellSettings Settings => _settings;
-    public string ConnectionServer => _session.ServerUrl ?? "未连接";
-    public string ConnectionUser => _session.CurrentUser?.Username ?? "未知用户";
-    public string ConnectionWorkspace => _session.CurrentWorkspace?.Name ?? "默认工作区";
+    public string ConnectionServer => _session.ServerUrl ?? T("shell.connection.not_connected", "Not connected");
+    public string ConnectionUser => _session.CurrentUser?.Username ?? T("shell.connection.unknown_user", "Unknown user");
+    public string ConnectionWorkspace => _session.CurrentWorkspace?.Name ?? T("shell.connection.default_workspace", "Default workspace");
 
     /// <summary>Live, application-grouped taskbar items.</summary>
     public ObservableCollection<TaskbarGroupViewModel> TaskbarGroups { get; } = new();
@@ -81,8 +81,8 @@ public partial class DesktopShellViewModel : ObservableObject
         var entries = _applications.Registered
             .Select(i => new AppEntryViewModel(i with
             {
-                DisplayName = _localization.Get(i.DisplayName),
-                Description = i.Description is null ? null : _localization.Get(i.Description),
+                DisplayName = T($"application.{i.Id.Value}.display_name", i.DisplayName),
+                Description = i.Description is null ? null : T($"application.{i.Id.Value}.description", i.Description),
             }, _applications))
             .ToList();
 
@@ -219,7 +219,9 @@ public partial class DesktopShellViewModel : ObservableObject
         foreach (var (appId, windows) in groupedWindows)
         {
             var app = _applications.Get(appId);
-            var displayName = _localization.Get(app?.Manifest.DisplayName ?? windows[0].Title);
+            var displayName = app is null
+                ? windows[0].Title
+                : T($"application.{app.Manifest.Id.Value}.display_name", app.Manifest.DisplayName);
             TaskbarGroups.Add(new TaskbarGroupViewModel(
                 appId,
                 displayName,
@@ -249,4 +251,6 @@ public partial class DesktopShellViewModel : ObservableObject
             catch { return CultureInfo.InvariantCulture; }
         }
     }
+
+    private string T(string key, string englishFallback) => _localization.Get(key, englishFallback);
 }

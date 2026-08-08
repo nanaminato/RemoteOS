@@ -207,6 +207,14 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+app.Use(async (context, next) =>
+{
+    var language = context.Request.GetTypedHeaders().AcceptLanguage?.FirstOrDefault()?.Value.Value;
+    if (!string.IsNullOrWhiteSpace(language))
+        context.Response.Headers.ContentLanguage = language;
+    await next();
+});
+
 // 启动时建库/建表（SQLite 模式）。EnsureCreated 零工具依赖，适合当前稳定 schema；
 // 未来 schema 需演进时切换为 EF Core Migrations（db.Database.MigrateAsync）。
 // 注意：EnsureCreated 只在库不存在时建表——已存在的 db 不会追加新表（如本次新增的 bookmarks/history_entries）。

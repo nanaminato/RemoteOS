@@ -14,7 +14,8 @@ public sealed class SystemPageViewModel : SettingsPageViewModel
         : base(settings, save) => _session = session;
 
     public override string Glyph => "💻";
-    public override string DisplayName => "系统";
+    public override string DisplayNameKey => "settings.page.system";
+    public override string DisplayName => "System";
 
     public string AppVersion => "RemoteOS 0.1";
     public string ServerUrl => _session.ServerUrl ?? "未连接";

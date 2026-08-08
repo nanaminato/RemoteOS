@@ -18,6 +18,7 @@ public static class AuthEndpoints
     {
         app.MapPost(AuthApiRoutes.Login, (
                 LoginRequest req,
+                HttpContext http,
                 IIdentityProvider idp,
                 IUserRepository users,
                 IWorkspaceRepository wss,
@@ -26,11 +27,11 @@ public static class AuthEndpoints
                 JwtTokenService jwt) =>
             {
                 if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
-                    return Problem(400, "invalid-input", "输入无效", "用户名与密码不能为空");
+                    return Problem(http, 400, "invalid-input", "Invalid input", "Username and password are required.");
 
                 var result = idp.Verify(req.Username, req.Password);
                 if (!result.Success)
-                    return MapCredentialErrorToProblem(result);
+                    return MapCredentialErrorToProblem(http, result);
 
                 var info = idp.GetUserInfo(req.Username);
                 var platform = req.ClientPlatform;
@@ -105,6 +106,7 @@ public static class AuthEndpoints
 
         app.MapPost(AuthApiRoutes.Refresh, (
                 RefreshTokenRequest req,
+                HttpContext http,
                 AuthSessionStore sessions,
                 IUserRepository users,
                 IWorkspaceRepository wss,
@@ -112,10 +114,10 @@ public static class AuthEndpoints
                 JwtTokenService jwt) =>
             {
                 if (string.IsNullOrEmpty(req.RefreshToken) || !sessions.IsValid(req.RefreshToken))
-                    return Problem(401, "invalid-credential", "凭据无效", "刷新令牌无效或已过期");
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The refresh token is invalid or has expired.");
 
                 if (!sessions.TryGet(req.RefreshToken, out var rec))
-                    return Problem(401, "invalid-credential", "凭据无效", "刷新令牌记录不存在");
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The refresh token record does not exist.");
 
                 sessions.Revoke(req.RefreshToken);  // 旧 refresh 作废（一次性）
 
@@ -123,7 +125,7 @@ public static class AuthEndpoints
                 var ws = wss.FindById(rec.WorkspaceId);
                 var device = devs.FindById(rec.DeviceId);
                 if (user is null || ws is null || device is null)
-                    return Problem(401, "invalid-credential", "凭据无效", "会话上下文已失效");
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The session context is no longer valid.");
 
                 var role = ws.ControllerDeviceId == device.Id ? DeviceRole.Controller : DeviceRole.Observer;
                 var tokens = jwt.Issue(user, ws, device, role);
@@ -140,12 +142,12 @@ public static class AuthEndpoints
             .RequireAuthorization()
             .WithTags("Auth");
 
-        app.MapGet(AuthApiRoutes.Me, (ClaimsPrincipal principal, IUserRepository users) =>
+        app.MapGet(AuthApiRoutes.Me, (ClaimsPrincipal principal, IUserRepository users, HttpContext http) =>
             {
                 var sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
                           ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 if (!Guid.TryParse(sub, out var userId))
-                    return Problem(401, "invalid-credential", "凭据无效", "令牌缺少用户标识");
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The token is missing a user identity.");
 
                 var user = users.FindById(userId);
                 if (user is null)
@@ -160,25 +162,26 @@ public static class AuthEndpoints
     }
 
     /// <summary>CredentialError → ProblemDetails 映射。type URI 作为错误码，客户端按 type 匹配 UI 文案。</summary>
-    private static IResult MapCredentialErrorToProblem(CredentialVerifyResult r) => r.Error switch
+    private static IResult MapCredentialErrorToProblem(HttpContext http, CredentialVerifyResult r) => r.Error switch
     {
         CredentialError.BadCredentials or CredentialError.NoSuchUser =>
-            Problem(401, "invalid-credential", "凭据无效", r.Message),
+            Problem(http, 401, "invalid-credential", "Invalid credentials", r.Message),
         CredentialError.AccountLockedOut =>
-            Problem(423, "account-locked", "账户已锁定", r.Message),
+            Problem(http, 423, "account-locked", "Account locked", r.Message),
         CredentialError.AccountDisabled =>
-            Problem(403, "account-disabled", "账户已禁用", r.Message),
+            Problem(http, 403, "account-disabled", "Account disabled", r.Message),
         CredentialError.PasswordExpired =>
-            Problem(403, "password-expired", "密码已过期", r.Message),
+            Problem(http, 403, "password-expired", "Password expired", r.Message),
         CredentialError.AccountExpired =>
-            Problem(403, "account-expired", "账户已过期", r.Message),
+            Problem(http, 403, "account-expired", "Account expired", r.Message),
         CredentialError.AccountRestriction =>
-            Problem(403, "account-restriction", "账户受限", r.Message),
+            Problem(http, 403, "account-restriction", "Account restricted", r.Message),
         CredentialError.InvalidInput =>
-            Problem(400, "invalid-input", "输入无效", r.Message),
-        _ => Problem(500, "auth-failed", "认证失败", r.Message),
+            Problem(http, 400, "invalid-input", "Invalid input", r.Message),
+        _ => Problem(http, 500, "auth-failed", "Authentication failed", r.Message),
     };
 
-    private static IResult Problem(int status, string typeSuffix, string title, string detail)
-        => Results.Problem(detail: detail, statusCode: status, title: title, type: ProblemBase + typeSuffix);
+    private static IResult Problem(HttpContext http, int status, string typeSuffix, string title, string detail)
+        => Results.Problem(detail: detail, statusCode: status,
+            title: ApiLocalizer.Get(http, typeSuffix, title), type: ProblemBase + typeSuffix);
 }

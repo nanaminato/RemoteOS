@@ -31,7 +31,8 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
     }
 
     public override string Glyph => "🌐";
-    public override string DisplayName => "网络";
+    public override string DisplayNameKey => "settings.page.network";
+    public override string DisplayName => "Network";
 
     public string ConnectionState => _session.State switch
     {

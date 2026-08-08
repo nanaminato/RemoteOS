@@ -26,7 +26,8 @@ public sealed partial class TimeLanguagePageViewModel : SettingsPageViewModel
     }
 
     public override string Glyph => "🕐";
-    public override string DisplayName => "时间和语言";
+    public override string DisplayNameKey => "settings.page.time_language";
+    public override string DisplayName => "Time & language";
 
     public static IReadOnlyList<string> TimeFormats { get; } = new[] { "24h", "12h" };
 

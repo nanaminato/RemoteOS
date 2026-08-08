@@ -22,7 +22,8 @@ public sealed class PersonalizationPageViewModel : SettingsPageViewModel
     }
 
     public override string Glyph => "🎨";
-    public override string DisplayName => "个性化";
+    public override string DisplayNameKey => "settings.page.personalization";
+    public override string DisplayName => "Personalization";
 
     public IReadOnlyList<Client.Services.WallpaperOption> Wallpapers => Settings.Wallpapers;
 

@@ -33,8 +33,8 @@ public partial class MainWindow : Window
     private void Pin_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _isPinned = !_isPinned;
-        PinButton.Content = _localization.Get(_isPinned ? "Pinned" : "Pin");
-        ToolTip.SetTip(PinButton, _localization.Get(_isPinned ? "Unpin connection bar" : "Pin connection bar"));
+        PinButton.Content = T(_isPinned ? "shell.connection_bar.pinned" : "shell.connection_bar.pin", _isPinned ? "Pinned" : "Pin");
+        ToolTip.SetTip(PinButton, T(_isPinned ? "shell.connection_bar.unpin_tooltip" : "shell.connection_bar.pin_tooltip", _isPinned ? "Unpin connection bar" : "Pin connection bar"));
         if (_isPinned)
         {
             _hideBarTimer.Stop();
@@ -49,8 +49,8 @@ public partial class MainWindow : Window
 
         _isFullScreen = !_isFullScreen;
         WindowState = _isFullScreen ? WindowState.FullScreen : _windowStateBeforeFullScreen;
-        FullScreenButton.Content = _localization.Get(_isFullScreen ? "Exit full screen" : "Full screen");
-        ToolTip.SetTip(FullScreenButton, _localization.Get(_isFullScreen ? "Exit full screen" : "Enter full screen"));
+        FullScreenButton.Content = T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter", _isFullScreen ? "Exit full screen" : "Full screen");
+        ToolTip.SetTip(FullScreenButton, T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter_tooltip", _isFullScreen ? "Exit full screen" : "Enter full screen"));
         ConnectionInfo.IsVisible = false;
         WindowTitleBar.IsVisible = !_isFullScreen;
 
@@ -92,7 +92,7 @@ public partial class MainWindow : Window
         var isMaximized = WindowState == WindowState.Maximized;
         WindowState = isMaximized ? WindowState.Normal : WindowState.Maximized;
         MaximizeButton.Content = isMaximized ? "\uE922" : "\uE923";
-        ToolTip.SetTip(MaximizeButton, _localization.Get(isMaximized ? "Maximize" : "Restore"));
+        ToolTip.SetTip(MaximizeButton, T(isMaximized ? "common.maximize" : "common.restore", isMaximized ? "Maximize" : "Restore"));
     }
 
     private void TitleBar_OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -144,10 +144,11 @@ public partial class MainWindow : Window
 
     private void RefreshLocalizedText()
     {
-        _localization.Localize(this);
-        PinButton.Content = _localization.Get(_isPinned ? "Pinned" : "Pin");
-        ToolTip.SetTip(PinButton, _localization.Get(_isPinned ? "Unpin connection bar" : "Pin connection bar"));
-        FullScreenButton.Content = _localization.Get(_isFullScreen ? "Exit full screen" : "Full screen");
-        ToolTip.SetTip(FullScreenButton, _localization.Get(_isFullScreen ? "Exit full screen" : "Enter full screen"));
+        PinButton.Content = T(_isPinned ? "shell.connection_bar.pinned" : "shell.connection_bar.pin", _isPinned ? "Pinned" : "Pin");
+        ToolTip.SetTip(PinButton, T(_isPinned ? "shell.connection_bar.unpin_tooltip" : "shell.connection_bar.pin_tooltip", _isPinned ? "Unpin connection bar" : "Pin connection bar"));
+        FullScreenButton.Content = T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter", _isFullScreen ? "Exit full screen" : "Full screen");
+        ToolTip.SetTip(FullScreenButton, T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter_tooltip", _isFullScreen ? "Exit full screen" : "Enter full screen"));
     }
+
+    private string T(string key, string englishFallback) => _localization.Get(key, englishFallback);
 }

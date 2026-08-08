@@ -12,7 +12,7 @@ public partial class LoginWindow : Window
     {
         InitializeComponent();
         var localization = App.Services.GetRequiredService<LocalizationService>();
-        void RefreshTitle() => Title = localization.Get("Remote Desktop Connection");
+        void RefreshTitle() => Title = localization.Get("login.title", "Remote Desktop Connection");
         localization.LanguageChanged += (_, _) => RefreshTitle();
         RefreshTitle();
     }

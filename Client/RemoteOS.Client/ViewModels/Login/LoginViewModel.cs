@@ -81,24 +81,24 @@ public partial class LoginViewModel : ObservableObject
         }
     }
 
-    public string OptionsToggleText => Localize(ShowOptions ? "Hide options" : "Show options");
-    public string PasswordVisibilityText => Localize(IsPasswordVisible ? "Hide" : "Show");
-    public string RemoteDesktopConnectionText => Localize("Remote Desktop Connection");
-    public string DisplayLanguageText => Localize("Display language:");
-    public string ConnectionInstructions => Localize("Enter the name of the remote computer you want to connect to.");
-    public string CredentialsInstructions => Localize("The credentials below will be used when connecting.");
-    public string ComputerLabel => Localize("Computer:");
-    public string UsernameLabel => Localize("Username:");
-    public string PasswordLabel => Localize("Password:");
-    public string UsernamePlaceholder => Localize("For example: alice");
-    public string PasswordPlaceholder => Localize("Enter password");
-    public string RememberServerText => Localize("Remember this computer and username");
-    public string RememberPasswordText => Localize("Save password securely; selecting this computer next time will sign in automatically");
-    public string IdentityNotice => Localize("You will be prompted to verify the identity of the remote computer.");
-    public string ConnectionSettingsText => Localize("Connection settings");
-    public string ConnectionSettingsDescription => Localize("RemoteOS will open the workspace using this computer's name and local display settings.");
-    public string ClientNameText => Localize("RemoteOS Remote Desktop Client");
-    public string ConnectText => Localize("Connect");
+    public string OptionsToggleText => T(ShowOptions ? "login.options.hide" : "login.options.show", ShowOptions ? "Hide options" : "Show options");
+    public string PasswordVisibilityText => T(IsPasswordVisible ? "login.password.hide" : "login.password.show", IsPasswordVisible ? "Hide" : "Show");
+    public string RemoteDesktopConnectionText => T("login.title", "Remote Desktop Connection");
+    public string DisplayLanguageText => T("login.display_language", "Display language:");
+    public string ConnectionInstructions => T("login.connection_instructions", "Enter the name of the remote computer you want to connect to.");
+    public string CredentialsInstructions => T("login.credentials_instructions", "The credentials below will be used when connecting.");
+    public string ComputerLabel => T("login.computer", "Computer:");
+    public string UsernameLabel => T("login.username", "Username:");
+    public string PasswordLabel => T("login.password", "Password:");
+    public string UsernamePlaceholder => T("login.username_placeholder", "For example: alice");
+    public string PasswordPlaceholder => T("login.password_placeholder", "Enter password");
+    public string RememberServerText => T("login.remember_server", "Remember this computer and username");
+    public string RememberPasswordText => T("login.remember_password", "Save password securely; selecting this computer next time will sign in automatically");
+    public string IdentityNotice => T("login.identity_notice", "You will be prompted to verify the identity of the remote computer.");
+    public string ConnectionSettingsText => T("login.connection_settings", "Connection settings");
+    public string ConnectionSettingsDescription => T("login.connection_settings_description", "RemoteOS will open the workspace using this computer's name and local display settings.");
+    public string ClientNameText => T("login.client_name", "RemoteOS Remote Desktop Client");
+    public string ConnectText => T("common.connect", "Connect");
 
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
@@ -124,14 +124,14 @@ public partial class LoginViewModel : ObservableObject
     {
         if (!TryGetServerUrl(out var serverUrl))
         {
-            ErrorMessage = Localize("The server address is invalid. Enter a complete address, for example: http://host:port.");
+            ErrorMessage = T("login.error.invalid_server", "The server address is invalid. Enter a complete address, for example: http://host:port.");
             HasError = true;
             StatusMessage = string.Empty;
             return;
         }
 
         IsConnecting = true;
-        StatusMessage = Localize("Connecting…");
+        StatusMessage = T("login.status.connecting", "Connecting...");
         ClearError();
 
         try
@@ -142,7 +142,7 @@ public partial class LoginViewModel : ObservableObject
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
             await _session.LoginAsync(serverUrl, request, RememberServer, RememberPassword, ct);
-            StatusMessage = Localize("Connected. Opening desktop…");
+            StatusMessage = T("login.status.opening_desktop", "Connected. Opening desktop...");
         }
         catch (RemoteOsAuthException ex)
         {
@@ -158,7 +158,7 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (UriFormatException)
         {
-            ErrorMessage = Localize("The server address is invalid. Enter a complete address, for example: http://host:port.");
+            ErrorMessage = T("login.error.invalid_server", "The server address is invalid. Enter a complete address, for example: http://host:port.");
             HasError = true;
             StatusMessage = string.Empty;
         }
@@ -242,15 +242,15 @@ public partial class LoginViewModel : ObservableObject
             return sock.SocketErrorCode switch
             {
                 SocketError.ConnectionRefused =>
-                    Localize("Unable to connect to the server: the connection was refused. Confirm that the server is running and that the address and port are correct (the development default is http://localhost:5090)."),
+                    T("login.error.connection_refused", "Unable to connect to the server: the connection was refused. Confirm that the server is running and that the address and port are correct (the development default is http://localhost:5090)."),
                 SocketError.ConnectionReset =>
-                    Localize("Unable to connect to the server: the remote host closed the connection. Confirm that the server is running and that the client and server use the same protocol (do not mix HTTP and HTTPS)."),
+                    T("login.error.connection_reset", "Unable to connect to the server: the remote host closed the connection. Confirm that the server is running and that the client and server use the same protocol (do not mix HTTP and HTTPS)."),
                 SocketError.TimedOut =>
-                    Localize("Timed out while connecting to the server. Check the network or server address."),
-                _ => $"{Localize("Unable to connect to the server:")} {sock.Message}",
+                    T("login.error.timeout", "Timed out while connecting to the server. Check the network or server address."),
+                _ => $"{T("login.error.unable_to_connect", "Unable to connect to the server:")} {sock.Message}",
             };
         }
-        return $"{Localize("Unable to connect to the server:")} {ex.Message}";
+        return $"{T("login.error.unable_to_connect", "Unable to connect to the server:")} {ex.Message}";
     }
 
     /// <summary>沿 InnerException 链查找首个指定类型的异常（HttpRequestException 常包裹多层）。</summary>
@@ -267,16 +267,16 @@ public partial class LoginViewModel : ObservableObject
     /// <summary>ProblemDetails.Type → 本地化 UI 文案。错误码见 RemoteOS.Login.md 错误处理矩阵。</summary>
     private string MapProblemToMessage(RemoteOsAuthException ex) => ex.Type switch
     {
-        "https://remoteos.app/problems/invalid-credential"  => Localize("The username or password is incorrect."),
-        "https://remoteos.app/problems/account-locked"      => Localize("This account is locked. Contact an administrator."),
-        "https://remoteos.app/problems/account-disabled"    => Localize("This account is disabled."),
-        "https://remoteos.app/problems/password-expired"    => Localize("This password has expired. Change it on the server first."),
-        "https://remoteos.app/problems/account-expired"     => Localize("This account has expired."),
-        "https://remoteos.app/problems/account-restriction" => Localize("This account is restricted from signing in."),
-        "https://remoteos.app/problems/invalid-input"       => Localize("Enter all required information."),
-        "https://remoteos.app/problems/auth-failed"         => Localize("Sign-in failed. Try again later."),
-        _ => string.IsNullOrEmpty(ex.Detail) ? Localize("Sign-in failed.") : ex.Detail,
+        "https://remoteos.app/problems/invalid-credential"  => T("api.auth.invalid_credential", "The username or password is incorrect."),
+        "https://remoteos.app/problems/account-locked"      => T("api.auth.account_locked", "This account is locked. Contact an administrator."),
+        "https://remoteos.app/problems/account-disabled"    => T("api.auth.account_disabled", "This account is disabled."),
+        "https://remoteos.app/problems/password-expired"    => T("api.auth.password_expired", "This password has expired. Change it on the server first."),
+        "https://remoteos.app/problems/account-expired"     => T("api.auth.account_expired", "This account has expired."),
+        "https://remoteos.app/problems/account-restriction" => T("api.auth.account_restriction", "This account is restricted from signing in."),
+        "https://remoteos.app/problems/invalid-input"       => T("api.auth.invalid_input", "Enter all required information."),
+        "https://remoteos.app/problems/auth-failed"         => T("api.auth.failed", "Sign-in failed. Try again later."),
+        _ => string.IsNullOrEmpty(ex.Detail) ? T("api.auth.failed_short", "Sign-in failed.") : ex.Detail,
     };
 
-    private string Localize(string text) => _localization.Get(text);
+    private string T(string key, string englishFallback) => _localization.Get(key, englishFallback);
 }

@@ -21,7 +21,8 @@ public sealed partial class DefaultAppsPageViewModel : SettingsPageViewModel, ID
     }
 
     public override string Glyph => "🔗";
-    public override string DisplayName => "默认程序";
+    public override string DisplayNameKey => "settings.page.default_apps";
+    public override string DisplayName => "Default apps";
     public ObservableCollection<AppOption> AvailableApps { get; } = new();
     public ObservableCollection<string> AvailableSchemes { get; } = new();
     public ObservableCollection<DefaultAppMappingViewModel> Mappings { get; } = new();

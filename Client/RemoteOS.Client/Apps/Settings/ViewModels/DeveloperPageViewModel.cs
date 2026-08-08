@@ -12,7 +12,8 @@ public sealed class DeveloperPageViewModel : SettingsPageViewModel
         : base(settings, save) => DeveloperMode = new DeveloperModeViewModel(developerMode);
 
     public override string Glyph => "🛠️";
-    public override string DisplayName => "开发者";
+    public override string DisplayNameKey => "settings.page.developer";
+    public override string DisplayName => "Developer";
     public DeveloperModeViewModel DeveloperMode { get; }
 }
 

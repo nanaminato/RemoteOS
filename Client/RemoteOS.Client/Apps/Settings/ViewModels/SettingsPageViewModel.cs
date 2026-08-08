@@ -29,11 +29,14 @@ public abstract class SettingsPageViewModel : ObservableObject
     /// <summary>分类图标（emoji）。</summary>
     public abstract string Glyph { get; }
 
-    /// <summary>分类显示名（左侧导航 + 页面标题）。</summary>
+    /// <summary>Stable resource key for the category name.</summary>
+    public abstract string DisplayNameKey { get; }
+
+    /// <summary>English baseline shown if a language pack does not contain <see cref="DisplayNameKey"/>.</summary>
     public abstract string DisplayName { get; }
 
     /// <summary>Localized category name used by the Settings navigation and page headers.</summary>
-    public string LocalizedDisplayName => App.Services.GetRequiredService<LocalizationService>().Get(DisplayName);
+    public string LocalizedDisplayName => App.Services.GetRequiredService<LocalizationService>().Get(DisplayNameKey, DisplayName);
 
     /// <summary>触发根 VM 的防抖保存。仅用户编辑路径调用。</summary>
     protected void Save() => _save?.Invoke();

@@ -25,7 +25,8 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     }
 
     public override string Glyph => "📱";
-    public override string DisplayName => "应用";
+    public override string DisplayNameKey => "settings.page.applications";
+    public override string DisplayName => "Applications";
     public ObservableCollection<ApplicationInfo> RegisteredApps { get; } = new();
 
     /// <summary>Provided by Settings to open the selected application's permission page.</summary>
