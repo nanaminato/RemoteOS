@@ -41,7 +41,7 @@ public sealed record WorkspacePreferencesDto(
         Theme: ThemeKind.Light,
         TimeFormat: TimeFormat24H,
         DateFormat: "yyyy/M/d",
-        Language: "zh-CN",
-        Region: "zh-CN",
+        Language: "en-US",
+        Region: "en-US",
         DefaultApps: Array.Empty<DefaultAppMappingDto>());
 }

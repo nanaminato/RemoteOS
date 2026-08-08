@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Collections.ObjectModel;
+using Client.Services;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -15,12 +16,17 @@ namespace Client.ViewModels.Login;
 public partial class LoginViewModel : ObservableObject
 {
     private readonly IAuthSession _session;
+    private readonly ShellSettings _settings;
+    private readonly LocalizationService _localization;
     private bool _loadingSavedProfiles;
 
-    public LoginViewModel(IAuthSession session)
+    public LoginViewModel(IAuthSession session, ShellSettings settings, LocalizationService localization)
     {
         _session = session;
+        _settings = settings;
+        _localization = localization;
         SavedProfiles = new ObservableCollection<SavedLoginProfile>();
+        _localization.LanguageChanged += (_, _) => OnPropertyChanged(string.Empty);
     }
 
     public ObservableCollection<SavedLoginProfile> SavedProfiles { get; }
@@ -64,8 +70,35 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasSavedPasswordProfiles;
 
-    public string OptionsToggleText => ShowOptions ? "隐藏选项" : "显示选项";
-    public string PasswordVisibilityText => IsPasswordVisible ? "隐藏" : "查看";
+    public IReadOnlyList<SystemLanguageOption> Languages => _localization.AvailableLanguages;
+    public SystemLanguageOption? SelectedLanguage
+    {
+        get => Languages.FirstOrDefault(option => string.Equals(option.Culture, _settings.Language, StringComparison.OrdinalIgnoreCase));
+        set
+        {
+            if (value is not null)
+                _settings.Language = value.Culture;
+        }
+    }
+
+    public string OptionsToggleText => Localize(ShowOptions ? "Hide options" : "Show options");
+    public string PasswordVisibilityText => Localize(IsPasswordVisible ? "Hide" : "Show");
+    public string RemoteDesktopConnectionText => Localize("Remote Desktop Connection");
+    public string DisplayLanguageText => Localize("Display language:");
+    public string ConnectionInstructions => Localize("Enter the name of the remote computer you want to connect to.");
+    public string CredentialsInstructions => Localize("The credentials below will be used when connecting.");
+    public string ComputerLabel => Localize("Computer:");
+    public string UsernameLabel => Localize("Username:");
+    public string PasswordLabel => Localize("Password:");
+    public string UsernamePlaceholder => Localize("For example: alice");
+    public string PasswordPlaceholder => Localize("Enter password");
+    public string RememberServerText => Localize("Remember this computer and username");
+    public string RememberPasswordText => Localize("Save password securely; selecting this computer next time will sign in automatically");
+    public string IdentityNotice => Localize("You will be prompted to verify the identity of the remote computer.");
+    public string ConnectionSettingsText => Localize("Connection settings");
+    public string ConnectionSettingsDescription => Localize("RemoteOS will open the workspace using this computer's name and local display settings.");
+    public string ClientNameText => Localize("RemoteOS Remote Desktop Client");
+    public string ConnectText => Localize("Connect");
 
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private string _errorMessage = string.Empty;
@@ -91,14 +124,14 @@ public partial class LoginViewModel : ObservableObject
     {
         if (!TryGetServerUrl(out var serverUrl))
         {
-            ErrorMessage = "服务器地址无效。请输入完整地址，例如：http://host:port。";
+            ErrorMessage = Localize("The server address is invalid. Enter a complete address, for example: http://host:port.");
             HasError = true;
             StatusMessage = string.Empty;
             return;
         }
 
         IsConnecting = true;
-        StatusMessage = "正在连接…";
+        StatusMessage = Localize("Connecting…");
         ClearError();
 
         try
@@ -109,7 +142,7 @@ public partial class LoginViewModel : ObservableObject
                 DeviceName: Environment.MachineName,
                 ClientVersion: Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0");
             await _session.LoginAsync(serverUrl, request, RememberServer, RememberPassword, ct);
-            StatusMessage = "连接成功，正在进入桌面…";
+            StatusMessage = Localize("Connected. Opening desktop…");
         }
         catch (RemoteOsAuthException ex)
         {
@@ -125,7 +158,7 @@ public partial class LoginViewModel : ObservableObject
         }
         catch (UriFormatException)
         {
-            ErrorMessage = "服务器地址无效。请输入完整地址，例如：http://host:port。";
+            ErrorMessage = Localize("The server address is invalid. Enter a complete address, for example: http://host:port.");
             HasError = true;
             StatusMessage = string.Empty;
         }
@@ -202,22 +235,22 @@ public partial class LoginViewModel : ObservableObject
 
     /// <summary>HttpRequestException → 可操作的 UI 文案。重点区分连接拒绝/重置/超时，
     /// 这些通常对应服务器未启动、地址端口不对，或 HTTP/HTTPS 协议不匹配（最易踩坑）。</summary>
-    private static string MapHttpError(HttpRequestException ex)
+    private string MapHttpError(HttpRequestException ex)
     {
         if (Walk<SocketException>(ex) is { } sock)
         {
             return sock.SocketErrorCode switch
             {
                 SocketError.ConnectionRefused =>
-                    "无法连接到服务器：连接被拒绝。请确认服务器已启动，且地址与端口正确（开发期默认 http://localhost:5090）。",
+                    Localize("Unable to connect to the server: the connection was refused. Confirm that the server is running and that the address and port are correct (the development default is http://localhost:5090)."),
                 SocketError.ConnectionReset =>
-                    "无法连接到服务器：连接被远程主机强制关闭。请确认服务器已启动，且客户端与服务器协议一致（HTTP 与 HTTPS 不可混用）。",
+                    Localize("Unable to connect to the server: the remote host closed the connection. Confirm that the server is running and that the client and server use the same protocol (do not mix HTTP and HTTPS)."),
                 SocketError.TimedOut =>
-                    "连接服务器超时，请检查网络或服务器地址。",
-                _ => $"无法连接到服务器：{sock.Message}",
+                    Localize("Timed out while connecting to the server. Check the network or server address."),
+                _ => $"{Localize("Unable to connect to the server:")} {sock.Message}",
             };
         }
-        return $"无法连接到服务器：{ex.Message}";
+        return $"{Localize("Unable to connect to the server:")} {ex.Message}";
     }
 
     /// <summary>沿 InnerException 链查找首个指定类型的异常（HttpRequestException 常包裹多层）。</summary>
@@ -232,16 +265,18 @@ public partial class LoginViewModel : ObservableObject
     }
 
     /// <summary>ProblemDetails.Type → 本地化 UI 文案。错误码见 RemoteOS.Login.md 错误处理矩阵。</summary>
-    private static string MapProblemToMessage(RemoteOsAuthException ex) => ex.Type switch
+    private string MapProblemToMessage(RemoteOsAuthException ex) => ex.Type switch
     {
-        "https://remoteos.app/problems/invalid-credential"  => "用户名或密码错误",
-        "https://remoteos.app/problems/account-locked"      => "账户已锁定，请联系管理员",
-        "https://remoteos.app/problems/account-disabled"    => "账户已禁用",
-        "https://remoteos.app/problems/password-expired"    => "密码已过期，请先在服务器上修改",
-        "https://remoteos.app/problems/account-expired"     => "账户已过期",
-        "https://remoteos.app/problems/account-restriction" => "账户登录受限",
-        "https://remoteos.app/problems/invalid-input"       => "请填写完整信息",
-        "https://remoteos.app/problems/auth-failed"         => "登录失败，请稍后重试",
-        _ => string.IsNullOrEmpty(ex.Detail) ? "登录失败" : ex.Detail,
+        "https://remoteos.app/problems/invalid-credential"  => Localize("The username or password is incorrect."),
+        "https://remoteos.app/problems/account-locked"      => Localize("This account is locked. Contact an administrator."),
+        "https://remoteos.app/problems/account-disabled"    => Localize("This account is disabled."),
+        "https://remoteos.app/problems/password-expired"    => Localize("This password has expired. Change it on the server first."),
+        "https://remoteos.app/problems/account-expired"     => Localize("This account has expired."),
+        "https://remoteos.app/problems/account-restriction" => Localize("This account is restricted from signing in."),
+        "https://remoteos.app/problems/invalid-input"       => Localize("Enter all required information."),
+        "https://remoteos.app/problems/auth-failed"         => Localize("Sign-in failed. Try again later."),
+        _ => string.IsNullOrEmpty(ex.Detail) ? Localize("Sign-in failed.") : ex.Detail,
     };
+
+    private string Localize(string text) => _localization.Get(text);
 }

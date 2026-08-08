@@ -26,6 +26,10 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 | 认证后 | 全屏远程桌面 | MainWindow 桌面 Shell |
 | 凭据存储 | 默认不保存（可选 .rdp） | 可选“加密保存密码并自动登录”：Windows DPAPI / macOS Keychain / Linux Secret Service |
 
+### 登录前语言
+
+登录窗口提供显示语言选择器。未认证时，选择写入本机的 `LocalApplicationData/RemoteOS/client-language.json`，因此下次启动仍使用该语言；该文件只保存 BCP-47 语言标识，不含凭据或令牌。认证成功后，客户端加载当前 user-workspace 的 `WorkspacePreferencesDto.Language`，并以服务器偏好作为桌面和内置应用的语言来源。注销后恢复本机登录语言。
+
 ### 1.2 实现范围
 
 **已实现**：

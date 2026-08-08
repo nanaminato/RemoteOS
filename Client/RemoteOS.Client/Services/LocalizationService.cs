@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.AppSDK;
+using Client.Services.Auth;
 using ManagedWindow = RemoteOS.WindowManager.ManagedWindow;
 using RemoteWindowManager = RemoteOS.WindowManager.WindowManager;
 
@@ -19,17 +20,25 @@ namespace Client.Services;
 /// </summary>
 public sealed class LocalizationService : ObservableObject, ISystemLanguage
 {
-    private const string DefaultLanguage = "zh-CN";
+    private const string DefaultLanguage = "en-US";
     private readonly ShellSettings _settings;
+    private readonly LocalLanguageStore _localLanguageStore;
+    private readonly IAuthSession _session;
     private readonly Dictionary<string, LanguageFile> _languages;
     private readonly RemoteWindowManager _windowManager;
     private readonly ConditionalWeakTable<AvaloniaObject, Dictionary<string, string>> _sourceValues = new();
     private readonly Dictionary<ManagedWindow, string> _windowTitles = new();
     private string _currentLanguage;
 
-    public LocalizationService(ShellSettings settings, RemoteWindowManager windowManager)
+    public LocalizationService(
+        ShellSettings settings,
+        LocalLanguageStore localLanguageStore,
+        IAuthSession session,
+        RemoteWindowManager windowManager)
     {
         _settings = settings;
+        _localLanguageStore = localLanguageStore;
+        _session = session;
         _windowManager = windowManager;
         _languages = LoadLanguageFiles();
         _currentLanguage = ResolveLanguage(settings.Language);
@@ -41,7 +50,11 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         _settings.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ShellSettings.Language))
+            {
+                if (_session.State != AuthSessionState.Authenticated)
+                    _localLanguageStore.Save(_settings.Language);
                 SetLanguage(_settings.Language);
+            }
         };
         _windowManager.WindowOpened += (_, window) => LocalizeWindow(window);
     }
@@ -68,8 +81,16 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         var previous = _currentLanguage;
         _currentLanguage = next;
         OnPropertyChanged(nameof(CurrentLanguage));
-        LanguageChanged?.Invoke(this, new SystemLanguageChangedEventArgs(previous, next));
-        Dispatcher.UIThread.Post(LocalizeOpenWindows);
+        void ApplyOnUiThread()
+        {
+            LanguageChanged?.Invoke(this, new SystemLanguageChangedEventArgs(previous, next));
+            LocalizeOpenWindows();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess())
+            ApplyOnUiThread();
+        else
+            Dispatcher.UIThread.Post(ApplyOnUiThread);
     }
 
     private void LocalizeOpenWindows()
@@ -78,15 +99,21 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
             LocalizeWindow(window);
     }
 
+    /// <summary>Localizes a top-level or managed built-in control tree without altering bound values.</summary>
+    public void Localize(Control root)
+    {
+        LocalizeControl(root);
+        foreach (var descendant in root.GetVisualDescendants().OfType<Control>())
+            LocalizeControl(descendant);
+    }
+
     private void LocalizeWindow(ManagedWindow window)
     {
         var title = _windowTitles.GetValueOrDefault(window) ?? window.Info.Title;
         _windowTitles[window] = title;
         window.Title = Get(title);
 
-        LocalizeControl(window.View);
-        foreach (var descendant in window.View.GetVisualDescendants().OfType<Control>())
-            LocalizeControl(descendant);
+        Localize(window.View);
     }
 
     private void LocalizeControl(Control control)
@@ -104,6 +131,9 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         if (control is HeaderedSelectingItemsControl headered && !HasBinding(headered, HeaderedSelectingItemsControl.HeaderProperty)
             && headered.Header is string header)
             headered.Header = LocalizeValue(headered, nameof(HeaderedSelectingItemsControl.Header), header);
+
+        if (ToolTip.GetTip(control) is string toolTip)
+            ToolTip.SetTip(control, LocalizeValue(control, "ToolTip", toolTip));
     }
 
     private static bool HasBinding(AvaloniaObject target, AvaloniaProperty property)
@@ -151,7 +181,7 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         }
 
         if (loaded.Count == 0)
-            loaded[DefaultLanguage] = new LanguageFile(DefaultLanguage, "简体中文", 0, new Dictionary<string, string>());
+            loaded[DefaultLanguage] = new LanguageFile(DefaultLanguage, "English", 0, new Dictionary<string, string>());
         return loaded;
     }
 

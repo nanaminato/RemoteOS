@@ -31,7 +31,8 @@ public static class Bootstrapper
         var windowManager = new WindowManager();
         services.AddSingleton(windowManager);
         services.AddSingleton<IWindowManager>(windowManager);
-        services.AddSingleton<ShellSettings>();
+        services.AddSingleton<LocalLanguageStore>();
+        services.AddSingleton<ShellSettings>(sp => new ShellSettings(sp.GetRequiredService<LocalLanguageStore>()));
         services.AddSingleton<LocalizationService>();
         services.AddSingleton<ISystemLanguage>(sp => sp.GetRequiredService<LocalizationService>());
         services.AddSingleton<ApplicationManager>(sp =>

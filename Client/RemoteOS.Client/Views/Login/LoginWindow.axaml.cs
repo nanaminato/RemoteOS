@@ -1,9 +1,19 @@
 using Avalonia.Controls;
 
+using Client.Services;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Client.Views.Login;
 
 /// <summary>登录顶层窗口（mstsc 风格独立窗口）。登录成功后由 App 关闭并打开 MainWindow 桌面。</summary>
 public partial class LoginWindow : Window
 {
-    public LoginWindow() => InitializeComponent();
+    public LoginWindow()
+    {
+        InitializeComponent();
+        var localization = App.Services.GetRequiredService<LocalizationService>();
+        void RefreshTitle() => Title = localization.Get("Remote Desktop Connection");
+        localization.LanguageChanged += (_, _) => RefreshTitle();
+        RefreshTitle();
+    }
 }

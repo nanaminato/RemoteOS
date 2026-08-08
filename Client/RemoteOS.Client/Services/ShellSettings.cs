@@ -19,7 +19,7 @@ public sealed partial class ShellSettings : ObservableObject
     [ObservableProperty] private ThemeKind _theme = ThemeKind.Light;
     [ObservableProperty] private string _timeFormat = WorkspacePreferencesDto.TimeFormat24H;
     [ObservableProperty] private string _dateFormat = "yyyy/M/d";
-    [ObservableProperty] private string _language = WorkspacePreferencesDto.Default.Language;
+    [ObservableProperty] private string _language;
     [ObservableProperty] private string _region = WorkspacePreferencesDto.Default.Region;
 
     public IBrush CurrentWallpaper => Wallpapers[WallpaperIndex].Brush;
@@ -36,8 +36,9 @@ public sealed partial class ShellSettings : ObservableObject
 
     public bool IsDarkTheme => Theme == ThemeKind.Dark;
 
-    public ShellSettings()
+    public ShellSettings(LocalLanguageStore localLanguageStore)
     {
+        _language = localLanguageStore.Load();
         Wallpapers =
         [
             new WallpaperOption("bloom", "Bloom", Gradient("#EAF4FF", "#D7EAFF", "#B9D9F7")),

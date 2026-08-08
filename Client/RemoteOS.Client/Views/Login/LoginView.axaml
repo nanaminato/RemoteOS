@@ -55,19 +55,28 @@
             </Canvas>
             <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                 <TextBlock Text="RemoteOS" FontSize="24" FontWeight="Light" Foreground="#202020" />
-                <TextBlock Text="远程桌面连接" FontSize="14" Foreground="#5E5E5E" />
+                <TextBlock Text="{Binding RemoteDesktopConnectionText}" FontSize="14" Foreground="#5E5E5E" />
             </StackPanel>
         </Grid>
 
         <StackPanel Grid.Row="1">
             <Border Classes="login-divider" />
             <StackPanel Margin="32,22,32,18" Spacing="0">
-                <TextBlock Text="输入要连接的远程计算机的名称。" Foreground="#404040" FontSize="13" />
-                <TextBlock Text="连接时将使用下方提供的凭据。" Foreground="#6A6A6A" FontSize="13" Margin="0,3,0,22" />
+                <TextBlock Text="{Binding ConnectionInstructions}" Foreground="#404040" FontSize="13" />
+                <TextBlock Text="{Binding CredentialsInstructions}" Foreground="#6A6A6A" FontSize="13" Margin="0,3,0,12" />
+                <Grid ColumnDefinitions="108,*" Margin="0,0,0,10">
+                    <TextBlock Classes="login-label" Text="{Binding DisplayLanguageText}" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
+                              MinWidth="440">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
 
                 <StackPanel Spacing="12">
                     <Grid ColumnDefinitions="108,*">
-                    <TextBlock Classes="login-label" Text="计算机:" />
+                    <TextBlock Classes="login-label" Text="{Binding ComputerLabel}" />
                     <ComboBox Classes="connection-input" Grid.Column="1"
                               ItemsSource="{Binding SavedProfiles}"
                               SelectedItem="{Binding SelectedProfile}"
@@ -85,22 +94,22 @@
                     </Grid>
 
                     <Grid ColumnDefinitions="108,*">
-                    <TextBlock Classes="login-label" Text="用户名:" />
+                    <TextBlock Classes="login-label" Text="{Binding UsernameLabel}" />
                     <TextBox Classes="connection-input" Grid.Column="1"
                              Text="{Binding Username}"
                              IsReadOnly="{Binding !ShowOptions}"
-                             PlaceholderText="例如：alice" />
+                             PlaceholderText="{Binding UsernamePlaceholder}" />
                     </Grid>
 
                     <Grid IsVisible="{Binding ShowOptions}" ColumnDefinitions="108,*,Auto">
-                    <TextBlock Classes="login-label" Text="密码:" />
+                    <TextBlock Classes="login-label" Text="{Binding PasswordLabel}" />
                     <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding !IsPasswordVisible}"
                              Text="{Binding Password}"
                              PasswordChar="●"
-                             PlaceholderText="输入密码" />
+                             PlaceholderText="{Binding PasswordPlaceholder}" />
                     <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding IsPasswordVisible}"
                              Text="{Binding Password}"
-                             PlaceholderText="输入密码" />
+                             PlaceholderText="{Binding PasswordPlaceholder}" />
                     <Button Grid.Column="2" Command="{Binding TogglePasswordVisibilityCommand}"
                             Content="{Binding PasswordVisibilityText}" Margin="8,0,0,0"
                             MinWidth="52" Height="32" Padding="8,4" />
@@ -112,20 +121,20 @@
                         Padding="0" Background="Transparent" BorderThickness="0"
                         Foreground="{StaticResource AccentBrush}" />
 
-                <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberServer}" Content="记住此计算机和用户名"
+                <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberServer}" Content="{Binding RememberServerText}"
                           Foreground="#404040" FontSize="12" Margin="108,12,0,0" />
                 <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberPassword}" IsEnabled="{Binding RememberServer}"
-                          Content="加密保存密码；下次选择此计算机即可登录"
+                          Content="{Binding RememberPasswordText}"
                           Foreground="#404040" FontSize="12" Margin="108,6,0,0" />
 
-                <TextBlock Text="将提示你确认远程计算机的身份。"
+                <TextBlock Text="{Binding IdentityNotice}"
                            Foreground="#6A6A6A" FontSize="12" Margin="88,11,0,0" />
 
                 <Border Background="#F6F6F6" BorderBrush="#E1E1E1" BorderThickness="1"
                         CornerRadius="2" Margin="0,24,0,0" Padding="13,11">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="连接设置" FontWeight="SemiBold" Foreground="#333333" />
-                        <TextBlock Text="RemoteOS 将以此计算机的名称和本地显示设置打开工作区。"
+                        <TextBlock Text="{Binding ConnectionSettingsText}" FontWeight="SemiBold" Foreground="#333333" />
+                        <TextBlock Text="{Binding ConnectionSettingsDescription}"
                                    Foreground="#666666" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
@@ -143,9 +152,9 @@
         <Border Grid.Row="2" Background="#F4F4F4" BorderBrush="#DDDDDD" BorderThickness="0,1,0,0"
                 Padding="32,14">
             <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                <TextBlock Text="RemoteOS 远程桌面客户端" Foreground="#6B6B6B" FontSize="12"
+                <TextBlock Text="{Binding ClientNameText}" Foreground="#6B6B6B" FontSize="12"
                            VerticalAlignment="Center" />
-                <Button Grid.Column="1" Classes="primary connect-button" Content="连接"
+                <Button Grid.Column="1" Classes="primary connect-button" Content="{Binding ConnectText}"
                         Command="{Binding ConnectCommand}" />
             </Grid>
         </Border>

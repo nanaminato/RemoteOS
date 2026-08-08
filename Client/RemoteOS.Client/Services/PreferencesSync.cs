@@ -13,13 +13,20 @@ public sealed class PreferencesSync : IDisposable
     private readonly IAuthSession _session;
     private readonly ISettingsClient _client;
     private readonly ShellSettings _settings;
+    private readonly LocalLanguageStore _localLanguageStore;
     private readonly DefaultAppRegistry _registry;
 
-    public PreferencesSync(IAuthSession session, ISettingsClient client, ShellSettings settings, DefaultAppRegistry registry)
+    public PreferencesSync(
+        IAuthSession session,
+        ISettingsClient client,
+        ShellSettings settings,
+        LocalLanguageStore localLanguageStore,
+        DefaultAppRegistry registry)
     {
         _session = session;
         _client = client;
         _settings = settings;
+        _localLanguageStore = localLanguageStore;
         _registry = registry;
         _session.StateChanged += OnStateChanged;
         // 桌面外壳可能在登录后才构造本服务——若此时已认证，立即加载。
@@ -33,6 +40,8 @@ public sealed class PreferencesSync : IDisposable
         else if (e.State == AuthSessionState.Unauthenticated)
         {
             _settings.Apply(WorkspacePreferencesDto.Default);
+            // Before the next sign-in, return to the machine-local language selected on the login screen.
+            _settings.Language = _localLanguageStore.Load();
             _registry.SetMappings(WorkspacePreferencesDto.Default.DefaultApps);
         }
     }
