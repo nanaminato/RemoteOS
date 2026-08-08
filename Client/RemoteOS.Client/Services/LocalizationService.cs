@@ -54,9 +54,21 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
     public string Get(string key, string englishFallback)
     {
         var language = _languages.GetValueOrDefault(_currentLanguage);
-        return language?.Strings is { } strings && strings.TryGetValue(key, out var localized)
-            ? localized
-            : englishFallback;
+        if (language?.Strings is { } strings
+            && strings.TryGetValue(key, out var localized)
+            && !string.IsNullOrWhiteSpace(localized)
+            && !string.Equals(localized, key, StringComparison.Ordinal))
+            return localized;
+
+        // English is the single source-of-truth key table. Optional locale packs may lag
+        // behind it, but an untranslated string must never surface the resource key.
+        if (_languages.GetValueOrDefault(DefaultLanguage)?.Strings is { } english
+            && english.TryGetValue(key, out var englishValue)
+            && !string.IsNullOrWhiteSpace(englishValue)
+            && !string.Equals(englishValue, key, StringComparison.Ordinal))
+            return englishValue;
+
+        return englishFallback;
     }
 
     private void SetLanguage(string requestedLanguage)
