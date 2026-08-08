@@ -4,6 +4,20 @@
 
 ---
 
+## 项目许可说明
+
+**RemoteOS 项目原创代码**（不含下述第三方组件）采用 **RemoteOS Non-Commercial Source-Available License** 许可。详见项目根目录 [`LICENSE`](./LICENSE) 文件。
+
+该许可允许：
+- ✅ 免费使用、修改、开发、学习
+- ✅ 免费分发非商业目的的衍生作品
+- ❌ 禁止商业售卖、转售、SaaS 托管
+- 🔒 作者保留所有商业化权利
+
+**注意**：由于项目包含 [Jaya File Manager](#jaya-file-manager)（BSD 3-Clause 许可）的衍生代码，项目以双重许可模式分发——Jaya 衍生代码部分遵循 BSD-3 许可（允许商业使用），RemoteOS 原创代码部分遵循 Non-Commercial Source-Available 许可。各第三方组件保留其原始许可。
+
+---
+
 ## Jaya File Manager
 
 - **来源**：<https://github.com/waliarubal/Jaya>

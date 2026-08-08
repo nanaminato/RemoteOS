@@ -1,0 +1,151 @@
+RemoteOS Non-Commercial Source-Available License
+
+Copyright (c) 2026 RemoteOS. All rights reserved.
+
+https://github.com/remoteos/remoteos
+
+---
+
+1. Definitions
+
+   "Software" refers to the RemoteOS project, including all source code,
+   documentation, configuration files, and associated materials published
+   under this repository, excluding third-party components that are
+   distributed under their own licenses (see THIRD_PARTY_NOTICES.md).
+
+   "Commercial Use" means any use of the Software or its derivatives
+   primarily intended for or directed toward commercial advantage or
+   monetary gain, including but not limited to:
+
+     a. Selling, licensing, or distributing the Software or its
+        derivatives as a commercial product or service;
+     b. Offering the Software as a hosted or cloud-based service
+        for a fee;
+     c. Including the Software in or bundling it with commercial
+        products or offerings for sale.
+
+   "Derivative Work" means any modification, adaptation, or
+   distribution of the Software, including but not limited to
+   translations, localizations, ports, and combinations with
+   other software.
+
+---
+
+2. Grant of Rights
+
+   Subject to the terms of this License, permission is hereby granted,
+   free of charge, to any person obtaining a copy of this Software, to
+   exercise the following rights:
+
+     a. Use — to use the Software for any lawful purpose, including
+        personal, educational, research, and internal business use;
+     b. Study — to study how the Software works and to inspect its
+        source code;
+     c. Modify — to modify, adapt, or translate the Software;
+     d. Develop — to develop applications, extensions, or plugins
+        that run on, integrate with, or are based on the Software;
+     e. Share — to share and distribute the Software or Derivative
+        Works for non-commercial purposes, provided that the
+        conditions in Section 3 are met.
+
+---
+
+3. Conditions
+
+   All distributions of the Software or Derivative Works must include:
+
+     a. A copy of this LICENSE file;
+     b. The following copyright notice:
+        "Copyright (c) 2026 RemoteOS. All rights reserved.";
+     c. A clear statement of the license under which the distribution
+        is made (this License);
+     d. Retention of all existing copyright and license notices
+        in the source code files.
+
+---
+
+4. Restrictions — No Commercial Use
+
+   THE SOFTWARE AND ITS DERIVATIVES MAY NOT BE USED FOR COMMERCIAL USE.
+
+   Specifically, you may NOT:
+
+     a. Sell, resell, or distribute the Software or its Derivative
+        Works for commercial purposes or monetary gain;
+     b. Use the Software or its Derivative Works to provide a
+        commercial service, SaaS offering, or hosted solution;
+     c. Include the Software in commercial products or offerings
+        that are sold or distributed for monetary gain;
+     d. Apply any patent claims or intellectual property rights
+        over the Software or its Derivative Works in a way that
+        would restrict commercial use.
+
+   The author reserves all commercial rights to the Software.
+   For commercial licensing inquiries, please contact the author
+   directly.
+
+---
+
+5. Third-Party Components
+
+   This Software incorporates third-party components with their own
+   licenses. Those components remain subject to their respective
+   licenses as documented in THIRD_PARTY_NOTICES.md. In particular,
+   portions of the file manager (Explorer) are derived from the
+   Jaya File Manager under the BSD 3-Clause License.
+
+   This License does not apply to third-party components, and
+   nothing in this License shall be deemed to grant any rights
+   to third-party components.
+
+---
+
+6. Disclaimer of Warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+   OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDER
+   BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN
+   AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+   OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+   IN THE SOFTWARE.
+
+---
+
+7. Limitation of Liability
+
+   IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
+   SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS
+   OR REVENUE, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY LOSS
+   OF DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES RESULTING FROM
+   YOUR USE OF THE SOFTWARE, EVEN IF THE AUTHOR HAS BEEN ADVISED OF
+   THE POSSIBILITY OF SUCH DAMAGES.
+
+---
+
+8. Termination
+
+   This License and the rights granted hereunder will terminate
+   automatically if you violate any term of this License and fail
+   to cure the breach within 30 days of becoming aware of the breach.
+   All sublicenses to the Software shall survive termination of this
+   License.
+
+---
+
+9. Miscellaneous
+
+   a. This License constitutes the entire agreement between the
+      parties with respect to the Software.
+
+   b. The failure to enforce any provision of this License shall
+      not be deemed a waiver of such provision.
+
+   c. If any provision of this License is held to be unenforceable,
+      such provision shall be reformed only to the extent necessary
+      to make it enforceable.
+
+   d. This License is governed by the laws of the jurisdiction
+      where the author resides, without regard to conflict of law
+      principles.

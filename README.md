@@ -1,0 +1,310 @@
+<div align="center">
+
+# RemoteOS
+
+**云原生桌面操作系统环境**
+
+[![Avalonia](https://img.shields.io/badge/Avalonia-12.1.0-blue)](https://avaloniaui.net/)
+[![dotnet](https://img.shields.io/badge/.NET-10.0-purple)](https://dotnet.microsoft.com/)
+[![ASP.NET Core](https://img.shields.io/badge/ASP.NET%20Core-10.0-green)](https://dotnet.microsoft.com/)
+[![License: RNCL](https://img.shields.io/badge/License-RNCL-blue)](./LICENSE)
+
+[English](./README.en.md) · [日本語](./README.ja.md)
+
+</div>
+
+---
+
+## ✨ 项目简介
+
+**RemoteOS** 是一个跨平台的云原生桌面操作系统环境，采用 **状态同步（State-Sync）** 模式而非像素流（Pixel Streaming）模式。客户端在本地渲染 UI，服务端提供云端能力（账户、存储、同步、远程运行时），让用户在任何设备上获得一致的桌面体验。
+
+**RemoteOS 不是** 远程桌面工具（RDP/VNC/Screen Streaming）。它传输的是系统状态、应用状态和用户操作意图，而非屏幕像素。
+
+### 核心特性
+
+- 🖥️ **跨平台桌面 Shell** — 基于 Avalonia，模拟 Windows 11 风格界面
+- 🌐 **云原生架构** — Client/Server 分离，服务端运行于 Linux 和 Windows Server
+- 🔐 **宿主 OS 身份集成** — 复用宿主系统用户与权限体系（Windows LogonUser / Linux PAM）
+- 🪟 **窗口管理系统** — 完整的窗口生命周期：创建、移动、缩放、最小化/最大化、Z-Order、模态对话框
+- 🧩 **应用 SDK** — 应用通过 `IRemoteApplication` 接口接入，享受统一的窗口管理与生命周期
+- 🔌 **SignalR 实时通信** — 终端等应用通过 SignalR Hub 实现实时双向交互
+- 🌍 **多语言支持** — 内置中文、英文、日文语言包
+- 📦 **开发者扩展** — 支持通过 `DevCli` 工具安装和管理自定义应用包
+
+---
+
+## 🏗️ 架构概览
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    RemoteOS.Client                       │
+│          (Avalonia Desktop Shell · 本地渲染)             │
+│                                                         │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Explorer │ │ Terminal │ │ Browser  │ │    ...    │  │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘  │
+│       │             │            │              │       │
+│  ┌────┴─────────────┴────────────┴──────────────┴────┐  │
+│  │              Application Runtime / SDK              │  │
+│  └──────────────────────────┬────────────────────────┘  │
+│                              │                           │
+│  ┌──────────────────────────┴────────────────────────┐  │
+│  │              Window Manager (RemoteWindow)          │  │
+│  └──────────────────────────┬────────────────────────┘  │
+│                             │                            │
+│  ┌──────────────────────────┴────────────────────────┐  │
+│  │                    Protocol (DTOs)                   │  │
+│  └──────────────────────────┬────────────────────────┘  │
+└──────────────────────────────┼──────────────────────────┘
+                               │ HTTP REST / SignalR
+                               ▼
+┌─────────────────────────────────────────────────────────┐
+│                   RemoteOS.Server                        │
+│            (ASP.NET Core · 云端后端 · 跨平台)              │
+│                                                         │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐ ┌──────┐  │
+│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
+│  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │         OS Abstraction Layer                     │    │
+│  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ 技术栈
+
+| 组件 | 技术 | 版本 |
+|------|------|------|
+| UI 框架 | [Avalonia UI](https://avaloniaui.net/) | 12.1.0 |
+| MVVM | CommunityToolkit.Mvvm | 8.4.2 |
+| 框架 | .NET | 10.0 |
+| 服务端 | ASP.NET Core | 10.0 |
+| 实时通信 | SignalR | 10.0 |
+| 身份认证 | JWT Bearer | — |
+| 持久化 | EF Core + SQLite | 10.0 |
+| 终端控件 | RoyalTerminal (Avalonia + PTY) | 0.4.0 |
+| 浏览器 | Avalonia.Controls.WebView | 12.0.1 |
+| 文件管理 UI | Jaya File Manager (BSD-3 许可) | — |
+| 视频播放 | LibVLCSharp.Avalonia | 3.10.0 |
+
+---
+
+## 📁 项目结构
+
+```
+RemoteOS/
+├── Client/
+│   ├── RemoteOS.Client/          # 桌面 Shell + 内置应用（类库）
+│   │   ├── Apps/                 # 内置应用
+│   │   │   ├── Explorer/         # 文件管理器
+│   │   │   ├── Terminal/         # 终端
+│   │   │   ├── Browser/          # 浏览器
+│   │   │   ├── Settings/         # 设置中心
+│   │   │   ├── TaskManager/      # 任务管理器
+│   │   │   ├── Notepad/          # 记事本
+│   │   │   ├── CodeEditor/       # 代码编辑器
+│   │   │   ├── ImageViewer/      # 图片查看器
+│   │   │   ├── Welcome/          # 欢迎页
+│   │   │   └── AppInstaller/     # 应用安装器
+│   │   ├── Localization/         # 多语言资源（en-US / zh-CN / ja-JP）
+│   │   ├── Services/             # 认证、权限、开发模式等服务
+│   │   ├── ViewModels/           # Shell / Login ViewModel
+│   │   └── Views/                # Shell / Login / MainWindow 视图
+│   └── RemoteOS.Client.Desktop/  # 平台入口（WinExe）
+├── Framework/
+│   ├── RemoteOS.Core/            # 平台无关原语（几何、窗口、应用模型）
+│   ├── RemoteOS.UI/              # Avalonia 共享主题/样式
+│   ├── RemoteOS.WindowManager/   # 窗口管理器 + RemoteWindow 控件
+│   ├── RemoteOS.App.SDK/         # 应用开发 API（AppContext / IRemoteApplication）
+│   └── RemoteOS.Runtime/         # 应用运行时（ApplicationManager）
+├── Shared/
+│   └── RemoteOS.Protocol/         # 通信协议契约（DTO / 路由 / Hub 接口）
+├── RemoteOS.Server/              # 服务端（ASP.NET Core）
+├── Tools/
+│   └── RemoteOS.DevCli/          # 开发者 CLI 工具
+├── examples/
+│   ├── VideoPlayer/              # 视频播放器示例应用
+│   └── ServerMonitor/            # 服务器监控示例应用
+├── docs/                         # 详细设计文档
+├── Directory.Packages.props      # 中央包管理
+└── RemoteOS.sln                  # 解决方案文件
+```
+
+---
+
+## 🧩 内置应用
+
+| 应用 | 说明 | 状态 |
+|------|------|------|
+| **Welcome** | 欢迎引导页，验证 Runtime 与 WindowManager | ✅ 已实现 |
+| **Notepad** | 文本文件编辑（编码打开与保存） | ✅ 已实现 |
+| **Code Editor** | 代码文件编辑（语法高亮） | ✅ 已实现 |
+| **Image Viewer** | 图片文件浏览（缩放与滚动） | ✅ 已实现 |
+| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | ✅ 已实现 |
+| **Terminal** | 远端终端（Remote Mode：SignalR + PTY；Local Mode 回退） | ✅ 已实现 |
+| **Explorer** | 远端文件管理器（REST API + 宿主 OS 权限复用） | ✅ 已实现 |
+| **Browser** | 内置浏览器（书签/历史持久化 + 本地端口映射） | ✅ 已实现 |
+| **Task Manager** | 远端任务管理器（CPU/内存/磁盘/网络/GPU + 进程列表） | ✅ 已实现 |
+| **App Installer** | 应用包安装与管理 | ✅ 已实现 |
+
+---
+
+## 🚀 快速开始
+
+### 前置要求
+
+- **.NET 10.0 SDK** 或更高版本
+- **操作系统**：Windows 10/11、Windows Server 2016+、Ubuntu 20.04+
+- （可选）Visual Studio 2022+ 或 JetBrains Rider
+
+### 1. 克隆仓库
+
+```bash
+git clone <repository-url>
+cd RemoteOS
+```
+
+### 2. 启动服务端
+
+```bash
+cd RemoteOS.Server
+
+# 开发模式运行（默认监听 http://localhost:5000）
+dotnet run
+```
+
+> ⚠️ **生产环境**：请务必修改 `appsettings.json` 中的 `Jwt:Secret`（至少 32 字符随机字符串）。
+
+### 3. 启动客户端
+
+```bash
+cd Client/RemoteOS.Client.Desktop
+dotnet run
+```
+
+客户端会弹出登录窗口，输入宿主系统的用户名和密码即可登录。
+
+---
+
+## 📖 详细文档
+
+| 文档 | 说明 |
+|------|------|
+| [RemoteOS.Architecture.md](./docs/RemoteOS.Architecture.md) | 架构设计原则、模块依赖、分层架构 |
+| [RemoteOS.Protocol.md](./docs/RemoteOS.Protocol.md) | 通信协议契约、REST/SignalR、序列化约定 |
+| [RemoteOS.Workspace.md](./docs/RemoteOS.Workspace.md) | 用户/工作区/会话/设备、多设备模型 |
+| [RemoteOS.Authentication.md](./docs/RemoteOS.Authentication.md) | 登录系统、身份模型、OS 用户集成 |
+| [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框 |
+| [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
+| [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
+| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | 浏览器、书签/历史、本地端口映射 |
+| [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
+| [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
+| [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
+| [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
+| [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
+| [RemoteOS.md](./docs/RemoteOS.md) | 项目结构、代码地图、当前进度 |
+
+---
+
+## 🔧 开发模式与扩展
+
+RemoteOS 支持开发者构建自定义应用包（`.roapp`），通过 `DevCli` 工具安装到 RemoteOS Shell 中。
+
+### 构建示例应用
+
+```bash
+cd examples/VideoPlayer
+./build-package.ps1
+```
+
+### 安装应用包
+
+```bash
+# 设置开发令牌（或通过参数传递）
+export REMOTEOS_DEV_TOKEN="<pairing-token>"
+
+# 安装应用
+dotnet run --project Tools/RemoteOS.DevCli -- install ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+
+# 实时监听并自动更新
+dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+```
+
+### 应用开发模型
+
+```csharp
+// 实现 IRemoteApplication 接口或继承 RemoteApplicationBase
+public class MyApp : RemoteApplicationBase
+{
+    public override string Id => "com.example.myapp";
+    public override string DisplayName => "My Application";
+
+    public override void Activate(AppContext context)
+    {
+        // 创建窗口
+        context.ShowWindow("My Window", contentFactory: () => new MyView());
+    }
+}
+```
+
+---
+
+## 🌍 多语言
+
+RemoteOS 内置三种语言支持：
+
+| 语言 | 代码 | 语言包路径 |
+|------|------|-----------|
+| 🇨🇳 简体中文 | `zh-CN` | `Client/RemoteOS.Client/Localization/zh-CN/` |
+| 🇺🇸 English | `en-US` | `Client/RemoteOS.Client/Localization/en-US/` |
+| 🇯🇵 日本語 | `ja-JP` | `Client/RemoteOS.Client/Localization/ja-JP/` |
+
+语言包采用 JSON 格式，键值对结构。切换语言后 UI 实时更新。
+
+---
+
+## ⚠️ 第三方声明
+
+本项目使用了以下第三方资源：
+
+- **Jaya File Manager** (BSD 3-Clause License) — 文件管理器 UI 结构移植。详见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+- 所有 NuGet 包的许可证信息请参考各自的包页面。
+
+---
+
+## 📄 许可证
+
+本项目采用 **RemoteOS Non-Commercial Source-Available License** 许可。
+
+**允许**：免费使用、修改、开发、学习、非商业目的分发。
+**禁止**：商业售卖、转售、SaaS 托管或其他商业用途。
+
+作者保留所有商业化权利。如需商业许可，请直接联系作者。
+
+详见 [`LICENSE`](./LICENSE) 文件。第三方组件许可见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
+
+---
+
+## 🤝 贡献
+
+欢迎贡献代码！请：
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add: amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建 Pull Request
+
+---
+
+<div align="center">
+
+**RemoteOS** — 让桌面跨越设备，让状态定义体验。
+
+</div>
