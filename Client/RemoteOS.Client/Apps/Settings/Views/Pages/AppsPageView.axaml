@@ -11,16 +11,26 @@
             <TextBlock Text="已安装的 RemoteOS 应用。选择应用可查看信息、管理权限、打开或卸载。" Opacity="0.68" TextWrapping="Wrap" />
             <Border Classes="card">
                 <ItemsControl ItemsSource="{Binding RegisteredApps}">
+                    <ItemsControl.Styles>
+                        <!-- Item presenters otherwise size to the button's content instead of the list width. -->
+                        <Style Selector="ContentPresenter">
+                            <Setter Property="HorizontalAlignment" Value="Stretch" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </ItemsControl.Styles>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="d:ApplicationInfo">
-                            <Button HorizontalContentAlignment="Stretch" Command="{Binding DataContext.ShowAppDetailsCommand, ElementName=Root}" CommandParameter="{Binding}">
-                                <Grid ColumnDefinitions="36,*,Auto" Margin="2" ColumnSpacing="8">
+                            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    Command="{Binding DataContext.ShowAppDetailsCommand, ElementName=Root}" CommandParameter="{Binding}">
+                                <Grid Height="56" ColumnDefinitions="36,*,Auto" Margin="2" ColumnSpacing="8">
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="20" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Description}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{Binding Version}" FontSize="12" Opacity="0.62" VerticalAlignment="Center" />
+                                    <Grid Grid.Column="1" RowDefinitions="Auto,Auto" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                        <TextBlock Grid.Row="1" Text="{Binding Description}" FontSize="12" Opacity="0.65"
+                                                   TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    </Grid>
+                                    <TextBlock Grid.Column="2" Text="{Binding Version}" FontSize="12" Opacity="0.62"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="110" />
                                 </Grid>
                             </Button>
                         </DataTemplate>
