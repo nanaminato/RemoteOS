@@ -32,8 +32,9 @@ public static class Bootstrapper
         services.AddSingleton(windowManager);
         services.AddSingleton<IWindowManager>(windowManager);
         services.AddSingleton<LocalLanguageStore>();
-        services.AddSingleton<ShellSettings>(sp => new ShellSettings(sp.GetRequiredService<LocalLanguageStore>()));
+        services.AddSingleton<ShellSettings>();
         services.AddSingleton<LocalizationService>();
+        services.AddSingleton<LoginLocalizationService>();
         services.AddSingleton<ISystemLanguage>(sp => sp.GetRequiredService<LocalizationService>());
         services.AddTransient<AcceptLanguageHandler>();
         services.AddSingleton<ApplicationManager>(sp =>
@@ -104,8 +105,10 @@ public static class Bootstrapper
 
         var provider = services.BuildServiceProvider();
 
-        // Create the language service before the shell and any package context so it observes every window.
+        // Create both language services before their respective windows and package contexts.
+        // The login service is intentionally independent from the workspace language service.
         provider.GetRequiredService<LocalizationService>();
+        provider.GetRequiredService<LoginLocalizationService>();
 
         windowManager.LayoutStore = provider.GetRequiredService<WindowLayoutStore>();
 

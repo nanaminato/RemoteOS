@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Client.Services;
 
-/// <summary>Stores the display language used before a user has authenticated.</summary>
+/// <summary>Stores the display language used exclusively by the sign-in experience.</summary>
 public sealed class LocalLanguageStore
 {
     private readonly string _path = Path.Combine(

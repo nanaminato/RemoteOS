@@ -66,7 +66,7 @@
                 <TextBlock Text="{Binding CredentialsInstructions}" Foreground="#6A6A6A" FontSize="13" Margin="0,3,0,12" />
                 <Grid ColumnDefinitions="108,*" Margin="0,0,0,10">
                     <TextBlock Classes="login-label" Text="{Binding DisplayLanguageText}" />
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
                               MinWidth="440">
                         <ComboBox.ItemTemplate>
                             <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>

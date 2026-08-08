@@ -16,14 +16,12 @@ namespace Client.ViewModels.Login;
 public partial class LoginViewModel : ObservableObject
 {
     private readonly IAuthSession _session;
-    private readonly ShellSettings _settings;
-    private readonly LocalizationService _localization;
+    private readonly LoginLocalizationService _localization;
     private bool _loadingSavedProfiles;
 
-    public LoginViewModel(IAuthSession session, ShellSettings settings, LocalizationService localization)
+    public LoginViewModel(IAuthSession session, LoginLocalizationService localization)
     {
         _session = session;
-        _settings = settings;
         _localization = localization;
         SavedProfiles = new ObservableCollection<SavedLoginProfile>();
         _localization.LanguageChanged += (_, _) => OnPropertyChanged(string.Empty);
@@ -73,11 +71,11 @@ public partial class LoginViewModel : ObservableObject
     public IReadOnlyList<SystemLanguageOption> Languages => _localization.AvailableLanguages;
     public SystemLanguageOption? SelectedLanguage
     {
-        get => Languages.FirstOrDefault(option => string.Equals(option.Culture, _settings.Language, StringComparison.OrdinalIgnoreCase));
+        get => Languages.FirstOrDefault(option => string.Equals(option.Culture, _localization.CurrentLanguage, StringComparison.OrdinalIgnoreCase));
         set
         {
             if (value is not null)
-                _settings.Language = value.Culture;
+                _localization.SetLanguage(value.Culture);
         }
     }
 

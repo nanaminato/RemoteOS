@@ -36,9 +36,9 @@ public sealed partial class ShellSettings : ObservableObject
 
     public bool IsDarkTheme => Theme == ThemeKind.Dark;
 
-    public ShellSettings(LocalLanguageStore localLanguageStore)
+    public ShellSettings()
     {
-        _language = localLanguageStore.Load();
+        _language = WorkspacePreferencesDto.Default.Language;
         Wallpapers =
         [
             new WallpaperOption("bloom", "Bloom", Gradient("#EAF4FF", "#D7EAFF", "#B9D9F7")),

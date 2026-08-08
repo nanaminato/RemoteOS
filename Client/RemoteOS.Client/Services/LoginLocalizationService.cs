@@ -1,56 +1,43 @@
 using System.Text.Json;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using RemoteOS.AppSDK;
-using Client.Services.Auth;
 
 namespace Client.Services;
 
 /// <summary>
-/// Loads the language files shipped beside the client. Built-in UI must resolve stable resource
-/// keys through <see cref="Get(string,string)"/>; the service deliberately does not inspect or
-/// rewrite an Avalonia visual tree.
+/// Localizes the sign-in window using a machine-local preference. This service deliberately does
+/// not read or modify workspace settings, so connecting and disconnecting cannot affect it.
 /// </summary>
-public sealed class LocalizationService : ObservableObject, ISystemLanguage
+public sealed class LoginLocalizationService : ObservableObject
 {
     private const string DefaultLanguage = "en-US";
-    private readonly ShellSettings _settings;
+    private readonly LocalLanguageStore _store;
     private readonly Dictionary<string, LanguageFile> _languages;
     private string _currentLanguage;
 
-    public LocalizationService(ShellSettings settings)
+    public LoginLocalizationService(LocalLanguageStore store)
     {
-        _settings = settings;
+        _store = store;
         _languages = LoadLanguageFiles();
-        _currentLanguage = ResolveLanguage(settings.Language);
+        _currentLanguage = ResolveLanguage(store.Load());
         AvailableLanguages = _languages.Values
             .OrderBy(language => language.SortOrder)
             .Select(language => new SystemLanguageOption(language.Culture, language.DisplayName ?? language.Culture))
             .ToArray();
-
-        _settings.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(ShellSettings.Language))
-                SetLanguage(_settings.Language);
-        };
     }
 
     public string CurrentLanguage => _currentLanguage;
     public IReadOnlyList<SystemLanguageOption> AvailableLanguages { get; }
-    public event EventHandler<SystemLanguageChangedEventArgs>? LanguageChanged;
+    public event EventHandler? LanguageChanged;
 
-    /// <summary>Resolves a stable resource key with an English source fallback.</summary>
     public string Get(string key, string englishFallback)
     {
-        var language = _languages.GetValueOrDefault(_currentLanguage);
-        if (language?.Strings is { } strings
+        if (_languages.GetValueOrDefault(_currentLanguage)?.Strings is { } strings
             && strings.TryGetValue(key, out var localized)
             && !string.IsNullOrWhiteSpace(localized)
             && !string.Equals(localized, key, StringComparison.Ordinal))
             return localized;
 
-        // English is the single source-of-truth key table. Optional locale packs may lag
-        // behind it, but an untranslated string must never surface the resource key.
         if (_languages.GetValueOrDefault(DefaultLanguage)?.Strings is { } english
             && english.TryGetValue(key, out var englishValue)
             && !string.IsNullOrWhiteSpace(englishValue)
@@ -60,23 +47,18 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         return englishFallback;
     }
 
-    private void SetLanguage(string requestedLanguage)
+    public void SetLanguage(string requestedLanguage)
     {
         var next = ResolveLanguage(requestedLanguage);
         if (string.Equals(next, _currentLanguage, StringComparison.OrdinalIgnoreCase)) return;
 
-        var previous = _currentLanguage;
         _currentLanguage = next;
+        _store.Save(next);
         OnPropertyChanged(nameof(CurrentLanguage));
-        void ApplyOnUiThread()
-        {
-            LanguageChanged?.Invoke(this, new SystemLanguageChangedEventArgs(previous, next));
-        }
-
         if (Dispatcher.UIThread.CheckAccess())
-            ApplyOnUiThread();
+            LanguageChanged?.Invoke(this, EventArgs.Empty);
         else
-            Dispatcher.UIThread.Post(ApplyOnUiThread);
+            Dispatcher.UIThread.Post(() => LanguageChanged?.Invoke(this, EventArgs.Empty));
     }
 
     private string ResolveLanguage(string requestedLanguage)
@@ -89,7 +71,7 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
 
     private static Dictionary<string, LanguageFile> LoadLanguageFiles()
     {
-        var directory = Path.Combine(System.AppContext.BaseDirectory, "Localization");
+        var directory = Path.Combine(AppContext.BaseDirectory, "Localization");
         var loaded = new Dictionary<string, LanguageFileBuilder>(StringComparer.OrdinalIgnoreCase);
         if (Directory.Exists(directory))
         {
@@ -99,14 +81,13 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
                 {
                     var language = JsonSerializer.Deserialize<LanguageFile>(File.ReadAllText(path));
                     if (language is not { Culture.Length: > 0 }) continue;
-
                     if (!loaded.TryGetValue(language.Culture, out var merged))
                         loaded[language.Culture] = merged = new LanguageFileBuilder(language.Culture);
                     merged.Merge(language, path);
                 }
                 catch (JsonException)
                 {
-                    // One malformed optional language pack must not prevent the desktop from starting.
+                    // A malformed optional language pack must not prevent sign-in.
                 }
             }
         }
@@ -141,6 +122,3 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         public LanguageFile Build() => new(culture, _displayName ?? culture, _sortOrder ?? int.MaxValue, _strings);
     }
 }
-
-/// <summary>A selectable UI language discovered from a language file.</summary>
-public sealed record SystemLanguageOption(string Culture, string DisplayName);
