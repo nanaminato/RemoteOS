@@ -1,0 +1,25 @@
+{
+    "Culture":  "en-US",
+    "Strings":  {
+                    "application.remoteos.welcome.display_name":  "Welcome",
+                    "application.remoteos.terminal.display_name":  "Terminal",
+                    "application.remoteos.notepad.display_name":  "Notebook",
+                    "application.remoteos.settings.display_name":  "Settings",
+                    "application.remoteos.codeeditor.display_name":  "Code Editor",
+                    "application.remoteos.imageviewer.display_name":  "Image Viewer",
+                    "application.remoteos.taskmanager.display_name":  "Task Manager",
+                    "application.remoteos.browser.display_name":  "Remote Browser",
+                    "application.remoteos.appinstaller.display_name":  "App Installer",
+                    "application.remoteos.explorer.display_name":  "File Explorer",
+                    "application.remoteos.welcome.description":  "Get started with RemoteOS",
+                    "application.remoteos.terminal.description":  "Remote command-line terminal",
+                    "application.remoteos.notepad.description":  "Text editor for remote files",
+                    "application.remoteos.settings.description":  "Personalize and configure RemoteOS",
+                    "application.remoteos.codeeditor.description":  "Syntax-highlighted editor for remote files",
+                    "application.remoteos.imageviewer.description":  "Lightweight viewer for remote image files",
+                    "application.remoteos.taskmanager.description":  "View CPU, memory, disk, network, GPU usage, and running processes",
+                    "application.remoteos.browser.description":  "Web browser with server-synced bookmarks and history",
+                    "application.remoteos.appinstaller.description":  "Install or update RemoteOS application packages.",
+                    "application.remoteos.explorer.description":  "Remote file manager"
+                }
+}

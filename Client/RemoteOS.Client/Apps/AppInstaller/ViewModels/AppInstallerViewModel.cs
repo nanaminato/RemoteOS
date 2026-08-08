@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using Client.Services.AppPackages;
 using Client.Localization;
+using Client.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Core.Applications;
 
 namespace Client.Apps.AppInstaller.ViewModels;
@@ -11,9 +13,15 @@ namespace Client.Apps.AppInstaller.ViewModels;
 public sealed partial class AppInstallerViewModel : ObservableObject, IDisposable
 {
     private readonly AppPackageInstallerService _installer;
+    private readonly LocalizationService _localization;
     private readonly Queue<AppPackageCandidate> _pending = new();
 
-    public AppInstallerViewModel(AppPackageInstallerService installer) => _installer = installer;
+    public AppInstallerViewModel(AppPackageInstallerService installer)
+    {
+        _installer = installer;
+        _localization = App.Services.GetRequiredService<LocalizationService>();
+        _localization.LanguageChanged += OnLanguageChanged;
+    }
 
     public Func<Task<IReadOnlyList<string>>>? RequestLocalPackagesAsync { get; set; }
     public Func<Task<IReadOnlyList<string>>>? RequestServerPackagesAsync { get; set; }
@@ -27,8 +35,10 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
     public string ActionLabel => CurrentPackage?.IsUpdate == true ? LocalizedText.Get("common.update") : LocalizedText.Get("common.install");
     public string CurrentVersionText => CurrentPackage?.InstalledVersion is null ? LocalizedText.Get("app_installer.not_installed") : LocalizedText.Format("app_installer.current_version", CurrentPackage.InstalledVersion);
     public int PendingCount => _pending.Count;
-    public IReadOnlyList<AppPermissionDefinition> RequestedPermissions => CurrentPackage?.Manifest.RequestedPermissions
-        ?.Select(AppPermissions.Find).OfType<AppPermissionDefinition>().ToArray() ?? [];
+    public IReadOnlyList<LocalizedPermissionInfo> RequestedPermissions => CurrentPackage?.Manifest.RequestedPermissions
+        ?.Select(AppPermissions.Find).OfType<AppPermissionDefinition>()
+        .Select(permission => new LocalizedPermissionInfo(PermissionText.DisplayName(permission), PermissionText.Description(permission)))
+        .ToArray() ?? [];
     public bool HasRequestedPermissions => RequestedPermissions.Count > 0;
 
     [RelayCommand]
@@ -132,9 +142,19 @@ public sealed partial class AppInstallerViewModel : ObservableObject, IDisposabl
 
     public void Dispose()
     {
+        _localization.LanguageChanged -= OnLanguageChanged;
         if (CurrentPackage is not null)
             _installer.Discard(CurrentPackage);
         while (_pending.TryDequeue(out var candidate))
             _installer.Discard(candidate);
     }
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        OnPropertyChanged(nameof(RequestedPermissions));
+        OnPropertyChanged(nameof(ActionLabel));
+        OnPropertyChanged(nameof(CurrentVersionText));
+    }
 }
+
+public sealed record LocalizedPermissionInfo(string DisplayName, string Description);

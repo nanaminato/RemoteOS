@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <AvaloniaResource Include="Assets\**"/>
-        <Content Include="Localization\*.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="Localization\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
     <ItemGroup>

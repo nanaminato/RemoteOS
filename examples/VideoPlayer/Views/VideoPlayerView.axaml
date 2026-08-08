@@ -13,9 +13,15 @@
     <Border Grid.Row="1" Background="#000000">
       <vlc:VideoView x:Name="PlayerSurface" />
     </Border>
-    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="14,10">
-      <Button Content="{Binding PlayPauseText}" Command="{Binding TogglePlayPauseCommand}" IsEnabled="{Binding CanControlPlayback}" />
-      <Button Content="{Binding StopText}" Command="{Binding StopCommand}" IsEnabled="{Binding CanControlPlayback}" />
-    </StackPanel>
+    <Border Grid.Row="2" Background="#0F172A" Padding="14,10">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Content="{Binding PlayPauseText}" Command="{Binding TogglePlayPauseCommand}"
+                IsEnabled="{Binding CanControlPlayback}" Background="#E2E8F0" Foreground="#0F172A"
+                FontWeight="SemiBold" Padding="16,7" />
+        <Button Content="{Binding StopText}" Command="{Binding StopCommand}"
+                IsEnabled="{Binding CanControlPlayback}" Background="#DC2626" Foreground="White"
+                FontWeight="SemiBold" Padding="16,7" />
+      </StackPanel>
+    </Border>
   </Grid>
 </UserControl>

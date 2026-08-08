@@ -1,25 +1,30 @@
+using Client.Localization;
+using Client.Services;
+using Client.Services.AppPermissions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Client.Services.AppPermissions;
 using RemoteOS.Core.Applications;
 
 namespace Client.Apps.Settings.ViewModels;
 
 /// <summary>Edits one application's declared permissions as a draft until the user saves.</summary>
-public sealed partial class AppPermissionDialogViewModel : ObservableObject
+public sealed partial class AppPermissionDialogViewModel : ObservableObject, IDisposable
 {
     private readonly AppId _appId;
     private readonly IAppPermissionManager _permissionManager;
     private readonly Action<bool> _complete;
+    private readonly LocalizationService _localization;
 
     public AppPermissionDialogViewModel(
         ApplicationInfo app,
         IAppPermissionManager permissionManager,
+        LocalizationService localization,
         Action<bool> complete)
     {
         _appId = app.Id;
         _permissionManager = permissionManager;
         _complete = complete;
+        _localization = localization;
         AppName = app.DisplayName;
         AppId = app.Id.Value;
 
@@ -30,12 +35,14 @@ public sealed partial class AppPermissionDialogViewModel : ObservableObject
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .Select(group => new AppPermissionCategoryViewModel(
                 group.Key,
-                group.OrderBy(permission => permission.DisplayName, StringComparer.Ordinal)
+                group.OrderBy(permission => PermissionText.DisplayName(permission), StringComparer.Ordinal)
                     .Select(permission => new AppPermissionChoiceViewModel(
                         permission,
                         permissionManager.IsGranted(app.Id, permission.Id)))
                     .ToArray()))
             .ToArray();
+
+        _localization.LanguageChanged += OnLanguageChanged;
     }
 
     public string AppName { get; }
@@ -52,23 +59,58 @@ public sealed partial class AppPermissionDialogViewModel : ObservableObject
 
     [RelayCommand]
     private void Cancel() => _complete(false);
+
+    public void Dispose() => _localization.LanguageChanged -= OnLanguageChanged;
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        foreach (var group in PermissionGroups)
+            group.RefreshLocalizedText();
+    }
 }
 
-public sealed record AppPermissionCategoryViewModel(string Name, IReadOnlyList<AppPermissionChoiceViewModel> Permissions);
+public sealed partial class AppPermissionCategoryViewModel : ObservableObject
+{
+    private readonly string _category;
+
+    public AppPermissionCategoryViewModel(string category, IReadOnlyList<AppPermissionChoiceViewModel> permissions)
+    {
+        _category = category;
+        Permissions = permissions;
+        RefreshLocalizedText();
+    }
+
+    [ObservableProperty] private string _name = string.Empty;
+    public IReadOnlyList<AppPermissionChoiceViewModel> Permissions { get; }
+
+    public void RefreshLocalizedText()
+    {
+        Name = PermissionText.Category(_category);
+        foreach (var permission in Permissions)
+            permission.RefreshLocalizedText();
+    }
+}
 
 public sealed partial class AppPermissionChoiceViewModel : ObservableObject
 {
+    private readonly AppPermissionDefinition _definition;
+
     public AppPermissionChoiceViewModel(AppPermissionDefinition definition, bool isGranted)
     {
+        _definition = definition;
         PermissionId = definition.Id;
-        DisplayName = definition.DisplayName;
-        Description = definition.Description;
         _isGranted = isGranted;
+        RefreshLocalizedText();
     }
 
     public string PermissionId { get; }
-    public string DisplayName { get; }
-    public string Description { get; }
-
+    [ObservableProperty] private string _displayName = string.Empty;
+    [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private bool _isGranted;
+
+    public void RefreshLocalizedText()
+    {
+        DisplayName = PermissionText.DisplayName(_definition);
+        Description = PermissionText.Description(_definition);
+    }
 }

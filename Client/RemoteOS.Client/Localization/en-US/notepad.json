@@ -1,0 +1,22 @@
+{
+    "Culture":  "en-US",
+    "Strings":  {
+                    "notepad.settings.title":  "Notebook settings",
+                    "notepad.settings.encoding_note":  "Changing the encoding applies when you reopen the current remote file.",
+                    "notepad.status.ready":  "Ready",
+                    "notepad.document.untitled":  "Untitled",
+                    "notepad.status.new_document":  "New document",
+                    "notepad.status.save_or_discard":  "Save or discard edits before reopening with another encoding.",
+                    "notepad.status.connect_before_open":  "Connect to RemoteOS Server before opening files.",
+                    "notepad.status.file_missing":  "File no longer exists.",
+                    "notepad.status.opened":  "Opened {0} as {1}",
+                    "notepad.status.open_failed":  "Cannot open file: {0}",
+                    "notepad.status.connect_before_save":  "Connect to RemoteOS Server before saving files.",
+                    "notepad.status.saved":  "Saved {0} as {1}",
+                    "notepad.status.save_failed":  "Cannot save file: {0}",
+                    "notepad.open_remote_file":  "Open remote file",
+                    "notepad.save_remote_file":  "Save remote file",
+                    "notepad.remote_path_prompt":  "Enter a full remote path:",
+                    "notepad.text_file_filter":  "Text files"
+                }
+}

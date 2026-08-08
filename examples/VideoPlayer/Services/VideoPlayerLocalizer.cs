@@ -9,6 +9,7 @@ namespace RemoteOS.Examples.VideoPlayer.Services;
 public sealed class VideoPlayerLocalizer : IDisposable
 {
     private const string DefaultCulture = "en-US";
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly ISystemLanguage _systemLanguage;
     private readonly Dictionary<string, IReadOnlyDictionary<string, string>> _languages;
     private string _culture;
@@ -79,7 +80,7 @@ public sealed class VideoPlayerLocalizer : IDisposable
         {
             try
             {
-                var file = JsonSerializer.Deserialize<LanguageFile>(File.ReadAllText(path));
+                var file = JsonSerializer.Deserialize<LanguageFile>(File.ReadAllText(path), JsonOptions);
                 if (file is { Culture.Length: > 0, Strings: not null })
                     loaded[file.Culture] = file.Strings;
             }

@@ -13,7 +13,7 @@ public sealed class VideoPlayerApp : IExternalRemoteApplication, IExternalFileOp
     public ApplicationManifest Manifest { get; } = new(
         new AppId("com.remoteos.example.video-player"),
         "Video Player",
-        "0.2.0-dev",
+        "0.2.1-dev",
         "🎞️",
         "VLC-based remote video player for Windows",
         [AppPermissions.ServerFilesRead],

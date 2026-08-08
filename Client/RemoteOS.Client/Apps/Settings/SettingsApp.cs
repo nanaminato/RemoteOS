@@ -41,6 +41,7 @@ public sealed class SettingsApp : RemoteApplicationBase
         var system = context.Services.GetRequiredService<ITaskManagerClient>();
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
         var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
+        var localization = context.Services.GetRequiredService<LocalizationService>();
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
         var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
@@ -54,14 +55,19 @@ public sealed class SettingsApp : RemoteApplicationBase
             navigation.Register(window, viewModel);
 
         var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
-        appsPage.RequestPermissionEditorAsync = app => context.ShowDialogAsync<bool>(
-            window,
-            LocalizedText.Format("settings.apps.permissions_title", app.DisplayName),
-            dialog => new AppPermissionDialogView
-            {
-                DataContext = new AppPermissionDialogViewModel(app, permissions, dialog.Close),
-            },
-            new Size(560, 540));
+        appsPage.RequestPermissionEditorAsync = async app =>
+        {
+            AppPermissionDialogViewModel? dialogViewModel = null;
+            await context.ShowDialogAsync<bool>(
+                window,
+                LocalizedText.Format("settings.apps.permissions_title", app.DisplayName),
+                dialog => new AppPermissionDialogView
+                {
+                    DataContext = dialogViewModel = new AppPermissionDialogViewModel(app, permissions, localization, dialog.Close),
+                },
+                new Size(560, 540));
+            dialogViewModel?.Dispose();
+        };
         appsPage.RequestUninstallConfirmationAsync = async app =>
         {
             var confirmed = false;

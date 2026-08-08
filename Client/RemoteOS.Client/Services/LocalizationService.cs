@@ -32,7 +32,7 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         _currentLanguage = ResolveLanguage(settings.Language);
         AvailableLanguages = _languages.Values
             .OrderBy(language => language.SortOrder)
-            .Select(language => new SystemLanguageOption(language.Culture, language.DisplayName))
+            .Select(language => new SystemLanguageOption(language.Culture, language.DisplayName ?? language.Culture))
             .ToArray();
 
         _settings.PropertyChanged += (_, args) =>
@@ -101,16 +101,19 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
     private static Dictionary<string, LanguageFile> LoadLanguageFiles()
     {
         var directory = Path.Combine(System.AppContext.BaseDirectory, "Localization");
-        var loaded = new Dictionary<string, LanguageFile>(StringComparer.OrdinalIgnoreCase);
+        var loaded = new Dictionary<string, LanguageFileBuilder>(StringComparer.OrdinalIgnoreCase);
         if (Directory.Exists(directory))
         {
-            foreach (var path in Directory.EnumerateFiles(directory, "*.json", SearchOption.TopDirectoryOnly))
+            foreach (var path in Directory.EnumerateFiles(directory, "*.json", SearchOption.AllDirectories))
             {
                 try
                 {
                     var language = JsonSerializer.Deserialize<LanguageFile>(File.ReadAllText(path));
-                    if (language is { Culture.Length: > 0, DisplayName.Length: > 0 })
-                        loaded[language.Culture] = language with { Strings = language.Strings ?? new Dictionary<string, string>() };
+                    if (language is not { Culture.Length: > 0 }) continue;
+
+                    if (!loaded.TryGetValue(language.Culture, out var merged))
+                        loaded[language.Culture] = merged = new LanguageFileBuilder(language.Culture);
+                    merged.Merge(language, path);
                 }
                 catch (JsonException)
                 {
@@ -120,11 +123,34 @@ public sealed class LocalizationService : ObservableObject, ISystemLanguage
         }
 
         if (loaded.Count == 0)
-            loaded[DefaultLanguage] = new LanguageFile(DefaultLanguage, "English", 0, new Dictionary<string, string>());
-        return loaded;
+            return new Dictionary<string, LanguageFile>(StringComparer.OrdinalIgnoreCase)
+            {
+                [DefaultLanguage] = new LanguageFile(DefaultLanguage, "English", 0, new Dictionary<string, string>()),
+            };
+        return loaded.ToDictionary(pair => pair.Key, pair => pair.Value.Build(), StringComparer.OrdinalIgnoreCase);
     }
 
-    private sealed record LanguageFile(string Culture, string DisplayName, int SortOrder, Dictionary<string, string>? Strings);
+    private sealed record LanguageFile(string Culture, string? DisplayName, int? SortOrder, Dictionary<string, string>? Strings);
+
+    private sealed class LanguageFileBuilder(string culture)
+    {
+        private readonly Dictionary<string, string> _strings = new(StringComparer.Ordinal);
+        private string? _displayName;
+        private int? _sortOrder;
+
+        public void Merge(LanguageFile fragment, string path)
+        {
+            _displayName ??= fragment.DisplayName;
+            _sortOrder ??= fragment.SortOrder;
+            foreach (var (key, value) in fragment.Strings ?? [])
+            {
+                if (!_strings.TryAdd(key, value))
+                    throw new JsonException($"Duplicate localization key '{key}' in '{path}'.");
+            }
+        }
+
+        public LanguageFile Build() => new(culture, _displayName ?? culture, _sortOrder ?? int.MaxValue, _strings);
+    }
 }
 
 /// <summary>A selectable UI language discovered from a language file.</summary>

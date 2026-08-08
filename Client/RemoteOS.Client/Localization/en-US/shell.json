@@ -1,0 +1,23 @@
+{
+    "Culture":  "en-US",
+    "Strings":  {
+                    "shell.connection.not_connected":  "Not connected",
+                    "shell.connection.unknown_user":  "Unknown user",
+                    "shell.connection.default_workspace":  "Default workspace",
+                    "shell.window_title":  "RemoteOS Remote Desktop",
+                    "shell.connection.close":  "Close connection",
+                    "shell.connection.close_tooltip":  "Disconnect and exit",
+                    "shell.connection.info":  "Connection information",
+                    "shell.connection.info_tooltip":  "View connection information",
+                    "shell.connection.server":  "Server",
+                    "shell.connection.user":  "User",
+                    "shell.connection.workspace":  "Workspace",
+                    "shell.connection_bar.pin":  "Pin",
+                    "shell.connection_bar.pinned":  "Pinned",
+                    "shell.connection_bar.pin_tooltip":  "Pin connection bar",
+                    "shell.connection_bar.unpin_tooltip":  "Unpin connection bar",
+                    "shell.full_screen.enter":  "Full screen",
+                    "shell.full_screen.enter_tooltip":  "Enter full screen",
+                    "shell.full_screen.exit":  "Exit full screen"
+                }
+}
