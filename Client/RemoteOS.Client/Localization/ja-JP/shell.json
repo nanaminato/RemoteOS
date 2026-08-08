@@ -1,0 +1,23 @@
+{
+    "Culture": "ja-JP",
+    "Strings": {
+        "shell.connection.not_connected": "未接続",
+        "shell.connection.unknown_user": "不明なユーザー",
+        "shell.connection.default_workspace": "既定のワークスペース",
+        "shell.window_title": "RemoteOS リモートデスクトップ",
+        "shell.connection.close": "接続を閉じる",
+        "shell.connection.close_tooltip": "接続を切断して終了",
+        "shell.connection.info": "接続情報",
+        "shell.connection.info_tooltip": "接続情報を表示",
+        "shell.connection.server": "サーバー",
+        "shell.connection.user": "ユーザー",
+        "shell.connection.workspace": "ワークスペース",
+        "shell.connection_bar.pin": "固定",
+        "shell.connection_bar.pinned": "固定済み",
+        "shell.connection_bar.pin_tooltip": "接続バーを固定",
+        "shell.connection_bar.unpin_tooltip": "接続バーの固定を解除",
+        "shell.full_screen.enter": "全画面表示",
+        "shell.full_screen.enter_tooltip": "全画面表示に切り替える",
+        "shell.full_screen.exit": "全画面表示を終了"
+    }
+}

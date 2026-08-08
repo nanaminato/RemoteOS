@@ -1,0 +1,18 @@
+{
+    "Culture": "ja-JP",
+    "Strings": {
+        "terminal.menu": "ターミナル",
+        "terminal.settings": "ターミナル設定",
+        "terminal.font_family": "フォント",
+        "terminal.font_size": "フォント サイズ",
+        "terminal.color_scheme": "配色",
+        "terminal.settings.description": "変更は直ちに適用され、現在のワークスペースに保存されます。",
+        "terminal.status.ready": "準備完了",
+        "terminal.status.connecting": "リモートターミナルに接続しています…",
+        "terminal.status.local_fallback": "ローカルターミナル（サインインしていません）",
+        "terminal.status.connected": "接続済み",
+        "terminal.status.start_failed": "起動に失敗しました：{0}",
+        "terminal.status.process_exited": "プロセスが終了しました",
+        "terminal.status.process_exited_with_code": "プロセスが終了しました（終了コード {0}）"
+    }
+}

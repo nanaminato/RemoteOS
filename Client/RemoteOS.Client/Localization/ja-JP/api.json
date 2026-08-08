@@ -1,0 +1,14 @@
+{
+    "Culture": "ja-JP",
+    "Strings": {
+        "api.auth.invalid_credential": "ユーザー名またはパスワードが正しくありません。",
+        "api.auth.account_locked": "このアカウントはロックされています。管理者に連絡してください。",
+        "api.auth.account_disabled": "このアカウントは無効になっています。",
+        "api.auth.password_expired": "このパスワードは有効期限が切れています。先にサーバー上で変更してください。",
+        "api.auth.account_expired": "このアカウントは有効期限が切れています。",
+        "api.auth.account_restriction": "このアカウントはサインインが制限されています。",
+        "api.auth.invalid_input": "すべての必須情報を入力してください。",
+        "api.auth.failed": "サインインに失敗しました。後でもう一度お試しください。",
+        "api.auth.failed_short": "サインインに失敗しました。"
+    }
+}

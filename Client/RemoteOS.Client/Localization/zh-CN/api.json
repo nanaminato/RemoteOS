@@ -1,0 +1,14 @@
+{
+    "Culture": "zh-CN",
+    "Strings": {
+        "api.auth.invalid_credential": "用户名或密码不正确。",
+        "api.auth.account_locked": "此账户已被锁定。请联系管理员。",
+        "api.auth.account_disabled": "此账户已被禁用。",
+        "api.auth.password_expired": "此密码已过期。请先在服务器上修改密码。",
+        "api.auth.account_expired": "此账户已过期。",
+        "api.auth.account_restriction": "此账户受到登录限制。",
+        "api.auth.invalid_input": "请输入所有必填信息。",
+        "api.auth.failed": "登录失败。请稍后重试。",
+        "api.auth.failed_short": "登录失败。"
+    }
+}

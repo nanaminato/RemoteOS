@@ -1,0 +1,25 @@
+{
+    "Culture": "ja-JP",
+    "Strings": {
+        "application.remoteos.welcome.display_name": "ようこそ",
+        "application.remoteos.terminal.display_name": "ターミナル",
+        "application.remoteos.notepad.display_name": "メモ帳",
+        "application.remoteos.settings.display_name": "設定",
+        "application.remoteos.codeeditor.display_name": "コード エディター",
+        "application.remoteos.imageviewer.display_name": "画像ビューアー",
+        "application.remoteos.taskmanager.display_name": "タスク マネージャー",
+        "application.remoteos.browser.display_name": "リモート ブラウザー",
+        "application.remoteos.appinstaller.display_name": "アプリ インストーラー",
+        "application.remoteos.explorer.display_name": "ファイル エクスプローラー",
+        "application.remoteos.welcome.description": "RemoteOS を始める",
+        "application.remoteos.terminal.description": "リモートコマンドラインターミナル",
+        "application.remoteos.notepad.description": "リモートファイル用テキストエディター",
+        "application.remoteos.settings.description": "RemoteOS のカスタマイズと設定",
+        "application.remoteos.codeeditor.description": "シンタックスハイライト対応のリモートファイルエディター",
+        "application.remoteos.imageviewer.description": "軽量なリモート画像ビューアー",
+        "application.remoteos.taskmanager.description": "CPU、メモリ、ディスク、ネットワーク、GPU の使用状況と実行中のプロセスを表示",
+        "application.remoteos.browser.description": "ブックマークと履歴をサーバーと同期できるウェブブラウザー",
+        "application.remoteos.appinstaller.description": "RemoteOS アプリケーションパッケージをインストールまたは更新します。",
+        "application.remoteos.explorer.description": "リモートファイルマネージャー"
+    }
+}

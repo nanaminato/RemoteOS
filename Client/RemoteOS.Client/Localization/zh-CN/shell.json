@@ -1,0 +1,23 @@
+{
+    "Culture": "zh-CN",
+    "Strings": {
+        "shell.connection.not_connected": "未连接",
+        "shell.connection.unknown_user": "未知用户",
+        "shell.connection.default_workspace": "默认工作区",
+        "shell.window_title": "RemoteOS 远程桌面",
+        "shell.connection.close": "关闭连接",
+        "shell.connection.close_tooltip": "断开连接并退出",
+        "shell.connection.info": "连接信息",
+        "shell.connection.info_tooltip": "查看连接信息",
+        "shell.connection.server": "服务器",
+        "shell.connection.user": "用户",
+        "shell.connection.workspace": "工作区",
+        "shell.connection_bar.pin": "固定",
+        "shell.connection_bar.pinned": "已固定",
+        "shell.connection_bar.pin_tooltip": "固定连接栏",
+        "shell.connection_bar.unpin_tooltip": "取消固定连接栏",
+        "shell.full_screen.enter": "全屏",
+        "shell.full_screen.enter_tooltip": "进入全屏",
+        "shell.full_screen.exit": "退出全屏"
+    }
+}

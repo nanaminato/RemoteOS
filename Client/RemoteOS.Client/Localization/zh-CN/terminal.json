@@ -1,0 +1,18 @@
+{
+    "Culture": "zh-CN",
+    "Strings": {
+        "terminal.menu": "终端",
+        "terminal.settings": "终端设置",
+        "terminal.font_family": "字体",
+        "terminal.font_size": "字体大小",
+        "terminal.color_scheme": "配色方案",
+        "terminal.settings.description": "更改将立即生效，并保存到当前工作区。",
+        "terminal.status.ready": "就绪",
+        "terminal.status.connecting": "正在连接到远程终端…",
+        "terminal.status.local_fallback": "本地终端（未登录）",
+        "terminal.status.connected": "已连接",
+        "terminal.status.start_failed": "启动失败：{0}",
+        "terminal.status.process_exited": "进程已退出",
+        "terminal.status.process_exited_with_code": "进程已退出（代码 {0}）"
+    }
+}
