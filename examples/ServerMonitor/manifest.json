@@ -1,10 +1,10 @@
 {
   "id": "com.remoteos.example.server-monitor",
   "displayName": "Server Monitor",
-  "version": "0.1.0-dev",
+  "version": "0.2.0-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.ServerMonitor.dll",
   "entryType": "RemoteOS.Examples.ServerMonitor.ServerMonitorApp",
   "iconGlyph": "📈",
-  "description": "Example third-party server resource monitor",
+  "description": "Performance dashboard with locally saved refresh preferences",
   "requestedPermissions": ["server.metrics.read"]
 }
