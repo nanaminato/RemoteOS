@@ -24,6 +24,8 @@ public abstract class SettingsPageViewModel : ObservableObject
             if (e.PropertyName == nameof(ShellSettings.Language))
                 OnPropertyChanged(nameof(LocalizedDisplayName));
         };
+
+        App.Services.GetRequiredService<LocalizationService>().LanguageChanged += (_, _) => OnPropertyChanged(string.Empty);
     }
 
     /// <summary>分类图标（emoji）。</summary>
@@ -37,6 +39,9 @@ public abstract class SettingsPageViewModel : ObservableObject
 
     /// <summary>Localized category name used by the Settings navigation and page headers.</summary>
     public string LocalizedDisplayName => App.Services.GetRequiredService<LocalizationService>().Get(DisplayNameKey, DisplayName);
+
+    protected string T(string key, string englishFallback) =>
+        App.Services.GetRequiredService<LocalizationService>().Get(key, englishFallback);
 
     /// <summary>触发根 VM 的防抖保存。仅用户编辑路径调用。</summary>
     protected void Save() => _save?.Invoke();

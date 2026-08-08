@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
              xmlns:dto="clr-namespace:RemoteOS.Protocol.SystemMonitor;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Settings.Views.Pages.NetworkPageView"
@@ -9,21 +10,21 @@
 
         <Border Classes="card">
             <StackPanel Spacing="12">
-                <TextBlock Text="连接状态" Classes="title" />
+                <TextBlock Text="{loc:Loc settings.connection_status}" Classes="title" />
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Text="状态" Opacity="0.7" />
+                    <TextBlock Text="{loc:Loc settings.status}" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding ConnectionState}" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Text="连接地址" Opacity="0.7" />
+                    <TextBlock Text="{loc:Loc settings.connection_address}" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" TextWrapping="Wrap" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Text="用户" Opacity="0.7" />
+                    <TextBlock Text="{loc:Loc settings.user}" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding UserName}" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Text="工作区" Opacity="0.7" />
+                    <TextBlock Text="{loc:Loc settings.workspace}" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding WorkspaceName}" />
                 </Grid>
             </StackPanel>
@@ -33,10 +34,10 @@
             <StackPanel Spacing="12">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="服务器 IP 地址" Classes="title" />
-                        <TextBlock Text="服务器网卡上的全部可用 IPv4 和 IPv6 地址。" FontSize="12" Opacity="0.6" />
+                        <TextBlock Text="{loc:Loc settings.server_ip_addresses}" Classes="title" />
+                        <TextBlock Text="{loc:Loc settings.server_ip_addresses.description}" FontSize="12" Opacity="0.6" />
                     </StackPanel>
-                    <Button Grid.Column="1" Content="刷新" Command="{Binding RefreshServerAddressesCommand}" Padding="14,6" />
+                    <Button Grid.Column="1" Content="{loc:Loc common.refresh}" Command="{Binding RefreshServerAddressesCommand}" Padding="14,6" />
                 </Grid>
 
                 <ItemsControl ItemsSource="{Binding ServerAddresses}">
@@ -58,14 +59,14 @@
 
         <Border Classes="card">
             <StackPanel Spacing="10">
-                <TextBlock Text="连接测试" Classes="title" />
+                <TextBlock Text="{loc:Loc settings.connection_test}" Classes="title" />
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Button Content="测试连接" Command="{Binding TestConnectionCommand}"
+                    <Button Content="{loc:Loc settings.test_connection}" Command="{Binding TestConnectionCommand}"
                             Classes="primary" Padding="16,8" />
                     <TextBlock Text="{Binding LatencyText}" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                           Text="测量到 RemoteOS Server 的往返延迟（GET /api/v1/auth/me）。宿主 OS 的网卡、DNS 与路由修改仍需要服务器端提权。" />
+                           Text="{loc:Loc settings.connection_test.description}" />
             </StackPanel>
         </Border>
     </StackPanel>

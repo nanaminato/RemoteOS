@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
              xmlns:d="clr-namespace:RemoteOS.Core.Applications;assembly=RemoteOS.Core"
              x:Class="Client.Apps.Settings.Views.Pages.AppsPageView"
@@ -8,7 +9,7 @@
     <StackPanel Spacing="16" MaxWidth="720">
         <StackPanel IsVisible="{Binding IsInstalledApps}" Spacing="16">
             <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="已安装的 RemoteOS 应用。选择应用可查看信息、管理权限、打开或卸载。" Opacity="0.68" TextWrapping="Wrap" />
+            <TextBlock Text="{loc:Loc settings.apps.description}" Opacity="0.68" TextWrapping="Wrap" />
             <Border Classes="card">
                 <ItemsControl ItemsSource="{Binding RegisteredApps}">
                     <ItemsControl.Styles>
@@ -42,8 +43,8 @@
 
         <StackPanel IsVisible="{Binding IsAppDetails}" Spacing="16">
             <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="← 应用" Command="{Binding ShowInstalledAppsCommand}" />
-                <TextBlock Text="应用信息" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Content="{loc:Loc settings.back_to_apps}" Command="{Binding ShowInstalledAppsCommand}" />
+                <TextBlock Text="{loc:Loc settings.app_information}" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
             <Border Classes="card">
                 <StackPanel Spacing="12">
@@ -55,19 +56,19 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding SelectedApp.Description}" TextWrapping="Wrap" Opacity="0.78" />
-                    <Grid ColumnDefinitions="120,*"><TextBlock Text="版本" Opacity="0.65" /><TextBlock Grid.Column="1" Text="{Binding SelectedApp.Version}" /></Grid>
+                    <Grid ColumnDefinitions="120,*"><TextBlock Text="{loc:Loc settings.version}" Opacity="0.65" /><TextBlock Grid.Column="1" Text="{Binding SelectedApp.Version}" /></Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Classes="primary" Content="打开" Command="{Binding OpenSelectedAppCommand}" Padding="16,7" />
-                        <Button Content="卸载" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
+                        <Button Classes="primary" Content="{loc:Loc common.open}" Command="{Binding OpenSelectedAppCommand}" Padding="16,7" />
+                        <Button Content="{loc:Loc settings.uninstall}" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
                     </StackPanel>
                     <TextBlock Text="{Binding UninstallAvailabilityText}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
                     <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <StackPanel Spacing="3">
-                                <TextBlock Text="应用权限" FontWeight="SemiBold" />
+                                <TextBlock Text="{loc:Loc settings.app_permissions}" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding SelectedAppPermissionSummary}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Button Grid.Column="1" Content="管理权限" Command="{Binding EditSelectedPermissionsCommand}" IsVisible="{Binding HasSelectedAppPermissions}" VerticalAlignment="Center" Padding="14,6" />
+                            <Button Grid.Column="1" Content="{loc:Loc settings.manage_permissions}" Command="{Binding EditSelectedPermissionsCommand}" IsVisible="{Binding HasSelectedAppPermissions}" VerticalAlignment="Center" Padding="14,6" />
                         </Grid>
                     </Border>
                     <TextBlock Text="{Binding ActionStatus}" IsVisible="{Binding HasActionStatus}" Opacity="0.68" TextWrapping="Wrap" />

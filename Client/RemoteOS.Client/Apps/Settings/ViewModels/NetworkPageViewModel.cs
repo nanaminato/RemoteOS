@@ -36,9 +36,9 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
 
     public string ConnectionState => _session.State switch
     {
-        AuthSessionState.Authenticated => "已连接",
-        AuthSessionState.Connecting => "连接中…",
-        _ => "未连接",
+        AuthSessionState.Authenticated => T("settings.value.connected", "Connected"),
+        AuthSessionState.Connecting => T("settings.value.connecting", "Connecting…"),
+        _ => T("settings.value.not_connected", "Not connected"),
     };
 
     public string ServerUrl => _session.ServerUrl ?? "—";
@@ -47,9 +47,9 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
     public bool IsConnected => _session.State == AuthSessionState.Authenticated;
     public ObservableCollection<NetworkAddressDto> ServerAddresses { get; }
 
-    [ObservableProperty] private string _latencyText = "未测试";
+    [ObservableProperty] private string _latencyText = "Not tested";
     [ObservableProperty] private bool _isTesting;
-    [ObservableProperty] private string _serverAddressesStatus = "尚未获取服务器地址。";
+    [ObservableProperty] private string _serverAddressesStatus = "Server addresses have not been loaded.";
     [ObservableProperty] private bool _isLoadingServerAddresses;
 
     public async Task LoadServerAddressesAsync()
@@ -57,12 +57,12 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
         if (!IsConnected)
         {
             ServerAddresses.Clear();
-            ServerAddressesStatus = "未连接到服务器。";
+            ServerAddressesStatus = T("settings.network.not_connected", "Not connected to the server.");
             return;
         }
 
         IsLoadingServerAddresses = true;
-        ServerAddressesStatus = "正在获取服务器地址…";
+        ServerAddressesStatus = T("settings.network.loading_addresses", "Loading server addresses…");
         try
         {
             var addresses = await _system.GetNetworkAddressesAsync();
@@ -70,13 +70,13 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
             foreach (var address in addresses)
                 ServerAddresses.Add(address);
             ServerAddressesStatus = addresses.Count == 0
-                ? "未发现可用的非回环 IPv4 或 IPv6 地址。"
-                : $"发现 {addresses.Count} 个服务器地址。";
+                ? T("settings.network.no_addresses", "No non-loopback IPv4 or IPv6 addresses were found.")
+                : string.Format(T("settings.network.addresses_found", "{0} server addresses found."), addresses.Count);
         }
         catch (Exception ex)
         {
             ServerAddresses.Clear();
-            ServerAddressesStatus = $"无法获取服务器地址：{ex.Message}";
+            ServerAddressesStatus = string.Format(T("settings.network.addresses_failed", "Unable to get server addresses: {0}"), ex.Message);
         }
         finally
         {
@@ -92,12 +92,12 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
     {
         if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens })
         {
-            LatencyText = "未连接，无法测试";
+            LatencyText = T("settings.network.cannot_test", "Not connected; unable to test.");
             return;
         }
 
         IsTesting = true;
-        LatencyText = "测试中…";
+        LatencyText = T("settings.network.testing", "Testing…");
         try
         {
             var sw = Stopwatch.StartNew();
@@ -107,7 +107,7 @@ public sealed partial class NetworkPageViewModel : SettingsPageViewModel
         }
         catch (Exception ex)
         {
-            LatencyText = $"失败：{ex.Message}";
+            LatencyText = string.Format(T("settings.network.test_failed", "Failed: {0}"), ex.Message);
         }
         finally
         {

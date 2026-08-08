@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
              x:Class="Client.Apps.Settings.Views.Pages.DefaultAppsPageView"
              x:DataType="vm:DefaultAppsPageViewModel"
@@ -9,10 +10,10 @@
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="默认程序" Classes="title" />
-                    <Button Grid.Column="1" Content="添加" Command="{Binding AddMappingCommand}" Padding="14,6" />
+                    <TextBlock Grid.Column="0" Text="{loc:Loc settings.default_apps}" Classes="title" />
+                    <Button Grid.Column="1" Content="{loc:Loc settings.add}" Command="{Binding AddMappingCommand}" Padding="14,6" />
                 </Grid>
-                <TextBlock Text="将 URI scheme（http/mailto）或文件扩展名（.txt）绑定到指定应用。" Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock Text="{loc:Loc settings.default_apps.description}" Opacity="0.7" TextWrapping="Wrap" />
                 <ItemsControl ItemsSource="{Binding Mappings}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:DefaultAppMappingViewModel">
@@ -27,7 +28,7 @@
                                         <DataTemplate x:DataType="vm:AppOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="删除映射" />
+                                <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="{loc:Loc settings.remove_mapping}" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

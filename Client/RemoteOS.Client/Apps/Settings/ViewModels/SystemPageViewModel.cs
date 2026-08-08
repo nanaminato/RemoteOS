@@ -18,7 +18,7 @@ public sealed class SystemPageViewModel : SettingsPageViewModel
     public override string DisplayName => "System";
 
     public string AppVersion => "RemoteOS 0.1";
-    public string ServerUrl => _session.ServerUrl ?? "未连接";
+    public string ServerUrl => _session.ServerUrl ?? T("settings.value.not_connected", "Not connected");
     public string UserName => _session.CurrentUser?.Username ?? "—";
     public string Platform => _session.CurrentUser?.Platform.ToString() ?? "—";
     public string WorkspaceName => _session.CurrentWorkspace?.Name ?? "—";
@@ -26,9 +26,9 @@ public sealed class SystemPageViewModel : SettingsPageViewModel
     public string DeviceRole => _session.AssignedRole.ToString();
     public string ConnectionState => _session.State switch
     {
-        AuthSessionState.Authenticated => "已连接",
-        AuthSessionState.Connecting => "连接中…",
-        _ => "未连接",
+        AuthSessionState.Authenticated => T("settings.value.connected", "Connected"),
+        AuthSessionState.Connecting => T("settings.value.connecting", "Connecting…"),
+        _ => T("settings.value.not_connected", "Not connected"),
     };
     public string UserCreated => _session.CurrentUser?.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—";
     public string LastLogin => _session.CurrentUser?.LastLoginAt?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—";
