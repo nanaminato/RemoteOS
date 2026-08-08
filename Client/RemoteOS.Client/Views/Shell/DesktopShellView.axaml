@@ -124,7 +124,10 @@
 
         <!-- Workspace: desktop icons behind, managed windows in front -->
         <Grid Grid.Row="0" ClipToBounds="True" Background="Transparent">
-            <Grid.ContextMenu>
+            <!-- This is a sibling behind icons and managed windows. Its menu can therefore open
+                 only on actual desktop background, never from a child application window. -->
+            <Border Background="Transparent">
+            <Border.ContextMenu>
                 <ContextMenu Classes="shell-context-menu"
                              DataContext="{Binding DataContext, ElementName=Root}">
                     <MenuItem Header="查看">
@@ -138,7 +141,8 @@
                     <Separator />
                     <MenuItem Header="个性化" Command="{Binding OpenSettingsCommand}" />
                 </ContextMenu>
-            </Grid.ContextMenu>
+            </Border.ContextMenu>
+            </Border>
 
             <ItemsControl ItemsSource="{Binding DesktopIcons}" IsVisible="{Binding AreDesktopIconsVisible}"
                           Focusable="False" Padding="10" Margin="6">

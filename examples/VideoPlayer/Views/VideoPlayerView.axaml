@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
+             x:Class="RemoteOS.Examples.VideoPlayer.Views.VideoPlayerView"
+             Background="#111827" Foreground="#F8FAFC">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Background="#FFFFFF" Padding="14,10">
+      <StackPanel Spacing="2">
+        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" Foreground="#18202B" />
+        <TextBlock Text="{Binding StatusText}" Foreground="#5C6778" />
+      </StackPanel>
+    </Border>
+    <Border Grid.Row="1" Background="#000000">
+      <vlc:VideoView x:Name="PlayerSurface" />
+    </Border>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="14,10">
+      <Button Content="播放 / 暂停" Command="{Binding TogglePlayPauseCommand}" IsEnabled="{Binding CanControlPlayback}" />
+      <Button Content="停止" Command="{Binding StopCommand}" IsEnabled="{Binding CanControlPlayback}" />
+    </StackPanel>
+  </Grid>
+</UserControl>

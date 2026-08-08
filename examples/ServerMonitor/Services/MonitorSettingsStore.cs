@@ -1,14 +1,14 @@
 using System.Text.Json;
 
-namespace RemoteOS.Examples.ServerMonitor;
+namespace RemoteOS.Examples.ServerMonitor.Services;
 
-/// <summary>Preferences owned by this package. The external SDK does not expose host Settings storage.</summary>
+/// <summary>Locally persisted preferences for the Server Monitor package.</summary>
 public sealed record MonitorSettings(int RefreshIntervalMilliseconds = 1000, int HistoryLength = 60)
 {
     public MonitorSettings Normalize() => this with
     {
         RefreshIntervalMilliseconds = Math.Clamp(RefreshIntervalMilliseconds, 1000, 60000),
-        HistoryLength = Math.Clamp(HistoryLength, 20, 240),
+        HistoryLength = Math.Clamp(HistoryLength, 30, 240),
     };
 }
 
@@ -41,7 +41,7 @@ public sealed class MonitorSettingsStore
         }
         catch (IOException)
         {
-            // Monitoring must remain usable even if the local preferences file cannot be written.
+            // A failure to save preferences must not stop monitoring.
         }
     }
 }
