@@ -185,7 +185,7 @@ if (storageProvider == "sqlite")
 }
 ```
 
-- **当前**：`EnsureCreated()`——零工具依赖，幂等（库已存在则跳过），适合 MVP 稳定 schema。
+- **当前**：`EnsureCreated()`——零工具依赖，幂等（库已存在则跳过），适合当前稳定 schema。
 - **未来演进**：当 schema 需要变更时，切换为 EF Core Migrations——`dotnet ef migrations add` 生成迁移 + `db.Database.MigrateAsync()` 应用。注意 `EnsureCreated` 与 Migrations 互斥（EnsureCreated 不建 `__EFMigrationsHistory` 表，切换前需删除旧库或手动初始化迁移）。
 
 ---
@@ -225,14 +225,14 @@ if (storageProvider == "sqlite")
 ## 10. 并发与连接
 
 - EF Core SQLite provider 默认使用连接池（`Microsoft.Data.Sqlite` 内置），per-operation 连接。
-- 写并发：SQLite 默认 `journal_mode=delete`，单写者。MVP 单服务器场景写并发极低（登录/改配置），可接受。未来若需提升读写并发，可启用 WAL（`PRAGMA journal_mode=WAL`）。
+- 写并发：SQLite 默认 `journal_mode=delete`，单写者。当前单服务器场景写并发极低（登录/改配置），可接受。未来若需提升读写并发，可启用 WAL（`PRAGMA journal_mode=WAL`）。
 - 仓储 Scoped + 每请求独立 DbContext，无跨请求共享状态。
 
 ---
 
 ## 11. 已知警告
 
-- `NU1903`：`SQLitePCLRaw.lib.e_sqlite3` 2.1.11（EF Core Sqlite 传递依赖）有已知高严重性漏洞 [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q)。此为 EF Core 10.0.10 捆绑的传递依赖版本，属既有 NU1903 警告类（与 Microsoft.OpenApi 警告同类），MVP 阶段可接受；后续关注 EF Core 版本更新是否修复。
+- `NU1903`：`SQLitePCLRaw.lib.e_sqlite3` 2.1.11（EF Core Sqlite 传递依赖）有已知高严重性漏洞 [GHSA-2m69-gcr7-jv3q](https://github.com/advisories/GHSA-2m69-gcr7-jv3q)。此为 EF Core 10.0.10 捆绑的传递依赖版本，属既有 NU1903 警告类（与 Microsoft.OpenApi 警告同类），当前阶段可接受；后续关注 EF Core 版本更新是否修复。
 
 ---
 

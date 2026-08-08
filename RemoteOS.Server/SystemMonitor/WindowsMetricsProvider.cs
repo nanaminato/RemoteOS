@@ -6,7 +6,7 @@ namespace Server.SystemMonitor;
 
 /// <summary>Windows（Windows Server）系统指标采集。CPU 经 GetSystemTimes 差分（kernel32），
 /// 内存经 GlobalMemoryStatusEx。单例持相邻采样以差分。仅在 Windows 平台注册。
-/// MVP 限制：per-core 暂以整机占比填充（GetSystemTimes 仅返回聚合；逐核需 NtQuerySystemInformation，留待后续）。</summary>
+/// 当前限制：per-core 暂以整机占比填充（GetSystemTimes 仅返回聚合；逐核需 NtQuerySystemInformation，留待后续）。</summary>
 public sealed class WindowsMetricsProvider : SystemMetricsProviderBase
 {
     private readonly object _cpuGate = new();
@@ -37,7 +37,7 @@ public sealed class WindowsMetricsProvider : SystemMetricsProviderBase
         }
 
         var coreCount = Environment.ProcessorCount;
-        // MVP：逐核暂以整机占比填充
+        // 当前：逐核暂以整机占比填充
         var perCore = Enumerable.Repeat(Math.Round(totalPercent, 1), coreCount).ToList();
         return Task.FromResult(new CpuUsageDto(Math.Round(totalPercent, 1), perCore, coreCount));
     }

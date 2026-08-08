@@ -131,7 +131,7 @@ GetMetricsAsync
 
 - **整机**（Linux）：`/proc/stat` 聚合 `cpu` 行 `usage% = (1 - idle_delta/total_delta) * 100`，`idle_all = idle + iowait`。
 - **整机**（Windows）：`GetSystemTimes` 返回 idle/kernel/user 三组 FILETIME，`total = kernel + user`（kernel 已含 idle），`usage% = (1 - dIdle/dTotal) * 100`。
-- **每核**（Linux）：`/proc/stat` 的 `cpu0..cpuN-1` 行各算一次。Windows MVP 暂以整机占比填充每核（`GetSystemTimes` 仅返回聚合；逐核需 `NtQuerySystemInformation`，留待后续）。
+- **每核**（Linux）：`/proc/stat` 的 `cpu0..cpuN-1` 行各算一次。Windows 当前暂以整机占比填充每核（`GetSystemTimes` 仅返回聚合；逐核需 `NtQuerySystemInformation`，留待后续）。
 - **进程 CPU%**：`Process.TotalProcessorTime` 相邻采样差分 `/ (elapsed * cores) * 100`（相对整机，单进程上限 100%）。
 
 **网络速率差分**：`NetworkInterface.GetIPv4Statistics()` 的 `BytesSent` / `BytesReceived` 相邻采样差分 `/ elapsed`（字节/秒）。计数器可能因接口重置而回绕/归零，做下界保护（`sent >= prev ? delta : 0`）。
@@ -310,7 +310,7 @@ KillProcessResultDto
 
 1. **Singleton Provider 持差分状态**：`ISystemMetricsProvider` 必须为 Singleton——CPU% 与网络速率都依赖「上一次采样」作基准，跨请求状态连续性靠单例保证。Scoped/Transient 会丢失基准导致首次采样恒为 0。
 2. **CPU% 差分算法**：整机 `usage% = (1 - idle_delta/total_delta) * 100`；进程 `cpu% = cpuDelta / (elapsed * cores) * 100`（相对整机，`Process.TotalProcessorTime` 是所有核累计，需除以核数）。首次调用无前次采样，CPU% 为 0。
-3. **Windows 逐核 CPU MVP 限制**：`GetSystemTimes` 仅返回聚合 idle/kernel/user，无法直接得每核。MVP 暂以整机占比填充每核列表（`Enumerable.Repeat`）；逐核需 `NtQuerySystemInformation`，留待后续。
+3. **Windows 逐核 CPU 当前限制**：`GetSystemTimes` 仅返回聚合 idle/kernel/user，无法直接得每核。当前暂以整机占比填充每核列表（`Enumerable.Repeat`）；逐核需 `NtQuerySystemInformation`，留待后续。
 4. **进程属主仅 Linux 解析**：`GetProcessUserName` 基类返回 null；`LinuxMetricsProvider` 解析 `/proc/[pid]/status` 的 `Uid:` 行 + `/etc/passwd` 映射 uid→用户名（`/etc/passwd` 不可读时退化为 uid 数字）。Windows 暂返回 null（`Process.UserName` 在 .NET 10 不可用，需 WMI/P/Invoke，留待后续）。
 5. **GPU best-effort + 超时**：`nvidia-smi` 子进程 3 秒超时强制 kill（`proc.WaitForExit(3000)` 失败则 `proc.Kill()`）。非 NVIDIA 或无驱动返回空列表——客户端 `HasGpu` 控制卡片显隐，不可用时显示 `GpuHint` 提示。
 6. **重入保护**：`RefreshAsync` 用 `Interlocked.CompareExchange(ref _refreshing, 1, 0)` 防止上一次刷新未完成时本次 tick 堆积请求。`finally` 中 `Interlocked.Exchange(ref _refreshing, 0)` 释放。
@@ -325,14 +325,14 @@ KillProcessResultDto
 
 ## 8. 后续演进
 
-- **Windows 逐核 CPU**：MVP 以整机占比填充每核。后续用 `NtQuerySystemInformation(SystemPerformanceInformation)` 获取逐核 idle/kernel/user。
-- **Windows 进程属主**：MVP 返回 null。后续通过 WMI `SELECT * FROM Win32_Process` 或 `QueryFullProcessImageName` + token 查询获取属主用户名。
-- **非 NVIDIA GPU**：MVP 仅 nvidia-smi。后续按平台接入 AMD ROCm SMI / Intel GPU Tools。
-- **进程树视图**：MVP 扁平列表。后续引入 PPID 字段 + 树形展示。
-- **历史曲线 / 性能日志**：MVP 仅 60 采样柱状图（约 2 分钟）。后续引入可滚动曲线 + 服务端可选持久化性能日志。
-- **磁盘 IOPS / 速率**：MVP 仅空间占用。后续接入 `PerformanceCounter`（Windows）/ `/proc/diskstats`（Linux）。
-- **服务管理**：MVP 仅进程列表。后续加 systemd 服务列表（Linux）/ Windows Services 列表。
-- **启动项管理**：MVP 未含。后续按需新增。
+- **Windows 逐核 CPU**：当前以整机占比填充每核。后续用 `NtQuerySystemInformation(SystemPerformanceInformation)` 获取逐核 idle/kernel/user。
+- **Windows 进程属主**：当前返回 null。后续通过 WMI `SELECT * FROM Win32_Process` 或 `QueryFullProcessImageName` + token 查询获取属主用户名。
+- **非 NVIDIA GPU**：当前仅 nvidia-smi。后续按平台接入 AMD ROCm SMI / Intel GPU Tools。
+- **进程树视图**：当前扁平列表。后续引入 PPID 字段 + 树形展示。
+- **历史曲线 / 性能日志**：当前仅 60 采样柱状图（约 2 分钟）。后续引入可滚动曲线 + 服务端可选持久化性能日志。
+- **磁盘 IOPS / 速率**：当前仅空间占用。后续接入 `PerformanceCounter`（Windows）/ `/proc/diskstats`（Linux）。
+- **服务管理**：当前仅进程列表。后续加 systemd 服务列表（Linux）/ Windows Services 列表。
+- **启动项管理**：当前未含。后续按需新增。
 
 ---
 

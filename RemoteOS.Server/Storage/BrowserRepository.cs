@@ -20,7 +20,7 @@ public interface IBrowserRepository
     int ClearHistory(Guid userId);
 }
 
-/// <summary>内存实现。Singleton。并发字典按 (userId, url) 索引。MVP：重启丢失（与 InMemory 仓储一致）。</summary>
+/// <summary>内存实现。Singleton。并发字典按 (userId, url) 索引。内存实现，重启丢失（与 InMemory 仓储一致）。</summary>
 public sealed class InMemoryBrowserRepository : IBrowserRepository
 {
     private readonly ConcurrentDictionary<(Guid userId, string url), Bookmark> _bookmarks = new();

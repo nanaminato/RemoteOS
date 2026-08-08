@@ -27,6 +27,6 @@ public enum TreeNodeIconKind
     Music,
     /// <summary>视频快捷入口。</summary>
     Videos,
-    /// <summary>"网络" 占位节点（MVP 不实现浏览）。</summary>
+    /// <summary>"网络" 占位节点（当前不实现浏览）。</summary>
     Network
 }

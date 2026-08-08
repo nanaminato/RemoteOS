@@ -2,7 +2,7 @@ namespace RemoteOS.Core.Applications;
 
 /// <summary>
 /// Manifest describing a RemoteOS application package.
-/// In a real RemoteOS deployment this would be loaded from a package on disk; for the MVP it is
+/// In a real RemoteOS deployment this would be loaded from a package on disk; currently it is
 /// constructed in code by the application itself.
 /// </summary>
 public sealed record ApplicationManifest(

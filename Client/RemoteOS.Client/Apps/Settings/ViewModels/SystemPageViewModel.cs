@@ -16,7 +16,7 @@ public sealed class SystemPageViewModel : SettingsPageViewModel
     public override string Glyph => "💻";
     public override string DisplayName => "系统";
 
-    public string AppVersion => "RemoteOS 0.1 (MVP)";
+    public string AppVersion => "RemoteOS 0.1";
     public string ServerUrl => _session.ServerUrl ?? "未连接";
     public string UserName => _session.CurrentUser?.Username ?? "—";
     public string Platform => _session.CurrentUser?.Platform.ToString() ?? "—";

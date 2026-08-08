@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Server.Identity;
 
 /// <summary>Server 端会话/刷新令牌吊销簿。单例，线程安全。
-/// 持有 refreshToken → 会话记录的映射，支持 refresh 时验旧 token、logout 时吊销。MVP 仅内存，重启丢失。</summary>
+/// 持有 refreshToken → 会话记录的映射，支持 refresh 时验旧 token、logout 时吊销。当前仅内存，重启丢失。</summary>
 public sealed class AuthSessionStore
 {
     private readonly ConcurrentDictionary<string, RefreshRecord> _refresh = new();

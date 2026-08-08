@@ -227,7 +227,7 @@ Unauthenticated → ShellSettings.Apply(Default) + DefaultAppRegistry.SetMapping
 - `Resolve(string schemeOrExt)`：查询某 scheme/扩展名对应的应用 Id（供启动路由用，未配置返回 null）。
 - `Snapshot`：当前映射只读快照。
 
-> **启动路由未接入**：MVP 仅完成「可设」（映射存到 Workspace）。点选 http 链接自动用映射应用打开是后续接入项。
+> **启动路由未接入**：当前仅完成「可设」（映射存到 Workspace）。点选 http 链接自动用映射应用打开是后续接入项。
 
 ### 5.6 桌面外壳时钟集成（`DesktopShellViewModel.StartClock`）
 
@@ -308,13 +308,13 @@ PreferencesSync.OnStateChanged
 
 ## 8. 后续演进
 
-- **完整主题切换**：MVP 仅任务栏底色随主题切换。后续接入 `RemoteOS.UI` 的 Light/Dark 样式切换（控件级主题）。
-- **自定义壁纸**：MVP 仅 5 个预设渐变壁纸。后续支持上传图片壁纸（存到 Server Storage，key 用 `custom:{blobId}`）。
-- **默认程序自动路由**：MVP 仅「可设」。后续接入启动路由——点选 http/mailto 链接或打开 `.txt` 文件时 `DefaultAppRegistry.Resolve` 查询映射并启动对应应用。
-- **更多语言资源**：MVP 语言切换仅影响时钟格式化 culture。后续接入 i18n 资源文件，UI 文案随语言切换。
-- **区域格式化**：MVP 区域仅存储未深度应用。后续按区域格式化数字 / 货币 / 首日星期。
-- **通知中心 / 声音 / 显示**：MVP 未含。后续按需新增分类页。
-- **偏好变更广播**：MVP 多设备偏好同步靠重新登录拉取。后续经 SignalR Hub 广播偏好变更，多设备实时同步。
+- **完整主题切换**：当前仅任务栏底色随主题切换。后续接入 `RemoteOS.UI` 的 Light/Dark 样式切换（控件级主题）。
+- **自定义壁纸**：当前仅 5 个预设渐变壁纸。后续支持上传图片壁纸（存到 Server Storage，key 用 `custom:{blobId}`）。
+- **默认程序自动路由**：当前仅「可设」。后续接入启动路由——点选 http/mailto 链接或打开 `.txt` 文件时 `DefaultAppRegistry.Resolve` 查询映射并启动对应应用。
+- **更多语言资源**：当前语言切换仅影响时钟格式化 culture。后续接入 i18n 资源文件，UI 文案随语言切换。
+- **区域格式化**：当前区域仅存储未深度应用。后续按区域格式化数字 / 货币 / 首日星期。
+- **通知中心 / 声音 / 显示**：当前未含。后续按需新增分类页。
+- **偏好变更广播**：当前多设备偏好同步靠重新登录拉取。后续经 SignalR Hub 广播偏好变更，多设备实时同步。
 
 ---
 

@@ -24,7 +24,7 @@ RemoteBrowser 是 RemoteOS 的内置网页浏览器。
 - **复用宿主 OS 权限**（project_memory 硬约束）：Server 端 SQLite 文件读写与 loopback 转发均以宿主 OS 进程身份执行，不另建 ACL。Browser REST 端点全 `RequireAuthorization`，按 JWT `sub` claim 取 userId 隔离数据。
 - **不存储密码**：认证委托宿主 OS（已完成于登录模块），Browser 仅消费 `IAuthSession.Tokens.AccessToken`；本地端口映射的 HttpOnly cookie 不含宿主密码。
 
-**MVP 范围**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 本地端口映射（loopback → 服务端）。
+**实现范围**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 本地端口映射（loopback → 服务端）。
 
 ---
 
@@ -326,14 +326,14 @@ BrowserEndpoints 本地端口映射端点：
 
 ## 7. 后续演进
 
-- **页面 Title 提取**：MVP 用 URL 作 title。后续可订阅 `NativeWebView.DocumentTitleChanged`（若包支持）取真实 `<title>`。
-- **多标签页**：MVP 单 WebView。后续引入 TabStrip + 多 NativeWebView 实例。
-- **Cookie / 下载管理**：MVP 未实现。后续按需接入 `NativeWebView` 的 CookieManager / Download 事件。
-- **地址栏搜索建议**：MVP 仅支持 URL/搜索词直接导航。后续接入搜索引擎建议 API。
-- **书签分类/文件夹**：MVP 扁平列表。后续引入 `BookmarkFolder` 表与 `ParentId` 层级。
-- **历史搜索/时间范围筛选**：MVP 仅按 LastVisitedAt 倒序。后续加 `?q=` / `?from=&to=` query 参数。
-- **本地端口映射范围扩展**：MVP 仅 `localhost` / `127.0.0.1`。后续按需支持 Unix domain socket 或受限的内网地址段（仍需服务端校验，不做开放代理）。
-- **端口映射会话过期续期**：MVP cookie `MaxAge=8h`，过期需重新导航触发 token 交换。后续可接续期端点。
+- **页面 Title 提取**：当前用 URL 作 title。后续可订阅 `NativeWebView.DocumentTitleChanged`（若包支持）取真实 `<title>`。
+- **多标签页**：当前单 WebView。后续引入 TabStrip + 多 NativeWebView 实例。
+- **Cookie / 下载管理**：当前未实现。后续按需接入 `NativeWebView` 的 CookieManager / Download 事件。
+- **地址栏搜索建议**：当前仅支持 URL/搜索词直接导航。后续接入搜索引擎建议 API。
+- **书签分类/文件夹**：当前扁平列表。后续引入 `BookmarkFolder` 表与 `ParentId` 层级。
+- **历史搜索/时间范围筛选**：当前仅按 LastVisitedAt 倒序。后续加 `?q=` / `?from=&to=` query 参数。
+- **本地端口映射范围扩展**：当前仅 `localhost` / `127.0.0.1`。后续按需支持 Unix domain socket 或受限的内网地址段（仍需服务端校验，不做开放代理）。
+- **端口映射会话过期续期**：当前 cookie `MaxAge=8h`，过期需重新导航触发 token 交换。后续可接续期端点。
 
 ---
 

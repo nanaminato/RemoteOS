@@ -166,7 +166,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             }
             Nodes.Add(thisPc);
 
-            // (3) 网络占位节点（MVP 不实现浏览）
+            // (3) 网络占位节点（当前不实现浏览）
             Nodes.Add(new TreeNodeModel("网络", null, iconKind: TreeNodeIconKind.Network));
 
             homeGroup.IsExpanded = true;
@@ -214,7 +214,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (value is null || value.IsPlaceholder) return;
         if (value.IsNetwork)
         {
-            // 网络占位：MVP 不实现浏览，仅状态栏提示，不导航
+            // 网络占位：当前不实现浏览，仅状态栏提示，不导航
             StatusText = "网络浏览暂未实现";
             return;
         }

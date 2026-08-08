@@ -17,9 +17,9 @@ RemoteExplorer 是 RemoteOS 的内置文件管理器，用于浏览与操作**�
 - **架构归属**：§6.2 Remote Service Application —— UI 在 Client 本地渲染，文件 IO 在 Server 端执行。
 - **复用宿主 OS 权限**（project_memory 硬约束）：Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限，**不另建** RemoteOS ACL 系统。权限提升（sudo/UAC）后续接入（见 §7 后续）。
 - **不存储密码**：认证委托宿主 OS（已完成于登录模块），Explorer 仅消费 `IAuthSession.Tokens.AccessToken`。
-- **UI 来源**：移植自 Jaya File Manager（BSD-3）。保留 Jaya 的导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏布局；**去除**插件系统（仅保留 FileSystem 单 provider）、Ribbon（Phase 6 延后）、About/ManagePlugins/Update 等非 MVP 视图。原始版权头保留于移植文件。
+- **UI 来源**：移植自 Jaya File Manager（BSD-3）。保留 Jaya 的导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏布局；**去除**插件系统（仅保留 FileSystem 单 provider）、Ribbon（后续延后）、About/ManagePlugins/Update 等非核心视图。原始版权头保留于移植文件。
 
-**MVP 范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/移动/上传/下载）。
+**实现范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/移动/上传/下载）。
 
 ---
 
@@ -33,7 +33,7 @@ RemoteExplorer 是 RemoteOS 的内置文件管理器，用于浏览与操作**�
 | `Newtonsoft.Json` | 13.0.3 | Jaya 配置模型序列化（保留 Jaya 原始依赖；线协议 DTO 仍用 System.Text.Json） |
 
 - 中心化包管理：版本声明在 [`Directory.Packages.props`](../Directory.Packages.props)。
-- **DataGrid**：Avalonia 11+ 起 DataGrid 已并入主 `Avalonia` 包，无需单独引用。MVP 实际用 `ListBox` + `DataTemplate` 实现条目网格（更轻量，列宽自适应）。
+- **DataGrid**：Avalonia 11+ 起 DataGrid 已并入主 `Avalonia` 包，无需单独引用。当前实际用 `ListBox` + `DataTemplate` 实现条目网格（更轻量，列宽自适应）。
 - **不引入** Jaya 原依赖：`AvaloniaUIRibbon`（不兼容 12.1）、`RestSharp`（去 UpdateService）、`Avalonia.ReactiveUI`、`Avalonia.Controls.DataGrid`（旧独立包）、`Avalonia.Xaml.Behaviors`（旧 0.10 线，已弃用）。
 
 ### 2.2 嵌入而非替换 Shell
@@ -100,7 +100,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 1. **请求/响应天然契合**目录列举（一次请求返回完整 `DirectoryDto`）。
 2. 与 Auth 端点同构（`Results.Ok` / `Results.Problem`），错误处理复用 `RemoteOsAuthException`。
 3. 文件下载用 `Results.File(stream, ...)` 流式返回；上传用 `multipart/form-data`。
-4. SignalR 仅未来 watch（目录变化推送）/大文件分块流式才需要，MVP 不引入。
+4. SignalR 仅未来 watch（目录变化推送）/大文件分块流式才需要，当前不引入。
 
 ### 3.3 认证复用 IAuthSession
 
@@ -193,7 +193,7 @@ Client/RemoteOS.Client/Apps/Explorer/
 
 - **导航树懒加载**：`TreeNodeModel.AddDummyChild()` 保证展开箭头显示；首次展开触发 `ExpandRequested` 回调 → `IExplorerClient.GetDirectoryAsync` → 填充子目录（与 Jaya `OnNodeExpanded` 同模式）。
 - **历史栈**：`_history` + `_historyIndex` 支持 `GoBack` / `GoForward` / `GoUp`（`CanGoBack`/`CanGoForward`/`CanGoUp` 驱动命令可用性）。
-- **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → MVP 不打开（后续接入预览）。
+- **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → 当前不打开（后续接入预览）。
 - **文件操作命令**：`NewFolder` / `Delete` / `Rename` / `Copy` / `Move` / `Upload` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成，操作后调 `RefreshAsync` 刷新视图。
 
 #### 多根导航树（参考 Windows File Explorer Navigation Pane）
@@ -217,7 +217,7 @@ Nodes
 
 - **主目录组节点用静态填充**（不含 dummy child、不挂 `ExpandRequested`）：与 Windows 11 Home 节点行为一致——展开=精选快捷入口，点击组节点本身=导航到家目录（右侧网格列出家目录全部子项）。两套来源不重复：快捷入口是协议层枚举的固定 6 项（桌面/文档/下载/图片/音乐/视频），家目录右侧网格列出的是真实目录的全部子项。
 - **此电脑节点保留盘符列表 + dummy child 懒加载**（与原 Jaya 逻辑一致）。
-- **网络节点占位**：MVP 不实现浏览；`OnSelectedNodeChanged` 中 `value.IsNetwork` 早退仅设状态栏文本"网络浏览暂未实现"。
+- **网络节点占位**：当前不实现浏览；`OnSelectedNodeChanged` 中 `value.IsNetwork` 早退仅设状态栏文本"网络浏览暂未实现"。
 
 #### 选中同步（防循环）
 
@@ -296,7 +296,7 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 实现/修改 Explorer 时必须遵守：
 
 1. **所有文件 IO 必须经 `IExplorerClient` → REST API**。客户端不得直接访问本地文件系统（上传/下载的本地源/目标除外，走 `StorageProvider`）。Server 端 IO 只在 `LocalFileService` 内。
-2. **复用宿主 OS 权限，不另建 ACL**（project_memory 硬约束）。Server 以进程身份执行 `System.IO`，权限不足返回 `access-denied`（403）。MVP 不做 sudo/UAC 提升。
+2. **复用宿主 OS 权限，不另建 ACL**（project_memory 硬约束）。Server 以进程身份执行 `System.IO`，权限不足返回 `access-denied`（403）。当前不做 sudo/UAC 提升。
 3. **JWT 复用 `IAuthSession`**：`IExplorerClient` 不持有独立凭据；未登录调 `ExplorerApp.Activate` 弹提示窗，不崩溃。
 4. **错误统一 RFC 7807**：Server `Results.Problem(..., type: "https://remoteos.app/problems/" + suffix)`；Client `ExplorerClient` 解析 `ProblemDetails` 抛 `RemoteOsAuthException`，VM catch 后写 `StatusText`。
 5. **路由常量共用 `FileApiRoutes`**：Server 注册与 Client 拼接 URL 必须用同一常量，禁止硬编码字符串。

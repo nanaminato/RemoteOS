@@ -39,7 +39,7 @@ RemoteTerminal 是 RemoteOS 的内置应用之一，遵循架构 §6 的两类�
 - `RoyalApps.RoyalTerminal.Avalonia` 传递依赖 `Terminal.Pty.Platform`、`Terminal.Transport.Ssh.Abstractions`、`Terminal.Transport.Ssh.SshNet` 等，Client 端无需单独引用 PTY 平台包（仅 Server 需要）。
 - `AddSignalR` 由 `Microsoft.NET.Sdk.Web` 隐式 FrameworkReference 提供，Server 端无需额外 NuGet。
 - **不引入** `RoyalApps.RoyalTerminal.Avalonia.App`（自带 MainWindow / 标签 / 标题栏，会与 RemoteOS 的 WindowManager 冲突）。
-- **不引入** native Ghostty VT 包（`Terminal.Vt.Ghostty` + RID 相关原生资产），MVP 使用托管 VT 处理器。
+- **不引入** native Ghostty VT 包（`Terminal.Vt.Ghostty` + RID 相关原生资产），当前使用托管 VT 处理器。
 
 ### 2.2 嵌入而非替换 Shell
 
@@ -335,5 +335,5 @@ else
 - **嵌入 `TerminalControl`，禁止引入 `RoyalApps.RoyalTerminal.Avalonia.App`**：RemoteOS 自有 WindowManager / RemoteWindow / Taskbar，不能被 RoyalTerminal 的外壳接管。
 - **焦点修复不可移除**：`TerminalControl.Focusable = true`（code-behind 设置）+ `PointerPressed` 延迟聚焦是输入正常的前提。`RemoteWindow` 的 `WindowManager.Focus` 会抢回焦点，必须用 `Dispatcher.UIThread.Post` 延迟。
 - **会话清理走 View 的 `OnUnloaded`**：SDK 无 `Deactivate` 钩子；`RemoteWindow` 关闭 → 控件离开视觉树 → `Detach()` → 按断开语义 `KillActiveAsync`/`StopActiveAsync` + `StopPty()`。
-- **不引入 native Ghostty VT**（除非显式需求）：MVP 用托管 VT；引入 native 需按 RID 处理原生资产包。
+- **不引入 native Ghostty VT**（除非显式需求）：当前用托管 VT；引入 native 需按 RID 处理原生资产包。
 - **程序集名是 `RoyalTerminal.Avalonia`**（非 NuGet 包 id `RoyalApps.RoyalTerminal.Avalonia`）；`NullSshCredentialProvider` 在 `RoyalTerminal.Terminal.Transport.Ssh.SshNet` namespace，`KnownHostsSshHostKeyValidator` 在 `RoyalTerminal.Terminal.Transport.Ssh` namespace（abstractions 程序集，传递依赖可用）。

@@ -13,7 +13,7 @@ public interface IUserRepository
     void UpdateLastLogin(Guid id, DateTimeOffset at);
 }
 
-/// <summary>内存实现。Singleton，ConcurrentDictionary。MVP：重启丢失。</summary>
+/// <summary>内存实现。Singleton，ConcurrentDictionary。内存实现，重启丢失。</summary>
 public sealed class InMemoryUserRepository : IUserRepository
 {
     private readonly ConcurrentDictionary<Guid, User> _byId = new();

@@ -95,7 +95,7 @@ ConnectionWorkspace ← IAuthSession.CurrentWorkspace.Name
         → MainWindow.Closed → desktop.Shutdown()   // 进程退出
 ```
 
-> 这是登录会话与桌面外壳的衔接点：连接栏把"断开远程连接"映射为 `IAuthSession.LogoutAsync`，与 [`RemoteOS.Login.md`](./RemoteOS.Login.md) §7 的登出路径一致。MVP 阶段断开即退出进程（不回 `LoginWindow`），未来可改为回登录窗。
+> 这是登录会话与桌面外壳的衔接点：连接栏把"断开远程连接"映射为 `IAuthSession.LogoutAsync`，与 [`RemoteOS.Login.md`](./RemoteOS.Login.md) §7 的登出路径一致。当前阶段断开即退出进程（不回 `LoginWindow`），未来可改为回登录窗。
 
 ---
 

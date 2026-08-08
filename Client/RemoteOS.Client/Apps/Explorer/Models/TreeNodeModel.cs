@@ -34,7 +34,7 @@ public sealed partial class TreeNodeModel : ObservableObject
     /// <summary>图标种类，驱动 View 中的 emoji 渲染（converter 见 EntryConverters）。</summary>
     public TreeNodeIconKind IconKind { get; }
 
-    /// <summary>是否为"网络"占位节点（MVP 不实现浏览，点击仅显示状态栏文本不导航）。</summary>
+    /// <summary>是否为"网络"占位节点（当前不实现浏览，点击仅显示状态栏文本不导航）。</summary>
     public bool IsNetwork => IconKind == TreeNodeIconKind.Network;
 
     /// <summary>是否为顶层特殊位置快捷入口（主目录组下的叶子节点：桌面/文档/下载/图片/音乐/视频）。</summary>

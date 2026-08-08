@@ -1,6 +1,6 @@
 # RemoteOS 项目说明文档
 
-> 本文档描述 RemoteOS 当前实现状态：Solution 结构、项目列表、代码地图、当前 MVP 进度、开发状态。
+> 本文档描述 RemoteOS 当前实现状态：Solution 结构、项目列表、代码地图、当前实现进度、开发状态。
 >
 > - 架构设计原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 用户 Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
@@ -34,15 +34,15 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 桌面外壳已增强：宿主窗口控制（标题栏拖动 / 8 向 resize / 最小化·最大化·关闭 / 全屏）、mstsc 风格连接栏（全屏切换、固定与自动隐藏、连接信息、关闭连接 = 登出）、可复用模态对话框机制（`AppContext.ShowDialogAsync`，支持嵌套与任意结果类型）。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)。
 
-内置终端应用已落地（Remote Mode MVP）：通过 NuGet 包 `RoyalApps.RoyalTerminal.Avalonia` 引入 `TerminalControl`，嵌入 `RemoteWindow`；认证后经 SignalR Hub 连接 Server 端 PTY（哑中继），VT 渲染在客户端完成；未登录时回退本地 PTY。输入焦点问题已修复（`Focusable=true` + 延迟聚焦）。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+内置终端应用已落地（Remote Mode）：通过 NuGet 包 `RoyalApps.RoyalTerminal.Avalonia` 引入 `TerminalControl`，嵌入 `RemoteWindow`；认证后经 SignalR Hub 连接 Server 端 PTY（哑中继），VT 渲染在客户端完成；未登录时回退本地 PTY。输入焦点问题已修复（`Focusable=true` + 延迟聚焦）。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
 
-内置文件管理器已落地（RemoteExplorer MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+内置文件管理器已落地（RemoteExplorer）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
-内置浏览器已落地（RemoteBrowser MVP）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；浏览器偏好（`BrowserSettings`）随 Workspace 持久化控制本地端口映射开关；**本地端口映射**开启后 `localhost`/`127.0.0.1` 导航经 RemoteOS 鉴权通道转发到服务端 loopback（仅 loopback，非通用代理；JWT 换 HttpOnly cookie 鉴权）；UI 含顶部工具栏（后退/前进/刷新/停止/主页/加入·删除书签/侧边栏切换/本地端口映射开关）+ 地址栏 + 状态栏 + 左侧边栏双标签页（书签 / 历史，支持双击导航、单条删除、清空全部）。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+内置浏览器已落地（RemoteBrowser）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；浏览器偏好（`BrowserSettings`）随 Workspace 持久化控制本地端口映射开关；**本地端口映射**开启后 `localhost`/`127.0.0.1` 导航经 RemoteOS 鉴权通道转发到服务端 loopback（仅 loopback，非通用代理；JWT 换 HttpOnly cookie 鉴权）；UI 含顶部工具栏（后退/前进/刷新/停止/主页/加入·删除书签/侧边栏切换/本地端口映射开关）+ 地址栏 + 状态栏 + 左侧边栏双标签页（书签 / 历史，支持双击导航、单条删除、清空全部）。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
 
-内置设置中心已落地（RemoteSettings MVP）：Windows 11 / GNOME 风格，5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用）。用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）经 Server 端 REST API（`/api/v1/workspaces/{id}/preferences`）持久化到 Workspace（`OwnsOne + ToJson` 单列 JSON，多设备共享）；登录时 `PreferencesSync` 自动加载应用到桌面外壳（壁纸 / 任务栏底色 / 时钟格式即时生效），设置应用编辑后防抖 300ms 保存。宿主 OS 级设置（时区 / 网卡）只读展示（硬约束「权限提升委托宿主 OS」）。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
+内置设置中心已落地（RemoteSettings）：Windows 11 / GNOME 风格，5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用）。用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）经 Server 端 REST API（`/api/v1/workspaces/{id}/preferences`）持久化到 Workspace（`OwnsOne + ToJson` 单列 JSON，多设备共享）；登录时 `PreferencesSync` 自动加载应用到桌面外壳（壁纸 / 任务栏底色 / 时钟格式即时生效），设置应用编辑后防抖 300ms 保存。宿主 OS 级设置（时区 / 网卡）只读展示（硬约束「权限提升委托宿主 OS」）。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
 
-内置任务管理器已落地（RemoteTaskManager MVP）：参考 Windows 任务管理器 / GNOME 系统监视器，性能 / 进程双标签页。性能页实时展示 CPU（整机 + 每核 + 60 采样柱状图）/ 内存 / 磁盘 / 网络 / GPU（nvidia-smi）/ 运行时间；进程页列出当前可见进程，按名称/PID/用户过滤，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server 端 REST API（`/api/v1/system/*`）拉取，服务端 `ISystemMetricsProvider` 跨平台采集（Linux 读 `/proc`、Windows 走 P/Invoke `GetSystemTimes`/`GlobalMemoryStatusEx`），以宿主 OS 进程身份执行、不持久化。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
+内置任务管理器已落地（RemoteTaskManager）：参考 Windows 任务管理器 / GNOME 系统监视器，性能 / 进程双标签页。性能页实时展示 CPU（整机 + 每核 + 60 采样柱状图）/ 内存 / 磁盘 / 网络 / GPU（nvidia-smi）/ 运行时间；进程页列出当前可见进程，按名称/PID/用户过滤，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server 端 REST API（`/api/v1/system/*`）拉取，服务端 `ISystemMetricsProvider` 跨平台采集（Linux 读 `/proc`、Windows 走 P/Invoke `GetSystemTimes`/`GlobalMemoryStatusEx`），以宿主 OS 进程身份执行、不持久化。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
 
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
@@ -198,7 +198,7 @@ Application Package
 └── Remote Connector
 ```
 
-- **MVP 阶段**：Manifest 由代码创建。
+- **当前**：Manifest 由代码创建。
 - **未来**：支持应用包加载。
 
 ---
@@ -209,11 +209,11 @@ Application Package
 |------|------|------|
 | **Welcome** | 验证 Runtime、WindowManager | 已实现 |
 | **Notepad** | 验证 Application Lifecycle、Window Interaction | 已实现 |
-| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（MVP：壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
-| **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode MVP） | 已实现（Remote Mode + Local 回退） |
-| **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（MVP：浏览 + 基本操作） |
-| **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server + 本地端口映射） | 已实现（MVP：导航 + 书签 + 历史 + 浏览器偏好 + 本地端口映射） |
-| **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（MVP：性能页 + 进程页，跨平台指标采集） |
+| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
+| **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode） | 已实现（Remote Mode + Local 回退） |
+| **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（浏览 + 基本操作） |
+| **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server + 本地端口映射） | 已实现（导航 + 书签 + 历史 + 浏览器偏好 + 本地端口映射） |
+| **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
 
 ---
 
@@ -226,7 +226,7 @@ Application Package
 - **网页**：本地加载。
 - **同步到 Server**：History、Bookmark（已实现，按用户隔离，EF Core+SQLite 持久化）；BrowserSettings（已实现，随 Workspace 持久化，控制本地端口映射开关）；Cookie/Extension Config（未实现）。
 - **本地端口映射**（已实现）：开启后客户端浏览器导航 `localhost:port` / `127.0.0.1:port` 时经 RemoteOS 鉴权通道转发到**服务端 loopback**——让用户在远端桌面里访问宿主 OS 上运行的 Web 服务。仅 loopback，非通用代理；JWT 换 HttpOnly cookie 鉴权（不暴露给脚本）。
-- **已实现**（MVP）：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 本地端口映射（loopback → 服务端）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+- **已实现**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 本地端口映射（loopback → 服务端）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
 
 ### RemoteTaskManager
 
@@ -234,13 +234,13 @@ Application Package
 - **结构**：`TaskManagerApp → RemoteWindow → TaskManagerMainView`（性能 / 进程两个标签页）。
 - **数据源**：Server 端 `ISystemMetricsProvider` 以宿主 OS 进程身份实时采集（CPU/内存/磁盘/网络/GPU + 进程列表），**不持久化**（每次请求当下快照）。
 - **跨平台抽象**：与 `IIdentityProvider` 同模式——`WindowsMetricsProvider`（GetSystemTimes + GlobalMemoryStatusEx）/ `LinuxMetricsProvider`（/proc/stat + /proc/meminfo + /proc/[pid]/status），平台差异封装在 Provider 之后。
-- **已实现**（MVP）：性能页（CPU 整机+每核+柱状图 / 内存柱状图 / 磁盘 / 网络速率 / GPU nvidia-smi / 运行时间，2s 自动刷新）+ 进程页（列表 + 按名称/PID/用户过滤 + 结束任务，权限不足提示需在宿主 OS 提权）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
+- **已实现**：性能页（CPU 整机+每核+柱状图 / 内存柱状图 / 磁盘 / 网络速率 / GPU nvidia-smi / 运行时间，2s 自动刷新）+ 进程页（列表 + 按名称/PID/用户过滤 + 结束任务，权限不足提示需在宿主 OS 提权）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
 
 ### RemoteTerminal
 
 支持两种模式：
 
-- **Remote Mode**：运行于 Server。**已实现**（MVP）——PTY 运行于 `RemoteOS.Server`，经 SignalR Hub（`/hubs/terminals`）流式传输到 Client。Server 端是 PTY 哑中继（只转发字节），VT 渲染在客户端 `TerminalControl` 完成。JWT 通过 SignalR `AccessTokenProvider` 鉴权。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+- **Remote Mode**：运行于 Server。**已实现**——PTY 运行于 `RemoteOS.Server`，经 SignalR Hub（`/hubs/terminals`）流式传输到 Client。Server 端是 PTY 哑中继（只转发字节），VT 渲染在客户端 `TerminalControl` 完成。JWT 通过 SignalR `AccessTokenProvider` 鉴权。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
 - **Local Mode**：运行于 Client，例如 PowerShell / CMD / Bash。**已实现**（回退）——未登录时自动回退到本地 PTY。
 
   ```text
@@ -261,18 +261,18 @@ Application Package
 
 - **定位**：远程文件管理，**不是**远程桌面文件浏览。
 - **结构**：`Explorer UI → RemoteServer API → Remote File System`。
-- **已实现**（MVP）：UI 移植自 Jaya File Manager（BSD-3），导航树（懒加载）+ Explorer 网格 + 地址栏 + 工具栏 + 状态栏。所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL——project_memory 硬约束）。支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载；危险操作（删除）弹确认对话框。JWT 复用 `IAuthSession`。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+- **已实现**：UI 移植自 Jaya File Manager（BSD-3），导航树（懒加载）+ Explorer 网格 + 地址栏 + 工具栏 + 状态栏。所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL——project_memory 硬约束）。支持浏览 + 新建文件夹/删除/重命名/复制/移动/上传/下载；危险操作（删除）弹确认对话框。JWT 复用 `IAuthSession`。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
 ---
 
-## 8. MVP 开发计划
+## 8. 已完成里程碑
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| MVP 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
-| MVP 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
-| MVP 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 进行中（RemoteTerminal Local+Remote Mode 已实现；RemoteExplorer MVP 已实现；RemoteBrowser MVP 已实现——含本地端口映射；RemoteTaskManager MVP 已实现——跨平台指标采集） |
-| MVP 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 进行中（登录模块 MVP 已完成；服务端 SQLite 持久化 MVP 已完成——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)；设置中心 MVP 已完成——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)） |
+| 阶段 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
+| 阶段 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
+| 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode；RemoteExplorer 浏览+基本操作；RemoteBrowser 导航+书签+历史+浏览器偏好+本地端口映射；RemoteTaskManager 性能页+进程页，跨平台指标采集） |
+| 阶段 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 完成（登录模块；服务端 SQLite 持久化——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)；设置中心——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)） |
 
 ---
 
@@ -292,7 +292,7 @@ Application Package
 
 本地 Shell 已就绪，系统按以下方向逐步丰富（设计先行，再落地代码）：
 
-- **登录与身份**（Windows LogonUser 已实现，Linux PAM 占位）— MVP 已完成，见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)；设计原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+- **登录与身份**（Windows LogonUser 已实现，Linux PAM 占位）— 已完成，见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)；设计原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 - **安全设计**（sudo / 权限 / 危险操作确认）— 见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)
 - **Workspace / Session / Device 多设备模型** — 见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 - **云同步、Storage、Remote Runtime、Compute** — 见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)

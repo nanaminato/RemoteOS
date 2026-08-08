@@ -31,7 +31,7 @@
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="主题" Classes="title" />
-                <TextBlock Text="切换任务栏与开始菜单的明暗底色（MVP：桌面外壳基础外观）。" Opacity="0.7" />
+                <TextBlock Text="切换任务栏与开始菜单的明暗底色（桌面外壳基础外观）。" Opacity="0.7" />
                 <StackPanel Spacing="6">
                     <RadioButton Content="浅色" IsChecked="{Binding IsLightTheme, Mode=TwoWay}" />
                     <RadioButton Content="深色" IsChecked="{Binding IsDarkTheme, Mode=TwoWay}" />

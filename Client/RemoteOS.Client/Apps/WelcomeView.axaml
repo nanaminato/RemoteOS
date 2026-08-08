@@ -12,15 +12,17 @@
 
         <Border Grid.Row="1" Classes="card" Margin="0,18,0,0">
             <StackPanel Spacing="12">
-                <TextBlock Text="What's in this MVP" Classes="title" />
+                <TextBlock Text="功能概览" Classes="title" />
                 <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                           Text="• Custom Window Manager — drag, resize, minimize, maximize, focus &amp; z-order, all rendered locally." />
+                           Text="• 自定义窗口管理器 — 拖动、缩放、最小化、最大化、焦点与 Z 顺序，全部本地渲染。" />
                 <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                           Text="• Desktop with icons, a taskbar with live window list, and a start menu." />
+                           Text="• 桌面：桌面图标、任务栏（实时窗口列表）、开始菜单。" />
                 <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                           Text="• Apps run locally and render locally — RemoteOS is NOT a remote desktop tool." />
+                           Text="• 应用在本地运行并渲染 — RemoteOS 不是远程桌面工具。" />
                 <TextBlock TextWrapping="Wrap" Opacity="0.9"
-                           Text="• Built-in apps: Welcome, Notepad, Settings." />
+                           Text="• 内置应用：Welcome、Notepad、Settings、Terminal、Explorer、Browser、TaskManager。" />
+                <TextBlock TextWrapping="Wrap" Opacity="0.9"
+                           Text="• 服务端能力：登录认证（JWT + 宿主OS用户复用）、SQLite持久化、文件管理、系统监控、Workspace偏好同步。" />
             </StackPanel>
         </Border>
 

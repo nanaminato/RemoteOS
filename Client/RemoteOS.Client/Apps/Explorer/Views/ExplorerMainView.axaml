@@ -18,7 +18,7 @@
     </UserControl.Resources>
 
     <DockPanel LastChildFill="True">
-        <!-- 顶部菜单栏（简化 MVP） -->
+        <!-- 顶部菜单栏（简化版） -->
         <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
             <MenuItem Header="文件(_F)">
                 <MenuItem Header="新建文件夹(_N)..." Command="{Binding NewFolderCommand}" />

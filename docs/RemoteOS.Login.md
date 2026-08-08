@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS 登录模块：客户端登录窗口（mstsc 风格）、传输层、认证会话、服务端 auth 端点、JWT、IIdentityProvider 抽象、内存持久化。
 >
-> 本文档描述**已实现的 MVP**：客户端可真实登录到本机 Server 并进入桌面。不含 SignalR Hub（桌面状态同步是独立模块）。
+> 本文档描述**已实现的登录模块**：客户端可真实登录到本机 Server 并进入桌面。不含 SignalR Hub（桌面状态同步是独立模块）。
 >
 > - 通信契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
 > - 身份模型与认证原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
@@ -26,12 +26,12 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 | 认证后 | 全屏远程桌面 | MainWindow 桌面 Shell |
 | 凭据存储 | 默认不保存（可选 .rdp） | 仅内存（符合 mstsc 默认） |
 
-### 1.2 MVP 范围
+### 1.2 实现范围
 
 **已实现**：
 
 - 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（仅内存）+ 启动分叉
-- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser 迁移）+ 内存仓储（User/Workspace/Session/Device）+ `LinuxPamProvider` 占位
+- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser 迁移）+ SQLite 持久化仓储（User/Workspace/Device/Bookmark/HistoryEntry，Session/刷新令牌/PTY 内存）+ `LinuxPamProvider` 占位
 - 协议：零改动（复用 Protocol 已有的 `LoginRequest`/`LoginResponse`/`AuthTokens`/`AuthApiRoutes`/`ProblemDetails`）
 
 **非范围（未来扩展）**：
@@ -40,7 +40,6 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 - Linux PAM 真实实现
 - "显示选项"折叠面板、最近连接列表
 - Token 持久化（DPAPI / keychain）
-- 持久化仓储（SQLite / EF Core）
 
 ---
 
@@ -270,20 +269,20 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - AccessToken TTL：15 分钟（`Jwt:AccessTokenTtl`）。
 - RefreshToken TTL：7 天（`Jwt:RefreshTokenTtl`）。
 - 刷新失败（refresh 过期/已吊销）→ `AuthSession.Reset()` → 状态回 `Unauthenticated`。
-- **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（MVP 断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §2.4。
+- **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（当前阶段断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §2.4。
 
 ---
 
-## 8. MVP 边界与未来扩展
+## 8. 当前边界与未来扩展
 
-| 能力 | MVP | 未来 |
+| 能力 | 当前 | 未来 |
 |---|---|---|
 | SignalR Hub `/hubs/workspace` | 不含 | 独立模块，登录后建立 Hub 连接（携带 JWT） |
 | Linux PAM | 占位 | libpam / PAM 绑定库实现 |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
 | 最近连接列表 | 未实现 | 本地持久化最近 Server URL |
 | Token 持久化 | 仅内存 | DPAPI（Windows）/ keyring（Linux）"记住我" |
-| 持久化仓储 | 内存 ConcurrentDictionary | SQLite + EF Core |
+| 持久化仓储 | SQLite + EF Core（User/Workspace/Device/Bookmark/HistoryEntry），Session/刷新令牌内存 | 全量持久化按需扩展 |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
 | Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
 
