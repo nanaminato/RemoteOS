@@ -5,7 +5,7 @@
              x:DataType="vm:DefaultAppsPageViewModel"
              x:Name="Root">
     <StackPanel Spacing="16" MaxWidth="720">
-        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">

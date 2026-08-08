@@ -21,6 +21,7 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly WindowManager _windowManager;
     private readonly ApplicationManager _applications;
     private readonly ShellSettings _settings;
+    private readonly LocalizationService _localization;
     private readonly Action _shutdown;
     private readonly IAuthSession _session;
 
@@ -28,12 +29,14 @@ public partial class DesktopShellViewModel : ObservableObject
         WindowManager windowManager,
         ApplicationManager applications,
         ShellSettings settings,
+        LocalizationService localization,
         IAuthSession session,
         Action shutdown)
     {
         _windowManager = windowManager;
         _applications = applications;
         _settings = settings;
+        _localization = localization;
         _session = session;
         _shutdown = shutdown;
 
@@ -41,6 +44,13 @@ public partial class DesktopShellViewModel : ObservableObject
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
         _windowManager.ActiveWindowChanged += (_, _) => RefreshTaskbarGroups();
         _applications.RegistryChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
+        _localization.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            PopulateDesktop();
+            OnPropertyChanged(nameof(ConnectionServer));
+            OnPropertyChanged(nameof(ConnectionUser));
+            OnPropertyChanged(nameof(ConnectionWorkspace));
+        });
 
         StartClock();
     }
@@ -69,7 +79,11 @@ public partial class DesktopShellViewModel : ObservableObject
     public void PopulateDesktop()
     {
         var entries = _applications.Registered
-            .Select(i => new AppEntryViewModel(i, _applications))
+            .Select(i => new AppEntryViewModel(i with
+            {
+                DisplayName = _localization.Get(i.DisplayName),
+                Description = i.Description is null ? null : _localization.Get(i.Description),
+            }, _applications))
             .ToList();
 
         DesktopIcons.Clear();
@@ -205,7 +219,7 @@ public partial class DesktopShellViewModel : ObservableObject
         foreach (var (appId, windows) in groupedWindows)
         {
             var app = _applications.Get(appId);
-            var displayName = app?.Manifest.DisplayName ?? windows[0].Title;
+            var displayName = _localization.Get(app?.Manifest.DisplayName ?? windows[0].Title);
             TaskbarGroups.Add(new TaskbarGroupViewModel(
                 appId,
                 displayName,

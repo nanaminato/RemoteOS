@@ -4,7 +4,7 @@
              x:Class="Client.Apps.Settings.Views.Pages.DeveloperPageView"
              x:DataType="vm:DeveloperPageViewModel">
     <StackPanel Spacing="16" MaxWidth="640">
-        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
         <Border Classes="card">
             <StackPanel Spacing="10">
                 <TextBlock Text="开发者模式" Classes="title" />

@@ -7,7 +7,7 @@
              x:Name="Root">
     <StackPanel Spacing="16" MaxWidth="720">
         <StackPanel IsVisible="{Binding IsInstalledApps}" Spacing="16">
-            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
             <TextBlock Text="已安装的 RemoteOS 应用。选择应用可查看信息、管理权限、打开或卸载。" Opacity="0.68" TextWrapping="Wrap" />
             <Border Classes="card">
                 <ItemsControl ItemsSource="{Binding RegisteredApps}">

@@ -9,14 +9,19 @@ namespace Client.Apps.Settings.ViewModels;
 /// 注意：宿主 OS 时区切换需 sudo/UAC 提权（硬约束「权限提升委托宿主 OS」），故仅只读展示。</summary>
 public sealed partial class TimeLanguagePageViewModel : SettingsPageViewModel
 {
-    public TimeLanguagePageViewModel(ShellSettings settings, Action? save) : base(settings, save)
+    private readonly LocalizationService _localization;
+
+    public TimeLanguagePageViewModel(ShellSettings settings, LocalizationService localization, Action? save) : base(settings, save)
     {
+        _localization = localization;
         Settings.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(TimeFormat) or nameof(Language))
                 OnPropertyChanged(nameof(TimeSample));
             if (e.PropertyName is nameof(DateFormat) or nameof(Language))
                 OnPropertyChanged(nameof(DateSample));
+            if (e.PropertyName == nameof(Language))
+                OnPropertyChanged(nameof(SelectedLanguage));
         };
     }
 
@@ -33,12 +38,9 @@ public sealed partial class TimeLanguagePageViewModel : SettingsPageViewModel
         "dddd, M/d",
     };
 
-    public static IReadOnlyList<string> Languages { get; } = new[]
-    {
-        "zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR", "de-DE", "fr-FR", "es-ES",
-    };
+    public IReadOnlyList<SystemLanguageOption> Languages => _localization.AvailableLanguages;
 
-    public static IReadOnlyList<string> Regions { get; } = Languages;
+    public static IReadOnlyList<string> Regions { get; } = new[] { "zh-CN", "en-US", "ja-JP" };
 
     public string TimeFormat
     {
@@ -56,6 +58,16 @@ public sealed partial class TimeLanguagePageViewModel : SettingsPageViewModel
     {
         get => Settings.Language;
         set { Settings.Language = value; Save(); }
+    }
+
+    public SystemLanguageOption? SelectedLanguage
+    {
+        get => Languages.FirstOrDefault(option => string.Equals(option.Culture, Language, StringComparison.OrdinalIgnoreCase));
+        set
+        {
+            if (value is not null)
+                Language = value.Culture;
+        }
     }
 
     public string Region

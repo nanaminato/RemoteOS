@@ -4,7 +4,7 @@
              x:Class="Client.Apps.Settings.Views.Pages.TimeLanguagePageView"
              x:DataType="vm:TimeLanguagePageViewModel">
     <StackPanel Spacing="16" MaxWidth="640">
-        <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
 
         <Border Classes="card">
             <StackPanel Spacing="10">
@@ -37,8 +37,13 @@
                 <TextBlock Text="语言与区域" Classes="title" />
                 <Grid ColumnDefinitions="180,*">
                     <TextBlock Grid.Column="0" Text="界面语言" Opacity="0.7" VerticalAlignment="Center" />
-                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:TimeLanguagePageViewModel.Languages}"
-                              SelectedItem="{Binding Language, Mode=TwoWay}" MinWidth="160" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}"
+                              SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}"
+                              MinWidth="160">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </Grid>
                 <Grid ColumnDefinitions="180,*">
                     <TextBlock Grid.Column="0" Text="区域格式" Opacity="0.7" VerticalAlignment="Center" />

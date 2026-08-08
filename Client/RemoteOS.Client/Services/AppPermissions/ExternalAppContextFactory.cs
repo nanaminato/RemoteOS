@@ -17,6 +17,7 @@ namespace Client.Services.AppPermissions;
 public sealed class ExternalAppContextFactory
 {
     private readonly IAppPermissionManager _permissions;
+    private readonly ISystemLanguage _systemLanguage;
     private readonly ShellSettings _settings;
     private readonly ISettingsClient _settingsClient;
     private readonly IAuthSession _session;
@@ -29,6 +30,7 @@ public sealed class ExternalAppContextFactory
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
+        ISystemLanguage systemLanguage,
         ShellSettings settings,
         ISettingsClient settingsClient,
         IAuthSession session,
@@ -40,6 +42,7 @@ public sealed class ExternalAppContextFactory
         IAppCapabilityClient capabilities)
     {
         _permissions = permissions;
+        _systemLanguage = systemLanguage;
         _settings = settings;
         _settingsClient = settingsClient;
         _session = session;
@@ -59,6 +62,7 @@ public sealed class ExternalAppContextFactory
         new ServerFilesCapability(appId, _permissions, _files),
         new ExternalFileApiAccess(appId, _permissions, _session, _capabilities),
         new ExternalMediaService(appId, _permissions, _session, _capabilities),
+        _systemLanguage,
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
 
@@ -70,6 +74,7 @@ public sealed class ExternalAppContextFactory
         IServerFiles ServerFiles,
         IExternalFileApiAccess FileApi,
         IExternalMediaService Media,
+        ISystemLanguage SystemLanguage,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
 

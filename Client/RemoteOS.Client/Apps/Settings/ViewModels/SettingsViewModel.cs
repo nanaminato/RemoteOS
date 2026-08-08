@@ -4,6 +4,7 @@ using Client.Services.Developer;
 using Client.Apps.TaskManager;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Protocol.Workspace;
 using RemoteOS.Runtime;
 
@@ -36,7 +37,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         ITaskManagerClient? system,
         DefaultAppRegistry? registry,
         DeveloperModeService? developerMode,
-        DeveloperPackageManager? packages)
+        DeveloperPackageManager? packages,
+        LocalizationService? localization = null)
     {
         _settings = settings;
         _client = client;
@@ -47,13 +49,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _registry = registry;
         _developerMode = developerMode;
         _packages = packages;
+        localization ??= App.Services.GetRequiredService<LocalizationService>();
 
         var save = (Action)Save;
         Pages = new SettingsPageViewModel[]
         {
             new SystemPageViewModel(settings, session, save),
             new PersonalizationPageViewModel(settings, save),
-            new TimeLanguagePageViewModel(settings, save),
+            new TimeLanguagePageViewModel(settings, localization, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
             new AppsPageViewModel(settings, apps!, packages!),
             new DefaultAppsPageViewModel(settings, apps!, save),

@@ -5,7 +5,7 @@
              x:DataType="vm:SystemPageViewModel">
     <StackPanel Spacing="16" MaxWidth="640">
         <StackPanel Spacing="2">
-            <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding LocalizedDisplayName}" FontSize="24" FontWeight="SemiBold" />
             <TextBlock Text="RemoteOS 云原生桌面环境" Opacity="0.65" />
         </StackPanel>
 

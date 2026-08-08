@@ -1,5 +1,6 @@
 using Client.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Apps.Settings.ViewModels;
 
@@ -20,6 +21,8 @@ public abstract class SettingsPageViewModel : ObservableObject
         {
             if (!string.IsNullOrEmpty(e.PropertyName))
                 OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName == nameof(ShellSettings.Language))
+                OnPropertyChanged(nameof(LocalizedDisplayName));
         };
     }
 
@@ -28,6 +31,9 @@ public abstract class SettingsPageViewModel : ObservableObject
 
     /// <summary>分类显示名（左侧导航 + 页面标题）。</summary>
     public abstract string DisplayName { get; }
+
+    /// <summary>Localized category name used by the Settings navigation and page headers.</summary>
+    public string LocalizedDisplayName => App.Services.GetRequiredService<LocalizationService>().Get(DisplayName);
 
     /// <summary>触发根 VM 的防抖保存。仅用户编辑路径调用。</summary>
     protected void Save() => _save?.Invoke();

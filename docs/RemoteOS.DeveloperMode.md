@@ -91,3 +91,16 @@ await context.Settings.OpenApplicationsAsync();
 ```
 
 The host reuses and focuses an existing Settings window when possible; otherwise it opens Settings and selects **Applications**. This API only performs navigation and cannot read or change settings.
+
+## System language
+
+Package applications can read the workspace display language and refresh their UI when it changes. This is read-only and does not require a permission:
+
+```csharp
+context.SystemLanguage.LanguageChanged += (_, change) =>
+    RefreshUi(change.CurrentLanguage);
+
+RefreshUi(context.SystemLanguage.CurrentLanguage); // BCP-47 name, such as "en-US"
+```
+
+The built-in language selector discovers files from the client `Localization` directory. A language file declares its BCP-47 `Culture`, display name, sort order, and source-string translations; adding a correctly formed `.json` file makes it selectable without changing client code.

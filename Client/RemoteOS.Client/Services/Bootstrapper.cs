@@ -32,6 +32,8 @@ public static class Bootstrapper
         services.AddSingleton(windowManager);
         services.AddSingleton<IWindowManager>(windowManager);
         services.AddSingleton<ShellSettings>();
+        services.AddSingleton<LocalizationService>();
+        services.AddSingleton<ISystemLanguage>(sp => sp.GetRequiredService<LocalizationService>());
         services.AddSingleton<ApplicationManager>(sp =>
             new ApplicationManager(sp.GetRequiredService<IWindowManager>(), sp));
 
@@ -88,16 +90,20 @@ public static class Bootstrapper
             var wm = sp.GetRequiredService<WindowManager>();
             var apps = sp.GetRequiredService<ApplicationManager>();
             var settings = sp.GetRequiredService<ShellSettings>();
+            var localization = sp.GetRequiredService<LocalizationService>();
             var session = sp.GetRequiredService<IAuthSession>();
             Action shutdown = () =>
             {
                 if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
                     desktop.Shutdown();
             };
-            return new DesktopShellViewModel(wm, apps, settings, session, shutdown);
+            return new DesktopShellViewModel(wm, apps, settings, localization, session, shutdown);
         });
 
         var provider = services.BuildServiceProvider();
+
+        // Create the language service before the shell and any package context so it observes every window.
+        provider.GetRequiredService<LocalizationService>();
 
         windowManager.LayoutStore = provider.GetRequiredService<WindowLayoutStore>();
 

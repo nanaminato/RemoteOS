@@ -32,6 +32,8 @@ public interface IExternalAppContext
     IServerFiles ServerFiles { get; }
     IExternalFileApiAccess FileApi { get; }
     IExternalMediaService Media { get; }
+    /// <summary>Read-only system language and language-change notifications.</summary>
+    ISystemLanguage SystemLanguage { get; }
     ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }
 }
