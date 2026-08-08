@@ -1,0 +1,11 @@
+{
+  "id": "com.remoteos.example.video-player",
+  "displayName": "Video Player",
+  "version": "0.2.0-dev",
+  "entryAssembly": "lib/net10.0/RemoteOS.Example.VideoPlayer.dll",
+  "entryType": "RemoteOS.Examples.VideoPlayer.VideoPlayerApp",
+  "iconGlyph": "🎬",
+  "description": "VLC-based remote video player for Windows",
+  "requestedPermissions": ["server.files.read"],
+  "supportedFileExtensions": [".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".mpeg", ".mpg", ".3gp", ".ts"]
+}

@@ -12,4 +12,6 @@ public sealed record FilePropertiesDto(
     [property: JsonPropertyName("modified")] DateTimeOffset? Modified,
     [property: JsonPropertyName("accessed")] DateTimeOffset? Accessed,
     [property: JsonPropertyName("permissions")] string Permissions,
-    [property: JsonPropertyName("attributes")] string Attributes);
+    [property: JsonPropertyName("attributes")] string Attributes,
+    /// <summary>Linux POSIX permission bits (for example 0755). Null on unsupported hosts.</summary>
+    [property: JsonPropertyName("unixMode")] int? UnixMode);

@@ -37,9 +37,10 @@ public partial class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var session = Services.GetRequiredService<IAuthSession>();
+            var loginViewModel = Services.GetRequiredService<LoginViewModel>();
             var loginWindow = new LoginWindow
             {
-                DataContext = Services.GetRequiredService<LoginViewModel>(),
+                DataContext = loginViewModel,
             };
             desktop.MainWindow = loginWindow;
             loginWindow.Show();
@@ -58,6 +59,10 @@ public partial class App : Application
                     mainWindow.Closed += (_, _) => desktop.Shutdown();
                 });
             };
+
+            // Keep the login window visible so the user can choose one of several remembered servers.
+            // Selecting an entry with a saved password logs in without asking for it.
+            _ = loginViewModel.LoadSavedProfilesAsync();
         }
 
         base.OnFrameworkInitializationCompleted();

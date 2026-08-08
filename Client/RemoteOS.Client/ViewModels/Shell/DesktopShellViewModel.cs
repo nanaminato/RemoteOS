@@ -40,6 +40,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
         _windowManager.ActiveWindowChanged += (_, _) => RefreshTaskbarGroups();
+        _applications.RegistryChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
 
         StartClock();
     }

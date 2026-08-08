@@ -52,6 +52,25 @@ public static class WorkspaceEndpoints
             return Results.Ok(normalized);
         }).RequireAuthorization().WithTags("Workspace");
 
+        app.MapGet(WorkspaceApiRoutes.WindowLayouts, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        {
+            var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
+            return workspace is null ? Results.NotFound() : Results.Ok(workspace.WindowLayouts);
+        }).RequireAuthorization().WithTags("Workspace");
+
+        app.MapPut(WorkspaceApiRoutes.WindowLayouts, (Guid id, WorkspaceWindowLayoutDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        {
+            var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
+            if (workspace is null)
+                return Results.NotFound();
+            if (!TryNormalize(request, out var layouts))
+                return Results.BadRequest(new { message = "Invalid workspace window layouts." });
+
+            workspace.WindowLayouts = layouts;
+            workspaces.Update(workspace);
+            return Results.Ok(layouts);
+        }).RequireAuthorization().WithTags("Workspace");
+
         return app;
     }
 
@@ -135,7 +154,29 @@ public static class WorkspaceEndpoints
             wallpaperKey, request.Theme, timeFormat!, dateFormat!,
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
-            deduped.Values.ToArray());
+            deduped.Values.ToList());
+        return true;
+    }
+
+    private static bool TryNormalize(WorkspaceWindowLayoutDto request, out WorkspaceWindowLayoutDto layouts)
+    {
+        layouts = WorkspaceWindowLayoutDto.Default;
+        var source = request.Windows ?? Array.Empty<WindowSizeDto>();
+        if (source.Count > 128)
+            return false;
+
+        var normalized = new Dictionary<string, WindowSizeDto>(StringComparer.Ordinal);
+        foreach (var entry in source)
+        {
+            var key = entry.Key?.Trim();
+            if (string.IsNullOrWhiteSpace(key) || key.Length > 256
+                || !double.IsFinite(entry.Width) || !double.IsFinite(entry.Height)
+                || entry.Width is < 240 or > 3840 || entry.Height is < 160 or > 2160)
+                return false;
+            normalized[key] = new WindowSizeDto(key, Math.Round(entry.Width), Math.Round(entry.Height));
+        }
+
+        layouts = new WorkspaceWindowLayoutDto(normalized.Values.ToList());
         return true;
     }
 }

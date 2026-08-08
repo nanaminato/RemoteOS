@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Client.Apps.Browser.ViewModels"
+             x:Class="Client.Apps.Browser.Views.BrowserSettingsView"
+             x:DataType="vm:BrowserViewModel"
+             Width="480">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+        <TextBlock Text="Browser settings" FontSize="18" FontWeight="SemiBold" />
+        <CheckBox Grid.Row="1" Content="Enable local port forwarding"
+                  IsChecked="{Binding IsLocalPortForwardingEnabled, Mode=TwoWay}" />
+        <TextBlock Grid.Row="2" Text="When enabled, localhost and 127.0.0.1 addresses are opened on the remote computer."
+                   TextWrapping="Wrap" Opacity="0.7" />
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Save" Command="{Binding SaveLocalPortForwardingCommand}" />
+            <Button Classes="primary" Content="Done" Command="{Binding CloseSettingsCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

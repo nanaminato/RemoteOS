@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="clr-namespace:Client.Apps"
+             xmlns:terminal="clr-namespace:Client.Apps.Terminal"
+             x:Class="Client.Apps.Terminal.TerminalSettingsView"
+             x:DataType="terminal:TerminalViewModel"
+             Width="460">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+        <TextBlock Text="Terminal settings" FontSize="18" FontWeight="SemiBold" />
+        <Grid Grid.Row="1" ColumnDefinitions="150,*" ColumnSpacing="12">
+            <TextBlock Text="Font family" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding FontFamily, Mode=TwoWay}" />
+        </Grid>
+        <Grid Grid.Row="2" ColumnDefinitions="150,*" ColumnSpacing="12">
+            <TextBlock Text="Font size" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding FontSizes}" SelectedItem="{Binding FontSize, Mode=TwoWay}" />
+        </Grid>
+        <Grid Grid.Row="3" ColumnDefinitions="150,*" ColumnSpacing="12">
+            <TextBlock Text="Color scheme" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding ColorSchemes}" SelectedItem="{Binding ColorScheme, Mode=TwoWay}" />
+        </Grid>
+        <TextBlock Grid.Row="4" Text="Changes apply immediately and are saved to the current workspace."
+                   TextWrapping="Wrap" Opacity="0.7" />
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Classes="primary" Content="Done" Command="{Binding CloseSettingsCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -3,11 +3,15 @@ using Client.Apps.Settings.ViewModels;
 using Client.Apps.Settings.Views;
 using Client.Services;
 using Client.Services.Auth;
+using Client.Services.AppPermissions;
+using Client.Services.Developer;
+using Client.Apps.TaskManager;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Runtime;
+using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.Settings;
@@ -32,13 +36,40 @@ public sealed class SettingsApp : RemoteApplicationBase
         var settingsClient = context.Services.GetRequiredService<ISettingsClient>();
         var apps = context.Services.GetRequiredService<ApplicationManager>();
         var remote = context.Services.GetRequiredService<IRemoteOsClient>();
+        var system = context.Services.GetRequiredService<ITaskManagerClient>();
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
+        var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
+        var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
+        var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, registry);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, permissions, developerMode);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow("Settings", view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
+        if (settingsNavigation is SettingsNavigationService navigation)
+            navigation.Register(window, viewModel);
+
+        var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
+        appsPage.RequestPermissionEditorAsync = app => context.ShowDialogAsync<bool>(
+            window,
+            $"{app.DisplayName} permissions",
+            dialog => new AppPermissionDialogView
+            {
+                DataContext = new AppPermissionDialogViewModel(app.App, permissions, dialog.Close),
+            },
+            new Size(560, 540));
+
+        EventHandler<ManagedWindow>? closed = null;
+        closed = (_, closedWindow) =>
+        {
+            if (!ReferenceEquals(closedWindow, window)) return;
+            context.WindowManager.WindowClosed -= closed;
+            if (settingsNavigation is SettingsNavigationService navigation)
+                navigation.Unregister(window);
+            viewModel.Dispose();
+        };
+        context.WindowManager.WindowClosed += closed;
 
         // 窗口打开后异步加载服务端偏好。
         _ = viewModel.InitializeAsync();

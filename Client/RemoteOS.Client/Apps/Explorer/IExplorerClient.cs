@@ -32,6 +32,9 @@ public interface IExplorerClient
     /// <summary>获取远程文件或目录的详细属性与权限摘要；不存在时返回 null。</summary>
     Task<FilePropertiesDto?> GetPropertiesAsync(string path, CancellationToken ct = default);
 
+    /// <summary>更新远程 Linux 文件或目录的 POSIX 权限位。</summary>
+    Task<FilePropertiesDto> SetUnixPermissionsAsync(string path, int unixMode, CancellationToken ct = default);
+
     /// <summary>创建目录（POST /files/directory）。</summary>
     Task<FileSystemEntryDto> CreateDirectoryAsync(string path, CancellationToken ct = default);
 

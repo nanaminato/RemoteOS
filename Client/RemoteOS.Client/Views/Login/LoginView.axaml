@@ -21,6 +21,11 @@
             <Setter Property="Padding" Value="9,4" />
             <Setter Property="CornerRadius" Value="2" />
         </Style>
+        <Style Selector="ComboBox.connection-input">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="CornerRadius" Value="2" />
+        </Style>
         <Style Selector="Button.connect-button">
             <Setter Property="MinWidth" Value="92" />
             <Setter Property="MinHeight" Value="32" />
@@ -60,23 +65,58 @@
                 <TextBlock Text="输入要连接的远程计算机的名称。" Foreground="#404040" FontSize="13" />
                 <TextBlock Text="连接时将使用下方提供的凭据。" Foreground="#6A6A6A" FontSize="13" Margin="0,3,0,22" />
 
-                <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,12,Auto,12,Auto">
-                    <TextBlock Classes="login-label" Text="计算机:" Grid.Row="0" />
-                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="0"
-                             Text="{Binding ServerUrl}"
-                             PlaceholderText="http://host:port" />
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="108,*">
+                    <TextBlock Classes="login-label" Text="计算机:" />
+                    <ComboBox Classes="connection-input" Grid.Column="1"
+                              ItemsSource="{Binding SavedProfiles}"
+                              SelectedItem="{Binding SelectedProfile}"
+                              IsEditable="{Binding ShowOptions}"
+                              Text="{Binding ServerUrl}"
+                              HorizontalAlignment="Stretch"
+                              MinWidth="440"
+                              PlaceholderText="http://host:port">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding ServerUrl}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    </Grid>
 
-                    <TextBlock Classes="login-label" Text="用户名:" Grid.Row="2" />
-                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="2"
+                    <Grid ColumnDefinitions="108,*">
+                    <TextBlock Classes="login-label" Text="用户名:" />
+                    <TextBox Classes="connection-input" Grid.Column="1"
                              Text="{Binding Username}"
+                             IsReadOnly="{Binding !ShowOptions}"
                              PlaceholderText="例如：alice" />
+                    </Grid>
 
-                    <TextBlock Classes="login-label" Text="密码:" Grid.Row="4" />
-                    <TextBox Classes="connection-input" Grid.Column="1" Grid.Row="4"
+                    <Grid IsVisible="{Binding ShowOptions}" ColumnDefinitions="108,*,Auto">
+                    <TextBlock Classes="login-label" Text="密码:" />
+                    <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding !IsPasswordVisible}"
                              Text="{Binding Password}"
                              PasswordChar="●"
                              PlaceholderText="输入密码" />
-                </Grid>
+                    <TextBox Classes="connection-input" Grid.Column="1" IsVisible="{Binding IsPasswordVisible}"
+                             Text="{Binding Password}"
+                             PlaceholderText="输入密码" />
+                    <Button Grid.Column="2" Command="{Binding TogglePasswordVisibilityCommand}"
+                            Content="{Binding PasswordVisibilityText}" Margin="8,0,0,0"
+                            MinWidth="52" Height="32" Padding="8,4" />
+                    </Grid>
+                </StackPanel>
+
+                <Button Command="{Binding ToggleOptionsCommand}"
+                        Content="{Binding OptionsToggleText}" HorizontalAlignment="Left" Margin="108,12,0,0"
+                        Padding="0" Background="Transparent" BorderThickness="0"
+                        Foreground="{StaticResource AccentBrush}" />
+
+                <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberServer}" Content="记住此计算机和用户名"
+                          Foreground="#404040" FontSize="12" Margin="108,12,0,0" />
+                <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberPassword}" IsEnabled="{Binding RememberServer}"
+                          Content="加密保存密码；下次选择此计算机即可登录"
+                          Foreground="#404040" FontSize="12" Margin="108,6,0,0" />
 
                 <TextBlock Text="将提示你确认远程计算机的身份。"
                            Foreground="#6A6A6A" FontSize="12" Margin="88,11,0,0" />

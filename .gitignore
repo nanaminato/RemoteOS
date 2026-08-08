@@ -102,6 +102,8 @@ StyleCopReport.xml
 
 #private db
 *.db
+*.db-wal
+*.db-shm
 
 # Chutzpah Test files
 _Chutzpah*

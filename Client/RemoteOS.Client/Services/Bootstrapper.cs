@@ -1,8 +1,16 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Client.Apps;
+using Client.Apps.CodeEditor;
+using Client.Apps.ImageViewer;
+using Client.Apps.Notepad;
 using Client.Apps.Settings;
+using Client.Apps.Terminal;
+using Client.Apps.Welcome;
 using Client.Services.Auth;
+using Client.Services.AppPermissions;
+using Client.Services.Developer;
+using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +37,7 @@ public static class Bootstrapper
         // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
         services.AddHttpClient<IRemoteOsClient, RemoteOsClient>();
         services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>();
+        services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
         services.AddSingleton<IAuthSession, AuthSession>();
         services.AddSingleton<LoginViewModel>();
 
@@ -47,13 +56,24 @@ public static class Bootstrapper
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
         services.AddHttpClient<ISettingsClient, SettingsClient>();
+        services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>();
+        services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
+        services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
+        services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>();
+        services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
+        services.AddSingleton<ExternalAppContextFactory>();
+        services.AddSingleton<DeveloperModeService>();
+        services.AddSingleton<DeveloperPackageManager>();
+        services.AddSingleton<DeveloperBridgeService>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
 
         // Built-in applications.
         services.AddSingleton<IRemoteApplication, WelcomeApp>();
         services.AddSingleton<IRemoteApplication, NotepadApp>();
+        services.AddSingleton<IRemoteApplication, CodeEditorApp>();
+        services.AddSingleton<IRemoteApplication, ImageViewerApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
@@ -76,10 +96,16 @@ public static class Bootstrapper
 
         var provider = services.BuildServiceProvider();
 
+        windowManager.LayoutStore = provider.GetRequiredService<WindowLayoutStore>();
+
         // Register applications with the runtime.
         var manager = provider.GetRequiredService<ApplicationManager>();
         foreach (var application in provider.GetServices<IRemoteApplication>())
             manager.Register(application);
+
+        // Development packages follow the same runtime registry as built-in applications.
+        provider.GetRequiredService<DeveloperPackageManager>().LoadInstalled();
+        provider.GetRequiredService<DeveloperBridgeService>();
 
         // Build the desktop / start menu entries.
         provider.GetRequiredService<DesktopShellViewModel>().PopulateDesktop();

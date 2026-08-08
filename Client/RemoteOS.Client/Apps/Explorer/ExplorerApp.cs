@@ -56,7 +56,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
         }
 
         var viewModel = new ExplorerViewModel(client);
-        WireDialogs(context, viewModel);
+        WireDialogs(context, viewModel, client);
         var view = new ExplorerMainView { DataContext = viewModel };
         var window = context.ShowWindow("RemoteExplorer", view,
             bounds: new Rect(80, 60, 960, 640),
@@ -68,7 +68,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
     }
 
     /// <summary>将对话框回调注入 VM：文本输入 / 确认 / 本地文件选择（上传/下载） / 消息 / 关闭。</summary>
-    private static void WireDialogs(AppContext context, ExplorerViewModel vm)
+    private static void WireDialogs(AppContext context, ExplorerViewModel vm, IExplorerClient client)
     {
         vm.RequestTextInputAsync = async (title, prompt, defaultValue, confirmLabel) =>
         {
@@ -155,17 +155,24 @@ public sealed class ExplorerApp : RemoteApplicationBase
         vm.OpenFileAsync = async entry =>
         {
             var extension = Path.GetExtension(entry.Name);
-            var applicationId = defaults?.Resolve(extension) ?? "remoteos.notepad";
-            if (applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
+            var defaultApplicationId = defaults?.Resolve(extension);
+            var applicationId = defaultApplicationId is not null && applications?.SupportsFile(new AppId(defaultApplicationId), entry.Path) == true
+                ? defaultApplicationId
+                : applications?.FileOpenersForExtension(extension).FirstOrDefault()?.Id.Value;
+            if (applicationId is null || applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
                 await (vm.ShowMessageAsync?.Invoke("Open file", "No application is registered for this file type.") ?? Task.CompletedTask);
         };
 
         vm.RequestOpenWithAsync = async entry =>
         {
             var owner = FindOwnerWindow(context, vm);
-            var openers = applications?.FileOpeners ?? Array.Empty<ApplicationInfo>();
-            if (owner is null || openers.Count == 0) return;
             var extension = Path.GetExtension(entry.Name);
+            var openers = applications?.FileOpenersForExtension(extension) ?? Array.Empty<ApplicationInfo>();
+            if (owner is null || openers.Count == 0)
+            {
+                await (vm.ShowMessageAsync?.Invoke("Open with", "No installed application declares support for this file type.") ?? Task.CompletedTask);
+                return;
+            }
             var choice = await context.ShowDialogAsync<OpenWithChoice>(owner, "Open with", dialog =>
                 new OpenWithDialogView
                 {
@@ -190,7 +197,10 @@ public sealed class ExplorerApp : RemoteApplicationBase
             if (owner is null) return;
             await context.ShowDialogAsync<bool>(owner, "Properties", dialog => new FilePropertiesDialogView
             {
-                DataContext = new FilePropertiesDialogViewModel(properties, () => dialog.Close(true)),
+                DataContext = new FilePropertiesDialogViewModel(
+                    properties,
+                    unixMode => client.SetUnixPermissionsAsync(properties.Path, unixMode),
+                    () => dialog.Close(true)),
             });
         };
     }

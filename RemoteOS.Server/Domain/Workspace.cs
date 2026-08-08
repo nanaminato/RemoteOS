@@ -15,6 +15,7 @@ public sealed class Workspace
     public TerminalSettingsDto TerminalSettings { get; set; } = TerminalSettingsDto.Default;
     public BrowserSettingsDto BrowserSettings { get; set; } = BrowserSettingsDto.Default;
     public WorkspacePreferencesDto Preferences { get; set; } = WorkspacePreferencesDto.Default;
+    public WorkspaceWindowLayoutDto WindowLayouts { get; set; } = WorkspaceWindowLayoutDto.Default;
 
     public Guid? ControllerDeviceId { get; set; }
     public DateTimeOffset? ControllerGrantedAt { get; set; }

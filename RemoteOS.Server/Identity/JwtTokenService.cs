@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using RemoteOS.Protocol.Capabilities;
 using RemoteOS.Protocol.Identity;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
@@ -58,5 +59,37 @@ public sealed class JwtTokenService
         _sessions.Register(sessionId, refreshToken, user.Id, workspace.Id, device.Id, refreshExp);
 
         return new AuthTokens(accessToken, refreshToken, accessExp, refreshExp);
+    }
+
+    /// <summary>Issues a token restricted to the server file API for one external application.</summary>
+    public FileCapabilityTokenDto IssueFileCapability(
+        Guid userId,
+        Guid workspaceId,
+        Guid deviceId,
+        string appId,
+        IReadOnlyCollection<string> scopes)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expiresAt = now.Add(_opt.FileCapabilityTokenTtl);
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new("workspace_id", workspaceId.ToString()),
+            new("device_id", deviceId.ToString()),
+            new("app_id", appId),
+            new(RemoteOsAuthSchemes.TokenTypeClaim, RemoteOsAuthSchemes.FileCapabilityTokenType),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        };
+        claims.AddRange(scopes.Distinct(StringComparer.Ordinal).Select(scope => new Claim(RemoteOsAuthSchemes.ScopeClaim, scope)));
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opt.Secret));
+        var token = new JwtSecurityToken(
+            issuer: _opt.Issuer,
+            audience: _opt.Audience,
+            claims: claims,
+            notBefore: now.UtcDateTime,
+            expires: expiresAt.UtcDateTime,
+            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
+        return new FileCapabilityTokenDto(new JwtSecurityTokenHandler().WriteToken(token), expiresAt);
     }
 }

@@ -24,7 +24,10 @@ public sealed class AppContext
     /// <summary>The desktop window manager — used to create application windows.</summary>
     public IWindowManager WindowManager { get; }
 
-    /// <summary>DI container for resolving shared services.</summary>
+    /// <summary>
+    /// DI container for first-party applications compiled with the host. This is not exposed to
+    /// package applications; they receive <see cref="IExternalAppContext"/> instead.
+    /// </summary>
     public IServiceProvider Services { get; }
 
     /// <summary>Convenience: create and show a window owned by this application.</summary>
@@ -48,6 +51,12 @@ public sealed class AppContext
             CanMaximize: canMaximize));
     }
 
+    /// <summary>Displays an application window over the entire desktop, including shell chrome.</summary>
+    public void EnterFullScreen(ManagedWindow window) => WindowManager.EnterFullScreen(window);
+
+    /// <summary>Returns a full-screen application window to its prior size and state.</summary>
+    public void ExitFullScreen(ManagedWindow window) => WindowManager.ExitFullScreen(window);
+
     /// <summary>Shows a dialog that blocks its owner until it is confirmed or cancelled.</summary>
     public Task<TResult?> ShowDialogAsync<TResult>(
         ManagedWindow owner,
@@ -55,4 +64,12 @@ public sealed class AppContext
         Func<ModalDialog<TResult>, Control> contentFactory,
         Rect? bounds = null)
         => WindowManager.ShowDialogAsync(owner, title, contentFactory, bounds);
+
+    /// <summary>Shows a dialog centered over its owner at the requested size.</summary>
+    public Task<TResult?> ShowDialogAsync<TResult>(
+        ManagedWindow owner,
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize)
+        => WindowManager.ShowDialogAsync(owner, title, contentFactory, preferredSize);
 }

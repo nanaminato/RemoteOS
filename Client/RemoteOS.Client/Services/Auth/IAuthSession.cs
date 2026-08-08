@@ -3,8 +3,8 @@ using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
 
-/// <summary>客户端认证会话。持有当前登录上下文（Tokens/User/Workspace/Session/Device/Role），
-/// 仅内存（进程退出即丢失，符合 mstsc 默认不保存凭据）。供 LoginViewModel 与桌面 Shell 共享。</summary>
+/// <summary>客户端认证会话。持有当前登录上下文（Tokens/User/Workspace/Session/Device/Role）；
+/// 勾选“加密保存密码并自动登录”时，凭据会保存到当前平台的系统安全存储。供 LoginViewModel 与桌面 Shell 共享。</summary>
 public interface IAuthSession
 {
     AuthSessionState State { get; }
@@ -19,8 +19,16 @@ public interface IAuthSession
     /// <summary>状态变化（Connecting / Authenticated / Unauthenticated）。</summary>
     event EventHandler<AuthSessionStateChangedEventArgs>? StateChanged;
 
-    /// <summary>登录。serverUrl 形如 "http://localhost:5090"。成功缓存全部上下文并触发 StateChanged。</summary>
-    Task<LoginResponse> LoginAsync(string serverUrl, LoginRequest request, CancellationToken ct = default);
+    /// <summary>登录。成功后可分别记住服务器/用户名，或额外加密保存密码。</summary>
+    Task<LoginResponse> LoginAsync(
+        string serverUrl,
+        LoginRequest request,
+        bool rememberServer,
+        bool rememberPassword,
+        CancellationToken ct = default);
+
+    /// <summary>Returns all connections remembered for the current operating-system user.</summary>
+    Task<IReadOnlyList<SavedLoginProfile>> GetSavedProfilesAsync(CancellationToken ct = default);
 
     /// <summary>登出（吊销 RefreshToken，清空上下文）。</summary>
     Task LogoutAsync(CancellationToken ct = default);

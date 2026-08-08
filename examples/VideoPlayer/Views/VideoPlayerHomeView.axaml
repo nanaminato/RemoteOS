@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="RemoteOS.Examples.VideoPlayer.Views.VideoPlayerHomeView"
+             Background="#FFFFFF" Foreground="#18202B">
+  <StackPanel Margin="24" Spacing="12">
+    <TextBlock Text="Video Player" FontSize="22" FontWeight="SemiBold" />
+    <TextBlock Text="在 RemoteExplorer 中右键单击受支持的视频文件，再选择“打开方式 → Video Player”。应用只请求 server.files.read 权限，并通过短期有效的宿主媒体连接进行播放。" TextWrapping="Wrap" Opacity="0.75" />
+  </StackPanel>
+</UserControl>

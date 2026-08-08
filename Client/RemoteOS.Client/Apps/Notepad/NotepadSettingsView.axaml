@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="clr-namespace:Client.Apps"
+             xmlns:notepad="clr-namespace:Client.Apps.Notepad"
+             x:Class="Client.Apps.Notepad.NotepadSettingsView"
+             x:DataType="notepad:NotepadViewModel"
+             Width="420">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+        <TextBlock Text="Notebook settings" FontSize="18" FontWeight="SemiBold" />
+        <Grid Grid.Row="1" ColumnDefinitions="150,*" ColumnSpacing="12">
+            <TextBlock Text="Font size" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding FontSizes}" SelectedItem="{Binding FontSize, Mode=TwoWay}" />
+        </Grid>
+        <Grid Grid.Row="2" ColumnDefinitions="150,*" ColumnSpacing="12">
+            <TextBlock Text="File encoding" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableEncodings}" SelectedItem="{Binding EncodingName, Mode=TwoWay}" />
+        </Grid>
+        <TextBlock Grid.Row="3" Text="Changing the encoding applies when you reopen the current remote file."
+                   TextWrapping="Wrap" Opacity="0.7" />
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Reopen file" Command="{Binding ReopenWithEncodingCommand}" />
+            <Button Classes="primary" Content="Done" Command="{Binding CloseSettingsCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

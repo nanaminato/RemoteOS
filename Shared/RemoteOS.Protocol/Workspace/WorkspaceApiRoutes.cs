@@ -31,6 +31,9 @@ public static class WorkspaceApiRoutes
     /// <summary>Workspace 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序，GET/PUT）。{id} 为 Workspace ID。</summary>
     public const string Preferences = $"/{V1}/workspaces/{{id}}/preferences";
 
+    /// <summary>Workspace application and modal window dimensions (GET/PUT).</summary>
+    public const string WindowLayouts = $"/{V1}/workspaces/{{id}}/window-layouts";
+
     /// <summary>请求控制权（POST）。{id} 为 Workspace ID。</summary>
     public const string RequestControl = $"/{V1}/workspaces/{{id}}/control/request";
 

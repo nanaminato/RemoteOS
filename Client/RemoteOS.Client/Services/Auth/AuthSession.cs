@@ -3,13 +3,18 @@ using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
 
-/// <summary>IAuthSession 实现。单例，仅内存。lock 保护并发登录。</summary>
+/// <summary>Holds the current authenticated session and the locally remembered RemoteOS connections.</summary>
 public sealed class AuthSession : IAuthSession
 {
     private readonly IRemoteOsClient _client;
+    private readonly IRememberedSessionStore _rememberedSessionStore;
     private readonly object _gate = new();
 
-    public AuthSession(IRemoteOsClient client) => _client = client;
+    public AuthSession(IRemoteOsClient client, IRememberedSessionStore rememberedSessionStore)
+    {
+        _client = client;
+        _rememberedSessionStore = rememberedSessionStore;
+    }
 
     public AuthSessionState State { get; private set; } = AuthSessionState.Unauthenticated;
     public string? ServerUrl { get; private set; }
@@ -22,12 +27,17 @@ public sealed class AuthSession : IAuthSession
 
     public event EventHandler<AuthSessionStateChangedEventArgs>? StateChanged;
 
-    public async Task<LoginResponse> LoginAsync(string serverUrl, LoginRequest request, CancellationToken ct = default)
+    public async Task<LoginResponse> LoginAsync(
+        string serverUrl,
+        LoginRequest request,
+        bool rememberServer,
+        bool rememberPassword,
+        CancellationToken ct = default)
     {
         lock (_gate)
         {
             if (State == AuthSessionState.Connecting)
-                throw new InvalidOperationException("已有登录请求进行中");
+                throw new InvalidOperationException("A login request is already in progress.");
             State = AuthSessionState.Connecting;
         }
         RaiseStateChanged();
@@ -35,13 +45,16 @@ public sealed class AuthSession : IAuthSession
         try
         {
             var response = await _client.LoginAsync(serverUrl, request, ct);
-            ServerUrl = serverUrl;
-            Tokens = response.Tokens;
-            CurrentUser = response.User;
-            CurrentWorkspace = response.Workspace;
-            CurrentSession = response.Session;
-            CurrentDevice = response.Device;
-            AssignedRole = response.AssignedRole;
+            Apply(response, serverUrl);
+
+            if (rememberServer)
+            {
+                var saved = await _rememberedSessionStore.UpsertAsync(
+                    new SavedLoginProfile(serverUrl, request.Username, rememberPassword ? request.Password : null, DateTimeOffset.UtcNow), ct);
+                // A failed secure-store write must not turn a successful remote login into an error.
+                _ = saved;
+            }
+
             State = AuthSessionState.Authenticated;
             RaiseStateChanged();
             return response;
@@ -54,6 +67,9 @@ public sealed class AuthSession : IAuthSession
         }
     }
 
+    public async Task<IReadOnlyList<SavedLoginProfile>> GetSavedProfilesAsync(CancellationToken ct = default)
+        => await _rememberedSessionStore.LoadAsync(ct);
+
     public async Task LogoutAsync(CancellationToken ct = default)
     {
         var url = ServerUrl;
@@ -63,6 +79,7 @@ public sealed class AuthSession : IAuthSession
             Reset();
             return;
         }
+
         try { await _client.LogoutAsync(url, tokens.AccessToken, tokens.RefreshToken, ct); }
         finally { Reset(); }
     }
@@ -72,8 +89,7 @@ public sealed class AuthSession : IAuthSession
         if (ServerUrl is null || Tokens is null) return false;
         try
         {
-            var resp = await _client.RefreshAsync(ServerUrl, Tokens.RefreshToken, ct);
-            Tokens = resp.Tokens;
+            Tokens = (await _client.RefreshAsync(ServerUrl, Tokens.RefreshToken, ct)).Tokens;
             return true;
         }
         catch
@@ -81,6 +97,17 @@ public sealed class AuthSession : IAuthSession
             Reset();
             return false;
         }
+    }
+
+    private void Apply(LoginResponse response, string serverUrl)
+    {
+        ServerUrl = serverUrl;
+        Tokens = response.Tokens;
+        CurrentUser = response.User;
+        CurrentWorkspace = response.Workspace;
+        CurrentSession = response.Session;
+        CurrentDevice = response.Device;
+        AssignedRole = response.AssignedRole;
     }
 
     private void Reset()

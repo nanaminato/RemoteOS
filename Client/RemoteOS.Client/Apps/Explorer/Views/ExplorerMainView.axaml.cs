@@ -1,13 +1,25 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Client.Apps.Explorer.Models;
 using Client.Apps.Explorer.ViewModels;
+using RemoteOS.Protocol.Files;
 
 namespace Client.Apps.Explorer.Views;
 
 public partial class ExplorerMainView : UserControl
 {
+    private static readonly DataFormat<FileSystemEntryDto> ExplorerEntryFormat =
+        DataFormat.CreateInProcessFormat<FileSystemEntryDto>("remoteos/explorer-entry");
+    private const double MinimumDragDistance = 5;
+
+    private PointerPressedEventArgs? _dragTrigger;
+    private FileSystemEntryDto? _dragEntry;
+    private Point _dragStart;
+
     public ExplorerMainView()
     {
         InitializeComponent();
@@ -30,28 +42,145 @@ public partial class ExplorerMainView : UserControl
         => _ = ViewModel?.AddressbarGoAsync(AddressBox.Text);
 
     /// <summary>列表双击：进入目录或下载文件。</summary>
-    private void EntriesList_DoubleTapped(object? sender, RoutedEventArgs e)
+    private void EntriesGrid_DoubleTapped(object? sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedEntry is { } entry)
             _ = ViewModel.InvokeEntryAsync(entry);
     }
 
-    private void EntriesList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void EntriesGrid_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is ListBox list)
-            ViewModel?.UpdatePickerSelection(list.SelectedItems?.Cast<object>() ?? []);
+        if (sender is DataGrid grid)
+            ViewModel?.UpdatePickerSelection(grid.SelectedItems?.Cast<object>() ?? []);
     }
 
-    private void EntriesList_PointerPressed(object? sender, PointerPressedEventArgs e)
+    /// <summary>
+    /// Keep the navigation tree horizontally aligned to its left edge after TreeView
+    /// scrolls a newly selected item into view. Vertical auto-scroll is preserved.
+    /// </summary>
+    private void NavigationTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
-        for (var control = e.Source as Control; control is not null; control = control.GetVisualParent() as Control)
+        Dispatcher.UIThread.Post(() =>
         {
-            if (control.DataContext is RemoteOS.Protocol.Files.FileSystemEntryDto entry)
-            {
-                if (ViewModel is not null) ViewModel.SelectedEntry = entry;
-                return;
-            }
-        }
+            var scrollViewer = NavigationTree.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            if (scrollViewer is not null && scrollViewer.Offset.X != 0)
+                scrollViewer.Offset = new Vector(0, scrollViewer.Offset.Y);
+        }, DispatcherPriority.Background);
     }
+
+    private void EntriesGrid_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var entry = FindDataContext<FileSystemEntryDto>(e.Source);
+        var point = e.GetCurrentPoint(this);
+        if (point.Properties.IsRightButtonPressed)
+        {
+            if (entry is not null && ViewModel is not null) ViewModel.SelectedEntry = entry;
+            return;
+        }
+
+        if (!point.Properties.IsLeftButtonPressed || entry is null || ViewModel?.CanDragEntry(entry) != true)
+            return;
+
+        _dragTrigger = e;
+        _dragEntry = entry;
+        _dragStart = e.GetPosition(this);
+    }
+
+    private async void EntriesGrid_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragTrigger is null || _dragEntry is null) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            ClearPendingDrag();
+            return;
+        }
+
+        var position = e.GetPosition(this);
+        if (Math.Abs(position.X - _dragStart.X) < MinimumDragDistance &&
+            Math.Abs(position.Y - _dragStart.Y) < MinimumDragDistance)
+            return;
+
+        var trigger = _dragTrigger;
+        var entry = _dragEntry;
+        ClearPendingDrag();
+
+        var data = new DataTransfer();
+        data.Add(DataTransferItem.Create(ExplorerEntryFormat, entry));
+        await DragDrop.DoDragDropAsync(trigger, data, DragDropEffects.Move);
+    }
+
+    private void EntriesGrid_PointerReleased(object? sender, PointerReleasedEventArgs e)
+        => ClearPendingDrag();
+
+    private void Explorer_DragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = TryGetDrop(e, out _, out _) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private async void Explorer_Drop(object? sender, DragEventArgs e)
+    {
+        if (!TryGetDrop(e, out var entry, out var targetDirectory))
+        {
+            e.DragEffects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+        if (ViewModel is not null)
+            await ViewModel.MoveEntryToDirectoryAsync(entry, targetDirectory);
+    }
+
+    private bool TryGetDrop(DragEventArgs e, out FileSystemEntryDto entry, out string targetDirectory)
+    {
+        entry = e.DataTransfer.TryGetValue(ExplorerEntryFormat)!;
+        targetDirectory = FindDropTargetPath(e.Source) ?? string.Empty;
+        return entry is not null &&
+               !string.IsNullOrWhiteSpace(targetDirectory) &&
+               ViewModel?.CanMoveEntryToDirectory(entry, targetDirectory) == true;
+    }
+
+    private string? FindDropTargetPath(object? source)
+    {
+        for (var control = source as Control; control is not null; control = control.GetVisualParent() as Control)
+        {
+            if (control.DataContext is FileSystemEntryDto
+                {
+                    Type: FileSystemEntryType.Directory or FileSystemEntryType.Drive
+                } entry)
+                return entry.Path;
+
+            if (control.DataContext is TreeNodeModel
+                {
+                    IsPlaceholder: false,
+                    IsComputer: false,
+                    IsNetwork: false,
+                    Path: { Length: > 0 } path
+                })
+                return path;
+
+            // Empty space in the file list represents the directory currently being viewed.
+            if (ReferenceEquals(control, EntriesGrid))
+                return ViewModel?.AddressbarPath;
+        }
+
+        return null;
+    }
+
+    private static T? FindDataContext<T>(object? source) where T : class
+    {
+        for (var control = source as Control; control is not null; control = control.GetVisualParent() as Control)
+            if (control.DataContext is T value)
+                return value;
+        return null;
+    }
+
+    private void ClearPendingDrag()
+    {
+        _dragTrigger = null;
+        _dragEntry = null;
+    }
+
 }

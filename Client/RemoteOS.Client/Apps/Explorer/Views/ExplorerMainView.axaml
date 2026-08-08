@@ -6,6 +6,7 @@
              xmlns:vm="clr-namespace:Client.Apps.Explorer.ViewModels"
              xmlns:d="clr-namespace:RemoteOS.Protocol.Files;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Explorer.Views.ExplorerMainView"
+             x:Name="Root"
              x:DataType="vm:ExplorerViewModel"
              Background="#FFFFFF">
 
@@ -110,8 +111,13 @@
         <Grid ColumnDefinitions="240,Auto,*">
             <!-- 导航树 -->
             <TreeView Grid.Column="0"
+                      x:Name="NavigationTree"
                       ItemsSource="{Binding Nodes}"
-                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}">
+                      SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                      SelectionChanged="NavigationTree_SelectionChanged"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="Explorer_DragOver"
+                      DragDrop.Drop="Explorer_Drop">
                 <!-- TreeViewItem 的 IsExpanded 不会自动与数据项同步。没有这条绑定时，
                      仅会展开不可见的 dummy child，TreeNodeModel 无法发起目录懒加载。 -->
                 <TreeView.Styles>
@@ -136,58 +142,88 @@
 
             <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns" />
 
-            <!-- 条目列表 -->
-            <Grid Grid.Column="2" RowDefinitions="Auto,*">
-                <!-- 列标题 -->
-                <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="*,120,100,150">
-                        <TextBlock Grid.Column="0" Text="名称" FontWeight="SemiBold" Padding="12,6" FontSize="12" />
-                        <TextBlock Grid.Column="1" Text="修改日期" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
-                        <TextBlock Grid.Column="2" Text="类型" FontWeight="SemiBold" Padding="8,6" FontSize="12" />
-                        <TextBlock Grid.Column="3" Text="大小" FontWeight="SemiBold" Padding="8,6" FontSize="12"
-                                   HorizontalAlignment="Right" />
-                    </Grid>
-                </Border>
-
-                <ListBox Grid.Row="1"
-                         x:Name="EntriesList"
-                         ItemsSource="{Binding Entries}"
-                         SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                         SelectionMode="{Binding EntrySelectionMode}"
-                         SelectionChanged="EntriesList_SelectionChanged"
-                         Background="#FFFFFF"
-                         BorderThickness="0"
-                         DoubleTapped="EntriesList_DoubleTapped"
-                         PointerPressed="EntriesList_PointerPressed">
-                    <ListBox.ContextMenu>
-                        <ContextMenu DataContext="{Binding #EntriesList.DataContext}">
-                            <MenuItem Header="Open" Command="{Binding OpenCommand}" />
-                            <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
-                            <Separator />
-                            <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
-                        </ContextMenu>
-                    </ListBox.ContextMenu>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="d:FileSystemEntryDto">
-                            <Grid ColumnDefinitions="*,120,100,150">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,2">
+            <!-- File Explorer-style details view. The DataGrid owns its headers, cells,
+                 sorting indicators, and column resize handles, so every row always uses
+                 the exact same column geometry. -->
+            <DataGrid Grid.Column="2"
+                      x:Name="EntriesGrid"
+                      ItemsSource="{Binding Entries}"
+                      SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                      SelectionMode="{Binding EntrySelectionMode}"
+                      SelectionChanged="EntriesGrid_SelectionChanged"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="None"
+                      RowHeight="32"
+                      ColumnHeaderHeight="30"
+                      Background="#FFFFFF"
+                      BorderThickness="0"
+                      DoubleTapped="EntriesGrid_DoubleTapped"
+                      PointerPressed="EntriesGrid_PointerPressed"
+                      PointerMoved="EntriesGrid_PointerMoved"
+                      PointerReleased="EntriesGrid_PointerReleased"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="Explorer_DragOver"
+                      DragDrop.Drop="Explorer_Drop">
+                <DataGrid.ContextMenu>
+                    <ContextMenu DataContext="{Binding #EntriesGrid.DataContext}">
+                        <MenuItem Header="Open" Command="{Binding OpenCommand}" />
+                        <MenuItem Header="Open with..." Command="{Binding OpenWithSelectedCommand}" />
+                        <Separator />
+                        <MenuItem Header="Properties" Command="{Binding PropertiesCommand}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Styles>
+                    <Style Selector="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#FAFAFA" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="FontSize" Value="12" />
+                    </Style>
+                    <Style Selector="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0" />
+                    </Style>
+                </DataGrid.Styles>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="名称" Width="*" MinWidth="180" SortMemberPath="Name">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
                                     <TextBlock Text="💾" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=drive}" />
                                     <TextBlock Text="📁" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=dir}" />
                                     <TextBlock Text="📄" FontSize="14" IsVisible="{Binding Type, Converter={StaticResource TypeGlyphConverter}, ConverterParameter=file}" />
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="1" Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Text="{Binding Type, Converter={StaticResource TypeTextConverter}}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="3" Text="{Binding Size, Converter={StaticResource SizeConverter}}"
-                                           Padding="8,6" FontSize="12" Opacity="0.8"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="大小" Width="110" MinWidth="96" SortMemberPath="Size">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Size, Converter={StaticResource SizeConverter}}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="修改日期" Width="160" MinWidth="150" SortMemberPath="Modified">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="类型" Width="110" MinWidth="96" SortMemberPath="Type">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="d:FileSystemEntryDto">
+                                <TextBlock Text="{Binding Type, Converter={StaticResource TypeTextConverter}}" Padding="8,0"
+                                           FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
         </Grid>
     </DockPanel>
 </UserControl>

@@ -215,7 +215,7 @@ public sealed class LocalFileService : IFileService
             var directory = new DirectoryInfo(path);
             return new FilePropertiesDto(directory.FullName, directory.Name, FileSystemEntryType.Directory,
                 null, directory.CreationTimeUtc, directory.LastWriteTimeUtc, directory.LastAccessTimeUtc,
-                GetPermissions(path, directory.Attributes), directory.Attributes.ToString());
+                GetPermissions(path, directory.Attributes), directory.Attributes.ToString(), GetUnixMode(path));
         }
 
         if (File.Exists(path))
@@ -223,10 +223,23 @@ public sealed class LocalFileService : IFileService
             var file = new FileInfo(path);
             return new FilePropertiesDto(file.FullName, file.Name, FileSystemEntryType.File,
                 file.Length, file.CreationTimeUtc, file.LastWriteTimeUtc, file.LastAccessTimeUtc,
-                GetPermissions(path, file.Attributes), file.Attributes.ToString());
+                GetPermissions(path, file.Attributes), file.Attributes.ToString(), GetUnixMode(path));
         }
 
         return null;
+    }
+
+    public FilePropertiesDto SetUnixPermissions(string path, int unixMode)
+    {
+        if (!OperatingSystem.IsLinux())
+            throw new PlatformNotSupportedException("Changing POSIX permissions is supported only on Linux hosts.");
+        if (unixMode is < 0 or > 0xFFF)
+            throw new ArgumentOutOfRangeException(nameof(unixMode), "Unix mode must be between 0000 and 7777.");
+        if (!Exists(path))
+            throw new FileNotFoundException("Path does not exist.", path);
+
+        File.SetUnixFileMode(path, (UnixFileMode)unixMode);
+        return GetProperties(path)!;
     }
 
     public void CreateDirectory(string path)
@@ -378,6 +391,9 @@ public sealed class LocalFileService : IFileService
 
         return File.GetUnixFileMode(path).ToString();
     }
+
+    private static int? GetUnixMode(string path)
+        => OperatingSystem.IsLinux() ? (int)File.GetUnixFileMode(path) : null;
 
     private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 

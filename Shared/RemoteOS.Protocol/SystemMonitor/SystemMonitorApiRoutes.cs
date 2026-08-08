@@ -11,6 +11,9 @@ public static class SystemMonitorApiRoutes
     /// <summary>获取整机资源占用快照（GET，需 JWT）。返回 SystemMetricsDto。</summary>
     public const string Metrics = $"/{V1}/system/metrics";
 
+    /// <summary>获取服务端所有可用的非回环 IPv4/IPv6 地址（GET，需 JWT）。</summary>
+    public const string NetworkAddresses = $"/{V1}/system/network-addresses";
+
     /// <summary>列举进程（GET，需 JWT）。返回 ProcessInfoDto[]。query: includeAll（可选，默认仅当前可见）。</summary>
     public const string Processes = $"/{V1}/system/processes";
 

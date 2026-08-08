@@ -10,6 +10,9 @@ public interface ITaskManagerClient
     /// <summary>获取整机资源占用快照（CPU/内存/磁盘/网络/GPU/运行时间）。</summary>
     Task<SystemMetricsDto> GetMetricsAsync(CancellationToken ct = default);
 
+    /// <summary>获取服务器所有可用的非回环 IPv4/IPv6 地址。</summary>
+    Task<IReadOnlyList<NetworkAddressDto>> GetNetworkAddressesAsync(CancellationToken ct = default);
+
     /// <summary>列举当前可见进程（含每进程 CPU% 与内存）。</summary>
     Task<IReadOnlyList<ProcessInfoDto>> ListProcessesAsync(CancellationToken ct = default);
 

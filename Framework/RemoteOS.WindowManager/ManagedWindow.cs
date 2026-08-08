@@ -31,6 +31,7 @@ public partial class ManagedWindow : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MaximizeGlyph))]
     [NotifyPropertyChangedFor(nameof(IsOnScreen))]
+    [NotifyPropertyChangedFor(nameof(IsFullScreen))]
     private WindowState _state;
     [ObservableProperty] private bool _isActive;
     [ObservableProperty] private bool _canMinimize = true;
@@ -39,6 +40,9 @@ public partial class ManagedWindow : ObservableObject
 
     /// <summary>True when the window is visible on the desktop (i.e. not minimized).</summary>
     public bool IsOnScreen => State != WindowState.Minimized;
+
+    /// <summary>True when this window currently occupies the shell-wide full-screen overlay.</summary>
+    public bool IsFullScreen => State == WindowState.FullScreen;
 
     public string MaximizeGlyph => State == WindowState.Maximized ? RestoreGlyphChar : MaximizeGlyphChar;
 

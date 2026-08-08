@@ -1,30 +1,58 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Client.Apps.Settings.ViewModels"
+             xmlns:dto="clr-namespace:RemoteOS.Protocol.SystemMonitor;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Settings.Views.Pages.NetworkPageView"
              x:DataType="vm:NetworkPageViewModel">
     <StackPanel Spacing="16" MaxWidth="640">
         <TextBlock Text="{Binding DisplayName}" FontSize="24" FontWeight="SemiBold" />
 
         <Border Classes="card">
-            <StackPanel Spacing="10">
+            <StackPanel Spacing="12">
                 <TextBlock Text="连接状态" Classes="title" />
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Grid.Column="0" Text="状态" Opacity="0.7" />
+                    <TextBlock Text="状态" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding ConnectionState}" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Grid.Column="0" Text="服务器" Opacity="0.7" />
-                    <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" />
+                    <TextBlock Text="连接地址" Opacity="0.7" />
+                    <TextBlock Grid.Column="1" Text="{Binding ServerUrl}" TextWrapping="Wrap" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Grid.Column="0" Text="用户" Opacity="0.7" />
+                    <TextBlock Text="用户" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding UserName}" />
                 </Grid>
                 <Grid ColumnDefinitions="140,*">
-                    <TextBlock Grid.Column="0" Text="工作区" Opacity="0.7" />
+                    <TextBlock Text="工作区" Opacity="0.7" />
                     <TextBlock Grid.Column="1" Text="{Binding WorkspaceName}" />
                 </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="服务器 IP 地址" Classes="title" />
+                        <TextBlock Text="服务器网卡上的全部可用 IPv4 和 IPv6 地址。" FontSize="12" Opacity="0.6" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="刷新" Command="{Binding RefreshServerAddressesCommand}" Padding="14,6" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding ServerAddresses}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="dto:NetworkAddressDto">
+                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
+                                <Border Background="#E0E7FF" CornerRadius="10" Padding="8,3" Margin="0,0,10,0">
+                                    <TextBlock Text="{Binding Family}" FontSize="11" FontWeight="SemiBold" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Address}" FontFamily="Consolas" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding InterfaceName}" FontSize="12" Opacity="0.58" Margin="12,0,0,0" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding ServerAddressesStatus}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
@@ -37,7 +65,7 @@
                     <TextBlock Text="{Binding LatencyText}" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Opacity="0.55" FontSize="12" TextWrapping="Wrap"
-                           Text="测量到 RemoteOS Server 的往返延迟（GET /api/v1/auth/me）。宿主 OS 网络配置变更需提权，RemoteOS 不代为修改。" />
+                           Text="测量到 RemoteOS Server 的往返延迟（GET /api/v1/auth/me）。宿主 OS 的网卡、DNS 与路由修改仍需要服务器端提权。" />
             </StackPanel>
         </Border>
     </StackPanel>

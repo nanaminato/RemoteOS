@@ -9,7 +9,9 @@
         <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
         <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
         <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
+        <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.0" />
         <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
+        <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
 
         <!-- MVVM / DI -->
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
@@ -27,6 +29,7 @@
         <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
         <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
         <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
+        <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
 
@@ -41,5 +44,9 @@
 
         <!-- Browser: 官方 Avalonia WebView 组件（NativeWebView），平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK） -->
         <PackageVersion Include="Avalonia.Controls.WebView" Version="12.0.1" />
+
+        <!-- Video Player example: managed Avalonia control + Windows native VLC runtime. -->
+        <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.0" />
+        <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
     </ItemGroup>
 </Project>

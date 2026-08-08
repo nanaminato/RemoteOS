@@ -1,4 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Security.Claims;
 using RemoteOS.Protocol.SystemMonitor;
 
@@ -20,6 +23,10 @@ public static class SystemMonitorEndpoints
            .RequireAuthorization()
            .WithTags("System");
 
+        app.MapGet(SystemMonitorApiRoutes.NetworkAddresses, () => Results.Ok(GetNetworkAddresses()))
+           .RequireAuthorization()
+           .WithTags("System");
+
         // GET system/processes — 当前可见进程列表（每进程 CPU% / 内存 / 属主）
         app.MapGet(SystemMonitorApiRoutes.Processes,
             (Server.SystemMonitor.ISystemMetricsProvider provider, CancellationToken ct)
@@ -35,5 +42,31 @@ public static class SystemMonitorEndpoints
            .WithTags("System");
 
         return app;
+    }
+
+    private static IReadOnlyList<NetworkAddressDto> GetNetworkAddresses()
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .Where(network => network.OperationalStatus == OperationalStatus.Up &&
+                                  network.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .SelectMany(network => network.GetIPProperties().UnicastAddresses
+                    .Select(unicast => (network.Name, Address: unicast.Address)))
+                .Where(item => item.Address.AddressFamily is AddressFamily.InterNetwork or AddressFamily.InterNetworkV6)
+                .Where(item => !IPAddress.IsLoopback(item.Address) && !item.Address.IsIPv6LinkLocal)
+                .Select(item => new NetworkAddressDto(
+                    item.Name,
+                    item.Address.ToString(),
+                    item.Address.AddressFamily == AddressFamily.InterNetwork ? "IPv4" : "IPv6"))
+                .DistinctBy(item => (item.Family, item.Address))
+                .OrderBy(item => item.Family)
+                .ThenBy(item => item.Address, StringComparer.Ordinal)
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<NetworkAddressDto>();
+        }
     }
 }

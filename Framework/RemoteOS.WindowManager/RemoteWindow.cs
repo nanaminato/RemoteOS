@@ -115,8 +115,8 @@ public class RemoteWindow : TemplatedControl
 
         FocusRequested?.Invoke(this, EventArgs.Empty);
 
-        // No drag while maximized (restore via caption / double-click).
-        if (ViewModel?.State == WindowState.Maximized)
+        // No drag while maximized or full-screen (restore via the application command).
+        if (ViewModel?.State is WindowState.Maximized or WindowState.FullScreen)
             return;
 
         _dragging = true;
@@ -154,7 +154,7 @@ public class RemoteWindow : TemplatedControl
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
             return;
         var vm = ViewModel;
-        if (vm is not { CanResize: true } || vm.State == WindowState.Maximized)
+        if (vm is not { CanResize: true } || vm.State is WindowState.Maximized or WindowState.FullScreen)
             return;
 
         FocusRequested?.Invoke(this, EventArgs.Empty);
@@ -212,6 +212,7 @@ public class RemoteWindow : TemplatedControl
     internal void ApplyState(WindowState state)
     {
         IsVisible = state != WindowState.Minimized;
+        PseudoClasses.Set(":fullscreen", state == WindowState.FullScreen);
         UpdateResizeLayer();
     }
 
@@ -224,7 +225,7 @@ public class RemoteWindow : TemplatedControl
 
         var vm = ViewModel;
         var canResize = vm?.CanResize ?? true;
-        var normal = vm?.State != WindowState.Maximized;
+        var normal = vm?.State == WindowState.Normal;
         _resizeLayer.IsVisible = canResize && normal;
     }
 
