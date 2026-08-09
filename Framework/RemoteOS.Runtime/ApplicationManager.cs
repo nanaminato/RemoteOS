@@ -70,6 +70,8 @@ public sealed class ApplicationManager
             return false;
 
         var context = new AppContext(id, _windowManager, _services);
+        if (!EnsureCompatible(app.Manifest))
+            return false;
         app.Activate(context);
         return true;
     }
@@ -81,7 +83,24 @@ public sealed class ApplicationManager
             || !app.Manifest.FileExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             return false;
 
+        if (!EnsureCompatible(app.Manifest))
+            return false;
         fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
         return true;
+    }
+
+    private bool EnsureCompatible(ApplicationManifest manifest)
+    {
+        var evaluator = _services.GetService(typeof(IApplicationCompatibilityEvaluator)) as IApplicationCompatibilityEvaluator;
+        if (evaluator is null)
+            return true;
+
+        var result = evaluator.Evaluate(manifest);
+        if (result.IsCompatible)
+            return true;
+
+        (_services.GetService(typeof(IApplicationCompatibilityNotifier)) as IApplicationCompatibilityNotifier)
+            ?.Notify(manifest, result);
+        return false;
     }
 }

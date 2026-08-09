@@ -1,4 +1,5 @@
 using RemoteOS.Protocol.Identity;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
@@ -20,6 +21,7 @@ public sealed class AuthSession : IAuthSession
     public string? ServerUrl { get; private set; }
     public AuthTokens? Tokens { get; private set; }
     public UserDto? CurrentUser { get; private set; }
+    public ServerDescriptorDto? CurrentServer { get; private set; }
     public WorkspaceDto? CurrentWorkspace { get; private set; }
     public SessionDto? CurrentSession { get; private set; }
     public DeviceDto? CurrentDevice { get; private set; }
@@ -104,6 +106,7 @@ public sealed class AuthSession : IAuthSession
         ServerUrl = serverUrl;
         Tokens = response.Tokens;
         CurrentUser = response.User;
+        CurrentServer = response.Server;
         CurrentWorkspace = response.Workspace;
         CurrentSession = response.Session;
         CurrentDevice = response.Device;
@@ -115,6 +118,7 @@ public sealed class AuthSession : IAuthSession
         ServerUrl = null;
         Tokens = null;
         CurrentUser = null;
+        CurrentServer = null;
         CurrentWorkspace = null;
         CurrentSession = null;
         CurrentDevice = null;

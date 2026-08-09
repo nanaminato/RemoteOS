@@ -16,6 +16,7 @@ using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 
@@ -45,6 +46,9 @@ public static class Bootstrapper
         services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
         services.AddSingleton<IAuthSession, AuthSession>();
+        services.AddSingleton<ApplicationCompatibilityService>();
+        services.AddSingleton<IApplicationCompatibilityEvaluator>(sp => sp.GetRequiredService<ApplicationCompatibilityService>());
+        services.AddSingleton<IApplicationCompatibilityNotifier>(sp => sp.GetRequiredService<ApplicationCompatibilityService>());
         services.AddSingleton<LoginViewModel>();
 
         // Explorer（文件管理器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。

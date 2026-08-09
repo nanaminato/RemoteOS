@@ -1,5 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Runtime.InteropServices;
 using System.Security.Claims;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Identity;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
@@ -100,7 +102,7 @@ public static class AuthEndpoints
                 var tokens = jwt.Issue(user, ws, device, role);
 
                 return Results.Ok(new LoginResponse(
-                    user.ToDto(), ws.ToDto(), session.ToDto(), device.ToDto(), tokens, role));
+                    user.ToDto(), ws.ToDto(), session.ToDto(), device.ToDto(), tokens, role, CreateServerDescriptor()));
             })
             .WithTags("Auth");
 
@@ -159,6 +161,22 @@ public static class AuthEndpoints
             .WithTags("Auth");
 
         return app;
+    }
+
+    private static ServerDescriptorDto CreateServerDescriptor()
+    {
+        var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var capabilities = new List<string>
+        {
+            ServerCapabilities.Files,
+            ServerCapabilities.Metrics,
+            ServerCapabilities.Processes,
+            ServerCapabilities.Terminal,
+        };
+        if (!isWindows)
+            capabilities.Add(ServerCapabilities.PosixPermissions);
+
+        return new ServerDescriptorDto(isWindows ? PlatformKind.Windows : PlatformKind.Linux, capabilities);
     }
 
     /// <summary>CredentialError → ProblemDetails 映射。type URI 作为错误码，客户端按 type 匹配 UI 文案。</summary>

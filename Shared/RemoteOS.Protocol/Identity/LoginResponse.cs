@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 
 namespace RemoteOS.Protocol.Identity;
@@ -10,4 +11,5 @@ public sealed record LoginResponse(
     [property: JsonPropertyName("session")] SessionDto Session,
     [property: JsonPropertyName("device")] DeviceDto Device,
     [property: JsonPropertyName("tokens")] AuthTokens Tokens,
-    [property: JsonPropertyName("assignedRole")] DeviceRole AssignedRole);
+    [property: JsonPropertyName("assignedRole")] DeviceRole AssignedRole,
+    [property: JsonPropertyName("server")] ServerDescriptorDto Server);

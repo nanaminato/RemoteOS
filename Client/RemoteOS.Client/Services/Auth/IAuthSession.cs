@@ -1,4 +1,5 @@
 using RemoteOS.Protocol.Identity;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services.Auth;
@@ -11,6 +12,7 @@ public interface IAuthSession
     string? ServerUrl { get; }
     AuthTokens? Tokens { get; }
     UserDto? CurrentUser { get; }
+    ServerDescriptorDto? CurrentServer { get; }
     WorkspaceDto? CurrentWorkspace { get; }
     SessionDto? CurrentSession { get; }
     DeviceDto? CurrentDevice { get; }

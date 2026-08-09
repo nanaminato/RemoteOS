@@ -70,7 +70,9 @@ public sealed class DeveloperPackageManager
         CleanupDeferredUninstalls();
         foreach (var record in _catalog.Values.ToArray())
         {
-            try { ReplaceLoaded(CreateLoaded(record), launch: false); }
+            // Register manifest metadata only. In particular, do not load a package's native
+            // dependencies before the compatibility gate has approved its first launch.
+            try { Register(record); }
             catch { /* A developer can replace the broken package through the Dev Bridge. */ }
         }
     }
@@ -95,12 +97,14 @@ public sealed class DeveloperPackageManager
 
             var record = new DeveloperAppRecord(appId, manifest.DisplayName.Trim(), version, destination, manifest.EntryAssembly.Trim(), manifest.EntryType.Trim(),
                 manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
-                manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata);
-            var loaded = CreateLoaded(record);
-            await Dispatcher.UIThread.InvokeAsync(() => ReplaceLoaded(loaded, launch));
+                manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata,
+                manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements);
+            await Dispatcher.UIThread.InvokeAsync(() => Register(record));
 
             _catalog[appId] = record;
             SaveCatalog(_catalogPath, _catalog);
+            if (launch)
+                await Dispatcher.UIThread.InvokeAsync(() => _applications.Launch(new AppId(appId)));
             return new DeveloperAppInfo(record.Id, record.DisplayName, record.Version, record.Path);
         }
         finally
@@ -115,7 +119,7 @@ public sealed class DeveloperPackageManager
         if (!_catalog.Remove(appId))
             return false;
 
-        await Dispatcher.UIThread.InvokeAsync(() => Unload(appId));
+        await Dispatcher.UIThread.InvokeAsync(() => UnregisterAndUnload(appId));
         SaveCatalog(_catalogPath, _catalog);
         // A collectible context has been unloaded, but Windows can retain a DLL lock briefly.
         // The application is already unregistered and absent from the catalog; defer deleting
@@ -141,9 +145,7 @@ public sealed class DeveloperPackageManager
             if (Activator.CreateInstance(type) is not IExternalRemoteApplication application)
                 throw new InvalidOperationException("The package entry type must implement IExternalRemoteApplication.");
 
-            var manifest = new ApplicationManifest(new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
-                record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata);
-            return new LoadedDeveloperApp(context, application, manifest);
+            return new LoadedDeveloperApp(context, application);
         }
         catch
         {
@@ -152,24 +154,26 @@ public sealed class DeveloperPackageManager
         }
     }
 
-    private void ReplaceLoaded(LoadedDeveloperApp replacement, bool launch)
+    private void Register(DeveloperAppRecord record)
     {
-        Unload(replacement.Manifest.Id.Value);
-        _loaded[replacement.Manifest.Id.Value] = replacement;
-        _applications.Register(replacement.Application is IExternalFileOpenApplication && replacement.Manifest.FileExtensions.Count > 0
-            ? new ExternalFileApplicationAdapter(replacement, _contextFactory)
-            : new ExternalApplicationAdapter(replacement, _contextFactory));
-        if (launch)
-            _applications.Launch(replacement.Manifest.Id);
+        UnregisterAndUnload(record.Id);
+        _applications.Register(record.SupportedFileExtensions.Count > 0
+            ? new ExternalFileApplicationAdapter(record, this, _contextFactory)
+            : new ExternalApplicationAdapter(record, this, _contextFactory));
     }
 
-    private void Unload(string appId)
+    private void UnregisterAndUnload(string appId)
     {
         var id = new AppId(appId);
         foreach (var window in _windowManager.Windows.Where(window => window.Info.OwnerAppId == id).ToArray())
             _windowManager.Close(window);
 
         _applications.Unregister(id);
+        UnloadLoaded(appId);
+    }
+
+    private void UnloadLoaded(string appId)
+    {
         if (_loaded.Remove(appId, out var loaded))
         {
             loaded.LoadContext.Unload();
@@ -178,6 +182,21 @@ public sealed class DeveloperPackageManager
             GC.Collect();
         }
     }
+
+    private LoadedDeveloperApp GetOrLoad(DeveloperAppRecord record)
+    {
+        if (_loaded.TryGetValue(record.Id, out var existing))
+            return existing;
+
+        var loaded = CreateLoaded(record);
+        _loaded[record.Id] = loaded;
+        return loaded;
+    }
+
+    private static ApplicationManifest ToApplicationManifest(DeveloperAppRecord record) => new(
+        new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
+        record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata,
+        record.ClientPlatforms, record.ServerRequirements);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
@@ -308,21 +327,22 @@ public sealed class DeveloperPackageManager
 
     private sealed record LoadedDeveloperApp(
         DeveloperAssemblyLoadContext LoadContext,
-        IExternalRemoteApplication Application,
-        ApplicationManifest Manifest);
+        IExternalRemoteApplication Application);
 
     private class ExternalApplicationAdapter : RemoteApplicationBase
     {
-        protected readonly LoadedDeveloperApp Loaded;
+        protected readonly DeveloperAppRecord Record;
+        protected readonly DeveloperPackageManager Owner;
         protected readonly ExternalAppContextFactory ContextFactory;
 
-        public ExternalApplicationAdapter(LoadedDeveloperApp loaded, ExternalAppContextFactory contextFactory)
+        public ExternalApplicationAdapter(DeveloperAppRecord record, DeveloperPackageManager owner, ExternalAppContextFactory contextFactory)
         {
-            Loaded = loaded;
+            Record = record;
+            Owner = owner;
             ContextFactory = contextFactory;
         }
 
-        public override ApplicationManifest Manifest => Loaded.Manifest;
+        public override ApplicationManifest Manifest => ToApplicationManifest(Record);
 
         public override void Activate(AppContext context) => _ = ActivateAsync(context);
 
@@ -330,7 +350,7 @@ public sealed class DeveloperPackageManager
         {
             try
             {
-                await Loaded.Application.ActivateAsync(ContextFactory.Create(Manifest.Id));
+                await Owner.GetOrLoad(Record).Application.ActivateAsync(ContextFactory.Create(Manifest.Id));
             }
             catch (Exception exception)
             {
@@ -344,8 +364,8 @@ public sealed class DeveloperPackageManager
                 iconGlyph: Manifest.IconGlyph, canResize: true);
     }
 
-    private sealed class ExternalFileApplicationAdapter(LoadedDeveloperApp loaded, ExternalAppContextFactory contextFactory)
-        : ExternalApplicationAdapter(loaded, contextFactory), IFileOpenApplication
+    private sealed class ExternalFileApplicationAdapter(DeveloperAppRecord record, DeveloperPackageManager owner, ExternalAppContextFactory contextFactory)
+        : ExternalApplicationAdapter(record, owner, contextFactory), IFileOpenApplication
     {
         public void OpenFile(AppContext context, string path) => _ = OpenFileAsync(context, path);
 
@@ -353,7 +373,7 @@ public sealed class DeveloperPackageManager
         {
             try
             {
-                await ((IExternalFileOpenApplication)Loaded.Application)
+                await ((IExternalFileOpenApplication)Owner.GetOrLoad(Record).Application)
                     .OpenFileAsync(ContextFactory.Create(Manifest.Id), path);
             }
             catch (Exception exception)
@@ -375,7 +395,9 @@ public sealed record DeveloperPackageManifest(
     string? Description = null,
     IReadOnlyList<string>? RequestedPermissions = null,
     IReadOnlyList<string>? SupportedFileExtensions = null,
-    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null);
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
+    IReadOnlyList<string>? ClientPlatforms = null,
+    ApplicationServerRequirements? ServerRequirements = null);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -388,6 +410,8 @@ internal sealed record DeveloperAppRecord(
     string? Description,
     IReadOnlyList<string> RequestedPermissions,
     IReadOnlyList<string> SupportedFileExtensions,
-    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null);
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
+    IReadOnlyList<string>? ClientPlatforms = null,
+    ApplicationServerRequirements? ServerRequirements = null);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);

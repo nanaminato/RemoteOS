@@ -25,6 +25,12 @@
         "app_installer.select_local_package": "选择 RemoteOS 应用程序包",
         "app_installer.select_server_package": "选择服务器应用程序包",
         "app_installer.package_file_type": "RemoteOS 应用程序包",
-        "app_installer.package_file_filter": "RemoteOS 应用程序包 (*.roapp)"
+        "app_installer.package_file_filter": "RemoteOS 应用程序包 (*.roapp)",
+        "app_compatibility.title": "应用程序不可用",
+        "app_compatibility.client_platform": "{0} 仅支持以下客户端平台：{1}；当前客户端为 {2}。",
+        "app_compatibility.server_platform": "{0} 仅支持以下服务端平台：{1}；当前连接的服务端为 {2}。",
+        "app_compatibility.missing_capability": "{0} 需要服务端能力，但当前服务端未提供：{1}。",
+        "app_compatibility.server_unavailable": "{0} 需要先连接到 RemoteOS Server 才能启动。",
+        "app_compatibility.generic": "此应用程序无法在当前环境中运行。"
     }
 }

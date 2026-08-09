@@ -6,5 +6,8 @@
   "entryType": "RemoteOS.Examples.ServerMonitor.ServerMonitorApp",
   "iconGlyph": "📈",
   "description": "Performance dashboard with locally saved refresh preferences",
+  "serverRequirements": {
+    "capabilities": ["server.metrics"]
+  },
   "requestedPermissions": ["server.metrics.read"]
 }

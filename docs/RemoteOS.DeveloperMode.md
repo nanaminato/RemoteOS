@@ -38,9 +38,20 @@ lib/net10.0/<private dependencies>.dll
   "iconGlyph": "🧪",
   "description": "A development package",
   "requestedPermissions": ["desktop.wallpaper.write"],
-  "supportedFileExtensions": [".hello"]
+  "supportedFileExtensions": [".hello"],
+  "clientPlatforms": ["windows", "linux"],
+  "serverRequirements": {
+    "platforms": ["windows", "linux"],
+    "capabilities": ["server.files"]
+  }
 }
 ```
+
+`clientPlatforms` and `serverRequirements` are optional. An omitted or empty list means that the
+package places no restriction on that dimension. The shell evaluates them before loading the
+package assembly, both for desktop launches and **Open with** file launches. See
+[`RemoteOS.ApplicationCompatibility.md`](./RemoteOS.ApplicationCompatibility.md) for the complete
+contract and the server capability catalogue.
 
 The entry type must implement `RemoteOS.AppSDK.IExternalRemoteApplication`. It receives `IExternalAppContext`, which exposes only approved RemoteOS capabilities, including owned-window creation and the permission-gated desktop appearance service.
 

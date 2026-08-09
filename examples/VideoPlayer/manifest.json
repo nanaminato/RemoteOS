@@ -6,6 +6,10 @@
   "entryType": "RemoteOS.Examples.VideoPlayer.VideoPlayerApp",
   "iconGlyph": "🎬",
   "description": "VLC-based remote video player for Windows",
+  "clientPlatforms": ["windows"],
+  "serverRequirements": {
+    "platforms": ["windows", "linux"]
+  },
   "localizedMetadata": {
     "en-US": {
       "displayName": "Video Player",

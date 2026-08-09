@@ -25,6 +25,12 @@
         "app_installer.select_local_package": "Select RemoteOS application packages",
         "app_installer.select_server_package": "Select server application packages",
         "app_installer.package_file_type": "RemoteOS application package",
-        "app_installer.package_file_filter": "RemoteOS application packages (*.roapp)"
+        "app_installer.package_file_filter": "RemoteOS application packages (*.roapp)",
+        "app_compatibility.title": "Application unavailable",
+        "app_compatibility.client_platform": "{0} supports only these client platforms: {1}. This client is {2}.",
+        "app_compatibility.server_platform": "{0} supports only these server platforms: {1}. The connected server is {2}.",
+        "app_compatibility.missing_capability": "{0} requires a server capability that is unavailable: {1}.",
+        "app_compatibility.server_unavailable": "{0} requires a connected RemoteOS Server before it can start.",
+        "app_compatibility.generic": "This application cannot run in the current environment."
     }
 }

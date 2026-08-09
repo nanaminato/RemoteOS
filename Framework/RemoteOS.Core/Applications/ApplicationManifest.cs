@@ -13,8 +13,15 @@ public sealed record ApplicationManifest(
     string? Description = null,
     IReadOnlyList<string>? RequestedPermissions = null,
     IReadOnlyList<string>? SupportedFileExtensions = null,
-    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null)
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
+    IReadOnlyList<string>? ClientPlatforms = null,
+    ApplicationServerRequirements? ServerRequirements = null)
 {
+    /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
+    public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);
+
+    /// <summary>Requirements imposed on the connected server. A null value means unrestricted.</summary>
+    public ApplicationServerRequirements Server => ServerRequirements ?? new ApplicationServerRequirements();
     /// <summary>Normalised permission identifiers requested by this application package.</summary>
     public IReadOnlyList<string> Permissions => RequestedPermissions?
         .Where(AppPermissions.IsKnown)
