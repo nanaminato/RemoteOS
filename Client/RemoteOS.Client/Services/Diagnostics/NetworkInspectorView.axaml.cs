@@ -16,7 +16,10 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private readonly ObservableCollection<NetworkInspectorRow> _rows = new();
     private IReadOnlyList<NetworkDiagnosticEntry> _visible = Array.Empty<NetworkDiagnosticEntry>();
     private bool _detailsVisible;
-    private GridLength _detailsWidth = new GridLength(390);
+    private bool _recalculateDetailsWidthOnNextOpen;
+    // On first expansion, give the details pane roughly 70% of the available content width.
+    // A later splitter resize is retained as a pixel width for the rest of this view's lifetime.
+    private GridLength _detailsWidth = new GridLength(7, GridUnitType.Star);
 
     public NetworkInspectorView(NetworkDiagnosticsService diagnostics, LocalizationService localization)
     {
@@ -27,6 +30,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         _diagnostics.EntryCompleted += OnEntryCompleted;
         _diagnostics.StateChanged += OnStateChanged;
         _localization.LanguageChanged += OnLanguageChanged;
+        SizeChanged += OnSizeChanged;
         Refresh();
     }
 
@@ -35,6 +39,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         _diagnostics.EntryCompleted -= OnEntryCompleted;
         _diagnostics.StateChanged -= OnStateChanged;
         _localization.LanguageChanged -= OnLanguageChanged;
+        SizeChanged -= OnSizeChanged;
     }
 
     private async void Record_Click(object? sender, RoutedEventArgs args)
@@ -133,10 +138,20 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
             return;
 
         _detailsVisible = isVisible;
+        foreach (var column in RequestsGrid.Columns.Skip(1))
+            column.IsVisible = !isVisible;
+
         if (isVisible)
         {
+            if (_recalculateDetailsWidthOnNextOpen)
+            {
+                _detailsWidth = new GridLength(7, GridUnitType.Star);
+                _recalculateDetailsWidthOnNextOpen = false;
+            }
+
             if (ContentGrid.ColumnDefinitions.Count == 3)
             {
+                ContentGrid.ColumnDefinitions[0].Width = new GridLength(3, GridUnitType.Star);
                 ContentGrid.ColumnDefinitions[1].Width = new GridLength(5);
                 ContentGrid.ColumnDefinitions[2].Width = _detailsWidth;
             }
@@ -152,6 +167,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
                 if (currentDetailsWidth.Value > 0)
                     _detailsWidth = currentDetailsWidth;
 
+                ContentGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
                 ContentGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 ContentGrid.ColumnDefinitions[2].Width = new GridLength(0);
             }
@@ -209,6 +225,11 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private void OnEntryCompleted(object? sender, NetworkDiagnosticEntry entry) => Dispatcher.UIThread.Post(Refresh);
     private void OnStateChanged(object? sender, NetworkDiagnosticsState state) => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs args) => Dispatcher.UIThread.Post(Refresh);
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs args)
+    {
+        if (!_detailsVisible)
+            _recalculateDetailsWidthOnNextOpen = true;
+    }
     private string T(string key, string fallback) => _localization.Get(key, fallback);
 
 }
