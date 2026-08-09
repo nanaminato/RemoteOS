@@ -6,7 +6,7 @@
 >
 > RemoteOS 的定位是云原生桌面操作系统：Server 端跨平台运行，复用宿主 OS 用户与权限体系；Client 端提供跨平台桌面 Shell。主要应用场景为个人服务器、小型团队服务器的桌面化管理。
 >
-> 本文档属服务端身份层设计。**落地状态**：`RemoteOS.Server` 已实现 auth 端点（login/refresh/logout/me）+ JWT（HMACSHA256）+ `IIdentityProvider` 抽象（`WindowsLogonProvider` 迁移自测试床、`LinuxPamProvider` 占位）+ EF Core/SQLite 持久化（User/Workspace/Device）。安全提权（sudo/UAC）、审计日志等能力将随系统逐步实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+> 本文档属服务端身份层设计。**落地状态**：`RemoteOS.Server` 已实现 auth 端点（login/refresh/logout/me）+ JWT（HMACSHA256）+ `IIdentityProvider` 抽象（Windows `LogonUser`、Linux PAM + NSS）+ EF Core/SQLite 持久化（User/Workspace/Device）。安全提权（sudo/UAC）、审计日志等能力将随系统逐步实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 >
 > 相关文档：
 >
@@ -429,7 +429,7 @@ Windows:  elevated command  → UAC prompt         → Execute
 - Device 管理
 - Platform Identity Mapping
 
-> **落地状态（8/4）**：Windows Account 登录（LogonUser）已实现于 `RemoteOS.Server/Identity/WindowsLogonProvider.cs`；Linux PAM 仍为占位（`LinuxPamProvider`）。Workspace 创建 / Device 管理 / Platform Identity Mapping 已通过 EF Core/SQLite 持久化仓储落地（User/Workspace/Device 落库）；Session 维持内存（连接关系，重启失效合理）。auth 端点（login/refresh/logout/me）+ JWT 已实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+> **落地状态（2026-08-09）**：Windows Account 登录由 `WindowsLogonProvider` 调用 `LogonUser`；Linux 登录由 `LinuxPamProvider` 调用宿主 `libpam.so.0` 的 `pam_authenticate` + `pam_acct_mgmt`，并通过 NSS `getpwnam_r` 读取 UID、显示名和 Home（兼容 `/etc/passwd`、SSSD/LDAP 等 NSS 数据源）。Workspace 创建 / Device 管理 / Platform Identity Mapping 已通过 EF Core/SQLite 持久化仓储落地；Session 维持内存。auth 端点（login/refresh/logout/me）+ JWT 已实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 
 后续逐步完善：
 

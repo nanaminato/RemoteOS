@@ -145,10 +145,12 @@ builder.Services.AddHttpClient(LocalPortForwarder.HttpClientName, client =>
 builder.Services.AddSingleton<LocalPortForwarder>();
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
-if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+if (OperatingSystem.IsWindows())
     builder.Services.AddSingleton<IIdentityProvider, WindowsLogonProvider>();
-else
+else if (OperatingSystem.IsLinux())
     builder.Services.AddSingleton<IIdentityProvider, LinuxPamProvider>();
+else
+    throw new PlatformNotSupportedException("RemoteOS Server identity authentication supports Windows and Linux hosts only.");
 
 // 任务管理器：系统指标采集 Provider（按宿主 OS 平台选择，与 IIdentityProvider 同模式）。
 // CPU/内存平台特定（Linux 读 /proc；Windows 走 P/Invoke），磁盘/网络/GPU/进程跨平台共享。

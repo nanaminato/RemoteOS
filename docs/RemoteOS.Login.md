@@ -35,13 +35,13 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 **已实现**：
 
 - 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（可选记住设备）+ 启动分叉
-- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser 迁移）+ SQLite 持久化仓储（User/Workspace/Device/Bookmark/HistoryEntry，Session/刷新令牌/PTY 内存）+ `LinuxPamProvider` 占位
+- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser）+ `LinuxPamProvider`（PAM 认证与账户检查、NSS 用户信息）+ SQLite 持久化仓储（User/Workspace/Device/Bookmark/HistoryEntry，Session/刷新令牌/PTY 内存）
 - 协议：零改动（复用 Protocol 已有的 `LoginRequest`/`LoginResponse`/`AuthTokens`/`AuthApiRoutes`/`ProblemDetails`）
 
 **非范围（未来扩展）**：
 
 - SignalR Hub `/hubs/workspace`（桌面状态增量同步，独立模块）
-- Linux PAM 真实实现
+- 登录后的进程级用户切换（当前服务端能力仍以服务进程身份运行）
 
 ---
 
@@ -165,12 +165,12 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 IIdentityProvider
     |
     ├── WindowsLogonProvider  (advapi32!LogonUser, [SupportedOSPlatform("windows")])
-    └── LinuxPamProvider      (占位，未来用 libpam 实现)
+    └── LinuxPamProvider      (libpam 认证/账户检查 + NSS 用户信息)
 ```
 
 - `Verify(username, password) → CredentialVerifyResult`：委托宿主 OS 验证，9 种错误码映射（BadCredentials/NoSuchUser/AccountDisabled/AccountLockedOut/PasswordExpired/AccountExpired/AccountRestriction/InvalidInput/Unknown）。
 - `GetUserInfo(username) → PlatformUserInfo`：返回 Uid（Windows: `domain\user`）/ DisplayName / HomeDirectory?。
-- **平台选择**：`Program.cs` 按 `RuntimeInformation.IsOSPlatform` 注册对应 Provider。
+- **平台选择**：`Program.cs` 按 `OperatingSystem.IsWindows/IsLinux` 注册对应 Provider，其他服务端宿主平台在启动时明确拒绝。
 - **服务器不存储密码**：认证仍完全委托宿主 OS（Authentication.md §17）；客户端仅在用户勾选自动登录后，才将密码交给操作系统安全存储。
 
 `WindowsLogonProvider` 从 `Windows Server Test/Categories/Authentication/WindowsCredentialVerifier.cs` 迁移而来（已验证 LogonUser 可行）；`Windows Server Test` 项目改为引用 Server 调 `IIdentityProvider`，单一真源。
@@ -281,13 +281,15 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | 能力 | 当前 | 未来 |
 |---|---|---|
 | SignalR Hub `/hubs/workspace` | 不含 | 独立模块，登录后建立 Hub 连接（携带 JWT） |
-| Linux PAM | 占位 | libpam / PAM 绑定库实现 |
+| Linux PAM | 已实现 | P/Invoke `libpam.so.0`：`pam_authenticate` + `pam_acct_mgmt`；NSS `getpwnam_r` 获取 UID/显示名/Home |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
 | 已保存连接列表 | 已实现：按 Server URL + 用户名保存多条记录；有已保存密码时可在简洁选择模式下免密码连接 | 仅扩展 mstsc 风格显示选项（显示大小/颜色深度/本地资源） |
 | 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时自动登录不可用，仍可正常手动登录 |
 | 持久化仓储 | SQLite + EF Core（User/Workspace/Device/Bookmark/HistoryEntry），Session/刷新令牌内存 | 全量持久化按需扩展 |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
 | Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
+
+Linux 部署要求系统提供 PAM 运行库（Ubuntu 的 `libpam0g`，通常由基础系统预装）以及可用的 `login` PAM service。RemoteOS 不读取 `/etc/shadow`，也不保存或记录密码；PAM conversation 仅在同步认证调用期间持有凭据。账户信息通过 NSS 查询，因此系统配置的 SSSD/LDAP 用户同样可被解析。
 
 ---
 
