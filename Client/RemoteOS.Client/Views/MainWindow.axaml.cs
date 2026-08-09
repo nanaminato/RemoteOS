@@ -93,7 +93,7 @@ public partial class MainWindow : Window
     {
         var isMaximized = WindowState == WindowState.Maximized;
         WindowState = isMaximized ? WindowState.Normal : WindowState.Maximized;
-        MaximizeButton.Content = isMaximized ? "\uE922" : "\uE923";
+        MaximizeButton.Content = isMaximized ? "\u25A1" : "\u2750";
         ToolTip.SetTip(MaximizeButton, T(isMaximized ? "common.maximize" : "common.restore", isMaximized ? "Maximize" : "Restore"));
     }
 

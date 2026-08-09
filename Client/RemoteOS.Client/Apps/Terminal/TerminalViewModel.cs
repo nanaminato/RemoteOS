@@ -15,8 +15,8 @@ namespace Client.Apps.Terminal;
 /// </summary>
 public partial class TerminalViewModel : ObservableObject
 {
-    private const int Columns = 120;
-    private const int Rows = 32;
+    private const int Columns = 80;
+    private const int Rows = 24;
     private static readonly ConcurrentDictionary<string, byte> OpenSessions = new();
 
     private readonly IAuthSession? _session;
@@ -103,7 +103,7 @@ public partial class TerminalViewModel : ObservableObject
             return;
 
         HasExited = false;
-        var dimensions = new TerminalSessionDimensions(Columns, Rows, WidthPixels: 1200, HeightPixels: 640);
+        var dimensions = new TerminalSessionDimensions(Columns, Rows, WidthPixels: 800, HeightPixels: 480);
         ITerminalTransportOptions options;
 
         if (_session is { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } })

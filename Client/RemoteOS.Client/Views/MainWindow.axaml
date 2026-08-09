@@ -51,7 +51,7 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Foreground" Value="#2A2A2A" />
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontFamily" Value="Inter, Segoe UI, Noto Sans" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
@@ -80,10 +80,10 @@
                 <TextBlock Grid.Column="1" Text="{loc:Loc shell.window_title}" Foreground="#2A2A2A" FontSize="12"
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button Classes="window-control" Content="&#xE921;" Click="Minimize_OnClick" ToolTip.Tip="{loc:Loc common.minimize}" />
-                    <Button x:Name="MaximizeButton" Classes="window-control" Content="&#xE922;"
-                            Click="Maximize_OnClick" ToolTip.Tip="{loc:Loc common.maximize}" />
-                    <Button Classes="window-control window-close" Content="&#xE8BB;"
+                    <Button Classes="window-control" Content="&#x2212;" Click="Minimize_OnClick" ToolTip.Tip="{loc:Loc common.minimize}" />
+                    <Button x:Name="MaximizeButton" Classes="window-control" Content="&#x2750;"
+                            Click="Maximize_OnClick" ToolTip.Tip="{loc:Loc common.restore}" />
+                    <Button Classes="window-control window-close" Content="&#x00D7;"
                             Click="CloseWindow_OnClick" ToolTip.Tip="{loc:Loc shell.connection.close}" />
                 </StackPanel>
             </Grid>

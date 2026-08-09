@@ -9,12 +9,15 @@ using RoyalTerminal.Terminal;
 using RoyalTerminal.Terminal.Services;
 using RoyalTerminal.Terminal.Transport.Ssh;
 using RoyalTerminal.Terminal.Transport.Ssh.SshNet;
+using RemoteOS.Protocol.Workspace;
 
 namespace Client.Apps.Terminal;
 
 /// <summary>Hosts one terminal session and applies the active workspace's appearance settings.</summary>
 public partial class TerminalView : UserControl
 {
+    private const int InitialColumns = 80;
+    private const int InitialRows = 24;
     private readonly SignalRTransportFactory _transportFactory;
     private readonly TerminalControl _terminal;
 
@@ -41,10 +44,13 @@ public partial class TerminalView : UserControl
             transportFactory);
 
         control.Focusable = true;
-        control.Columns = 120;
-        control.Rows = 32;
+        // 120 columns cannot fit this app's 820-DIP initial window at a readable 14-DIP
+        // font size. RoyalTerminal scales its actual font down to honour fixed dimensions.
+        control.Columns = InitialColumns;
+        control.Rows = InitialRows;
         control.ScrollbackLimit = 10000;
         control.TerminalFontSize = 14;
+        control.FontFamilyName = ResolveFontFamily(TerminalSettingsDto.Default.FontFamily);
         return control;
     }
 
@@ -85,8 +91,8 @@ public partial class TerminalView : UserControl
 
     private void ApplyAppearance(RemoteOS.Protocol.Workspace.TerminalSettingsDto appearance)
     {
-        _terminal.FontFamilyName = appearance.FontFamily;
-        _terminal.TerminalFontSize = appearance.FontSize;
+        _terminal.FontFamilyName = ResolveFontFamily(appearance.FontFamily);
+        _terminal.TerminalFontSize = Math.Clamp(appearance.FontSize, 12, 32);
         TerminalHost.Background = new SolidColorBrush(Color.Parse(appearance.BackgroundColor));
 
         // Renderer palette APIs differ between RoyalTerminal renderers; apply values when present.
@@ -95,6 +101,24 @@ public partial class TerminalView : UserControl
         ApplyColor(_terminal.Theme, "BackgroundColor", appearance.BackgroundColor);
         ApplyColor(_terminal.Theme, "ForegroundColor", appearance.ForegroundColor);
         ApplyColor(_terminal.Theme, "CursorColor", appearance.CursorColor);
+    }
+
+    private static string ResolveFontFamily(string requested)
+    {
+        var installed = FontManager.Current.SystemFonts
+            .Select(font => font.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(requested) && installed.Contains(requested))
+            return requested;
+
+        // Cascadia/Consolas are normally absent on Linux. Always choose a real installed
+        // monospace face; passing a missing family to the Skia renderer produces poor metrics.
+        foreach (var fallback in new[] { "DejaVu Sans Mono", "Noto Mono", "Liberation Mono", "JetBrains Mono", "Cascadia Mono", "Consolas" })
+            if (installed.Contains(fallback))
+                return fallback;
+
+        return FontManager.Current.DefaultFontFamily.Name;
     }
 
     private static void ApplyColor(object? target, string propertyName, string value)

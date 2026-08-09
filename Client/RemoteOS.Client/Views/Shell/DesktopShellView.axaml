@@ -289,7 +289,7 @@
                                     HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,5,0"
                                     Command="{Binding DataContext.CloseTaskbarWindowCommand, ElementName=Root}"
                                     CommandParameter="{Binding}" ToolTip.Tip="Close window">
-                                <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12" />
+                                <TextBlock Text="&#x00D7;" FontSize="16" />
                             </Button>
                         </Grid>
                     </DataTemplate>

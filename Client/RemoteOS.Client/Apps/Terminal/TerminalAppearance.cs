@@ -6,7 +6,7 @@ namespace Client.Apps.Terminal;
 public static class TerminalAppearance
 {
     public static readonly IReadOnlyList<string> FontFamilies =
-        ["Cascadia Mono", "Consolas", "JetBrains Mono", "Courier New"];
+        ["DejaVu Sans Mono", "Noto Mono", "Liberation Mono", "Cascadia Mono", "Consolas", "JetBrains Mono", "Courier New"];
 
     public static readonly IReadOnlyList<double> FontSizes = [12, 14, 16, 18, 20, 24];
 

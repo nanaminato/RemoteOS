@@ -46,7 +46,7 @@ public sealed class TerminalApp : RemoteApplicationBase
                 {
                     var options = new SignalRTransportOptions(
                         url.TrimEnd('/') + "/hubs/terminals",
-                        new TerminalSessionDimensions(120, 32, 1200, 640),
+                        new TerminalSessionDimensions(80, 24, 800, 480),
                         tokenProvider: () => session.Tokens?.AccessToken,
                         accessToken: tokens.AccessToken,
                         diagnostics: diagnostics);

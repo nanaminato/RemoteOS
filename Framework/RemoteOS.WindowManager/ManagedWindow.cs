@@ -11,10 +11,12 @@ namespace RemoteOS.WindowManager;
 /// </summary>
 public partial class ManagedWindow : ObservableObject
 {
-    public const string MinimizeGlyph = "\uE921";
-    public const string CloseGlyph = "\uE8BB";
-    public const string MaximizeGlyphChar = "\uE922";
-    public const string RestoreGlyphChar = "\uE923";
+    // Use standard Unicode symbols instead of Segoe MDL2 private-use code points.
+    // The latter render as arbitrary letters/boxes when the Windows-only font is absent.
+    public const string MinimizeGlyph = "\u2212";
+    public const string CloseGlyph = "\u00D7";
+    public const string MaximizeGlyphChar = "\u25A1";
+    public const string RestoreGlyphChar = "\u2750";
 
     public ManagedWindow(WindowInfo info, RemoteWindow view, bool isModalDialog = false)
     {

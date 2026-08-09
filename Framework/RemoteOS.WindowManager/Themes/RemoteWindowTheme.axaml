@@ -27,7 +27,6 @@
                                     <TextBlock Grid.Column="0"
                                                Margin="12,0,0,0"
                                                VerticalAlignment="Center"
-                                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                                FontSize="13"
                                                Foreground="#4F4F4F"
                                                Text="{Binding IconGlyph}" />

@@ -29,8 +29,21 @@ public partial class BrowserMainView : UserControl
     public BrowserMainView()
     {
         InitializeComponent();
+        WebView.EnvironmentRequested += ConfigureWebViewEnvironment;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private static void ConfigureWebViewEnvironment(object? sender, WebViewEnvironmentRequestedEventArgs e)
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        // Avalonia 12 exposes this switch on its Linux-specific event args, while the
+        // public event uses the platform-neutral base type. Use the runtime type here so
+        // non-Linux builds do not need a reference to the internal backend type.
+        try { ((dynamic)e).PreferWebKitGtkInstead = true; }
+        catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
     }
 
     private BrowserViewModel? ViewModel => DataContext as BrowserViewModel;
