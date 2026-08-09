@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Client.Services;
@@ -16,7 +15,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private readonly LocalizationService _localization;
     private readonly ObservableCollection<NetworkInspectorRow> _rows = new();
     private IReadOnlyList<NetworkDiagnosticEntry> _visible = Array.Empty<NetworkDiagnosticEntry>();
-    private bool _detailsInitialized;
+    private bool _detailsVisible;
     private GridLength _detailsWidth = new GridLength(390);
 
     public NetworkInspectorView(NetworkDiagnosticsService diagnostics, LocalizationService localization)
@@ -55,16 +54,12 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
 
     private void Filter_TextChanged(object? sender, TextChangedEventArgs args) => Refresh();
 
-    private void NameText_PointerPressed(object? sender, PointerPressedEventArgs e)
+    private void RequestName_Click(object? sender, RoutedEventArgs args)
     {
-        if (sender is not TextBlock textBlock)
-            return;
-
-        if (textBlock.DataContext is NetworkInspectorRow row)
+        if (sender is Button { DataContext: NetworkInspectorRow row })
         {
             RequestsGrid.SelectedItem = row;
             ShowDetails(row.Id);
-            e.Handled = true;
         }
     }
 
@@ -134,6 +129,10 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
 
     private void SetDetailsVisibility(bool isVisible)
     {
+        if (_detailsVisible == isVisible)
+            return;
+
+        _detailsVisible = isVisible;
         if (isVisible)
         {
             if (ContentGrid.ColumnDefinitions.Count == 3)
@@ -149,7 +148,9 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         {
             if (ContentGrid.ColumnDefinitions.Count == 3)
             {
-                _detailsWidth = ContentGrid.ColumnDefinitions[2].Width;
+                var currentDetailsWidth = ContentGrid.ColumnDefinitions[2].Width;
+                if (currentDetailsWidth.Value > 0)
+                    _detailsWidth = currentDetailsWidth;
 
                 ContentGrid.ColumnDefinitions[1].Width = new GridLength(0);
                 ContentGrid.ColumnDefinitions[2].Width = new GridLength(0);
