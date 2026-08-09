@@ -80,6 +80,13 @@ public sealed class BrowserApp : RemoteApplicationBase
                 viewModel.IsFullScreen = window.IsFullScreen;
         };
         window.FocusRequested += (_, _) => view.SetWebViewVisible(true);
+        // NativeWebView is an operating-system child window. Moving/resizing it for every
+        // pointer event is especially expensive on WebKitGTK and can deadlock the UI/native
+        // render loops. Keep the lightweight Avalonia chrome interactive and restore the
+        // native surface once the bounds have settled.
+        window.View.BoundsInteractionStarted += (_, _) => view.SetWebViewVisible(false);
+        window.View.BoundsInteractionCompleted += (_, _) =>
+            view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
         view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
 
         // 窗口打开后异步加载书签 + 历史

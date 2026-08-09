@@ -50,6 +50,16 @@ public class RemoteWindow : TemplatedControl
     /// <summary>Raised when the window should be brought to the front.</summary>
     public event EventHandler? FocusRequested;
 
+    /// <summary>
+    /// Raised when a pointer-driven move or resize begins. Hosts containing native child
+    /// windows (for example WebView) can temporarily suspend them while the managed window
+    /// is changing bounds.
+    /// </summary>
+    public event EventHandler? BoundsInteractionStarted;
+
+    /// <summary>Raised when the current pointer-driven move or resize has ended.</summary>
+    public event EventHandler? BoundsInteractionCompleted;
+
     public RemoteWindow()
     {
         Focusable = true;
@@ -69,6 +79,7 @@ public class RemoteWindow : TemplatedControl
             _titleDrag.PointerPressed += OnTitleDragPressed;
             _titleDrag.PointerMoved += OnTitleDragMoved;
             _titleDrag.PointerReleased += OnTitleDragReleased;
+            _titleDrag.PointerCaptureLost += OnPointerCaptureLost;
             _titleDrag.DoubleTapped += OnTitleDragDoubleTapped;
         }
 
@@ -92,6 +103,7 @@ public class RemoteWindow : TemplatedControl
                 border.PointerPressed += (s, ev) => OnResizePressed(capturedEdge, ev);
                 border.PointerMoved += (s, ev) => OnResizeMoved(ev);
                 border.PointerReleased += (s, ev) => OnResizeReleased(ev);
+                border.PointerCaptureLost += OnPointerCaptureLost;
             }
         }
 
@@ -123,6 +135,7 @@ public class RemoteWindow : TemplatedControl
         _dragStart = ToCore(e.GetPosition(null));
         _dragStartBounds = CurrentBounds();
         e.Pointer.Capture(_titleDrag!);
+        BoundsInteractionStarted?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnTitleDragMoved(object? sender, PointerEventArgs e)
@@ -139,7 +152,7 @@ public class RemoteWindow : TemplatedControl
         if (!_dragging)
             return;
 
-        _dragging = false;
+        EndBoundsInteraction();
         e.Pointer.Capture(null);
     }
 
@@ -166,6 +179,8 @@ public class RemoteWindow : TemplatedControl
 
         if (_resizeBorders.TryGetValue(edge, out var border))
             e.Pointer.Capture(border);
+
+        BoundsInteractionStarted?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnResizeMoved(PointerEventArgs e)
@@ -181,8 +196,21 @@ public class RemoteWindow : TemplatedControl
     {
         if (!_resizing)
             return;
-        _resizing = false;
+        EndBoundsInteraction();
         e.Pointer.Capture(null);
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+        => EndBoundsInteraction();
+
+    private void EndBoundsInteraction()
+    {
+        if (!_dragging && !_resizing)
+            return;
+
+        _dragging = false;
+        _resizing = false;
+        BoundsInteractionCompleted?.Invoke(this, EventArgs.Empty);
     }
 
     private Rect CurrentBounds()
