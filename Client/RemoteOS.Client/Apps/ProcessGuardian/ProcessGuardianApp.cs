@@ -139,7 +139,6 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
     private static Control CreateEditorView(ProcessGuardianViewModel vm, RemoteOS.WindowManager.ModalDialog<bool> dialog)
     {
         var panel = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(20), DataContext = vm };
-        panel.Children.Add(EditorField("guardian.create.id", nameof(vm.DefinitionId)));
         panel.Children.Add(EditorField("guardian.create.name", nameof(vm.DefinitionName)));
         panel.Children.Add(EditorField("guardian.create.executable", nameof(vm.ExecutablePath)));
         panel.Children.Add(EditorField("guardian.create.working_directory", nameof(vm.WorkingDirectory)));
