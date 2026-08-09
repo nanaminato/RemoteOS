@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Client.Services.Diagnostics;
+using RemoteOS.AppSDK;
 using RemoteOS.Protocol.Hubs;
 
 namespace Client.Apps.Terminal;
@@ -13,13 +15,27 @@ public static class TerminalHubConnection
     {
         // 不启用 WithAutomaticReconnect：自动重连后服务端不会自动重新附加会话，会进入半附加状态。
         // 恢复路径是"再次登录打开终端"→重新 Start(Attach)→服务端回放缓冲快照，而非进程内自动重连。
-        return new HubConnectionBuilder()
+        var connection = new HubConnectionBuilder()
             .WithUrl(opts.HubUrl, http =>
             {
                 http.AccessTokenProvider = () =>
                     Task.FromResult<string?>(opts.TokenProvider?.Invoke() ?? opts.AccessToken);
+                if (opts.Diagnostics is not null)
+                    http.HttpMessageHandlerFactory = inner => new NetworkDiagnosticsHandler(opts.Diagnostics, "terminal-signalr")
+                    {
+                        InnerHandler = inner,
+                    };
             })
             .Build();
+        if (opts.Diagnostics is not null)
+            connection.Closed += error =>
+            {
+                Record(opts.Diagnostics, "Connection closed", TimeSpan.Zero,
+                    error is null ? NetworkDiagnosticOutcome.Succeeded : NetworkDiagnosticOutcome.TransportError,
+                    error is null ? null : NetworkDiagnosticsService.ErrorKind(error));
+                return Task.CompletedTask;
+            };
+        return connection;
     }
 
     /// <summary>
@@ -29,17 +45,35 @@ public static class TerminalHubConnection
     public static async Task<List<TerminalSessionInfo>> ListSessionsAsync(
         SignalRTransportOptions opts, CancellationToken ct = default)
     {
+        var started = System.Diagnostics.Stopwatch.StartNew();
         var conn = Build(opts);
         try
         {
             await conn.StartAsync(ct).ConfigureAwait(false);
-            return await conn.InvokeAsync<List<TerminalSessionInfo>>(
+            var result = await conn.InvokeAsync<List<TerminalSessionInfo>>(
                 TerminalHubMethods.ListSessions, ct).ConfigureAwait(false) ?? new();
+            started.Stop();
+            if (opts.Diagnostics is not null)
+                Record(opts.Diagnostics, TerminalHubMethods.ListSessions, started.Elapsed, NetworkDiagnosticOutcome.Succeeded);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            started.Stop();
+            if (opts.Diagnostics is not null)
+                Record(opts.Diagnostics, TerminalHubMethods.ListSessions, started.Elapsed,
+                    exception is OperationCanceledException ? NetworkDiagnosticOutcome.Cancelled : NetworkDiagnosticOutcome.TransportError,
+                    NetworkDiagnosticsService.ErrorKind(exception));
+            throw;
         }
         finally
         {
             await conn.DisposeAsync().ConfigureAwait(false);
         }
     }
-}
 
+    internal static void Record(NetworkDiagnosticsService diagnostics, string name, TimeSpan duration,
+        NetworkDiagnosticOutcome outcome, string? errorKind = null) => diagnostics.Record(new NetworkDiagnosticEntry(
+            0, DateTimeOffset.UtcNow - duration, duration, NetworkDiagnosticKind.SignalR, "terminal", name,
+            null, "/hubs/terminals", outcome, null, null, null, false, errorKind));
+}

@@ -1,4 +1,5 @@
 using Client.Services.Auth;
+using Client.Services.Diagnostics;
 using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
@@ -36,6 +37,7 @@ public sealed class TerminalApp : RemoteApplicationBase
         try
         {
             var session = context.Services.GetService<IAuthSession>();
+            var diagnostics = context.Services.GetService<NetworkDiagnosticsService>();
             var sessionIds = Array.Empty<string>();
 
             if (session is { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens })
@@ -46,7 +48,8 @@ public sealed class TerminalApp : RemoteApplicationBase
                         url.TrimEnd('/') + "/hubs/terminals",
                         new TerminalSessionDimensions(120, 32, 1200, 640),
                         tokenProvider: () => session.Tokens?.AccessToken,
-                        accessToken: tokens.AccessToken);
+                        accessToken: tokens.AccessToken,
+                        diagnostics: diagnostics);
                     sessionIds = (await TerminalHubConnection.ListSessionsAsync(options))
                         .Where(x => !x.HasExited && !TerminalViewModel.IsSessionOpen(x.SessionId))
                         .OrderBy(x => x.CreatedAt)
@@ -60,11 +63,11 @@ public sealed class TerminalApp : RemoteApplicationBase
             // existing process is already represented by a window, this is also the explicit
             // way to open an additional terminal from the desktop.
             if (sessionIds.Length == 0)
-                OpenWindow(context, session, null);
+                OpenWindow(context, session, diagnostics, null);
             else
                 foreach (var sessionId in sessionIds)
                     if (TerminalViewModel.TryReserveSession(sessionId))
-                        OpenWindow(context, session, sessionId);
+                        OpenWindow(context, session, diagnostics, sessionId);
         }
         finally
         {
@@ -72,10 +75,10 @@ public sealed class TerminalApp : RemoteApplicationBase
         }
     }
 
-    private void OpenWindow(AppContext context, IAuthSession? session, string? sessionId)
+    private void OpenWindow(AppContext context, IAuthSession? session, NetworkDiagnosticsService? diagnostics, string? sessionId)
     {
         var settingsClient = context.Services.GetRequiredService<ITerminalSettingsClient>();
-        var viewModel = new TerminalViewModel(session, settingsClient, sessionId);
+        var viewModel = new TerminalViewModel(session, settingsClient, diagnostics, sessionId);
         var view = new TerminalView
         {
             DataContext = viewModel,

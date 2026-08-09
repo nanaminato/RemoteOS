@@ -25,5 +25,14 @@
                            Opacity="0.55" FontSize="12" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="{loc:Loc settings.network_inspector}" Classes="title" />
+                <TextBlock Text="{loc:Loc settings.network_inspector.description}" Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding NetworkInspector.Status}" Opacity="0.65" TextWrapping="Wrap" />
+                <Button Classes="primary" Content="{loc:Loc settings.network_inspector.open}"
+                        Command="{Binding NetworkInspector.OpenCommand}" IsEnabled="{Binding NetworkInspector.CanOpen}" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

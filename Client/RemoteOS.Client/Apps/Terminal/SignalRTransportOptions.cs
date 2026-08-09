@@ -1,4 +1,5 @@
 using RoyalTerminal.Terminal;
+using Client.Services.Diagnostics;
 
 namespace Client.Apps.Terminal;
 
@@ -18,6 +19,7 @@ public sealed class SignalRTransportOptions : ITerminalTransportOptions
     public string? Shell { get; }
     public string? WorkingDirectory { get; }
     public string? SessionId { get; }
+    public NetworkDiagnosticsService? Diagnostics { get; }
 
     public SignalRTransportOptions(
         string hubUrl,
@@ -26,7 +28,8 @@ public sealed class SignalRTransportOptions : ITerminalTransportOptions
         string? accessToken = null,
         string? shell = null,
         string? workingDirectory = null,
-        string? sessionId = null)
+        string? sessionId = null,
+        NetworkDiagnosticsService? diagnostics = null)
     {
         HubUrl = hubUrl;
         Dimensions = dimensions;
@@ -35,5 +38,6 @@ public sealed class SignalRTransportOptions : ITerminalTransportOptions
         Shell = shell;
         WorkingDirectory = workingDirectory;
         SessionId = sessionId;
+        Diagnostics = diagnostics;
     }
 }

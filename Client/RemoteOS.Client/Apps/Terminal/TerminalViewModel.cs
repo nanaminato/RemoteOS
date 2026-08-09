@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Protocol.Workspace;
 using RoyalTerminal.Avalonia.Controls;
@@ -21,6 +22,7 @@ public partial class TerminalViewModel : ObservableObject
     private readonly IAuthSession? _session;
     private readonly ITerminalSettingsClient _settingsClient;
     private readonly string? _initialSessionId;
+    private readonly NetworkDiagnosticsService? _diagnostics;
     private TerminalControl? _terminal;
     private SignalRTransportFactory? _transportFactory;
     private bool _loadingAppearance;
@@ -41,10 +43,12 @@ public partial class TerminalViewModel : ObservableObject
     public TerminalViewModel(
         IAuthSession? session,
         ITerminalSettingsClient settingsClient,
+        NetworkDiagnosticsService? diagnostics,
         string? initialSessionId = null)
     {
         _session = session;
         _settingsClient = settingsClient;
+        _diagnostics = diagnostics;
         _initialSessionId = initialSessionId;
     }
 
@@ -110,7 +114,8 @@ public partial class TerminalViewModel : ObservableObject
                 dimensions: dimensions,
                 tokenProvider: () => _session?.Tokens?.AccessToken,
                 accessToken: _session.Tokens.AccessToken,
-                sessionId: sessionId);
+                sessionId: sessionId,
+                diagnostics: _diagnostics);
         }
         else
         {

@@ -11,6 +11,7 @@ using Client.Services.Auth;
 using Client.Services.AppPermissions;
 using Client.Services.AppPackages;
 using Client.Services.Developer;
+using Client.Services.Diagnostics;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
@@ -42,8 +43,12 @@ public static class Bootstrapper
             new ApplicationManager(sp.GetRequiredService<IWindowManager>(), sp));
 
         // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
-        services.AddHttpClient<IRemoteOsClient, RemoteOsClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
-        services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<IRemoteOsClient, RemoteOsClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "auth"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "terminal-settings"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
         services.AddSingleton<IAuthSession, AuthSession>();
         services.AddSingleton<ApplicationCompatibilityService>();
@@ -52,28 +57,41 @@ public static class Bootstrapper
         services.AddSingleton<LoginViewModel>();
 
         // Explorer（文件管理器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
-        services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "explorer"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // Browser（浏览器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
         // NativeWebView 用平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络；
         // Server 仅持久化书签与历史记录（按用户隔离）。
-        services.AddHttpClient<Client.Apps.Browser.IBrowserClient, Client.Apps.Browser.BrowserClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Browser.IBrowserClient, Client.Apps.Browser.BrowserClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "browser"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // TaskManager（任务管理器）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 拉取服务端采集的宿主 OS 资源占用（CPU/内存/磁盘/网络/GPU）与进程列表；结束进程权限不足提示需在宿主 OS 提权。
-        services.AddHttpClient<Client.Apps.TaskManager.ITaskManagerClient, Client.Apps.TaskManager.TaskManagerClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.TaskManager.ITaskManagerClient, Client.Apps.TaskManager.TaskManagerClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "task-manager"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
-        services.AddHttpClient<ISettingsClient, SettingsClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
-        services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<ISettingsClient, SettingsClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "settings"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "window-layout"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
-        services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>().AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddSingleton<DeveloperModeService>();
+        services.AddSingleton<NetworkDiagnosticsService>();
+        services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "capabilities"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
         services.AddSingleton<ExternalAppContextFactory>();
-        services.AddSingleton<DeveloperModeService>();
         services.AddSingleton<DeveloperPackageManager>();
         services.AddSingleton<AppPackageInstallerService>();
         services.AddSingleton<DeveloperBridgeService>();

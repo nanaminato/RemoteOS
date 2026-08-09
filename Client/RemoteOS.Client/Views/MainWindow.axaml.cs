@@ -5,6 +5,10 @@ using Avalonia.Threading;
 using Client.Services.Auth;
 using Client.Services.WindowLayout;
 using Client.Services;
+using Client.Services.Developer;
+using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
+using RemoteOS.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Views;
@@ -117,6 +121,19 @@ public partial class MainWindow : Window
             _hideBarTimer.Stop();
             ConnectionBar.IsVisible = true;
         }
+    }
+
+    private void Root_OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.I || e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Shift))
+            return;
+
+        e.Handled = true;
+        var developerMode = App.Services.GetRequiredService<DeveloperModeService>();
+        if (!developerMode.IsEnabled)
+            return;
+        App.Services.GetRequiredService<ApplicationManager>()
+            .Launch(new AppId(NetworkDiagnosticsApplication.InspectorAppId));
     }
 
     private void ConnectionBar_OnPointerEntered(object? sender, PointerEventArgs e) => _hideBarTimer.Stop();

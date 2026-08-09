@@ -1,0 +1,10 @@
+{
+  "id": "com.remoteos.dev.network-inspector",
+  "displayName": "Network Inspector",
+  "version": "0.1.0-dev",
+  "entryAssembly": "lib/net10.0/RemoteOS.Example.NetworkInspector.dll",
+  "entryType": "RemoteOS.Examples.NetworkInspector.NetworkInspectorApp",
+  "iconGlyph": "🔎",
+  "description": "Redacted RemoteOS REST and SignalR diagnostics",
+  "requestedPermissions": ["diagnostics.network.read"]
+}

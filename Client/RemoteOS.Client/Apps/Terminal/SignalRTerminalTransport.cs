@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR.Client;
+using Client.Services.Diagnostics;
+using RemoteOS.AppSDK;
 using RemoteOS.Protocol.Hubs;
 using RoyalTerminal.Terminal;
 
@@ -40,7 +42,10 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
         _conn.On<byte[]>(TerminalHubEvents.OnOutput, data => DataReceived?.Invoke(data, data.Length));
         _conn.On<int>(TerminalHubEvents.OnProcessExited, code => ProcessExited?.Invoke(code));
 
-        await _conn.StartAsync(cancellationToken).ConfigureAwait(false);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            await _conn.StartAsync(cancellationToken).ConfigureAwait(false);
 
         _lastRequest = new StartTerminalRequest(
             opts.Dimensions.Columns, opts.Dimensions.Rows,
@@ -48,12 +53,25 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
             opts.Shell, opts.WorkingDirectory);
 
         // Start = attach/create。服务端在返回前会先把缓冲快照经 OnOutput 回放（恢复历史输出）。
-        var resp = await _conn.InvokeAsync<AttachTerminalResponse>(
+            var resp = await _conn.InvokeAsync<AttachTerminalResponse>(
             TerminalHubMethods.Start, _lastRequest, opts.SessionId, cancellationToken)
             .ConfigureAwait(false);
-        SessionId = resp?.SessionId;
+            SessionId = resp?.SessionId;
 
-        IsRunning = true;
+            IsRunning = true;
+            stopwatch.Stop();
+            if (opts.Diagnostics is not null)
+                TerminalHubConnection.Record(opts.Diagnostics, TerminalHubMethods.Start, stopwatch.Elapsed, NetworkDiagnosticOutcome.Succeeded);
+        }
+        catch (Exception exception)
+        {
+            stopwatch.Stop();
+            if (opts.Diagnostics is not null)
+                TerminalHubConnection.Record(opts.Diagnostics, TerminalHubMethods.Start, stopwatch.Elapsed,
+                    exception is OperationCanceledException ? NetworkDiagnosticOutcome.Cancelled : NetworkDiagnosticOutcome.TransportError,
+                    NetworkDiagnosticsService.ErrorKind(exception));
+            throw;
+        }
     }
 
     public void SendInput(ReadOnlySpan<byte> utf8)
@@ -79,6 +97,8 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
         var conn = _conn;
         if (conn is null) return;
         try { await conn.StopAsync().ConfigureAwait(false); } catch { /* best effort */ }
+        if (_options.Diagnostics is not null)
+            TerminalHubConnection.Record(_options.Diagnostics, "Stop", TimeSpan.Zero, NetworkDiagnosticOutcome.Succeeded);
     }
 
     /// <summary>显式终止服务端会话（杀 PTY 并从注册表移除）。对应"断开"按钮 / 关闭终端窗口。</summary>
@@ -90,6 +110,8 @@ public sealed class SignalRTerminalTransport : ITerminalTransport
         if (conn is null) return;
         try { await conn.InvokeAsync(TerminalHubMethods.Close).ConfigureAwait(false); } catch { /* best effort */ }
         try { await conn.StopAsync().ConfigureAwait(false); } catch { /* best effort */ }
+        if (_options.Diagnostics is not null)
+            TerminalHubConnection.Record(_options.Diagnostics, TerminalHubMethods.Close, TimeSpan.Zero, NetworkDiagnosticOutcome.Succeeded);
     }
 
     /// <summary>用当前活动连接拉取会话列表（需已 <see cref="StartAsync"/>）。</summary>

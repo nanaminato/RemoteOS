@@ -63,7 +63,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid PointerMoved="Root_OnPointerMoved">
+    <Grid PointerMoved="Root_OnPointerMoved" KeyDown="Root_OnKeyDown">
         <!-- Reserve the host window's caption area.  Maximized managed windows are
              sized from DesktopShell's bounds, so without this inset their own
              caption buttons sit beneath the host title bar and cannot be clicked. -->

@@ -2,6 +2,7 @@ using Client.Apps.Settings;
 using Client.Apps.TaskManager;
 using Client.Apps.Explorer;
 using Client.Services.Auth;
+using Client.Services.Diagnostics;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Workspace;
@@ -27,6 +28,7 @@ public sealed class ExternalAppContextFactory
     private readonly IExplorerClient _files;
     private readonly ISettingsNavigation _settingsNavigation;
     private readonly IAppCapabilityClient _capabilities;
+    private readonly NetworkDiagnosticsService _networkDiagnostics;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
@@ -39,7 +41,8 @@ public sealed class ExternalAppContextFactory
         ITaskManagerClient systemMonitor,
         IExplorerClient files,
         ISettingsNavigation settingsNavigation,
-        IAppCapabilityClient capabilities)
+        IAppCapabilityClient capabilities,
+        NetworkDiagnosticsService networkDiagnostics)
     {
         _permissions = permissions;
         _systemLanguage = systemLanguage;
@@ -52,6 +55,7 @@ public sealed class ExternalAppContextFactory
         _files = files;
         _settingsNavigation = settingsNavigation;
         _capabilities = capabilities;
+        _networkDiagnostics = networkDiagnostics;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
@@ -62,6 +66,7 @@ public sealed class ExternalAppContextFactory
         new ServerFilesCapability(appId, _permissions, _files),
         new ExternalFileApiAccess(appId, _permissions, _session, _capabilities),
         new ExternalMediaService(appId, _permissions, _session, _capabilities),
+        new NetworkDiagnosticsCapability(appId, _permissions, _networkDiagnostics),
         _systemLanguage,
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
@@ -74,6 +79,7 @@ public sealed class ExternalAppContextFactory
         IServerFiles ServerFiles,
         IExternalFileApiAccess FileApi,
         IExternalMediaService Media,
+        INetworkDiagnostics NetworkDiagnostics,
         ISystemLanguage SystemLanguage,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
@@ -129,6 +135,53 @@ public sealed class ExternalAppContextFactory
         public void EnterFullScreen() => _windowManager.EnterFullScreen(Window);
 
         public void ExitFullScreen() => _windowManager.ExitFullScreen(Window);
+    }
+
+    private sealed class NetworkDiagnosticsCapability : INetworkDiagnostics
+    {
+        private readonly AppId _appId;
+        private readonly IAppPermissionManager _permissions;
+        private readonly NetworkDiagnosticsService _diagnostics;
+
+        public NetworkDiagnosticsCapability(AppId appId, IAppPermissionManager permissions, NetworkDiagnosticsService diagnostics)
+        {
+            _appId = appId;
+            _permissions = permissions;
+            _diagnostics = diagnostics;
+            _diagnostics.StateChanged += (_, state) =>
+            {
+                if (HasPermission()) StateChanged?.Invoke(this, state);
+            };
+            _diagnostics.EntryCompleted += (_, entry) =>
+            {
+                if (HasPermission()) EntryCompleted?.Invoke(this, entry);
+            };
+        }
+
+        public NetworkDiagnosticsState State => HasPermission()
+            ? _diagnostics.State
+            : new NetworkDiagnosticsState(false, false, "Network diagnostics permission is not granted.");
+
+        public event EventHandler<NetworkDiagnosticsState>? StateChanged;
+        public event EventHandler<NetworkDiagnosticEntry>? EntryCompleted;
+
+        public NetworkDiagnosticsSnapshot GetSnapshot(NetworkDiagnosticsQuery? query = null) => HasPermission()
+            ? _diagnostics.GetSnapshot(query)
+            : new NetworkDiagnosticsSnapshot(State, Array.Empty<NetworkDiagnosticEntry>(), 0);
+
+        public Task<NetworkDiagnosticsCommandResult> StartRecordingAsync(CancellationToken cancellationToken = default) => HasPermission()
+            ? _diagnostics.StartRecordingAsync(cancellationToken)
+            : Task.FromResult(NetworkDiagnosticsCommandResult.PermissionDenied);
+
+        public Task StopRecordingAsync(CancellationToken cancellationToken = default) => HasPermission()
+            ? _diagnostics.StopRecordingAsync(cancellationToken)
+            : Task.CompletedTask;
+
+        public Task ClearAsync(CancellationToken cancellationToken = default) => HasPermission()
+            ? _diagnostics.ClearAsync(cancellationToken)
+            : Task.CompletedTask;
+
+        private bool HasPermission() => _permissions.IsGranted(_appId, CoreAppPermissions.DiagnosticsNetworkRead);
     }
 
     private sealed class ExternalFileApiAccess(

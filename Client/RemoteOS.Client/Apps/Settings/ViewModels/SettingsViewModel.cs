@@ -60,7 +60,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new NetworkPageViewModel(settings, session, remote!, system!, save),
             new AppsPageViewModel(settings, apps!, packages!, localization),
             new DefaultAppsPageViewModel(settings, apps!, save),
-            new DeveloperPageViewModel(settings, developerMode!, save),
+            new DeveloperPageViewModel(settings, developerMode!, packages!, apps!, localization, save),
         };
         _selectedPage = Pages[0];
     }

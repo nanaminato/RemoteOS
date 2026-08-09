@@ -71,6 +71,20 @@ dotnet run --project Tools/RemoteOS.DevCli -- install .\examples\ServerMonitor\b
 
 After installation, grant **读取服务器性能指标** to **Server Monitor** in Settings, then launch the desktop icon.
 
+## Network Inspector capability
+
+`Network Inspector` is an optional development package rather than a built-in application. It reads the host-provided, redacted summaries of RemoteOS REST and SignalR activity for the current client session; it never receives tokens, cookies, media bodies, terminal data, or arbitrary device traffic.
+
+Build and install it, then grant **Read network diagnostics** under **Settings → Applications → Network Inspector → Application permissions**:
+
+```powershell
+.\examples\NetworkInspector\build-package.ps1
+$env:REMOTEOS_DEV_TOKEN = "<token from Settings>"
+dotnet run --project Tools/RemoteOS.DevCli -- install .\examples\NetworkInspector\bin\Debug\net10.0\RemoteOS.Example.NetworkInspector.roapp
+```
+
+Open it through **Settings → Developer → Network Inspector**, the desktop icon, or `Ctrl+Shift+I`. Recording is off by default. Turning Developer Mode off, signing out, or revoking its permission immediately stops recording and clears its in-memory log.
+
 ## Security model
 
 Developer packages use a reserved external app ID and cannot use the `remoteos.*` built-in namespace. They are installed below the current user's local application data and do not overwrite store packages. Developer Mode does not grant manifest permissions automatically; grant or revoke each requested capability under **Application permissions**.
@@ -88,6 +102,7 @@ Package manifests request stable, host-defined permissions rather than defining 
 | Server management | `server.processes.manage`, `server.services.manage`, `server.power.manage` |
 | Server network | `server.network.read`, `server.network.configure` |
 | Desktop and workspace | `desktop.wallpaper.write` |
+| Developer tools | `diagnostics.network.read` |
 
 Management permissions include only the minimal inspection needed to safely perform that action (for example, process management includes listing processes); they do not grant other categories. Declaring a future catalogue permission alone never grants access to host services until a permission-gated SDK capability exposes it.
 
