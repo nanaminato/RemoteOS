@@ -12,7 +12,10 @@ public sealed record GuardianWorkloadDto(
     int? ProcessId,
     int RestartCount,
     string? HealthStatus = null,
-    int HealthFailureCount = 0);
+    int HealthFailureCount = 0,
+    string? ExecutablePath = null,
+    string? WorkingDirectory = null,
+    bool EnabledOnBoot = false);
 public sealed record GuardianLogEntryDto(DateTimeOffset Timestamp, string Stream, string Message);
 public sealed record GuardianAuditEntryDto(DateTimeOffset Timestamp, string Action, string? WorkloadId, string Outcome, string ProblemCode);
 public sealed record GuardianHealthCheckDto(string Type, string? Target = null, int IntervalSeconds = 15, int TimeoutSeconds = 5, int FailureThreshold = 3);

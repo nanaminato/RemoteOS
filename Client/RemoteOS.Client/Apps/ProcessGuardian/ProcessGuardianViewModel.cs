@@ -9,7 +9,6 @@ namespace Client.Apps.ProcessGuardian;
 public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient client) : ObservableObject
 {
     public ObservableCollection<GuardianWorkloadDto> Workloads { get; } = [];
-    public ObservableCollection<GuardianLogEntryDto> Logs { get; } = [];
     [ObservableProperty] private GuardianWorkloadDto? _selectedWorkload;
     [ObservableProperty] private string _statusText = LocalizedText.Get("guardian.status.loading");
     [ObservableProperty] private bool _isLoading;
@@ -19,6 +18,10 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     [ObservableProperty] private string _workingDirectory = string.Empty;
     [ObservableProperty] private string _argumentsText = string.Empty;
     [ObservableProperty] private bool _enabledOnBoot;
+
+    public Func<bool, Task>? ShowEditorAsync { get; set; }
+    public Func<GuardianWorkloadDto, Task>? ShowLogsAsync { get; set; }
+    public Func<Task>? CloseEditorAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
     [RelayCommand]
@@ -39,13 +42,25 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.status.failed", exception.Message); }
         finally { IsLoading = false; }
     }
-    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task StartWorkloadAsync() => ApplyActionAsync("start");
-    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task StopWorkloadAsync() => ApplyActionAsync("stop");
-    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task RestartWorkloadAsync() => ApplyActionAsync("restart");
-    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))]
-    private async Task DeleteWorkloadAsync()
+    [RelayCommand] private Task OpenCreateWorkloadAsync()
     {
-        var workload = SelectedWorkload; if (workload is null) return; IsLoading = true;
+        ClearDefinition();
+        return ShowEditorAsync?.Invoke(false) ?? Task.CompletedTask;
+    }
+    [RelayCommand] private async Task EditWorkloadAsync(GuardianWorkloadDto? workload)
+    {
+        workload ??= SelectedWorkload;
+        if (workload is null) return;
+        await LoadDefinitionAsync(workload.Id);
+        await (ShowEditorAsync?.Invoke(true) ?? Task.CompletedTask);
+    }
+    [RelayCommand] private Task StartWorkloadAsync(GuardianWorkloadDto? workload) => ApplyActionAsync("start", workload ?? SelectedWorkload);
+    [RelayCommand] private Task StopWorkloadAsync(GuardianWorkloadDto? workload) => ApplyActionAsync("stop", workload ?? SelectedWorkload);
+    [RelayCommand] private Task RestartWorkloadAsync(GuardianWorkloadDto? workload) => ApplyActionAsync("restart", workload ?? SelectedWorkload);
+    [RelayCommand]
+    private async Task DeleteWorkloadAsync(GuardianWorkloadDto? workload)
+    {
+        workload ??= SelectedWorkload; if (workload is null) return; IsLoading = true;
         try
         {
             var result = await client.DeleteAsync(workload.Id);
@@ -56,12 +71,10 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         finally { IsLoading = false; }
         await RefreshAsync();
     }
-    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private async Task LoadLogsAsync()
+    [RelayCommand] private async Task OpenLogsAsync(GuardianWorkloadDto? workload)
     {
-        var workload = SelectedWorkload; if (workload is null) return; IsLoading = true;
-        try { var logs = await client.ListLogsAsync(workload.Id); Logs.Clear(); foreach (var log in logs) Logs.Add(log); StatusText = LocalizedText.Format("guardian.logs.loaded", workload.Name); }
-        catch (Exception exception) { StatusText = LocalizedText.Format("guardian.logs.failed", exception.Message); }
-        finally { IsLoading = false; }
+        workload ??= SelectedWorkload;
+        if (workload is not null && ShowLogsAsync is not null) await ShowLogsAsync(workload);
     }
     private bool HasSelectedWorkload => SelectedWorkload is not null && !IsLoading;
     partial void OnSelectedWorkloadChanged(GuardianWorkloadDto? value)
@@ -70,10 +83,10 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         if (value is not null) _ = LoadDefinitionAsync(value.Id);
     }
     partial void OnIsLoadingChanged(bool value) => NotifyActionCommands();
-    private void NotifyActionCommands() { StartWorkloadCommand.NotifyCanExecuteChanged(); StopWorkloadCommand.NotifyCanExecuteChanged(); RestartWorkloadCommand.NotifyCanExecuteChanged(); DeleteWorkloadCommand.NotifyCanExecuteChanged(); LoadLogsCommand.NotifyCanExecuteChanged(); }
-    private async Task ApplyActionAsync(string action)
+    private void NotifyActionCommands() { }
+    private async Task ApplyActionAsync(string action, GuardianWorkloadDto? workload)
     {
-        var workload = SelectedWorkload; if (workload is null) return; IsLoading = true;
+        if (workload is null) return; IsLoading = true;
         try { var result = await client.ApplyActionAsync(workload.Id, action); StatusText = result.Success ? LocalizedText.Format("guardian.action.succeeded", action, workload.Name) : LocalizedText.Format("guardian.action.failed", action, result.ProblemCode); }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.action.failed", action, exception.Message); }
         finally { IsLoading = false; }
@@ -88,6 +101,7 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             StatusText = LocalizedText.Get("guardian.validation.required");
             return;
         }
+        var saved = false;
         IsLoading = true;
         try
         {
@@ -95,11 +109,13 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             var definition = new ProcessDefinitionDto(DefinitionId.Trim(), DefinitionName.Trim(), ExecutablePath.Trim(), arguments, WorkingDirectory.Trim(), EnabledOnBoot);
             var result = await client.UpsertAsync(definition);
             StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", result.ProblemCode);
-            if (result.Success) ClearDefinition();
+            saved = result.Success;
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.create.failed", exception.Message); }
         finally { IsLoading = false; }
+        if (!saved) return;
         await RefreshAsync();
+        if (CloseEditorAsync is not null) await CloseEditorAsync();
     }
 
     private async Task LoadDefinitionAsync(string workloadId)

@@ -306,7 +306,18 @@ internal sealed partial class WorkloadSupervisor
         return new GuardianAgentResponse(true, string.Empty, Audits: entries);
     }
 
-    private static GuardianWorkloadDto ToDto(ManagedWorkload workload) => new(workload.Definition.Id, workload.Definition.Name, workload.DesiredState, workload.ActualState, workload.Process is { HasExited: false } process ? process.Id : null, workload.RestartCount, workload.HealthStatus, workload.HealthFailureCount);
+    private static GuardianWorkloadDto ToDto(ManagedWorkload workload) => new(
+        workload.Definition.Id,
+        workload.Definition.Name,
+        workload.DesiredState,
+        workload.ActualState,
+        workload.Process is { HasExited: false } process ? process.Id : null,
+        workload.RestartCount,
+        workload.HealthStatus,
+        workload.HealthFailureCount,
+        workload.Definition.ExecutablePath,
+        workload.Definition.WorkingDirectory,
+        workload.Definition.EnabledOnBoot);
 
     private sealed class ManagedWorkload(ProcessDefinitionDto definition)
     {

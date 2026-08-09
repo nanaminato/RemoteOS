@@ -1,0 +1,37 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
+using RemoteOS.Protocol.Hubs;
+using RemoteOS.Protocol.ProcessGuardian;
+using Server.ProcessGuardian;
+
+namespace Server.Hubs;
+
+/// <summary>Authenticated subscriptions for sanitized Guardian workload logs.</summary>
+[Authorize]
+public sealed class GuardianLogsHub(
+    IProcessGuardianService guardian,
+    GuardianLogSubscriptionRegistry subscriptions) : Hub<IGuardianLogsHubClient>
+{
+    public async Task<IReadOnlyList<GuardianLogEntryDto>> Subscribe(string workloadId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(workloadId)) throw new HubException("A workload ID is required.");
+        await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(workloadId), cancellationToken);
+        subscriptions.Subscribe(Context.ConnectionId, workloadId);
+        return await guardian.ListLogsAsync(workloadId, cancellationToken);
+    }
+
+    public async Task Unsubscribe(string workloadId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(workloadId)) return;
+        subscriptions.Unsubscribe(Context.ConnectionId, workloadId);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(workloadId), cancellationToken);
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        subscriptions.RemoveConnection(Context.ConnectionId);
+        return base.OnDisconnectedAsync(exception);
+    }
+
+    internal static string GroupName(string workloadId) => $"guardian-logs:{workloadId}";
+}

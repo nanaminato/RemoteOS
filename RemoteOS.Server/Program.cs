@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RemoteOS.Protocol.Browser;
+using RemoteOS.Protocol.Common;
 using RoyalTerminal.Terminal;
 using Server.Browser;
 using Server.Endpoints;
@@ -73,7 +74,7 @@ builder.Services.AddAuthentication(options =>
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) &&
-                    path.StartsWithSegments("/hubs/terminals"))
+                    (path.StartsWithSegments("/hubs/terminals") || path.StartsWithSegments(RemoteOsEndpoints.GuardianLogsHubPath)))
                 {
                     context.Token = accessToken;
                 }
@@ -211,6 +212,8 @@ builder.Services.AddSingleton<Server.Terminal.TerminalSessionManager>();
 // 以 JWT sub claim 作为 Hub UserIdentifier，供 TerminalHub 按用户索引/过滤持久会话。
 builder.Services.AddSingleton<IUserIdProvider, Server.Terminal.TerminalUserIdProvider>();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null);
+builder.Services.AddSingleton<GuardianLogSubscriptionRegistry>();
+builder.Services.AddHostedService<GuardianLogBroadcastService>();
 
 // 文件管理：以宿主 OS 进程身份执行 IO，复用宿主用户/权限（不另建 ACL——见 project_memory 硬约束）。
 // LocalFileService 移植自 Jaya FileSystemService 的目录枚举逻辑并扩展为完整文件操作；平台感知（Windows 盘符 / Linux "/" 根）。
@@ -310,5 +313,6 @@ app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
+app.MapHub<GuardianLogsHub>(RemoteOsEndpoints.GuardianLogsHubPath);
 
 app.Run();

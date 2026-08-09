@@ -8,4 +8,7 @@ public static class RemoteOsEndpoints
 
     /// <summary>Workspace SignalR Hub 路径。</summary>
     public const string WorkspaceHubPath = "/hubs/workspace";
+
+    /// <summary>Guardian 日志 SignalR Hub 路径。</summary>
+    public const string GuardianLogsHubPath = "/hubs/guardian-logs";
 }
