@@ -1,0 +1,33 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "docker.login_required": "Docker マネージャーを開始するには、RemoteOS Server にサインインして接続してください。",
+    "docker.status.loading": "サーバーのローカル Docker Engine を確認しています…",
+    "docker.status.available": "Docker Engine {0} を利用できます（{1}）。",
+    "docker.status.unavailable": "Docker Engine は利用できません: {0}。",
+    "docker.status.failed": "Docker 状態の取得に失敗しました: {0}",
+    "docker.containers": "コンテナー",
+    "docker.images": "イメージ",
+    "docker.networks": "ネットワーク",
+    "docker.volumes": "ボリューム",
+    "docker.action.start": "開始",
+    "docker.action.stop": "停止",
+    "docker.action.restart": "再起動",
+    "docker.action.succeeded": "{1} の {0} が完了しました。",
+    "docker.action.failed": "{0} に失敗しました: {1}",
+    "docker.stacks": "スタック",
+    "docker.stack.name": "スタック名",
+    "docker.stack.compose": "Compose YAML",
+    "docker.stack.validate": "検証",
+    "docker.stack.deploy": "デプロイ",
+    "docker.stack.down": "スタックを停止",
+    "docker.stack.required": "スタック名と Compose YAML を入力してください。",
+    "docker.stack.succeeded": "スタック {1} の {0} が完了しました。",
+    "docker.stack.failed": "スタックの {0} に失敗しました: {1}",
+    "docker.image.reference": "イメージ参照（例: nginx:latest）",
+    "docker.image.pull": "イメージを取得",
+    "docker.image.required": "イメージ参照を入力してください。",
+    "docker.image.pull_succeeded": "イメージ {0} を取得しました。",
+    "docker.image.pull_failed": "イメージを取得できませんでした: {0}"
+  }
+}

@@ -1,6 +1,10 @@
 # RemoteOS ProcessGuardian 设计
 
-> 规划中的内置进程守护管理器。它统一管理由 RemoteOS 声明和守护的后台程序，并以只读/受控方式管理现有 `systemd` 单元和 Windows SCM 服务；不是任务管理器的替代品。
+> 内置进程守护管理器。它统一管理由 RemoteOS 声明和守护的后台程序，并以只读/受控方式管理现有 `systemd` 单元和 Windows SCM 服务；不是任务管理器的替代品。
+>
+> 当前状态：**已实现**独立 Guardian Agent 可执行体、本机认证 IPC、工作负载声明的最小持久化以及启动/停止/重启。服务安装/修复、日志轮转、健康检查、自动退避、审计和原生服务适配仍为**设计中**；Server 不会替代 Agent 守护任何进程。
+>
+> 当前 Agent 启动时必须由宿主配置 `REMOTEOS_GUARDIAN_SHARED_SECRET` 与非空的 `REMOTEOS_GUARDIAN_ALLOWED_ROOTS`（以平台路径分隔符分隔）。它仅启动这些根目录内的绝对可执行文件，并拒绝 `cmd`、PowerShell、`sh` 和 `bash` 作为隐式 shell 入口。
 >
 > - 即时进程查看与结束任务：[`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)
 > - 安全与权限提升：[`RemoteOS.Security.md`](./RemoteOS.Security.md)
@@ -134,7 +138,7 @@ Protocol 放于 `Shared/RemoteOS.Protocol/ProcessGuardian/`，仅以 DTO、路�
 | POST | `/api/v1/guardian/services/{id}/{action}` | `server.services.manage` |
 | POST | `/api/v1/guardian/agent/installation/{plan|execute}` | `server.guardian.install` |
 
-`IProcessGuardianService`（Server）和 `IGuardianAgentClient`（IPC）实现两层边界。调用超时、取消、断线和幂等键必须贯穿两层；Agent 事件通过 Server 过滤后使用 SignalR 推送。只有日志尾部/增量事件可流式传输，历史日志按游标分页并应用大小限制。
+`IProcessGuardianService`（Server）和 `IGuardianAgentClient`（IPC）实现两层边界。当前实现以受共享机密认证的本机 named pipe（Unix 上由 .NET 映射为本机 socket）传递一行 JSON 请求/响应；`GuardianAgent:SharedSecret` 必须由受保护的宿主配置注入，Agent 从 `REMOTEOS_GUARDIAN_SHARED_SECRET` 读取，绝不写入仓储或 HTTP DTO。调用超时、取消、断线和幂等键必须贯穿两层；Agent 事件通过 Server 过滤后使用 SignalR 推送。只有日志尾部/增量事件可流式传输，历史日志按游标分页并应用大小限制。
 
 SQLite 是声明、审计和历史摘要的真源；Agent 在本机持有可重放的最小运行快照，以便 Server 不可用时仍按已批准定义恢复。Agent 恢复 Server 连通后上报 generation、实际状态和未上送事件，由 Server 幂等合并。原始日志留在 Agent 的受限目录，按策略滚动；数据库只保存索引、校验和短摘要。
 
@@ -157,4 +161,3 @@ SQLite 是声明、审计和历史摘要的真源；Agent 在本机持有可重�
 - 因配置无效、权限不足、二进制缺失、退出非零、健康检查失败、重启耗尽而失败时，界面显示稳定问题码与下一步建议，审计留完整安全诊断。
 
 实施顺序：先实现 Agent 安装/IPC/status 与只读工作负载；再实现定义校验、启动/停止/重启、日志和状态机；再加重启/健康/开机恢复；最后接入原生服务适配器和 UI 向导。验收必须在 Ubuntu 与 Windows 各验证 Agent 重启、主机重启、崩溃退避、进程树清理、日志轮转、Server 暂时不可用、权限拒绝、秘密脱敏和审计重放。
-

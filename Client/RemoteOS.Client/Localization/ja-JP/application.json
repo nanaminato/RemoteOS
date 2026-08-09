@@ -20,6 +20,10 @@
         "application.remoteos.taskmanager.description": "CPU、メモリ、ディスク、ネットワーク、GPU の使用状況と実行中のプロセスを表示",
         "application.remoteos.browser.description": "ブックマークと履歴をサーバーと同期できるウェブブラウザー",
         "application.remoteos.appinstaller.description": "RemoteOS アプリケーションパッケージをインストールまたは更新します。",
-        "application.remoteos.explorer.description": "リモートファイルマネージャー"
+        "application.remoteos.explorer.description": "リモートファイルマネージャー",
+        "application.remoteos.docker.display_name": "Docker マネージャー",
+        "application.remoteos.docker.description": "RemoteOS Server のローカル Docker Engine を管理します",
+        "application.remoteos.processguardian.display_name": "プロセスガーディアン",
+        "application.remoteos.processguardian.description": "RemoteOS Guardian Agent が監視するワークロードを表示します"
     }
 }

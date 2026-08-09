@@ -1,6 +1,8 @@
 # RemoteOS DockerManager 设计
 
-> 规划中的内置 Docker 管理器。它管理 **RemoteOS.Server 所在宿主机** 的本地 Docker Engine；客户端只负责本地 UI 渲染，不直连 Docker socket、不保存 Docker 凭据，也不将守护进程 API 暴露到网络。
+> 内置 Docker 管理器。它管理 **RemoteOS.Server 所在宿主机** 的本地 Docker Engine；客户端只负责本地 UI 渲染，不直连 Docker socket、不保存 Docker 凭据，也不将守护进程 API 暴露到网络。
+>
+> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose 的校验、`up` 和 `down` 主路径。安装、创建与删除、镜像构建/拉取、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
 >
 > - 架构与内置应用边界：[`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 协议契约规则：[`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
@@ -163,4 +165,3 @@ Docker daemon 的控制权相当于宿主机高权限。故默认原则是“只
 5. 最后增加 Ubuntu 安装器和 Windows 引导安装器；安装、升级和回滚均须在干净 VM 中验证。
 
 验收至少覆盖 Ubuntu 22.04/24.04 与 Windows 的可用 Engine：无 Engine、权限不足、API 不兼容、拉取失败、断流重连、Compose 失败回滚、运行中资源删除冲突、机密脱敏和审计完整性。任何平台仅在“安装 + hello-world + 管理 CRUD + 重启后恢复 + 卸载/故障路径”通过后才标记为支持。
-

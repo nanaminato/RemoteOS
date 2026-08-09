@@ -217,8 +217,8 @@ Application Package
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（浏览、基本操作、文件打开方式、属性与 Linux 权限编辑） |
 | **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server + 本地端口映射） | 已实现（导航 + 书签 + 历史 + 浏览器偏好 + 本地端口映射） |
 | **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
-| **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 设计中（详见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)） |
-| **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 设计中（详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
+| **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 已实现（状态和资源只读列表、容器启停重启、Compose 校验/部署/停止；其余功能设计中，详见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)） |
+| **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载的声明持久化与启停重启；健康/日志/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
 
 ---
 

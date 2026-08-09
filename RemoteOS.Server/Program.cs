@@ -154,6 +154,14 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 else
     builder.Services.AddSingleton<Server.SystemMonitor.ISystemMetricsProvider, Server.SystemMonitor.LinuxMetricsProvider>();
 
+// Built-in Docker manager: the provider uses Docker's local CLI transport only; no socket/pipe
+// is ever exposed to clients. Guardian intentionally remains a separate Agent boundary.
+builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
+builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
+var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Server.ProcessGuardian.GuardianAgentOptions>() ?? new Server.ProcessGuardian.GuardianAgentOptions();
+builder.Services.AddSingleton(guardianOptions);
+builder.Services.AddSingleton<Server.ProcessGuardian.IProcessGuardianService, Server.ProcessGuardian.NamedPipeProcessGuardianService>();
+
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
 // 详见 docs/RemoteOS.Storage.md。
@@ -288,6 +296,8 @@ app.MapAppCapabilityEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
+app.MapDockerEndpoints();
+app.MapProcessGuardianEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 
 app.Run();

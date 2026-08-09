@@ -73,6 +73,12 @@ public static class Bootstrapper
         services.AddHttpClient<Client.Apps.TaskManager.ITaskManagerClient, Client.Apps.TaskManager.TaskManagerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "task-manager"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Docker.IRemoteDockerClient, Client.Apps.Docker.RemoteDockerClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "docker"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.ProcessGuardian.IProcessGuardianClient, Client.Apps.ProcessGuardian.ProcessGuardianClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "process-guardian"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
@@ -113,6 +119,8 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.TaskManager.TaskManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>

@@ -1,0 +1,24 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "guardian.login_required": "Process Guardian requires sign-in. Connect to a RemoteOS Server before starting this app.",
+    "guardian.status.loading": "Checking the RemoteOS Guardian Agent…",
+    "guardian.status.available": "RemoteOS Guardian Agent is available (version {0}).",
+    "guardian.status.unavailable": "RemoteOS Guardian Agent is unavailable: {0}.",
+    "guardian.status.failed": "Guardian status request failed: {0}",
+    "guardian.action.start": "Start",
+    "guardian.action.stop": "Stop",
+    "guardian.action.restart": "Restart",
+    "guardian.action.succeeded": "{0} completed for {1}.",
+    "guardian.action.failed": "Could not {0}: {1}",
+    "guardian.validation.required": "Enter an ID, name, executable path, and working directory.",
+    "guardian.create.id": "Stable workload ID",
+    "guardian.create.name": "Workload name",
+    "guardian.create.executable": "Absolute executable path",
+    "guardian.create.working_directory": "Absolute working directory",
+    "guardian.create.arguments": "Arguments (one per line)",
+    "guardian.create.submit": "Save workload",
+    "guardian.create.succeeded": "Saved workload {0}.",
+    "guardian.create.failed": "Could not save workload: {0}"
+  }
+}

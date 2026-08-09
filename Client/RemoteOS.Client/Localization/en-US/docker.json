@@ -1,0 +1,33 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "docker.login_required": "Docker Manager requires sign-in. Connect to a RemoteOS Server before starting this app.",
+    "docker.status.loading": "Checking the server's local Docker Engine…",
+    "docker.status.available": "Docker Engine {0} is available ({1}).",
+    "docker.status.unavailable": "Docker Engine is unavailable: {0}.",
+    "docker.status.failed": "Docker status request failed: {0}",
+    "docker.containers": "Containers",
+    "docker.images": "Images",
+    "docker.networks": "Networks",
+    "docker.volumes": "Volumes",
+    "docker.action.start": "Start",
+    "docker.action.stop": "Stop",
+    "docker.action.restart": "Restart",
+    "docker.action.succeeded": "{0} completed for {1}.",
+    "docker.action.failed": "Could not {0}: {1}",
+    "docker.stacks": "Stacks",
+    "docker.stack.name": "Stack name",
+    "docker.stack.compose": "Compose YAML",
+    "docker.stack.validate": "Validate",
+    "docker.stack.deploy": "Deploy",
+    "docker.stack.down": "Stop stack",
+    "docker.stack.required": "Enter a stack name and Compose YAML.",
+    "docker.stack.succeeded": "{0} completed for stack {1}.",
+    "docker.stack.failed": "Could not {0} stack: {1}",
+    "docker.image.reference": "Image reference (for example, nginx:latest)",
+    "docker.image.pull": "Pull image",
+    "docker.image.required": "Enter an image reference.",
+    "docker.image.pull_succeeded": "Pulled image {0}.",
+    "docker.image.pull_failed": "Could not pull image: {0}"
+  }
+}

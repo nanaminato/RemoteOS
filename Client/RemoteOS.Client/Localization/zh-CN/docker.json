@@ -1,0 +1,33 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "docker.login_required": "Docker 管理器需要先登录并连接到 RemoteOS Server。",
+    "docker.status.loading": "正在检查服务器本机 Docker Engine…",
+    "docker.status.available": "Docker Engine {0} 可用（{1}）。",
+    "docker.status.unavailable": "Docker Engine 不可用：{0}。",
+    "docker.status.failed": "Docker 状态请求失败：{0}",
+    "docker.containers": "容器",
+    "docker.images": "镜像",
+    "docker.networks": "网络",
+    "docker.volumes": "卷",
+    "docker.action.start": "启动",
+    "docker.action.stop": "停止",
+    "docker.action.restart": "重启",
+    "docker.action.succeeded": "已对 {1} 完成{0}。",
+    "docker.action.failed": "无法{0}：{1}",
+    "docker.stacks": "Stack",
+    "docker.stack.name": "Stack 名称",
+    "docker.stack.compose": "Compose YAML",
+    "docker.stack.validate": "校验",
+    "docker.stack.deploy": "部署",
+    "docker.stack.down": "停止 Stack",
+    "docker.stack.required": "请填写 Stack 名称和 Compose YAML。",
+    "docker.stack.succeeded": "已对 Stack {1} 完成{0}。",
+    "docker.stack.failed": "无法{0} Stack：{1}",
+    "docker.image.reference": "镜像引用（例如 nginx:latest）",
+    "docker.image.pull": "拉取镜像",
+    "docker.image.required": "请输入镜像引用。",
+    "docker.image.pull_succeeded": "已拉取镜像 {0}。",
+    "docker.image.pull_failed": "无法拉取镜像：{0}"
+  }
+}

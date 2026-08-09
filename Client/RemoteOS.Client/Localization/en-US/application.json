@@ -20,6 +20,10 @@
         "application.remoteos.taskmanager.description": "View CPU, memory, disk, network, GPU usage, and running processes",
         "application.remoteos.browser.description": "Web browser with server-synced bookmarks and history",
         "application.remoteos.appinstaller.description": "Install or update RemoteOS application packages.",
-        "application.remoteos.explorer.description": "Remote file manager"
+        "application.remoteos.explorer.description": "Remote file manager",
+        "application.remoteos.docker.display_name": "Docker Manager",
+        "application.remoteos.docker.description": "Manage the local Docker Engine on the RemoteOS Server",
+        "application.remoteos.processguardian.display_name": "Process Guardian",
+        "application.remoteos.processguardian.description": "View workloads supervised by the RemoteOS Guardian Agent"
     }
 }

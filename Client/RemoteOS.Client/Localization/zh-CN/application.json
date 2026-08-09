@@ -20,6 +20,10 @@
         "application.remoteos.taskmanager.description": "查看 CPU、内存、磁盘、网络、GPU 使用情况和正在运行的进程",
         "application.remoteos.browser.description": "支持服务器同步书签和历史记录的网页浏览器",
         "application.remoteos.appinstaller.description": "安装或更新 RemoteOS 应用程序包。",
-        "application.remoteos.explorer.description": "远程文件管理器"
+        "application.remoteos.explorer.description": "远程文件管理器",
+        "application.remoteos.docker.display_name": "Docker 管理器",
+        "application.remoteos.docker.description": "管理 RemoteOS Server 本机 Docker Engine",
+        "application.remoteos.processguardian.display_name": "进程守护程序",
+        "application.remoteos.processguardian.description": "查看由 RemoteOS Guardian Agent 守护的工作负载"
     }
 }
