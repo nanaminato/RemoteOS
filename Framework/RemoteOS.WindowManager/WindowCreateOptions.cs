@@ -14,4 +14,5 @@ public sealed record WindowCreateOptions(
     string? IconGlyph = null,
     bool CanResize = true,
     bool CanMinimize = true,
-    bool CanMaximize = true);
+    bool CanMaximize = true,
+    bool IsModalDialog = false);

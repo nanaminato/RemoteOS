@@ -16,15 +16,19 @@ public partial class ManagedWindow : ObservableObject
     public const string MaximizeGlyphChar = "\uE922";
     public const string RestoreGlyphChar = "\uE923";
 
-    public ManagedWindow(WindowInfo info, RemoteWindow view)
+    public ManagedWindow(WindowInfo info, RemoteWindow view, bool isModalDialog = false)
     {
         Info = info;
         View = view;
+        IsModalDialog = isModalDialog;
         Sync();
     }
 
     public WindowInfo Info { get; }
     public RemoteWindow View { get; }
+
+    /// <summary>Whether this window is a transient modal dialog rather than an application task.</summary>
+    public bool IsModalDialog { get; }
 
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private string? _iconGlyph;

@@ -205,6 +205,9 @@ public partial class DesktopShellViewModel : ObservableObject
     private void RefreshTaskbarGroups()
     {
         var groupedWindows = _windowManager.Windows
+            // Modal dialogs belong to their owner. Showing them here lets taskbar activation
+            // select the blocked owner, which breaks the modal focus contract.
+            .Where(window => !window.IsModalDialog)
             .GroupBy(window => window.Info.OwnerAppId)
             .ToDictionary(group => group.Key, group => group.ToList());
 

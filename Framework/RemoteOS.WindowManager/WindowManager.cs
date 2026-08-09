@@ -103,7 +103,7 @@ public sealed class WindowManager : IWindowManager
         };
 
         var view = new RemoteWindow { Content = options.Content };
-        var managed = new ManagedWindow(info, view);
+        var managed = new ManagedWindow(info, view, options.IsModalDialog);
         view.DataContext = managed;
 
         managed.FocusRequested += (_, _) => Focus(managed);
@@ -155,7 +155,8 @@ public sealed class WindowManager : IWindowManager
             IconGlyph: owner.IconGlyph,
             CanResize: true,
             CanMinimize: false,
-            CanMaximize: false));
+            CanMaximize: false,
+            IsModalDialog: true));
         var dialogHost = GetWindowHost(owner);
         MoveToHost(dialogWindow, dialogHost);
         dialog.Attach(dialogWindow);
@@ -234,6 +235,11 @@ public sealed class WindowManager : IWindowManager
     {
         if (!_windows.Contains(window))
             return;
+
+        // A modal owner must never be raised above its dialog. This also covers taskbar
+        // activation, which targets the application's primary window rather than the dialog.
+        while (GetTopmostModal(window) is { } dialog)
+            window = dialog;
 
         _zCounter++;
         window.View.ZIndex = _zCounter;
@@ -446,6 +452,9 @@ public sealed class WindowManager : IWindowManager
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, owner)).ToList())
             session.Cancel();
     }
+
+    private ManagedWindow? GetTopmostModal(ManagedWindow owner)
+        => _modalSessions.LastOrDefault(session => ReferenceEquals(session.Owner, owner))?.DialogWindow;
 
     private Canvas GetRegularHost()
         => _host ?? throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
