@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Client.Services.Diagnostics;
-using RemoteOS.AppSDK;
 using RemoteOS.Protocol.Hubs;
 using RoyalTerminal.Terminal;
 

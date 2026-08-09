@@ -351,7 +351,7 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
 | [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、BrowserSettings 持久化、本地端口映射（loopback → 服务端）、按用户隔离持久化 |
 | [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | 设置中心：5 分类页、Workspace 偏好持久化、PreferencesSync 多设备同步、默认程序映射 |
-| [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md) | 网络检查器：外部 UI + 宿主采集、REST/SignalR 诊断、内存/隐私边界、权限与国际化设计 |
+| [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md) | 网络检查器：系统窗口 + 宿主采集、REST/SignalR 诊断、内存/隐私边界与国际化设计 |
 | [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 任务管理器：性能/进程双标签页、跨平台 ISystemMetricsProvider（Linux /proc + Windows P/Invoke）、CPU 差分、结束进程不自动提权 |
 | [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) | Docker 管理器：本机 Engine、安装预检与引导、容器/镜像/Stack/网络/卷、权限与审计设计 |
 | [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md) | 进程守护管理器：独立 Guardian Agent、守护定义、健康检查、重启策略、systemd/SCM 适配设计 |

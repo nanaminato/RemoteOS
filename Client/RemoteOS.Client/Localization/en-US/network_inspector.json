@@ -1,0 +1,18 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "network_inspector.title": "Network Inspector",
+    "network_inspector.record": "Record",
+    "network_inspector.stop": "Stop",
+    "network_inspector.clear": "Clear",
+    "network_inspector.filter": "Filter",
+    "network_inspector.requests": "requests",
+    "network_inspector.select": "Select a request to view its summary.",
+    "network_inspector.status": "Status",
+    "network_inspector.duration": "Duration",
+    "network_inspector.source": "Source",
+    "network_inspector.type": "Type",
+    "network_inspector.size": "Size",
+    "network_inspector.error": "Error"
+  }
+}

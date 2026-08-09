@@ -1,0 +1,18 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "network_inspector.title": "网络检查器",
+    "network_inspector.record": "开始录制",
+    "network_inspector.stop": "停止",
+    "network_inspector.clear": "清空",
+    "network_inspector.filter": "筛选",
+    "network_inspector.requests": "条请求",
+    "network_inspector.select": "选择一条请求以查看摘要。",
+    "network_inspector.status": "状态",
+    "network_inspector.duration": "耗时",
+    "network_inspector.source": "来源",
+    "network_inspector.type": "类型",
+    "network_inspector.size": "大小",
+    "network_inspector.error": "错误"
+  }
+}

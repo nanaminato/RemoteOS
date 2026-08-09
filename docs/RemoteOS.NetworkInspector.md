@@ -1,7 +1,7 @@
 # RemoteOS Network Inspector（设计）
 
-> 状态：提案（V1）  
-> 目标：提供一个可独立安装的开发者工具，用很低的常驻成本查看 **RemoteOS 客户端到 RemoteOS Server** 的 REST API 与 SignalR 调用。它参考 Chrome DevTools 的 Network 面板，但不试图成为通用抓包器。
+> 状态：已实现（V1）
+> 目标：提供一个由 RemoteOS Shell 直接拥有的系统调试窗口，用很低的常驻成本查看 **RemoteOS 客户端到 RemoteOS Server** 的 REST API 与 SignalR 调用。它参考 Chrome DevTools 的 Network 面板，但不试图成为通用抓包器。
 
 相关文档：[Developer Mode](./RemoteOS.DeveloperMode.md)、[Localization](./RemoteOS.Localization.md)、[Settings](./RemoteOS.Settings.md)、[Protocol](./RemoteOS.Protocol.md)。
 
@@ -9,12 +9,12 @@
 
 ## 1. 决策摘要
 
-网络调试器采用“**外部 UI、宿主采集**”的双层设计：
+网络调试器采用“**系统窗口、宿主采集**”的单一信任边界：
 
-- `com.remoteos.dev.network-inspector` 是一个通过 Developer Mode 安装的 `.roapp`，不是内置应用；它使用 `IExternalAppContext.NetworkDiagnostics` 读取宿主提供的、已脱敏的事件流。
-- 采集器 `NetworkDiagnosticsService` 是客户端宿主的 singleton。它是唯一可信的采集点，负责内存上限、脱敏、分类和事件订阅；外部包绝不接触 `HttpClient`、JWT、原始 Header 或其他宿主服务。
+- `NetworkInspectorWindowService` 是 RemoteOS Shell 的系统服务，直接通过 `IWindowManager` 创建 `remoteos.system.network-inspector` 窗口；它不是内置应用，也不是可安装的 `.roapp`。
+- 采集器 `NetworkDiagnosticsService` 是客户端宿主的 singleton。它负责内存上限、脱敏、分类和事件订阅；检查器窗口直接读取其已脱敏事件流。
 - V1 只承诺监视通过 RemoteOS 宿主通信栈发起的调用：已注册 typed `HttpClient` 的 REST 请求、以及明确接入包装器的 SignalR Hub 生命周期和协商请求。
-- 默认不录制；仅当 **Developer Mode 已开启、检查器已获 `diagnostics.network.read` 权限且用户开始录制** 时采集。关闭录制、关闭检查器、关闭开发者模式、登出都会立即清空内存中的记录。
+- 默认不录制；仅当 **Developer Mode 已开启、用户开始录制** 时采集。关闭录制、关闭开发者模式或登出都会立即清空内存中的记录。
 
 这个边界很重要：嵌入 Browser 的网页流量、任意第三方包自行创建的 `HttpClient`、宿主 OS 的其他进程流量都不属于“所有 API 调用”，也不能在不引入代理/VPN/证书拦截的前提下可靠捕获。V1 不做这些高权限且高风险能力。
 
@@ -26,9 +26,8 @@
 
 | 入口 | 行为 |
 | --- | --- |
-| **Settings → Developer → Network Inspector** | 显示录制状态与“打开检查器”。开发者模式关闭时，说明原因并禁用操作。包未安装时显示“未安装”，可跳转现有开发包安装流程。 |
+| **Settings → Developer → Network Inspector** | 显示状态与“打开检查器”。开发者模式关闭时，说明原因并禁用操作。 |
 | **Ctrl+Shift+I** | 在 `MainWindow` 的隧道路由键盘事件中处理；不依赖当前子窗口是否有焦点。满足前置条件时启动或聚焦检查器；否则显示一次本地化提示。 |
-| 桌面 / 开始菜单 | 外部包安装后按普通应用显示，便于直接打开。 |
 
 首版固定 `Ctrl+Shift+I`，与 Chrome 的习惯一致；在浏览器 WebView 捕获该快捷键的情况下，宿主的隧道路由优先。V2 再考虑可配置快捷键。`F12` 暂不占用，避免与宿主、WebView 和平台调试器冲突。
 
@@ -40,7 +39,6 @@
 | SignalR：终端 Hub 的连接、协商、调用结果和连接状态 | 包含，见第 6 节 |
 | 下载、上传、媒体播放 | 只保留摘要，不保存正文 |
 | REST 请求/响应 JSON | 可选小型预览，严格脱敏与截断 |
-| 外部包经未来宿主 SDK capability 发起的 RemoteOS API | 由 capability 实现主动上报，包含 |
 | WebView 中的网站流量、外部包任意出站流量、服务器侧内部 HTTP | 排除 |
 | SignalR 消息帧、终端输入/输出、WebSocket payload | 排除 |
 
@@ -74,12 +72,12 @@
 
 ## 4. 数据模型、内存与隐私
 
-### 4.1 向外提供的 SDK 契约
+### 4.1 宿主内部契约
 
-在 `Framework/RemoteOS.App.SDK` 增加只读 capability（名称可在实现前做一次 API review）：
+`Client.Services.Diagnostics` 中的内部契约由系统窗口直接使用：
 
 ```csharp
-public interface INetworkDiagnostics
+public sealed class NetworkDiagnosticsService
 {
     NetworkDiagnosticsState State { get; }
     event EventHandler<NetworkDiagnosticsState>? StateChanged;
@@ -90,8 +88,6 @@ public interface INetworkDiagnostics
     Task ClearAsync(CancellationToken ct = default);
 }
 ```
-
-`IExternalAppContext` 增加该属性；`ExternalAppContextFactory` 只在调用方拥有 `diagnostics.network.read` 时返回有效实现，未授权时所有命令返回 `PermissionDenied`，快照为空。该权限只授予检查器包，不自动授予任何其他第三方应用。
 
 每个 `NetworkDiagnosticEntry` 为已完成的不可变摘要，至少包含：`Id`、`StartedAt`、`Duration`、`Kind`（`Http` / `SignalR`）、`Source`、`Name`、`Method`、已净化的 `PathAndQuery`、`Outcome`、可空 `StatusCode`、`ContentType`、`DeclaredContentLength`、`IsMedia`、`ErrorKind` 和受限的 Header/预览字段。`Source` 由调用方显式给出（如 `auth`、`explorer`、`terminal`、`settings`），不能从未受信任的 URL 推断。
 
@@ -146,7 +142,7 @@ SignalR 不能像普通 HTTP 一样以“每个数据包”为单位记录，也
 | Invoke（如 `Start`、`ListSessions`、`Input`、`Resize`、`Close`） | 方法名、开始/完成、耗时、成功/失败 | 参数与返回值；尤其不记录终端字节 |
 | Reconnecting / Reconnected（未来使用自动重连时） | 连接序号、重试次数、间隔、最终结果 | token、帧和服务端缓冲 |
 
-新增 `INetworkDiagnosticsHubObserver` 与受控的 `RemoteOsHubConnectionBuilder`（或等价包装器），取代业务代码直接 `new HubConnectionBuilder()` 的模式。`TerminalHubConnection.Build` 是首个接入点：它在 `WithUrl` 中通过 `HttpMessageHandlerFactory` 包装协商 HTTP handler，并订阅 `Closed`、`Reconnecting`、`Reconnected`；每次 `StartAsync` / `StopAsync` / `InvokeAsync` 由小型包装方法上报。
+通过受控的 `TerminalHubConnection.Build` 接入 SignalR。它在 `WithUrl` 中通过 `HttpMessageHandlerFactory` 包装协商 HTTP handler，并订阅 `Closed`；`StartAsync`、`StopAsync` 和会话列表调用由小型包装方法上报。
 
 当前 `TerminalHubConnection` **明确没有启用 `WithAutomaticReconnect`**：重连后服务端不会自动重新附着 PTY，会导致半附着状态。因此 V1 仅显示“断开后需要重新打开终端”的状态，不改变现有恢复语义，也不为了显示重连而启用自动重连。未来若业务实现“重新连接后重新 Attach + 服务端回放”这一完整协议，才启用自动重连并记录重连时间线。
 
@@ -154,29 +150,16 @@ SignalR 不能像普通 HTTP 一样以“每个数据包”为单位记录，也
 
 ---
 
-## 7. 外部应用、权限和国际化
+## 7. 系统集成与国际化
 
-### 7.1 包与权限
+### 7.1 系统窗口
 
-示例包放在 `examples/NetworkInspector`，其 manifest 使用：
-
-```json
-{
-  "id": "com.remoteos.dev.network-inspector",
-  "displayName": "Network Inspector",
-  "requestedPermissions": ["diagnostics.network.read"]
-}
-```
-
-在 `AppPermissions` 加入 `diagnostics.network.read`，分类为 `developer_tools`。该权限的说明要明确：它允许读取 **已脱敏的、本客户端会话中的 RemoteOS API 诊断摘要**，可能暴露资源路径、状态码和受限文本预览；不授予任意网络抓包、Token、Cookie、请求重放或服务器管理权限。
-
-Settings 的 Developer 页只负责“是否允许开启/打开”，不向 Workspace 同步该状态；Developer Mode、包权限、录制状态和日志全是设备本地状态。应用自身使用 `IExternalAppContext.Windows` 创建窗口、使用 `SystemLanguage` 订阅语言变化，不能取得宿主 DI 容器。
+Settings 的 Developer 页只负责“是否允许开启/打开”，不向 Workspace 同步该状态；Developer Mode、录制状态和日志全是设备本地状态。系统窗口不出现在应用列表、不需要安装、也不向外部应用 SDK 暴露该能力。
 
 ### 7.2 本地化契约
 
-- 设置页新增 `settings.network_inspector.*` 键到 client 的 `en-US`、`zh-CN`、`ja-JP`；文本包括标题、说明、打开、未安装、需要开发者模式、录制中/已停止和快捷键提示。
-- 权限元数据新增 `permission.diagnostics.network.read.*` 和 `permission.category.developer_tools` 的三语翻译，英语 metadata 是 SDK fallback。
-- 外部包在自己的 `Localization/en-US.json`、`zh-CN.json`、`ja-JP.json` 放 `network_inspector.*` 键，并遵循 `SystemLanguage.LanguageChanged` 刷新所有 VM 展示值；键名稳定、英语 fallback 始终存在。
+- 设置页新增 `settings.network_inspector.*` 键；系统窗口新增 `network_inspector.*` 键到 client 的 `en-US`、`zh-CN`、`ja-JP`，英语 fallback 始终存在。
+- `NetworkInspectorWindowService` 订阅 `LocalizationService.LanguageChanged`，刷新窗口标题和全部系统 UI 文本。
 - 网络条目的协议字段使用稳定 enum/代码（`TransportError`、`Media`、`SignalR`），由检查器 UI 映射成本地化标签；不要把已经本地化的字符串存入记录，以便切换语言后历史列表也能即时重绘。
 
 ---
@@ -186,8 +169,7 @@ Settings 的 Developer 页只负责“是否允许开启/打开”，不向 Work
 1. **宿主最小采集器**：实现不可变 entry、环形缓冲、净化器、生命周期清除和单元测试（Header/JSON/query 脱敏、500/4 MiB 淘汰、取消/异常）。此阶段先不公开 SDK。
 2. **REST 接入**：加入 handler 并覆盖所有当前 typed clients。验证正常 JSON、401/500、下载、上传、媒体租约和大文件均不读取/保存 body。
 3. **SignalR 接入**：仅改终端连接构造路径，验证 `/negotiate`、连接、`Start`、`Input`、断开和失败连接。确认不启用自动重连，终端恢复行为不变。
-4. **受权限约束的 SDK**：增加 `INetworkDiagnostics`、权限和 `ExternalAppContextFactory`，验证包未授权、权限授予后、撤销中、登出和关闭开发者模式的即时失效。
-5. **外部 UI 与入口**：实现 `examples/NetworkInspector`、设置 Developer 页入口、`Ctrl+Shift+I` 宿主路由与三语文案。包未安装时不能悄悄替换成内置窗口。
+4. **系统窗口与入口**：实现 `NetworkInspectorWindowService`、设置 Developer 页入口、`Ctrl+Shift+I` 宿主路由与三语文案。
 
 验收标准：
 
@@ -195,7 +177,7 @@ Settings 的 Developer 页只负责“是否允许开启/打开”，不向 Work
 - 一次 JSON API 调用显示方法、已脱敏路径、状态、耗时及（仅在启用时）不超过 8 KiB 的预览。
 - 一次媒体下载/播放只显示摘要；检查断点证明正文没有被监视器读取。
 - 终端连接失败能看到协商/连接失败，终端数据、命令和 token 永不出现。
-- 关闭开发者模式、登出或撤销权限后，检查器立即变为空状态且之后不再收到 entry。
+- 关闭开发者模式或登出后，检查器立即变为空状态且之后不再收到 entry。
 - en-US、zh-CN、ja-JP 下设置入口、权限说明、过滤项和详情状态均可切换，不依赖重启。
 
 ---

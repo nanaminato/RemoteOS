@@ -6,9 +6,7 @@ using Client.Services.Auth;
 using Client.Services.WindowLayout;
 using Client.Services;
 using Client.Services.Developer;
-using RemoteOS.AppSDK;
-using RemoteOS.Core.Applications;
-using RemoteOS.Runtime;
+using Client.Services.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Views;
@@ -129,11 +127,7 @@ public partial class MainWindow : Window
             return;
 
         e.Handled = true;
-        var developerMode = App.Services.GetRequiredService<DeveloperModeService>();
-        if (!developerMode.IsEnabled)
-            return;
-        App.Services.GetRequiredService<ApplicationManager>()
-            .Launch(new AppId(NetworkDiagnosticsApplication.InspectorAppId));
+        App.Services.GetRequiredService<NetworkInspectorWindowService>().Open();
     }
 
     private void ConnectionBar_OnPointerEntered(object? sender, PointerEventArgs e) => _hideBarTimer.Stop();

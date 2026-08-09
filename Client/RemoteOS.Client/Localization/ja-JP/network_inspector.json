@@ -1,0 +1,18 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "network_inspector.title": "ネットワーク インスペクター",
+    "network_inspector.record": "記録開始",
+    "network_inspector.stop": "停止",
+    "network_inspector.clear": "クリア",
+    "network_inspector.filter": "フィルター",
+    "network_inspector.requests": "件のリクエスト",
+    "network_inspector.select": "リクエストを選択して概要を表示します。",
+    "network_inspector.status": "状態",
+    "network_inspector.duration": "時間",
+    "network_inspector.source": "ソース",
+    "network_inspector.type": "種類",
+    "network_inspector.size": "サイズ",
+    "network_inspector.error": "エラー"
+  }
+}

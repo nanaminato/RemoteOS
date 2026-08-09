@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using Client.Services.Auth;
-using Client.Services.AppPermissions;
 using Client.Services.Developer;
-using RemoteOS.AppSDK;
 
 namespace Client.Services.Diagnostics;
 
@@ -11,14 +9,13 @@ namespace Client.Services.Diagnostics;
 /// Host-owned in-memory recorder for RemoteOS API diagnostics. It intentionally records only
 /// completed summaries, never request bodies, response bodies, tokens, cookies, or SignalR frames.
 /// </summary>
-public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
+public sealed class NetworkDiagnosticsService : IDisposable
 {
     public const int MaximumEntries = 500;
     public const int MaximumEstimatedBytes = 4 * 1024 * 1024;
 
     private readonly DeveloperModeService _developerMode;
     private readonly Func<IAuthSession> _sessionAccessor;
-    private readonly IAppPermissionManager _permissions;
     private readonly object _gate = new();
     private readonly Queue<(NetworkDiagnosticEntry Entry, int Bytes)> _entries = new();
     private bool _recording;
@@ -32,14 +29,11 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
     /// auth typed HttpClient pipeline is being assembled, and resolving <see cref="IAuthSession"/>
     /// there would create a circular dependency.
     /// </remarks>
-    public NetworkDiagnosticsService(DeveloperModeService developerMode, IAppPermissionManager permissions,
-        Func<IAuthSession> sessionAccessor)
+    public NetworkDiagnosticsService(DeveloperModeService developerMode, Func<IAuthSession> sessionAccessor)
     {
         _developerMode = developerMode;
-        _permissions = permissions;
         _sessionAccessor = sessionAccessor;
         _developerMode.Changed += OnAvailabilityChanged;
-        _permissions.Changed += OnPermissionChanged;
     }
 
     public event EventHandler<NetworkDiagnosticsState>? StateChanged;
@@ -195,19 +189,11 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
         _developerMode.Changed -= OnAvailabilityChanged;
         if (_session is not null)
             _session.StateChanged -= OnSessionStateChanged;
-        _permissions.Changed -= OnPermissionChanged;
     }
 
     private void OnAvailabilityChanged(object? sender, EventArgs args) => DisableAndClearIfUnavailable();
 
     private void OnSessionStateChanged(object? sender, AuthSessionStateChangedEventArgs args) => DisableAndClearIfUnavailable();
-
-    private void OnPermissionChanged(object? sender, AppPermissionChangedEventArgs args)
-    {
-        if (args.AppId.Value == NetworkDiagnosticsApplication.InspectorAppId
-            && args.PermissionId == RemoteOS.Core.Applications.AppPermissions.DiagnosticsNetworkRead)
-            DisableAndClearIfUnavailable();
-    }
 
     private void DisableAndClearIfUnavailable()
     {
@@ -228,15 +214,12 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
         StateChanged?.Invoke(this, state);
     }
 
-    private bool IsAvailableLocked() => _developerMode.IsEnabled && GetSession().State == AuthSessionState.Authenticated
-        && _permissions.IsGranted(new RemoteOS.Core.Applications.AppId(NetworkDiagnosticsApplication.InspectorAppId),
-            RemoteOS.Core.Applications.AppPermissions.DiagnosticsNetworkRead);
+    private bool IsAvailableLocked() => _developerMode.IsEnabled && GetSession().State == AuthSessionState.Authenticated;
 
     private NetworkDiagnosticsState GetStateLocked() => IsAvailableLocked()
         ? new NetworkDiagnosticsState(true, _recording)
         : new NetworkDiagnosticsState(false, false, !_developerMode.IsEnabled ? "Developer Mode is disabled."
-            : GetSession().State != AuthSessionState.Authenticated ? "Sign in to use Network Inspector."
-            : "Network diagnostics permission is not granted.");
+            : "Sign in to use Network Inspector.");
 
     private IAuthSession GetSession()
     {

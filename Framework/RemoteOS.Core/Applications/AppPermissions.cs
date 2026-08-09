@@ -12,7 +12,6 @@ public static class AppPermissions
     public const string ServerNetworkRead = "server.network.read";
     public const string ServerNetworkConfigure = "server.network.configure";
     public const string ServerPowerManage = "server.power.manage";
-    public const string DiagnosticsNetworkRead = "diagnostics.network.read";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -29,7 +28,6 @@ public static class AppPermissions
         new(ServerPowerManage, "Perform server power operations", "Request high-impact server operations such as restart or shutdown.", "server_management"),
         new(DesktopWallpaperWrite, "Change desktop wallpaper", "Allow this application to change the current workspace wallpaper through RemoteOS.", "desktop_workspace"),
         new(ServerMetricsRead, "Read server performance metrics", "Read aggregate CPU, memory, disk, network, and GPU metrics from the server.", "server_monitoring"),
-        new(DiagnosticsNetworkRead, "Read network diagnostics", "Read redacted RemoteOS API request summaries for the current client session. This never grants access to tokens, cookies, payloads, or arbitrary network traffic.", "developer_tools"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>

@@ -90,8 +90,8 @@ public static class Bootstrapper
         // auth HttpClient handler is constructed would recursively construct that same client.
         services.AddSingleton<NetworkDiagnosticsService>(sp => new NetworkDiagnosticsService(
             sp.GetRequiredService<DeveloperModeService>(),
-            sp.GetRequiredService<IAppPermissionManager>(),
             () => sp.GetRequiredService<IAuthSession>()));
+        services.AddSingleton<NetworkInspectorWindowService>();
         services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "capabilities"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();

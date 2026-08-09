@@ -32,8 +32,6 @@ public interface IExternalAppContext
     IServerFiles ServerFiles { get; }
     IExternalFileApiAccess FileApi { get; }
     IExternalMediaService Media { get; }
-    /// <summary>Permission-gated summaries of RemoteOS API activity in this client session.</summary>
-    INetworkDiagnostics NetworkDiagnostics { get; }
     /// <summary>Read-only system language and language-change notifications.</summary>
     ISystemLanguage SystemLanguage { get; }
     ISettingsNavigation Settings { get; }

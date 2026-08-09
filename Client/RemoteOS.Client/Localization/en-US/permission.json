@@ -6,7 +6,6 @@
         "permission.category.server_network": "Server network",
         "permission.category.desktop_workspace": "Desktop and workspace",
         "permission.category.server_monitoring": "Server monitoring",
-        "permission.category.developer_tools": "Developer tools",
         "permission.category.other": "Other",
         "permission.server.files.read.display_name": "Read server files",
         "permission.server.files.read.description": "Read files, directory structure, and basic metadata on the server.",
@@ -25,8 +24,6 @@
         "permission.desktop.wallpaper.write.display_name": "Change desktop wallpaper",
         "permission.desktop.wallpaper.write.description": "Allow this application to change the current workspace wallpaper through RemoteOS.",
         "permission.server.metrics.read.display_name": "Read server performance metrics",
-        "permission.server.metrics.read.description": "Read aggregate CPU, memory, disk, network, and GPU metrics from the server.",
-        "permission.diagnostics.network.read.display_name": "Read network diagnostics",
-        "permission.diagnostics.network.read.description": "Read redacted RemoteOS API summaries for this client session. Tokens, cookies, payloads, and arbitrary network traffic are never exposed."
+        "permission.server.metrics.read.description": "Read aggregate CPU, memory, disk, network, and GPU metrics from the server."
     }
 }

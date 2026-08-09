@@ -6,6 +6,7 @@ using Client.Services;
 using Client.Services.Auth;
 using Client.Services.AppPermissions;
 using Client.Services.Developer;
+using Client.Services.Diagnostics;
 using Client.Apps.TaskManager;
 using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,9 +45,10 @@ public sealed class SettingsApp : RemoteApplicationBase
         var localization = context.Services.GetRequiredService<LocalizationService>();
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
         var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
+        var networkInspector = context.Services.GetRequiredService<NetworkInspectorWindowService>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages, networkInspector);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),

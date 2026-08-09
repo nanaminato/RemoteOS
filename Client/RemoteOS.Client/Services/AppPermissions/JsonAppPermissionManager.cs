@@ -22,7 +22,6 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
     private readonly object _gate = new();
     private readonly Dictionary<string, HashSet<string>> _grants;
 
-    public event EventHandler<AppPermissionChangedEventArgs>? Changed;
 
     public JsonAppPermissionManager(ApplicationManager applications)
     {
@@ -73,7 +72,6 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
 
             Save(_path, _grants, _useEncryption);
         }
-        Changed?.Invoke(this, new AppPermissionChangedEventArgs(appId, permissionId, granted));
     }
 
     private static Dictionary<string, HashSet<string>> Load(string path, string? legacyPath, bool encrypted)

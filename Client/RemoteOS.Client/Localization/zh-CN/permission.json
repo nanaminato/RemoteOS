@@ -6,7 +6,6 @@
         "permission.category.server_network": "服务器网络",
         "permission.category.desktop_workspace": "桌面和工作区",
         "permission.category.server_monitoring": "服务器监控",
-        "permission.category.developer_tools": "开发者工具",
         "permission.category.other": "其他",
         "permission.server.files.read.display_name": "读取服务器文件",
         "permission.server.files.read.description": "读取服务器上的文件、目录结构和基本元数据。",
@@ -25,8 +24,6 @@
         "permission.desktop.wallpaper.write.display_name": "更改桌面壁纸",
         "permission.desktop.wallpaper.write.description": "允许此应用程序通过 RemoteOS 更改当前工作区的壁纸。",
         "permission.server.metrics.read.display_name": "读取服务器性能指标",
-        "permission.server.metrics.read.description": "读取服务器的 CPU、内存、磁盘、网络和 GPU 汇总性能指标。",
-        "permission.diagnostics.network.read.display_name": "读取网络诊断信息",
-        "permission.diagnostics.network.read.description": "读取当前客户端会话中已脱敏的 RemoteOS API 摘要。绝不会公开令牌、Cookie、正文或任意网络流量。"
+        "permission.server.metrics.read.description": "读取服务器的 CPU、内存、磁盘、网络和 GPU 汇总性能指标。"
     }
 }

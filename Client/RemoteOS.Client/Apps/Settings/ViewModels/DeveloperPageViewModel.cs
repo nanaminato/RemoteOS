@@ -1,8 +1,7 @@
 using Client.Services;
 using Client.Services.Developer;
+using Client.Services.Diagnostics;
 using Client.Localization;
-using RemoteOS.AppSDK;
-using RemoteOS.Runtime;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -12,11 +11,11 @@ namespace Client.Apps.Settings.ViewModels;
 public sealed class DeveloperPageViewModel : SettingsPageViewModel
 {
     public DeveloperPageViewModel(ShellSettings settings, DeveloperModeService developerMode,
-        DeveloperPackageManager packages, ApplicationManager applications, LocalizationService localization, Action? save)
+        NetworkInspectorWindowService networkInspector, LocalizationService localization, Action? save)
         : base(settings, save)
     {
         DeveloperMode = new DeveloperModeViewModel(developerMode);
-        NetworkInspector = new NetworkInspectorLauncherViewModel(developerMode, packages, applications, localization);
+        NetworkInspector = new NetworkInspectorLauncherViewModel(developerMode, networkInspector, localization);
     }
 
     public override string Glyph => "🛠️";
@@ -29,31 +28,26 @@ public sealed class DeveloperPageViewModel : SettingsPageViewModel
 public sealed partial class NetworkInspectorLauncherViewModel : ObservableObject
 {
     private readonly DeveloperModeService _developerMode;
-    private readonly DeveloperPackageManager _packages;
-    private readonly ApplicationManager _applications;
+    private readonly NetworkInspectorWindowService _networkInspector;
 
-    public NetworkInspectorLauncherViewModel(DeveloperModeService developerMode, DeveloperPackageManager packages,
-        ApplicationManager applications, LocalizationService localization)
+    public NetworkInspectorLauncherViewModel(DeveloperModeService developerMode, NetworkInspectorWindowService networkInspector,
+        LocalizationService localization)
     {
         _developerMode = developerMode;
-        _packages = packages;
-        _applications = applications;
+        _networkInspector = networkInspector;
         _developerMode.Changed += (_, _) => Refresh();
-        _applications.RegistryChanged += (_, _) => Refresh();
         localization.LanguageChanged += (_, _) => Refresh();
     }
 
-    public bool IsInstalled => _packages.FindInstalled(NetworkDiagnosticsApplication.InspectorAppId) is not null;
-    public bool CanOpen => _developerMode.IsEnabled && IsInstalled;
+    public bool CanOpen => _networkInspector.CanOpen;
     public string Status => !_developerMode.IsEnabled ? LocalizedText.Get("settings.network_inspector.requires_developer_mode")
-        : IsInstalled ? LocalizedText.Get("settings.network_inspector.installed") : LocalizedText.Get("settings.network_inspector.not_installed");
+        : LocalizedText.Get("settings.network_inspector.ready");
 
     [RelayCommand]
-    private void Open() => _applications.Launch(new RemoteOS.Core.Applications.AppId(NetworkDiagnosticsApplication.InspectorAppId));
+    private void Open() => _networkInspector.Open();
 
     private void Refresh()
     {
-        OnPropertyChanged(nameof(IsInstalled));
         OnPropertyChanged(nameof(CanOpen));
         OnPropertyChanged(nameof(Status));
         OpenCommand.NotifyCanExecuteChanged();

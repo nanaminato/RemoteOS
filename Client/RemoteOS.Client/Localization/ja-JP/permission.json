@@ -6,7 +6,6 @@
         "permission.category.server_network": "サーバーネットワーク",
         "permission.category.desktop_workspace": "デスクトップとワークスペース",
         "permission.category.server_monitoring": "サーバー監視",
-        "permission.category.developer_tools": "開発者ツール",
         "permission.category.other": "その他",
         "permission.server.files.read.display_name": "サーバーファイルの読み取り",
         "permission.server.files.read.description": "サーバー上のファイル、ディレクトリ構造、および基本的なメタデータを読み取ります。",
@@ -25,8 +24,6 @@
         "permission.desktop.wallpaper.write.display_name": "デスクトップ壁紙の変更",
         "permission.desktop.wallpaper.write.description": "このアプリケーションが RemoteOS を通じて現在のワークスペースの壁紙を変更することを許可します。",
         "permission.server.metrics.read.display_name": "サーバーパフォーマンス指標の読み取り",
-        "permission.server.metrics.read.description": "サーバーの CPU、メモリ、ディスク、ネットワーク、および GPU の集約されたパフォーマンス指標を読み取ります。",
-        "permission.diagnostics.network.read.display_name": "ネットワーク診断の読み取り",
-        "permission.diagnostics.network.read.description": "このクライアント セッションのマスク済み RemoteOS API 概要を読み取ります。トークン、Cookie、ペイロード、任意のネットワーク通信は公開されません。"
+        "permission.server.metrics.read.description": "サーバーの CPU、メモリ、ディスク、ネットワーク、および GPU の集約されたパフォーマンス指標を読み取ります。"
     }
 }
