@@ -98,8 +98,9 @@ public sealed class NetworkDiagnosticsService : IDisposable
     {
         lock (_gate)
         {
-            var entries = _entries.Select(item => item.Entry).Where(entry => Matches(entry, query)).ToArray();
-            return new NetworkDiagnosticsSnapshot(GetStateLocked(), entries, _dropped);
+            var allEntries = _entries.Select(item => item.Entry).ToArray();
+            var entries = allEntries.Where(entry => Matches(entry, query)).ToArray();
+            return new NetworkDiagnosticsSnapshot(GetStateLocked(), entries, _dropped, allEntries.Length);
         }
     }
 
@@ -170,14 +171,14 @@ public sealed class NetworkDiagnosticsService : IDisposable
             var bytes = await content.ReadAsByteArrayAsync().ConfigureAwait(false);
             var mediaType = content.Headers.ContentType?.MediaType;
             if (!IsTextContent(mediaType))
-                return new NetworkDiagnosticPayload(Convert.ToBase64String(bytes), $"base64 ({mediaType ?? "binary"})");
+                return new NetworkDiagnosticPayload(Convert.ToBase64String(bytes), $"base64 ({mediaType ?? "binary"})", bytes.Length);
 
             var encoding = GetEncoding(content.Headers.ContentType?.CharSet);
-            return new NetworkDiagnosticPayload(encoding.GetString(bytes), $"{mediaType ?? "text/plain"}; charset={encoding.WebName}");
+            return new NetworkDiagnosticPayload(encoding.GetString(bytes), $"{mediaType ?? "text/plain"}; charset={encoding.WebName}", bytes.Length);
         }
         catch (Exception exception)
         {
-            return new NetworkDiagnosticPayload($"<Unable to capture body: {exception.Message}>", "unavailable");
+            return new NetworkDiagnosticPayload($"<Unable to capture body: {exception.Message}>", "unavailable", 0);
         }
     }
 
@@ -266,9 +267,41 @@ public sealed class NetworkDiagnosticsService : IDisposable
         if (query.IsMedia is { } media && entry.IsMedia != media) return false;
         if (query.FailuresOnly == true && entry.Outcome == NetworkDiagnosticOutcome.Succeeded) return false;
         return string.IsNullOrWhiteSpace(query.Text)
-            || entry.Source.Contains(query.Text, StringComparison.OrdinalIgnoreCase)
-            || entry.Name.Contains(query.Text, StringComparison.OrdinalIgnoreCase)
-            || entry.PathAndQuery.Contains(query.Text, StringComparison.OrdinalIgnoreCase);
+            || query.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .All(term => MatchesFilterTerm(entry, term));
+    }
+
+    private static bool MatchesFilterTerm(NetworkDiagnosticEntry entry, string term)
+    {
+        if (term.StartsWith("method:", StringComparison.OrdinalIgnoreCase))
+            return string.Equals(entry.Method, term[7..], StringComparison.OrdinalIgnoreCase);
+        if (term.StartsWith("status-code:", StringComparison.OrdinalIgnoreCase))
+            return string.Equals(entry.StatusCode?.ToString(), term[12..], StringComparison.OrdinalIgnoreCase);
+        if (term.StartsWith("mime-type:", StringComparison.OrdinalIgnoreCase))
+            return entry.ContentType?.Contains(term[10..], StringComparison.OrdinalIgnoreCase) == true;
+        if (term.StartsWith("larger-than:", StringComparison.OrdinalIgnoreCase))
+            return entry.DeclaredContentLength is long size && size > ParseByteSize(term[12..]);
+        if (term.Equals("is:failed", StringComparison.OrdinalIgnoreCase))
+            return entry.Outcome != NetworkDiagnosticOutcome.Succeeded;
+        if (term.Equals("is:media", StringComparison.OrdinalIgnoreCase))
+            return entry.IsMedia;
+
+        return entry.Source.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || entry.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || entry.PathAndQuery.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || entry.Method?.Contains(term, StringComparison.OrdinalIgnoreCase) == true
+            || entry.ContentType?.Contains(term, StringComparison.OrdinalIgnoreCase) == true
+            || entry.StatusCode?.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static long ParseByteSize(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return long.MaxValue;
+        var suffix = char.ToLowerInvariant(text[^1]);
+        var multiplier = suffix switch { 'k' => 1024L, 'm' => 1024L * 1024L, _ => 1L };
+        var number = multiplier == 1L ? text : text[..^1];
+        return long.TryParse(number, out var value) && value >= 0 ? value * multiplier : long.MaxValue;
     }
 
     private static int EstimateSize(NetworkDiagnosticEntry entry) => 256

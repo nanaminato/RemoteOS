@@ -8,7 +8,7 @@ public enum NetworkDiagnosticKind { Http, SignalR }
 public enum NetworkDiagnosticOutcome { Succeeded, Failed, Cancelled, TransportError }
 
 /// <summary>Payload captured for a RemoteOS network operation.</summary>
-public sealed record NetworkDiagnosticPayload(string Content, string Format);
+public sealed record NetworkDiagnosticPayload(string Content, string Format, long ByteLength);
 
 /// <summary>One completed RemoteOS network operation captured by the developer inspector.</summary>
 public sealed record NetworkDiagnosticEntry(
@@ -18,10 +18,11 @@ public sealed record NetworkDiagnosticEntry(
     IReadOnlyDictionary<string, string>? RequestHeaders = null,
     IReadOnlyDictionary<string, string>? ResponseHeaders = null,
     NetworkDiagnosticPayload? RequestBody = null,
-    NetworkDiagnosticPayload? ResponseBody = null);
+    NetworkDiagnosticPayload? ResponseBody = null,
+    string? RequestUrl = null);
 
 public sealed record NetworkDiagnosticsQuery(string? Text = null, NetworkDiagnosticKind? Kind = null,
     bool? IsMedia = null, bool? FailuresOnly = null);
 
 public sealed record NetworkDiagnosticsSnapshot(NetworkDiagnosticsState State,
-    IReadOnlyList<NetworkDiagnosticEntry> Entries, int DroppedEntryCount);
+    IReadOnlyList<NetworkDiagnosticEntry> Entries, int DroppedEntryCount, int TotalEntryCount);

@@ -29,7 +29,8 @@ public sealed class NetworkDiagnosticsHandler(NetworkDiagnosticsService diagnost
                 response.IsSuccessStatusCode ? NetworkDiagnosticOutcome.Succeeded : NetworkDiagnosticOutcome.Failed,
                 (int)response.StatusCode, contentType, response.Content?.Headers.ContentLength,
                 NetworkDiagnosticsService.IsMediaContent(contentType, request.RequestUri), null,
-                requestHeaders, responseHeaders, requestBody, responseBody));
+                requestHeaders, responseHeaders, requestBody, responseBody,
+                RequestUrl: request.RequestUri?.ToString()));
             return response;
         }
         catch (Exception exception)
@@ -42,7 +43,7 @@ public sealed class NetworkDiagnosticsHandler(NetworkDiagnosticsService diagnost
                 request.RequestUri?.AbsolutePath ?? request.Method.Method, request.Method.Method,
                 request.RequestUri?.PathAndQuery ?? string.Empty, outcome, null,
                 null, null, false, NetworkDiagnosticsService.ErrorKind(exception), requestHeaders,
-                RequestBody: requestBody));
+                RequestBody: requestBody, RequestUrl: request.RequestUri?.ToString()));
             throw;
         }
     }
