@@ -216,6 +216,8 @@ Application Package
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（浏览、基本操作、文件打开方式、属性与 Linux 权限编辑） |
 | **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server + 本地端口映射） | 已实现（导航 + 书签 + 历史 + 浏览器偏好 + 本地端口映射） |
 | **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
+| **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 设计中（详见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)） |
+| **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 设计中（详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
 
 ---
 
@@ -349,6 +351,9 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、BrowserSettings 持久化、本地端口映射（loopback → 服务端）、按用户隔离持久化 |
 | [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | 设置中心：5 分类页、Workspace 偏好持久化、PreferencesSync 多设备同步、默认程序映射 |
 | [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 任务管理器：性能/进程双标签页、跨平台 ISystemMetricsProvider（Linux /proc + Windows P/Invoke）、CPU 差分、结束进程不自动提权 |
+| [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) | Docker 管理器：本机 Engine、安装预检与引导、容器/镜像/Stack/网络/卷、权限与审计设计 |
+| [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md) | 进程守护管理器：独立 Guardian Agent、守护定义、健康检查、重启策略、systemd/SCM 适配设计 |
+| [`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md) | 所有内置应用的设计先行、国际化、Windows + Ubuntu、协议、安全与质量约束 |
 | [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings/BrowserSettings/Preferences JSON 列、建库策略 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |
