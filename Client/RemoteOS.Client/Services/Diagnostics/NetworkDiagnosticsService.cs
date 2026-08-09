@@ -17,7 +17,7 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
     public const int MaximumEstimatedBytes = 4 * 1024 * 1024;
 
     private readonly DeveloperModeService _developerMode;
-    private readonly IAuthSession _session;
+    private readonly Func<IAuthSession> _sessionAccessor;
     private readonly IAppPermissionManager _permissions;
     private readonly object _gate = new();
     private readonly Queue<(NetworkDiagnosticEntry Entry, int Bytes)> _entries = new();
@@ -25,14 +25,20 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
     private int _estimatedBytes;
     private int _dropped;
     private long _nextId;
+    private IAuthSession? _session;
 
-    public NetworkDiagnosticsService(DeveloperModeService developerMode, IAuthSession session, IAppPermissionManager permissions)
+    /// <remarks>
+    /// <paramref name="sessionAccessor"/> must remain lazy: this service is created while the
+    /// auth typed HttpClient pipeline is being assembled, and resolving <see cref="IAuthSession"/>
+    /// there would create a circular dependency.
+    /// </remarks>
+    public NetworkDiagnosticsService(DeveloperModeService developerMode, IAppPermissionManager permissions,
+        Func<IAuthSession> sessionAccessor)
     {
         _developerMode = developerMode;
-        _session = session;
         _permissions = permissions;
+        _sessionAccessor = sessionAccessor;
         _developerMode.Changed += OnAvailabilityChanged;
-        _session.StateChanged += OnSessionStateChanged;
         _permissions.Changed += OnPermissionChanged;
     }
 
@@ -99,7 +105,7 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
             return false;
         if (uri.IsLoopback && uri.Port == DeveloperModeService.BridgePort)
             return true;
-        var serverUrl = _session.ServerUrl;
+        var serverUrl = GetSession().ServerUrl;
         if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var server))
             return false;
         return Uri.Compare(uri, server, UriComponents.SchemeAndServer, UriFormat.Unescaped,
@@ -187,7 +193,8 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
     public void Dispose()
     {
         _developerMode.Changed -= OnAvailabilityChanged;
-        _session.StateChanged -= OnSessionStateChanged;
+        if (_session is not null)
+            _session.StateChanged -= OnSessionStateChanged;
         _permissions.Changed -= OnPermissionChanged;
     }
 
@@ -221,15 +228,26 @@ public sealed class NetworkDiagnosticsService : INetworkDiagnostics, IDisposable
         StateChanged?.Invoke(this, state);
     }
 
-    private bool IsAvailableLocked() => _developerMode.IsEnabled && _session.State == AuthSessionState.Authenticated
+    private bool IsAvailableLocked() => _developerMode.IsEnabled && GetSession().State == AuthSessionState.Authenticated
         && _permissions.IsGranted(new RemoteOS.Core.Applications.AppId(NetworkDiagnosticsApplication.InspectorAppId),
             RemoteOS.Core.Applications.AppPermissions.DiagnosticsNetworkRead);
 
     private NetworkDiagnosticsState GetStateLocked() => IsAvailableLocked()
         ? new NetworkDiagnosticsState(true, _recording)
         : new NetworkDiagnosticsState(false, false, !_developerMode.IsEnabled ? "Developer Mode is disabled."
-            : _session.State != AuthSessionState.Authenticated ? "Sign in to use Network Inspector."
+            : GetSession().State != AuthSessionState.Authenticated ? "Sign in to use Network Inspector."
             : "Network diagnostics permission is not granted.");
+
+    private IAuthSession GetSession()
+    {
+        if (_session is not null)
+            return _session;
+
+        var session = _sessionAccessor();
+        _session = session;
+        session.StateChanged += OnSessionStateChanged;
+        return session;
+    }
 
     private void ClearLocked()
     {

@@ -86,7 +86,12 @@ public static class Bootstrapper
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<DeveloperModeService>();
-        services.AddSingleton<NetworkDiagnosticsService>();
+        // The session must be resolved only when diagnostics are used. Resolving it while an
+        // auth HttpClient handler is constructed would recursively construct that same client.
+        services.AddSingleton<NetworkDiagnosticsService>(sp => new NetworkDiagnosticsService(
+            sp.GetRequiredService<DeveloperModeService>(),
+            sp.GetRequiredService<IAppPermissionManager>(),
+            () => sp.GetRequiredService<IAuthSession>()));
         services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "capabilities"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
