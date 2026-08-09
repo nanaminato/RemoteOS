@@ -92,8 +92,9 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             DataContext = vm
         };
-        table.Bind(ItemsControl.ItemsSourceProperty, new Avalonia.Data.Binding(nameof(vm.Workloads)));
-        table.Bind(SelectingItemsControl.SelectedItemProperty, new Avalonia.Data.Binding(nameof(vm.SelectedWorkload)) { Mode = Avalonia.Data.BindingMode.TwoWay });
+        // Avalonia DataGrid owns its item source property; binding the base ItemsControl
+        // property leaves the grid visually empty even though Workloads is populated.
+        table.ItemsSource = vm.Workloads;
         table.Columns.Add(TextColumn("guardian.table.name", nameof(GuardianWorkloadDto.Name), "140"));
         table.Columns.Add(TextColumn("guardian.table.command", nameof(GuardianWorkloadDto.ExecutablePath), "220"));
         table.Columns.Add(TextColumn("guardian.table.working_directory", nameof(GuardianWorkloadDto.WorkingDirectory), "180"));

@@ -8,6 +8,8 @@ namespace Client.Apps.ProcessGuardian;
 
 public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient client) : ObservableObject
 {
+    private int _latestRefreshVersion;
+    private int _activeRefreshes;
     public ObservableCollection<GuardianWorkloadDto> Workloads { get; } = [];
     [ObservableProperty] private GuardianWorkloadDto? _selectedWorkload;
     [ObservableProperty] private string _statusText = LocalizedText.Get("guardian.status.loading");
@@ -27,11 +29,14 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        if (IsLoading) return; IsLoading = true;
+        var refreshVersion = Interlocked.Increment(ref _latestRefreshVersion);
+        Interlocked.Increment(ref _activeRefreshes);
+        IsLoading = true;
         try
         {
             var statusTask = client.GetStatusAsync(); var workloadsTask = client.ListWorkloadsAsync();
             await Task.WhenAll(statusTask, workloadsTask); var status = await statusTask;
+            if (refreshVersion != Volatile.Read(ref _latestRefreshVersion)) return;
             StatusText = status.IsInstalled
                 ? LocalizedText.Format("guardian.status.available", status.Version ?? "")
                 : status.ProblemCode is "guardian.agent_not_configured" or "guardian.agent_not_installed"
@@ -39,8 +44,16 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
                     : LocalizedText.Format("guardian.status.unavailable", status.ProblemCode);
             Workloads.Clear(); foreach (var workload in await workloadsTask) Workloads.Add(workload);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("guardian.status.failed", exception.Message); }
-        finally { IsLoading = false; }
+        catch (Exception exception)
+        {
+            if (refreshVersion == Volatile.Read(ref _latestRefreshVersion))
+                StatusText = LocalizedText.Format("guardian.status.failed", exception.Message);
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref _activeRefreshes) == 0)
+                IsLoading = false;
+        }
     }
     [RelayCommand] private Task OpenCreateWorkloadAsync()
     {

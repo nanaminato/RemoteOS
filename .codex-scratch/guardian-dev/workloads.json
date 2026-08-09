@@ -1,1 +1,1 @@
-[{"id":"dev-ping","name":"Development ping","executablePath":"C:\\Windows\\System32\\PING.EXE","arguments":["127.0.0.1","-t"],"workingDirectory":"C:\\Windows\\System32","enabledOnBoot":false,"stopTimeoutSeconds":15,"maxRestartAttempts":3,"healthCheck":null}]
+[{"id":"ping","name":"ping","executablePath":"C:\\Windows\\System32\\PING.EXE","arguments":["127.0.0.1","-t"],"workingDirectory":"C:\\Windows\\System32","enabledOnBoot":false,"stopTimeoutSeconds":15,"maxRestartAttempts":3,"healthCheck":null}]

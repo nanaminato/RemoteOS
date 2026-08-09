@@ -12,19 +12,19 @@ public sealed class GuardianLogsHub(
     IProcessGuardianService guardian,
     GuardianLogSubscriptionRegistry subscriptions) : Hub<IGuardianLogsHubClient>
 {
-    public async Task<IReadOnlyList<GuardianLogEntryDto>> Subscribe(string workloadId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<GuardianLogEntryDto>> Subscribe(string workloadId)
     {
         if (string.IsNullOrWhiteSpace(workloadId)) throw new HubException("A workload ID is required.");
-        await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(workloadId), cancellationToken);
+        await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(workloadId), Context.ConnectionAborted);
         subscriptions.Subscribe(Context.ConnectionId, workloadId);
-        return await guardian.ListLogsAsync(workloadId, cancellationToken);
+        return await guardian.ListLogsAsync(workloadId, Context.ConnectionAborted);
     }
 
-    public async Task Unsubscribe(string workloadId, CancellationToken cancellationToken)
+    public async Task Unsubscribe(string workloadId)
     {
         if (string.IsNullOrWhiteSpace(workloadId)) return;
         subscriptions.Unsubscribe(Context.ConnectionId, workloadId);
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(workloadId), cancellationToken);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(workloadId), Context.ConnectionAborted);
     }
 
     public override Task OnDisconnectedAsync(Exception? exception)

@@ -2,3 +2,11 @@
 {"timestamp":"2026-08-09T08:12:55.5859363+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
 {"timestamp":"2026-08-09T08:12:59.913078+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
 {"timestamp":"2026-08-09T08:13:24.9085315+00:00","action":"restart","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:29:35.2092287+00:00","action":"upsert","workloadId":"ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:32:42.7692249+00:00","action":"upsert","workloadId":"ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:35:56.8262473+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:36:08.8190488+00:00","action":"start","workloadId":"ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:38:09.7639824+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:38:28.3056501+00:00","action":"stop","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:38:29.3962217+00:00","action":"delete","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:38:31.0621076+00:00","action":"start","workloadId":"ping","outcome":"success","problemCode":""}
