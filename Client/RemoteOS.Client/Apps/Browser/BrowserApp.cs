@@ -30,6 +30,8 @@ public sealed class BrowserApp : RemoteApplicationBase
 
     public override void Activate(AppContext context)
     {
+        BrowserDiagnostics.EnsureUiWatchdog();
+        BrowserDiagnostics.Record("Browser activation requested.");
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
         var client = context.Services.GetService(typeof(IBrowserClient)) as IBrowserClient;
 
@@ -50,10 +52,15 @@ public sealed class BrowserApp : RemoteApplicationBase
 
         var viewModel = new BrowserViewModel(client);
         var view = new BrowserMainView { DataContext = viewModel };
+        BrowserDiagnostics.Record("Browser view and view-model created; opening managed window.");
         var window = context.ShowWindow("RemoteBrowser", view,
             bounds: new Rect(60, 50, 1100, 720),
             iconGlyph: Manifest.IconGlyph);
-        viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
+        viewModel.CloseAction = () => Dispatcher.UIThread.Post(() =>
+        {
+            view.ClosePlatformBrowser();
+            context.WindowManager.Close(window);
+        });
         viewModel.ToggleFullScreenAction = () =>
         {
             if (window.IsFullScreen)
@@ -88,6 +95,7 @@ public sealed class BrowserApp : RemoteApplicationBase
         window.View.BoundsInteractionCompleted += (_, _) =>
             view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
         view.SetWebViewVisible(window.IsActive && window.IsOnScreen);
+        BrowserDiagnostics.Record("Browser managed window opened.");
 
         // 窗口打开后异步加载书签 + 历史
         _ = viewModel.LoadAsync();

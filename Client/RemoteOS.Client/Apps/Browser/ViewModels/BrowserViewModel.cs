@@ -3,6 +3,7 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Client.Localization;
+using Client.Apps.Browser;
 using RemoteOS.Protocol.Browser;
 
 namespace Client.Apps.Browser.ViewModels;
@@ -118,6 +119,7 @@ public sealed partial class BrowserViewModel : ObservableObject
     [RelayCommand]
     private void Navigate(string? address)
     {
+        BrowserDiagnostics.Record("Browser navigation requested from command.");
         var uri = NormalizeAddress(address);
         if (uri is null)
         {
@@ -136,6 +138,7 @@ public sealed partial class BrowserViewModel : ObservableObject
         }
 
         WebViewSource = uri;
+        BrowserDiagnostics.Record($"Browser navigation source set: {BrowserDiagnostics.SanitizeUri(uri)}.");
         // OnNavigationStarted 由 View 转发；这里也同步一份防事件丢失
         if (_currentUri != uri)
         {
@@ -161,7 +164,11 @@ public sealed partial class BrowserViewModel : ObservableObject
     [RelayCommand]
     private void GoHome()
     {
-        if (HomePage is not null) Navigate(HomePage.ToString());
+        if (HomePage is not null)
+        {
+            BrowserDiagnostics.Record($"Home command invoked: {BrowserDiagnostics.SanitizeUri(HomePage)}.");
+            Navigate(HomePage.ToString());
+        }
     }
 
     /// <summary>由 View code-behind 注入：当 GoBack/GoForward/Refresh/Stop 命令触发时，

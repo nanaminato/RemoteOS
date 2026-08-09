@@ -3,7 +3,6 @@
              xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.Browser.ViewModels"
              xmlns:conv="clr-namespace:Client.Apps.Browser.Converters"
-             xmlns:web="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
              xmlns:dto="clr-namespace:RemoteOS.Protocol.Browser;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Browser.Views.BrowserMainView"
              x:DataType="vm:BrowserViewModel"
@@ -213,12 +212,10 @@
             <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns"
                           IsVisible="{Binding IsSidebarVisible}" />
 
-            <!-- WebView 主体（NativeWebView 用平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK） -->
+            <!-- Linux delegates pages to the system browser process; other platforms use
+                 an embedded NativeWebView. This avoids an unsupported WebKitGTK host. -->
             <Grid Grid.Column="2" Background="#FFFFFF">
-                <web:NativeWebView x:Name="WebView"
-                                   Source="{Binding WebViewSource}"
-                                   NavigationStarted="WebView_NavigationStarted"
-                                   NavigationCompleted="WebView_NavigationCompleted" />
+                <ContentControl x:Name="WebViewHost" />
             </Grid>
         </Grid>
     </DockPanel>
