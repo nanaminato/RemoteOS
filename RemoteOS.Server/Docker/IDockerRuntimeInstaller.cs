@@ -6,4 +6,5 @@ namespace Server.Docker;
 public interface IDockerRuntimeInstaller
 {
     Task<DockerInstallationPlanDto> CreatePlanAsync(CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> ExecuteAsync(DockerInstallationExecutionRequest request, CancellationToken cancellationToken = default);
 }

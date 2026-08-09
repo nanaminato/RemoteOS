@@ -10,9 +10,10 @@ namespace Server.Docker;
 /// socket, keeping all transport details out of endpoints and clients. It deliberately uses
 /// fixed argument lists (never user-provided shell strings).
 /// </summary>
-public sealed class DockerCliEngineService : IDockerEngineService
+public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDockerEngineService
 {
     private const int TimeoutSeconds = 10;
+    private const int MaxArchiveBytes = 64 * 1024 * 1024;
 
     public async Task<DockerStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
     {
@@ -134,6 +135,88 @@ public sealed class DockerCliEngineService : IDockerEngineService
         return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
     }
 
+    public async Task<DockerOperationResult> DeleteNetworkAsync(string id, bool confirmed, CancellationToken cancellationToken = default)
+    {
+        if (!confirmed) return new DockerOperationResult(false, "docker.confirmation_required");
+        if (!IsContainerId(id)) return new DockerOperationResult(false, "docker.validation_failed");
+        var result = await RunAsync(["network", "rm", id], cancellationToken);
+        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+    }
+
+    public async Task<DockerOperationResult> DeleteVolumeAsync(string name, bool confirmed, CancellationToken cancellationToken = default)
+    {
+        if (!confirmed) return new DockerOperationResult(false, "docker.confirmation_required");
+        if (!IsContainerId(name)) return new DockerOperationResult(false, "docker.validation_failed");
+        var result = await RunAsync(["volume", "rm", name], cancellationToken);
+        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+    }
+
+    public async Task<DockerContainerLogsDto?> GetContainerLogsAsync(string id, int tail, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(id) || tail is < 1 or > 1000) return null;
+        var result = await RunAsync(["logs", "--timestamps", "--tail", tail.ToString(System.Globalization.CultureInfo.InvariantCulture), id], cancellationToken);
+        if (!result.Success) return null;
+        var lines = result.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return new DockerContainerLogsDto(lines, lines.Length == tail);
+    }
+
+    public async Task<DockerContainerStatsDto?> GetContainerStatsAsync(string id, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(id)) return null;
+        var rows = await RunTableAsync(["stats", "--no-stream", "--format", "{{.ID}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}", id], cancellationToken);
+        var row = rows.FirstOrDefault();
+        return row is null ? null : new DockerContainerStatsDto(Value(row, 0), Value(row, 1), Value(row, 2), Value(row, 3), Value(row, 4));
+    }
+
+    public async Task<DockerOperationResult> BuildImageAsync(DockerBuildRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!IsImageReference(request.ImageReference) || !IsBuildPathAllowed(request.ContextDirectory, out var contextDirectory))
+            return new DockerOperationResult(false, "docker.validation_failed");
+        var arguments = new List<string> { "build", "--tag", request.ImageReference };
+        if (!string.IsNullOrWhiteSpace(request.Dockerfile))
+        {
+            var dockerfile = Path.GetFullPath(request.Dockerfile);
+            if (!File.Exists(dockerfile) || !IsPathWithin(dockerfile, contextDirectory)) return new DockerOperationResult(false, "docker.validation_failed");
+            arguments.Add("--file"); arguments.Add(dockerfile);
+        }
+        arguments.Add(contextDirectory);
+        var result = await RunAsync(arguments, cancellationToken);
+        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+    }
+
+    public async Task<DockerImageArchiveDto?> ExportImageAsync(string imageId, CancellationToken cancellationToken = default)
+    {
+        if (!IsImageReference(imageId)) return null;
+        var archivePath = Path.Combine(Path.GetTempPath(), $"remoteos-docker-{Guid.NewGuid():N}.tar");
+        try
+        {
+            var result = await RunAsync(["image", "save", "--output", archivePath, imageId], cancellationToken);
+            if (!result.Success || !File.Exists(archivePath)) return null;
+            var size = new FileInfo(archivePath).Length;
+            if (size > MaxArchiveBytes) return null;
+            return new DockerImageArchiveDto(imageId, Convert.ToBase64String(await File.ReadAllBytesAsync(archivePath, cancellationToken)));
+        }
+        finally { if (File.Exists(archivePath)) File.Delete(archivePath); }
+    }
+
+    public async Task<DockerOperationResult> ImportImageAsync(DockerImageArchiveDto archive, CancellationToken cancellationToken = default)
+    {
+        if (!IsImageReference(archive.ImageReference) || string.IsNullOrWhiteSpace(archive.ContentBase64) || archive.ContentBase64.Length > MaxArchiveBytes * 4 / 3 + 8)
+            return new DockerOperationResult(false, "docker.validation_failed");
+        byte[] content;
+        try { content = Convert.FromBase64String(archive.ContentBase64); }
+        catch (FormatException) { return new DockerOperationResult(false, "docker.validation_failed"); }
+        if (content.Length > MaxArchiveBytes) return new DockerOperationResult(false, "docker.archive_too_large");
+        var archivePath = Path.Combine(Path.GetTempPath(), $"remoteos-docker-{Guid.NewGuid():N}.tar");
+        try
+        {
+            await File.WriteAllBytesAsync(archivePath, content, cancellationToken);
+            var result = await RunAsync(["image", "load", "--input", archivePath], cancellationToken);
+            return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        }
+        finally { if (File.Exists(archivePath)) File.Delete(archivePath); }
+    }
+
     private static readonly IReadOnlyDictionary<string, string> AllowedActions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["start"] = "start", ["stop"] = "stop", ["restart"] = "restart", ["pause"] = "pause", ["unpause"] = "unpause", ["delete"] = "rm",
@@ -169,6 +252,26 @@ public sealed class DockerCliEngineService : IDockerEngineService
     private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
     private static bool IsContainerId(string value) => value.Length is >= 3 and <= 128 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.');
     private static bool IsImageReference(string value) => value.Length is >= 1 and <= 255 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '/' or ':' or '.' or '_' or '-');
+    private bool IsBuildPathAllowed(string path, out string fullPath)
+    {
+        fullPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(path) || options.BuildRoots.Count == 0) return false;
+        try { fullPath = Path.GetFullPath(path); }
+        catch (Exception) { return false; }
+        var candidate = fullPath;
+        return Directory.Exists(candidate) && options.BuildRoots.Any(root => IsPathWithin(candidate, Path.GetFullPath(root)));
+    }
+    private static bool IsPathWithin(string path, string root)
+    {
+        var relative = Path.GetRelativePath(root, path);
+        return relative != ".." && !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+    }
     private static string ToProblemCode(CommandResult result) => result.Error.Contains("not_found", StringComparison.OrdinalIgnoreCase) ? "docker.not_installed" : result.Error.Contains("permission denied", StringComparison.OrdinalIgnoreCase) ? "docker.permission_denied" : "docker.unavailable";
     private sealed record CommandResult(bool Success, string Output, string Error);
+}
+
+/// <summary>Host-admin approved source roots for Docker builds; an API caller cannot read arbitrary paths.</summary>
+public sealed class DockerCliEngineOptions
+{
+    public IReadOnlyList<string> BuildRoots { get; init; } = [];
 }

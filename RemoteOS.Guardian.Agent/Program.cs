@@ -6,4 +6,8 @@ if (string.IsNullOrWhiteSpace(options.SharedSecret))
 
 var supervisor = new WorkloadSupervisor(options);
 await supervisor.RestoreEnabledWorkloadsAsync(CancellationToken.None);
-await new GuardianPipeServer(options, supervisor).RunAsync(CancellationToken.None);
+using var shutdown = new CancellationTokenSource();
+Console.CancelKeyPress += (_, args) => { args.Cancel = true; shutdown.Cancel(); };
+var healthChecks = supervisor.RunHealthChecksAsync(shutdown.Token);
+await new GuardianPipeServer(options, supervisor).RunAsync(shutdown.Token);
+await healthChecks;

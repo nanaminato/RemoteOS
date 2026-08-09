@@ -17,4 +17,5 @@ public sealed class UnavailableProcessGuardianService : IProcessGuardianService
     public Task<GuardianAgentResponse> UpsertAsync(ProcessDefinitionDto definition, CancellationToken cancellationToken = default) => Task.FromResult(new GuardianAgentResponse(false, "guardian.agent_not_installed"));
     public Task<GuardianAgentResponse> ApplyActionAsync(string workloadId, string action, CancellationToken cancellationToken = default) => Task.FromResult(new GuardianAgentResponse(false, "guardian.agent_not_installed"));
     public Task<IReadOnlyList<GuardianLogEntryDto>> ListLogsAsync(string workloadId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<GuardianLogEntryDto>>(Array.Empty<GuardianLogEntryDto>());
+    public Task<IReadOnlyList<GuardianAuditEntryDto>> ListAuditAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<GuardianAuditEntryDto>>(Array.Empty<GuardianAuditEntryDto>());
 }

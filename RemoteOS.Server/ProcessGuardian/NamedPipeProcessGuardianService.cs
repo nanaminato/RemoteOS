@@ -29,6 +29,9 @@ public sealed class NamedPipeProcessGuardianService(GuardianAgentOptions options
     public async Task<IReadOnlyList<GuardianLogEntryDto>> ListLogsAsync(string workloadId, CancellationToken cancellationToken = default)
         => (await SendAsync(new GuardianAgentRequest(options.SharedSecret, "logs", workloadId), cancellationToken))?.Logs ?? Array.Empty<GuardianLogEntryDto>();
 
+    public async Task<IReadOnlyList<GuardianAuditEntryDto>> ListAuditAsync(CancellationToken cancellationToken = default)
+        => (await SendAsync(new GuardianAgentRequest(options.SharedSecret, "audit"), cancellationToken))?.Audits ?? Array.Empty<GuardianAuditEntryDto>();
+
     private async Task<GuardianAgentResponse?> SendAsync(GuardianAgentRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(options.SharedSecret)) return new GuardianAgentResponse(false, "guardian.agent_not_configured");

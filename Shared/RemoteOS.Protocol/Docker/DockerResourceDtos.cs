@@ -16,3 +16,8 @@ public sealed record DockerImageOperationRequest(string ImageReference, bool Con
 public sealed record DockerContainerCreateRequest(string Name, string Image, IReadOnlyList<string> Arguments);
 public sealed record DockerNetworkCreateRequest(string Name, string Driver = "bridge", bool Confirmed = false);
 public sealed record DockerVolumeCreateRequest(string Name, string Driver = "local", bool Confirmed = false);
+public sealed record DockerContainerLogsDto(IReadOnlyList<string> Lines, bool Truncated);
+public sealed record DockerContainerStatsDto(string ContainerId, string CpuPercent, string MemoryUsage, string NetworkIo, string BlockIo);
+public sealed record DockerBuildRequest(string ContextDirectory, string ImageReference, string? Dockerfile = null);
+/// <summary>Bounded base64 archive transfer. The server never accepts arbitrary host paths.</summary>
+public sealed record DockerImageArchiveDto(string ImageReference, string ContentBase64);

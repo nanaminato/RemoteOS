@@ -156,12 +156,18 @@ else
 
 // Built-in Docker manager: the provider uses Docker's local CLI transport only; no socket/pipe
 // is ever exposed to clients. Guardian intentionally remains a separate Agent boundary.
+builder.Services.AddSingleton(builder.Configuration.GetSection("DockerEngine").Get<Server.Docker.DockerCliEngineOptions>() ?? new Server.Docker.DockerCliEngineOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("DockerRuntimeInstaller").Get<Server.Docker.DockerRuntimeInstallerOptions>() ?? new Server.Docker.DockerRuntimeInstallerOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
 var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Server.ProcessGuardian.GuardianAgentOptions>() ?? new Server.ProcessGuardian.GuardianAgentOptions();
 builder.Services.AddSingleton(guardianOptions);
 builder.Services.AddSingleton<Server.ProcessGuardian.IProcessGuardianService, Server.ProcessGuardian.NamedPipeProcessGuardianService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianAgentInstaller").Get<Server.ProcessGuardian.GuardianAgentInstallerOptions>() ?? new Server.ProcessGuardian.GuardianAgentInstallerOptions());
+builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Server.ProcessGuardian.GuardianAgentInstaller>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
+builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
 
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。

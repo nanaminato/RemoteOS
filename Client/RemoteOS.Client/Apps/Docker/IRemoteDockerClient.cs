@@ -14,4 +14,13 @@ public interface IRemoteDockerClient
     Task<DockerOperationResult> PullImageAsync(DockerImageOperationRequest request, CancellationToken cancellationToken = default);
     Task<DockerOperationResult> DeleteImageAsync(string id, DockerImageOperationRequest request, CancellationToken cancellationToken = default);
     Task<DockerOperationResult> CreateContainerAsync(DockerContainerCreateRequest request, CancellationToken cancellationToken = default);
+    Task<DockerInstallationPlanDto> GetInstallationPlanAsync(CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> ExecuteInstallationAsync(DockerInstallationExecutionRequest request, CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> DeleteNetworkAsync(string id, bool confirmed, CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> DeleteVolumeAsync(string name, bool confirmed, CancellationToken cancellationToken = default);
+    Task<DockerContainerLogsDto?> GetContainerLogsAsync(string id, int tail = 200, CancellationToken cancellationToken = default);
+    Task<DockerContainerStatsDto?> GetContainerStatsAsync(string id, CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> BuildImageAsync(DockerBuildRequest request, CancellationToken cancellationToken = default);
+    Task<DockerImageArchiveDto?> ExportImageAsync(string id, CancellationToken cancellationToken = default);
+    Task<DockerOperationResult> ImportImageAsync(DockerImageArchiveDto archive, CancellationToken cancellationToken = default);
 }
