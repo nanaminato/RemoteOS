@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Client.Services;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
@@ -88,7 +91,7 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         CanUserResizeColumns = true,
         CanUserSortColumns = true,
         GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
-        RowHeight = 28,
+        RowHeight = double.NaN,
         ColumnHeaderHeight = 28,
         BorderThickness = new Avalonia.Thickness(0)
     };
@@ -96,12 +99,14 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
     private readonly TextBox _responseHeaders = CreateReadOnlyTextBox();
     private readonly TextBox _requestHeaders = CreateReadOnlyTextBox();
     private readonly TextBox _payload = CreateReadOnlyTextBox();
-    private readonly TextBox _preview = CreateReadOnlyTextBox();
     private readonly TextBox _response = CreateReadOnlyTextBox();
     private readonly TextBlock _status = new() { Opacity = 0.72, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _record = new() { MinWidth = 84 };
     private readonly Button _clear = new() { MinWidth = 64 };
     private readonly TextBox _filter = new() { Width = 300 };
+    private readonly Grid _content = new();
+    private readonly GridSplitter _detailsSplitter = new() { Width = 5, ResizeDirection = GridResizeDirection.Columns };
+    private Control? _details;
     private IReadOnlyList<NetworkDiagnosticEntry> _visible = Array.Empty<NetworkDiagnosticEntry>();
 
     public NetworkInspectorView(NetworkDiagnosticsService diagnostics, LocalizationService localization)
@@ -135,10 +140,10 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         _requests.ItemsSource = _rows;
         _requests.SelectionChanged += (_, _) => ShowDetails((_requests.SelectedItem as NetworkInspectorRow)?.Id);
 
-        AddColumn(T("network_inspector.name", "Name"), nameof(NetworkInspectorRow.Name), "*", 180);
-        AddColumn(T("network_inspector.status", "Status"), nameof(NetworkInspectorRow.Status), "90", 76);
-        AddColumn(T("network_inspector.type", "Type"), nameof(NetworkInspectorRow.Type), "160", 120);
-        AddColumn(T("network_inspector.size", "Size"), nameof(NetworkInspectorRow.Size), "90", 72);
+        AddColumn(T("network_inspector.name", "Name"), nameof(NetworkInspectorRow.Name), "220", 140);
+        AddColumn(T("network_inspector.status", "Status"), nameof(NetworkInspectorRow.Status), "76", 60);
+        AddColumn(T("network_inspector.type", "Type"), nameof(NetworkInspectorRow.Type), "120", 90);
+        AddColumn(T("network_inspector.size", "Size"), nameof(NetworkInspectorRow.Size), "76", 60);
 
         var toolbar = new StackPanel
         {
@@ -151,30 +156,58 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         toolbar.Children.Add(_filter);
         toolbar.Children.Add(_status);
 
-        var content = new Grid { ColumnDefinitions = new ColumnDefinitions("390,5,*") };
-        content.Children.Add(_requests);
-        content.Children.Add(new GridSplitter { Width = 5, ResizeDirection = GridResizeDirection.Columns });
-        content.Children.Add(CreateDetailsTabs());
-        Grid.SetColumn(content.Children[1], 1);
-        Grid.SetColumn(content.Children[2], 2);
+        _content.ColumnDefinitions = new ColumnDefinitions("*,0,0");
+        _content.Children.Add(_requests);
+        _content.Children.Add(_detailsSplitter);
+        _details = CreateDetailsPanel();
+        _content.Children.Add(_details);
+        Grid.SetColumn(_detailsSplitter, 1);
+        Grid.SetColumn(_details, 2);
 
         var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
         root.Children.Add(toolbar);
-        root.Children.Add(content);
-        Grid.SetRow(content, 1);
+        root.Children.Add(_content);
+        Grid.SetRow(_content, 1);
         Content = root;
     }
 
     private void AddColumn(string header, string property, string width, double minWidth)
     {
-        _requests.Columns.Add(new DataGridTextColumn
+        _requests.Columns.Add(new DataGridTemplateColumn
         {
             Header = header,
-            Binding = new Binding(property),
             SortMemberPath = property,
             Width = new DataGridLength(width == "*" ? 1 : double.Parse(width), width == "*" ? DataGridLengthUnitType.Star : DataGridLengthUnitType.Pixel),
-            MinWidth = minWidth
+            MinWidth = minWidth,
+            CellTemplate = new FuncDataTemplate<NetworkInspectorRow>((_, _) =>
+            {
+                var text = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                text.Bind(TextBlock.TextProperty, new Binding(property));
+                return text;
+            })
         });
+    }
+
+    private Control CreateDetailsPanel()
+    {
+        var close = new Button
+        {
+            Content = "×",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 32
+        };
+        ToolTip.SetTip(close, T("network_inspector.close_details", "Close details"));
+        close.Click += (_, _) => _requests.SelectedItem = null;
+
+        var header = new Grid { Margin = new Avalonia.Thickness(0, 0, 12, 4) };
+        header.Children.Add(close);
+
+        var panel = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
+        panel.Children.Add(header);
+        panel.Children.Add(CreateDetailsTabs());
+        Grid.SetRow(panel.Children[1], 1);
+        return panel;
     }
 
     private TabControl CreateDetailsTabs()
@@ -182,7 +215,6 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         var tabs = new TabControl { Margin = new Avalonia.Thickness(0, 0, 12, 12) };
         tabs.Items.Add(new TabItem { Header = T("network_inspector.headers", "Headers"), Content = CreateHeadersPanel() });
         tabs.Items.Add(new TabItem { Header = T("network_inspector.payload", "Payload"), Content = _payload });
-        tabs.Items.Add(new TabItem { Header = T("network_inspector.preview", "Preview"), Content = _preview });
         tabs.Items.Add(new TabItem { Header = T("network_inspector.response", "Response"), Content = _response });
         return tabs;
     }
@@ -241,16 +273,17 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         var entry = id is long entryId ? _visible.FirstOrDefault(candidate => candidate.Id == entryId) : null;
         if (entry is null)
         {
+            SetDetailsVisibility(false);
             var empty = T("network_inspector.select", "Select a request to view its details.");
             _general.Text = empty;
             _responseHeaders.Text = empty;
             _requestHeaders.Text = empty;
             _payload.Text = empty;
-            _preview.Text = empty;
             _response.Text = empty;
             return;
         }
 
+        SetDetailsVisibility(true);
         _general.Text = $"{T("network_inspector.request_url", "Request URL")}: {entry.RequestUrl ?? entry.PathAndQuery}\n"
             + $"{T("network_inspector.request_method", "Request Method")}: {entry.Method ?? "—"}\n"
             + $"{T("network_inspector.status", "Status")}: {entry.StatusCode?.ToString() ?? entry.Outcome.ToString()}\n"
@@ -261,8 +294,15 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         _responseHeaders.Text = FormatHeaders(entry.ResponseHeaders, "No response headers.");
         _requestHeaders.Text = FormatHeaders(entry.RequestHeaders, "No request headers.");
         _payload.Text = FormatPayload(entry.RequestBody, "No request payload.");
-        _preview.Text = FormatPayload(entry.ResponseBody, "No response body.");
-        _response.Text = FormatPayload(entry.ResponseBody, "No response body.");
+        _response.Text = FormatResponse(entry);
+    }
+
+    private void SetDetailsVisibility(bool isVisible)
+    {
+        _detailsSplitter.IsVisible = isVisible;
+        if (_details is not null)
+            _details.IsVisible = isVisible;
+        _content.ColumnDefinitions = new ColumnDefinitions(isVisible ? "390,5,*" : "*,0,0");
     }
 
     private static TextBox CreateReadOnlyTextBox() => new()
@@ -280,6 +320,38 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
     private static string FormatPayload(NetworkDiagnosticPayload? payload, string emptyMessage) => payload is null
         ? emptyMessage
         : $"{payload.Format}\n\n{payload.Content}";
+
+    private string FormatResponse(NetworkDiagnosticEntry entry)
+    {
+        var payload = entry.ResponseBody;
+        if (payload is null)
+            return T("network_inspector.response_empty", "No response body.");
+
+        if (IsJson(entry.ContentType) || LooksLikeJson(payload.Content))
+        {
+            try
+            {
+                return JToken.Parse(payload.Content).ToString(Formatting.Indented);
+            }
+            catch (JsonReaderException)
+            {
+                return T("network_inspector.response_invalid_json", "The response contains invalid JSON and is not displayed.");
+            }
+        }
+
+        var contentType = entry.ContentType ?? payload.Format;
+        return string.Format(T("network_inspector.response_unsupported", "Response format: {0}. Content is not displayed."), contentType);
+    }
+
+    private static bool IsJson(string? contentType) => contentType?.Split(';', 2)[0].Trim() is { } mediaType
+        && (mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+            || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase));
+
+    private static bool LooksLikeJson(string content)
+    {
+        var trimmed = content.TrimStart();
+        return trimmed.StartsWith('{') || trimmed.StartsWith('[');
+    }
 
     private static string FormatSize(long? bytes) => bytes is null ? "—"
         : bytes < 1024 ? $"{bytes} B"
