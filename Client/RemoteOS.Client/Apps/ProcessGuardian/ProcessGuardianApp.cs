@@ -27,7 +27,11 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
     }
     private static Control CreateView(ProcessGuardianViewModel viewModel)
     {
-        var root = new DockPanel { Margin = new Avalonia.Thickness(18) };
+        var root = new DockPanel
+        {
+            Margin = new Avalonia.Thickness(18),
+            DataContext = viewModel
+        };
         var create = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 0, 0, 12) };
         create.Children.Add(BoundTextBox("guardian.create.id", nameof(viewModel.DefinitionId)));
         create.Children.Add(BoundTextBox("guardian.create.name", nameof(viewModel.DefinitionName)));

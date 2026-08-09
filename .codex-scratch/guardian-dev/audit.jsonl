@@ -1,0 +1,4 @@
+{"timestamp":"2026-08-09T08:12:41.5338963+00:00","action":"upsert","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:12:55.5859363+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:12:59.913078+00:00","action":"start","workloadId":"dev-ping","outcome":"success","problemCode":""}
+{"timestamp":"2026-08-09T08:13:24.9085315+00:00","action":"restart","workloadId":"dev-ping","outcome":"success","problemCode":""}

@@ -33,6 +33,21 @@ internal sealed partial class WorkloadSupervisor
         }
     }
 
+    /// <summary>Stops children started by this Agent before an intentional development or service shutdown.</summary>
+    public async Task StopAllAsync()
+    {
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            foreach (var workload in _workloads.Values.Where(workload => workload.Process is { HasExited: false }).ToArray())
+                await StopAsync(workload, CancellationToken.None);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<GuardianAgentResponse> HandleAsync(GuardianAgentRequest request, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);

@@ -29,5 +29,9 @@ internal sealed class GuardianWorker(
             logger.LogCritical(exception, "RemoteOS Guardian Agent terminated unexpectedly.");
             throw;
         }
+        finally
+        {
+            await supervisor.StopAllAsync();
+        }
     }
 }
