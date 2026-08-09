@@ -24,7 +24,7 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 | 输入项 | 计算机 + 用户名 + 密码 | Server URL + 用户名 + 密码 |
 | 传输协议 | RDP（像素流） | HTTP REST（状态同步，非像素流） |
 | 认证后 | 全屏远程桌面 | MainWindow 桌面 Shell |
-| 凭据存储 | 默认不保存（可选 .rdp） | 可选“加密保存密码并自动登录”：Windows DPAPI / macOS Keychain / Linux Secret Service |
+| 凭据存储 | 默认不保存（可选 .rdp） | 连接列表保存在当前 OS 用户范围；密码可选加密保存：Windows DPAPI / macOS Keychain / Linux Secret Service |
 
 ### 登录前语言
 
@@ -143,7 +143,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 - **不 mutate `HttpClient.BaseAddress`**：`RemoteOsClient` 每个方法接收 `serverUrl` 构造绝对 URI（`new Uri(new Uri(serverUrl), route.TrimStart('/'))`），避免 typed HttpClient 共享实例并发竞态。
 - **登录窗用顶层 `Window`**，不用 `RemoteWindow`（`RemoteWindow` 必须挂在 `DesktopShellView` 的 `PART_WindowHost` Canvas，登录前桌面尚未建立）。
-- **已保存连接**：客户端可加密保存多组 `Server URL + 用户名 + 密码`；登录窗保持可见，用户从下拉列表选择任意已保存项以回填凭据，再明确点击“连接”登录。密码未勾选时仅保存 `Server URL + 用户名`，不会保存 `RefreshToken` 或任何可替代密码的令牌；登出不会删除已保存连接。
+- **已保存连接**：客户端可保存多组 `Server URL + 用户名`，并可选择通过平台安全存储加密保存密码；登录窗保持可见，用户从下拉列表选择任意已保存项以回填凭据，再明确点击“连接”登录。不会保存 `RefreshToken` 或任何可替代密码的令牌；登出不会删除已保存连接。Linux 即使 Secret Service 暂不可用，也会保留服务器和用户名，只禁用该记录的免密码登录。
 - **HTTP 调用经 `IRemoteOsClient` 抽象**，业务代码不直接 `new HttpClient`（Architecture.md §4.8）。
 
 ---
@@ -247,7 +247,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 ## 6. 安全考量
 
 - **服务器不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），服务端密码仅在校验瞬间传入，不落库、不日志。
-- **自动登录的安全性**：未勾选时 `AuthSession` 不写盘；勾选时客户端仅通过平台凭据库保存密码和会话信息：Windows 为当前用户 DPAPI 加密文件，macOS 为 Keychain，Linux 为 Secret Service。不会写入配置、数据库或日志，登出会清除记录。
+- **自动登录的安全性**：未勾选“记住”时 `AuthSession` 不写盘。密码仅通过平台凭据库保存：Windows 为当前用户 DPAPI 加密文件，macOS 为 Keychain，Linux 为 Secret Service。Linux 的非敏感连接元数据另存于当前用户数据目录，目录权限 `0700`、文件权限 `0600`，其中密码始终为 `null`。密码不会写入普通配置、数据库或日志。
 - **JWT 对称密钥**：Production 启动校验 `Jwt:Secret` 非默认占位值；Development 用固定开发密钥。
 - **HTTPS**：Production 强制 HTTPS 重定向；Development 允许 http 方便本地测试。
 - **密码字段**：`LoginView` 默认用 `TextBox PasswordChar="●"` 掩码显示，并提供“查看 / 隐藏”切换；`LoginViewModel` 不记录密码到日志。
@@ -284,12 +284,12 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | Linux PAM | 已实现 | P/Invoke `libpam.so.0`：`pam_authenticate` + `pam_acct_mgmt`；NSS `getpwnam_r` 获取 UID/显示名/Home |
 | 显示选项折叠面板 | 预留空 Expander | 显示大小/颜色深度/本地资源（对标 mstsc） |
 | 已保存连接列表 | 已实现：按 Server URL + 用户名保存多条记录；有已保存密码时可在简洁选择模式下免密码连接 | 仅扩展 mstsc 风格显示选项（显示大小/颜色深度/本地资源） |
-| 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时自动登录不可用，仍可正常手动登录 |
+| 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时仅密码不保存；服务器/用户名列表仍持久化，可正常手动登录 |
 | 持久化仓储 | SQLite + EF Core（User/Workspace/Device/Bookmark/HistoryEntry），Session/刷新令牌内存 | 全量持久化按需扩展 |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
 | Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
 
-Linux 部署要求系统提供 PAM 运行库（Ubuntu 的 `libpam0g`，通常由基础系统预装）以及可用的 `login` PAM service。RemoteOS 不读取 `/etc/shadow`，也不保存或记录密码；PAM conversation 仅在同步认证调用期间持有凭据。账户信息通过 NSS 查询，因此系统配置的 SSSD/LDAP 用户同样可被解析。
+Linux 服务端部署要求系统提供 PAM 运行库（Ubuntu 的 `libpam0g`，通常由基础系统预装）以及可用的 `login` PAM service。RemoteOS 不读取 `/etc/shadow`，也不保存或记录登录请求中的密码；PAM conversation 仅在同步认证调用期间持有凭据。账户信息通过 NSS 查询，因此系统配置的 SSSD/LDAP 用户同样可被解析。
 
 ---
 
@@ -334,6 +334,8 @@ Linux 部署要求系统提供 PAM 运行库（Ubuntu 的 `libpam0g`，通常由
 | 同时勾选“加密保存密码” | Server URL、用户名、密码 | 选择该项会回填凭据；用户点击“连接”后免密码登录。 |
 | 不勾选“记住此计算机和用户名” | 不新增或更新本地记录 | 本次登录结束后不保留新输入。 |
 
-密码不是普通配置：只有用户显式勾选后才会写入当前操作系统的安全存储（Windows DPAPI、macOS Keychain、Linux Secret Service），不会写入服务端、配置文件、日志或数据库。未保存密码的记录也不保存 RefreshToken，不能绕过密码输入。
+密码不是普通配置：只有用户显式勾选后才会写入当前操作系统的安全存储（Windows DPAPI、macOS Keychain、Linux Secret Service），不会写入服务端、连接元数据文件、日志或数据库。未保存密码的记录也不保存 RefreshToken，不能绕过密码输入。
+
+Linux 客户端将连接元数据写入 `${XDG_DATA_HOME:-~/.local/share}/RemoteOS/remembered-connections.json`（实际根目录由 .NET `LocalApplicationData` 解析）。文件仅含服务器地址、用户名、最后使用时间及空密码字段，父目录强制为 `0700`，文件强制为 `0600`。密码单独保存在桌面 Secret Service（如 GNOME Keyring/KWallet 提供的 Freedesktop Secret Service）中。启动时两层数据按服务器地址和用户名合并；Secret Service 不存在、未启动或未解锁时，连接列表仍可读取，但不会回填密码。旧版本只存在 Secret Service 中的聚合记录仍可读取，并会在下次成功保存时生成连接元数据文件。
 
 旧版本的单条加密会话在首次读取时会迁移为一条新的连接记录。若保存的密码已失效，客户端会保留该服务器和用户名，但移除失效密码并提示用户重新输入；网络暂时不可达不会删除任何已保存连接。退出远程桌面只会注销当前会话，不会清除本地已保存连接，行为与 mstsc 的已保存凭据一致。

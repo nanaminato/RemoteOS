@@ -55,6 +55,10 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "RemoteOS",
         "remembered-session.bin");
+    private readonly string _linuxProfilesPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "RemoteOS",
+        "remembered-connections.json");
 
     public async Task<IReadOnlyList<SavedLoginProfile>> LoadAsync(CancellationToken ct = default)
     {
@@ -66,7 +70,7 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
                 : OperatingSystem.IsMacOS()
                     ? MacKeychain.TryRead(out var macValue) ? macValue : null
                     : OperatingSystem.IsLinux()
-                        ? LinuxSecretService.TryRead(out var linuxValue) ? linuxValue : null
+                        ? await LoadLinuxAsync(ct)
                         : null;
             return payload is null ? Array.Empty<SavedLoginProfile>() : Deserialize(payload);
         }
@@ -108,7 +112,7 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
                 return MacKeychain.TryWrite(payload);
 
             if (OperatingSystem.IsLinux())
-                return LinuxSecretService.TryWrite(payload);
+                return await SaveLinuxAsync(profiles, payload, ct);
         }
         catch (CryptographicException)
         {
@@ -142,6 +146,7 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
             else if (OperatingSystem.IsLinux())
             {
                 LinuxSecretService.TryClear();
+                if (File.Exists(_linuxProfilesPath)) File.Delete(_linuxProfilesPath);
             }
         }
         catch (IOException)
@@ -171,6 +176,71 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
         Directory.CreateDirectory(Path.GetDirectoryName(_windowsFilePath)!);
         var protectedBytes = ProtectedData.Protect(Encoding.UTF8.GetBytes(payload), Entropy, DataProtectionScope.CurrentUser);
         await File.WriteAllBytesAsync(_windowsFilePath, protectedBytes, ct);
+    }
+
+    [SupportedOSPlatform("linux")]
+    private async Task<string?> LoadLinuxAsync(CancellationToken ct)
+    {
+        SavedLoginProfileCollection metadata;
+        if (File.Exists(_linuxProfilesPath))
+        {
+            await using var stream = File.OpenRead(_linuxProfilesPath);
+            metadata = await JsonSerializer.DeserializeAsync<SavedLoginProfileCollection>(stream, RemoteOsJsonOptions.Default, ct)
+                ?? new SavedLoginProfileCollection(Array.Empty<SavedLoginProfile>());
+        }
+        else
+        {
+            metadata = new SavedLoginProfileCollection(Array.Empty<SavedLoginProfile>());
+        }
+
+        // Password-bearing profiles remain exclusively in the desktop Secret Service.
+        // Older releases stored the complete payload there, so merging also migrates them
+        // into the new always-available connection metadata file on the next successful login.
+        if (!LinuxSecretService.TryRead(out var protectedPayload) || protectedPayload is null)
+            return Serialize(metadata);
+
+        var protectedProfiles = Deserialize(protectedPayload);
+        var merged = metadata.Profiles.Select(profile =>
+        {
+            var secret = protectedProfiles.FirstOrDefault(candidate => SavedLoginProfile.SameProfile(
+                candidate.ServerUrl, candidate.Username, profile.ServerUrl, profile.Username));
+            return profile with { Password = secret?.Password };
+        }).ToList();
+
+        foreach (var secret in protectedProfiles.Where(secret =>
+                     merged.All(profile => !SavedLoginProfile.SameProfile(
+                         profile.ServerUrl, profile.Username, secret.ServerUrl, secret.Username))))
+            merged.Add(secret);
+
+        return Serialize(new SavedLoginProfileCollection(
+            merged.OrderByDescending(profile => profile.LastUsedAt).ToArray()));
+    }
+
+    [SupportedOSPlatform("linux")]
+    private async Task<bool> SaveLinuxAsync(IReadOnlyList<SavedLoginProfile> profiles, string protectedPayload, CancellationToken ct)
+    {
+        var directory = Path.GetDirectoryName(_linuxProfilesPath)!;
+        Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+        var metadata = new SavedLoginProfileCollection(profiles
+            .OrderByDescending(profile => profile.LastUsedAt)
+            .Select(profile => profile with { Password = null })
+            .ToArray());
+        await using (var stream = new FileStream(_linuxProfilesPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            await JsonSerializer.SerializeAsync(stream, metadata, RemoteOsJsonOptions.Default, ct);
+        File.SetUnixFileMode(_linuxProfilesPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+
+        if (profiles.Any(profile => profile.HasPassword))
+        {
+            if (LinuxSecretService.TryWrite(protectedPayload)) return true;
+            // Do not leave an older password associated with newly updated metadata.
+            LinuxSecretService.TryClear();
+            return false;
+        }
+
+        LinuxSecretService.TryClear();
+        return true;
     }
 
     private static string Serialize(SavedLoginProfileCollection profiles)
