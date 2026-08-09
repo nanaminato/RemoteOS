@@ -8,4 +8,5 @@ public interface IProcessGuardianClient
     Task<IReadOnlyList<GuardianWorkloadDto>> ListWorkloadsAsync(CancellationToken cancellationToken = default);
     Task<GuardianAgentResponse> UpsertAsync(ProcessDefinitionDto definition, CancellationToken cancellationToken = default);
     Task<GuardianAgentResponse> ApplyActionAsync(string id, string action, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<GuardianLogEntryDto>> ListLogsAsync(string id, CancellationToken cancellationToken = default);
 }

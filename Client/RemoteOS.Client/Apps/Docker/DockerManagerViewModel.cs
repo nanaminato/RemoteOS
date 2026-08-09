@@ -19,6 +19,11 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _stackName = string.Empty;
     [ObservableProperty] private string _composeYaml = "services:\n  example:\n    image: hello-world";
     [ObservableProperty] private string _imageReference = string.Empty;
+    [ObservableProperty] private string _containerName = string.Empty;
+    [ObservableProperty] private string _containerImage = string.Empty;
+    [ObservableProperty] private string _containerArguments = string.Empty;
+    [ObservableProperty] private DockerImageDto? _selectedImage;
+    [ObservableProperty] private bool _confirmImageDeletion;
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -106,4 +111,33 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         finally { IsLoading = false; }
         await RefreshAsync();
     }
+
+    [RelayCommand] private async Task CreateContainerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ContainerName) || string.IsNullOrWhiteSpace(ContainerImage)) { StatusText = LocalizedText.Get("docker.container.required"); return; }
+        IsLoading = true;
+        try
+        {
+            var arguments = ContainerArguments.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var result = await client.CreateContainerAsync(new DockerContainerCreateRequest(ContainerName.Trim(), ContainerImage.Trim(), arguments));
+            StatusText = result.Success ? LocalizedText.Format("docker.container.created", ContainerName) : LocalizedText.Format("docker.container.create_failed", result.ProblemCode);
+            if (result.Success) ContainerName = ContainerImage = ContainerArguments = string.Empty;
+        }
+        catch (Exception exception) { StatusText = LocalizedText.Format("docker.container.create_failed", exception.Message); }
+        finally { IsLoading = false; }
+        await RefreshAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteImage))] private async Task DeleteImageAsync()
+    {
+        var image = SelectedImage; if (image is null) return;
+        IsLoading = true;
+        try { var result = await client.DeleteImageAsync(image.Id, new DockerImageOperationRequest(image.Id, true)); StatusText = result.Success ? LocalizedText.Format("docker.image.deleted", image.Repository) : LocalizedText.Format("docker.image.delete_failed", result.ProblemCode); }
+        catch (Exception exception) { StatusText = LocalizedText.Format("docker.image.delete_failed", exception.Message); }
+        finally { IsLoading = false; }
+        await RefreshAsync();
+    }
+    private bool CanDeleteImage => SelectedImage is not null && ConfirmImageDeletion && !IsLoading;
+    partial void OnSelectedImageChanged(DockerImageDto? value) => DeleteImageCommand.NotifyCanExecuteChanged();
+    partial void OnConfirmImageDeletionChanged(bool value) => DeleteImageCommand.NotifyCanExecuteChanged();
 }

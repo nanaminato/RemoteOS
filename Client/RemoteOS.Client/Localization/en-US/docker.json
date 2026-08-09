@@ -28,6 +28,17 @@
     "docker.image.pull": "Pull image",
     "docker.image.required": "Enter an image reference.",
     "docker.image.pull_succeeded": "Pulled image {0}.",
-    "docker.image.pull_failed": "Could not pull image: {0}"
+    "docker.image.pull_failed": "Could not pull image: {0}",
+    "docker.container.name": "Container name",
+    "docker.container.image": "Image reference",
+    "docker.container.arguments": "Arguments (one per line)",
+    "docker.container.create": "Create container",
+    "docker.container.required": "Enter a container name and image.",
+    "docker.container.created": "Created container {0}.",
+    "docker.container.create_failed": "Could not create container: {0}",
+    "docker.image.delete_confirm": "I understand this removes the selected image",
+    "docker.image.delete": "Delete image",
+    "docker.image.deleted": "Deleted image {0}.",
+    "docker.image.delete_failed": "Could not delete image: {0}"
   }
 }

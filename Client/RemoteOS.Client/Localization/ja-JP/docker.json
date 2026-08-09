@@ -28,6 +28,17 @@
     "docker.image.pull": "イメージを取得",
     "docker.image.required": "イメージ参照を入力してください。",
     "docker.image.pull_succeeded": "イメージ {0} を取得しました。",
-    "docker.image.pull_failed": "イメージを取得できませんでした: {0}"
+    "docker.image.pull_failed": "イメージを取得できませんでした: {0}",
+    "docker.container.name": "コンテナー名",
+    "docker.container.image": "イメージ参照",
+    "docker.container.arguments": "引数（1 行に 1 つ）",
+    "docker.container.create": "コンテナーを作成",
+    "docker.container.required": "コンテナー名とイメージを入力してください。",
+    "docker.container.created": "コンテナー {0} を作成しました。",
+    "docker.container.create_failed": "コンテナーを作成できませんでした: {0}",
+    "docker.image.delete_confirm": "選択したイメージを削除することを理解しています",
+    "docker.image.delete": "イメージを削除",
+    "docker.image.deleted": "イメージ {0} を削除しました。",
+    "docker.image.delete_failed": "イメージを削除できませんでした: {0}"
   }
 }

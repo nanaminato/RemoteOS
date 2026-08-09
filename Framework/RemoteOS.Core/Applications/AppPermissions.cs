@@ -12,6 +12,10 @@ public static class AppPermissions
     public const string ServerNetworkRead = "server.network.read";
     public const string ServerNetworkConfigure = "server.network.configure";
     public const string ServerPowerManage = "server.power.manage";
+    public const string ServerDockerRead = "server.docker.read";
+    public const string ServerDockerManage = "server.docker.manage";
+    public const string ServerGuardianRead = "server.guardian.read";
+    public const string ServerGuardianManage = "server.guardian.manage";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -28,6 +32,10 @@ public static class AppPermissions
         new(ServerPowerManage, "Perform server power operations", "Request high-impact server operations such as restart or shutdown.", "server_management"),
         new(DesktopWallpaperWrite, "Change desktop wallpaper", "Allow this application to change the current workspace wallpaper through RemoteOS.", "desktop_workspace"),
         new(ServerMetricsRead, "Read server performance metrics", "Read aggregate CPU, memory, disk, network, and GPU metrics from the server.", "server_monitoring"),
+        new(ServerDockerRead, "Read Docker resources", "View the server's local Docker status, containers, images, networks, volumes, and safe diagnostics.", "server_management"),
+        new(ServerDockerManage, "Manage Docker resources", "Create and change local Docker containers, images, and Compose stacks on the server.", "server_management"),
+        new(ServerGuardianRead, "Read guardian workloads", "View the Guardian Agent, its workloads, states, and sanitized logs.", "server_management"),
+        new(ServerGuardianManage, "Manage guardian workloads", "Create and control workloads supervised by the Guardian Agent.", "server_management"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>

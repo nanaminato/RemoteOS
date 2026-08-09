@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Client.Localization;
 using Client.Services.Auth;
@@ -13,7 +14,7 @@ namespace Client.Apps.Docker;
 /// <summary>Built-in client for the server-local Docker Manager.</summary>
 public sealed class DockerManagerApp : RemoteApplicationBase
 {
-    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.docker"), "Docker Manager", "0.1.0", "🐳", "Manage the local Docker Engine on the RemoteOS Server");
+    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.docker"), "Docker Manager", "0.1.0", "🐳", "Manage the local Docker Engine on the RemoteOS Server", [AppPermissions.ServerDockerRead, AppPermissions.ServerDockerManage]);
 
     public override void Activate(AppContext context)
     {
@@ -53,6 +54,12 @@ public sealed class DockerManagerApp : RemoteApplicationBase
     private static TabItem ContainerTab(DockerManagerViewModel vm)
     {
         var panel = new DockPanel();
+        var create = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 0, 0, 8) };
+        create.Children.Add(new TextBox { PlaceholderText = LocalizedText.Get("docker.container.name"), [!TextBox.TextProperty] = new Avalonia.Data.Binding(nameof(vm.ContainerName)) { Mode = Avalonia.Data.BindingMode.TwoWay } });
+        create.Children.Add(new TextBox { PlaceholderText = LocalizedText.Get("docker.container.image"), [!TextBox.TextProperty] = new Avalonia.Data.Binding(nameof(vm.ContainerImage)) { Mode = Avalonia.Data.BindingMode.TwoWay } });
+        create.Children.Add(new TextBox { PlaceholderText = LocalizedText.Get("docker.container.arguments"), AcceptsReturn = true, MinHeight = 36, [!TextBox.TextProperty] = new Avalonia.Data.Binding(nameof(vm.ContainerArguments)) { Mode = Avalonia.Data.BindingMode.TwoWay } });
+        create.Children.Add(new Button { Content = LocalizedText.Get("docker.container.create"), Command = vm.CreateContainerCommand, HorizontalAlignment = HorizontalAlignment.Left });
+        DockPanel.SetDock(create, Dock.Top); panel.Children.Add(create);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 8) };
         actions.Children.Add(new Button { Content = LocalizedText.Get("docker.action.start"), Command = vm.StartContainerCommand });
         actions.Children.Add(new Button { Content = LocalizedText.Get("docker.action.stop"), Command = vm.StopContainerCommand });
@@ -79,8 +86,10 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 8) };
         toolbar.Children.Add(new TextBox { Width = 300, PlaceholderText = LocalizedText.Get("docker.image.reference"), [!TextBox.TextProperty] = new Avalonia.Data.Binding(nameof(vm.ImageReference)) { Mode = Avalonia.Data.BindingMode.TwoWay } });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("docker.image.pull"), Command = vm.PullImageCommand });
+        toolbar.Children.Add(new CheckBox { Content = LocalizedText.Get("docker.image.delete_confirm"), [!ToggleButton.IsCheckedProperty] = new Avalonia.Data.Binding(nameof(vm.ConfirmImageDeletion)) { Mode = Avalonia.Data.BindingMode.TwoWay } });
+        toolbar.Children.Add(new Button { Content = LocalizedText.Get("docker.image.delete"), Command = vm.DeleteImageCommand });
         DockPanel.SetDock(toolbar, Dock.Top); panel.Children.Add(toolbar);
-        panel.Children.Add(new ListBox { [!ItemsControl.ItemsSourceProperty] = new Avalonia.Data.Binding(nameof(vm.Images)), DisplayMemberBinding = new Avalonia.Data.Binding("Repository") });
+        panel.Children.Add(new ListBox { [!ItemsControl.ItemsSourceProperty] = new Avalonia.Data.Binding(nameof(vm.Images)), [!ListBox.SelectedItemProperty] = new Avalonia.Data.Binding(nameof(vm.SelectedImage)) { Mode = Avalonia.Data.BindingMode.TwoWay }, DisplayMemberBinding = new Avalonia.Data.Binding("Repository") });
         return new TabItem { Header = LocalizedText.Get("docker.images"), Content = panel };
     }
 }

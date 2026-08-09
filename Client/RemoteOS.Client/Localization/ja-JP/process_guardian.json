@@ -19,6 +19,9 @@
     "guardian.create.arguments": "引数（1 行に 1 つ）",
     "guardian.create.submit": "ワークロードを保存",
     "guardian.create.succeeded": "ワークロード {0} を保存しました。",
-    "guardian.create.failed": "ワークロードを保存できませんでした: {0}"
+    "guardian.create.failed": "ワークロードを保存できませんでした: {0}",
+    "guardian.logs.show": "ログを表示",
+    "guardian.logs.loaded": "{0} のマスク済みログを読み込みました。",
+    "guardian.logs.failed": "ログを読み込めませんでした: {0}"
   }
 }

@@ -28,6 +28,17 @@
     "docker.image.pull": "拉取镜像",
     "docker.image.required": "请输入镜像引用。",
     "docker.image.pull_succeeded": "已拉取镜像 {0}。",
-    "docker.image.pull_failed": "无法拉取镜像：{0}"
+    "docker.image.pull_failed": "无法拉取镜像：{0}",
+    "docker.container.name": "容器名称",
+    "docker.container.image": "镜像引用",
+    "docker.container.arguments": "参数（每行一个）",
+    "docker.container.create": "创建容器",
+    "docker.container.required": "请输入容器名称和镜像。",
+    "docker.container.created": "已创建容器 {0}。",
+    "docker.container.create_failed": "无法创建容器：{0}",
+    "docker.image.delete_confirm": "我了解这会删除所选镜像",
+    "docker.image.delete": "删除镜像",
+    "docker.image.deleted": "已删除镜像 {0}。",
+    "docker.image.delete_failed": "无法删除镜像：{0}"
   }
 }

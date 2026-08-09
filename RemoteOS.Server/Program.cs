@@ -157,6 +157,7 @@ else
 // Built-in Docker manager: the provider uses Docker's local CLI transport only; no socket/pipe
 // is ever exposed to clients. Guardian intentionally remains a separate Agent boundary.
 builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
+builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
 var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Server.ProcessGuardian.GuardianAgentOptions>() ?? new Server.ProcessGuardian.GuardianAgentOptions();
 builder.Services.AddSingleton(guardianOptions);

@@ -14,7 +14,7 @@ namespace Client.Apps.ProcessGuardian;
 /// <summary>Built-in guardian console. It exposes Agent availability without substituting Server supervision.</summary>
 public sealed class ProcessGuardianApp : RemoteApplicationBase
 {
-    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.processguardian"), "Process Guardian", "0.1.0", "🛡", "View RemoteOS Guardian Agent workloads");
+    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.processguardian"), "Process Guardian", "0.1.0", "🛡", "View RemoteOS Guardian Agent workloads", [AppPermissions.ServerGuardianRead, AppPermissions.ServerGuardianManage]);
     public override void Activate(AppContext context)
     {
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
@@ -40,10 +40,14 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.start"), Command = viewModel.StartWorkloadCommand });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.stop"), Command = viewModel.StopWorkloadCommand });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.restart"), Command = viewModel.RestartWorkloadCommand });
+        toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.logs.show"), Command = viewModel.LoadLogsCommand });
         DockPanel.SetDock(toolbar, Dock.Top); root.Children.Add(toolbar);
         var status = new TextBlock { Margin = new Avalonia.Thickness(0, 12, 0, 12), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
         status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(viewModel.StatusText))); DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
-        root.Children.Add(new ListBox { [!ItemsControl.ItemsSourceProperty] = new Avalonia.Data.Binding(nameof(viewModel.Workloads)), [!ListBox.SelectedItemProperty] = new Avalonia.Data.Binding(nameof(viewModel.SelectedWorkload)) { Mode = Avalonia.Data.BindingMode.TwoWay }, DisplayMemberBinding = new Avalonia.Data.Binding("Name") });
+        var content = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
+        content.Children.Add(new ListBox { [!ItemsControl.ItemsSourceProperty] = new Avalonia.Data.Binding(nameof(viewModel.Workloads)), [!ListBox.SelectedItemProperty] = new Avalonia.Data.Binding(nameof(viewModel.SelectedWorkload)) { Mode = Avalonia.Data.BindingMode.TwoWay }, DisplayMemberBinding = new Avalonia.Data.Binding("Name") });
+        var logs = new ListBox { [!ItemsControl.ItemsSourceProperty] = new Avalonia.Data.Binding(nameof(viewModel.Logs)), DisplayMemberBinding = new Avalonia.Data.Binding("Message") }; Grid.SetColumn(logs, 1); content.Children.Add(logs);
+        root.Children.Add(content);
         return root;
     }
     private static TextBox BoundTextBox(string labelKey, string property, bool acceptsReturn = false) => new()

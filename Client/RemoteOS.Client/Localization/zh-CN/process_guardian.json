@@ -19,6 +19,9 @@
     "guardian.create.arguments": "参数（每行一个）",
     "guardian.create.submit": "保存工作负载",
     "guardian.create.succeeded": "已保存工作负载 {0}。",
-    "guardian.create.failed": "无法保存工作负载：{0}"
+    "guardian.create.failed": "无法保存工作负载：{0}",
+    "guardian.logs.show": "查看日志",
+    "guardian.logs.loaded": "已加载 {0} 的脱敏日志。",
+    "guardian.logs.failed": "无法加载日志：{0}"
   }
 }

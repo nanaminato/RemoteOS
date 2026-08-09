@@ -9,6 +9,7 @@ namespace Client.Apps.ProcessGuardian;
 public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient client) : ObservableObject
 {
     public ObservableCollection<GuardianWorkloadDto> Workloads { get; } = [];
+    public ObservableCollection<GuardianLogEntryDto> Logs { get; } = [];
     [ObservableProperty] private GuardianWorkloadDto? _selectedWorkload;
     [ObservableProperty] private string _statusText = LocalizedText.Get("guardian.status.loading");
     [ObservableProperty] private bool _isLoading;
@@ -36,10 +37,17 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task StartWorkloadAsync() => ApplyActionAsync("start");
     [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task StopWorkloadAsync() => ApplyActionAsync("stop");
     [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private Task RestartWorkloadAsync() => ApplyActionAsync("restart");
+    [RelayCommand(CanExecute = nameof(HasSelectedWorkload))] private async Task LoadLogsAsync()
+    {
+        var workload = SelectedWorkload; if (workload is null) return; IsLoading = true;
+        try { var logs = await client.ListLogsAsync(workload.Id); Logs.Clear(); foreach (var log in logs) Logs.Add(log); StatusText = LocalizedText.Format("guardian.logs.loaded", workload.Name); }
+        catch (Exception exception) { StatusText = LocalizedText.Format("guardian.logs.failed", exception.Message); }
+        finally { IsLoading = false; }
+    }
     private bool HasSelectedWorkload => SelectedWorkload is not null && !IsLoading;
     partial void OnSelectedWorkloadChanged(GuardianWorkloadDto? value) => NotifyActionCommands();
     partial void OnIsLoadingChanged(bool value) => NotifyActionCommands();
-    private void NotifyActionCommands() { StartWorkloadCommand.NotifyCanExecuteChanged(); StopWorkloadCommand.NotifyCanExecuteChanged(); RestartWorkloadCommand.NotifyCanExecuteChanged(); }
+    private void NotifyActionCommands() { StartWorkloadCommand.NotifyCanExecuteChanged(); StopWorkloadCommand.NotifyCanExecuteChanged(); RestartWorkloadCommand.NotifyCanExecuteChanged(); LoadLogsCommand.NotifyCanExecuteChanged(); }
     private async Task ApplyActionAsync(string action)
     {
         var workload = SelectedWorkload; if (workload is null) return; IsLoading = true;

@@ -90,6 +90,50 @@ public sealed class DockerCliEngineService : IDockerEngineService
         return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
     }
 
+    public async Task<DockerNetworkDetailsDto?> GetNetworkAsync(string id, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(id)) return null;
+        var result = await RunAsync(["network", "inspect", id, "--format", "{{json .}}"], cancellationToken);
+        if (!result.Success) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(result.Output); var root = document.RootElement;
+            var containers = root.TryGetProperty("Containers", out var containerMap) && containerMap.ValueKind == JsonValueKind.Object
+                ? containerMap.EnumerateObject().Select(property => property.Value.TryGetProperty("Name", out var name) ? name.GetString() ?? property.Name : property.Name).ToArray() : [];
+            return new DockerNetworkDetailsDto(Read(root, "Id"), Read(root, "Name"), Read(root, "Driver"), Read(root, "Scope"), containers);
+        }
+        catch (JsonException) { return null; }
+    }
+
+    public async Task<DockerVolumeDetailsDto?> GetVolumeAsync(string name, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(name)) return null;
+        var result = await RunAsync(["volume", "inspect", name, "--format", "{{json .}}"], cancellationToken);
+        if (!result.Success) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(result.Output); var root = document.RootElement;
+            var labels = root.TryGetProperty("Labels", out var labelMap) && labelMap.ValueKind == JsonValueKind.Object
+                ? labelMap.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.GetString() ?? string.Empty, StringComparer.Ordinal) : new Dictionary<string, string>();
+            return new DockerVolumeDetailsDto(Read(root, "Name"), Read(root, "Driver"), Read(root, "Mountpoint"), labels);
+        }
+        catch (JsonException) { return null; }
+    }
+
+    public async Task<DockerOperationResult> CreateNetworkAsync(DockerNetworkCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(request.Name) || !IsContainerId(request.Driver)) return new DockerOperationResult(false, "docker.validation_failed");
+        var result = await RunAsync(["network", "create", "--driver", request.Driver, request.Name], cancellationToken);
+        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+    }
+
+    public async Task<DockerOperationResult> CreateVolumeAsync(DockerVolumeCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(request.Name) || !IsContainerId(request.Driver)) return new DockerOperationResult(false, "docker.validation_failed");
+        var result = await RunAsync(["volume", "create", "--driver", request.Driver, request.Name], cancellationToken);
+        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+    }
+
     private static readonly IReadOnlyDictionary<string, string> AllowedActions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["start"] = "start", ["stop"] = "stop", ["restart"] = "restart", ["pause"] = "pause", ["unpause"] = "unpause", ["delete"] = "rm",
