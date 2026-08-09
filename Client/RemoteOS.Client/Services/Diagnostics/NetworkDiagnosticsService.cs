@@ -1,18 +1,19 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
+using System.Text;
 using Client.Services.Auth;
 using Client.Services.Developer;
 
 namespace Client.Services.Diagnostics;
 
 /// <summary>
-/// Host-owned in-memory recorder for RemoteOS API diagnostics. It intentionally records only
-/// completed summaries, never request bodies, response bodies, tokens, cookies, or SignalR frames.
+/// Host-owned in-memory recorder for RemoteOS API diagnostics. It stores completed HTTP
+/// summaries and payloads in memory for the current client session.
 /// </summary>
 public sealed class NetworkDiagnosticsService : IDisposable
 {
     public const int MaximumEntries = 500;
-    public const int MaximumEstimatedBytes = 4 * 1024 * 1024;
+    public const int MaximumEstimatedBytes = 16 * 1024 * 1024;
 
     private readonly DeveloperModeService _developerMode;
     private readonly Func<IAuthSession> _sessionAccessor;
@@ -45,6 +46,15 @@ public sealed class NetworkDiagnosticsService : IDisposable
         {
             lock (_gate)
                 return GetStateLocked();
+        }
+    }
+
+    internal bool IsRecording
+    {
+        get
+        {
+            lock (_gate)
+                return _recording && IsAvailableLocked();
         }
     }
 
@@ -132,33 +142,43 @@ public sealed class NetworkDiagnosticsService : IDisposable
         EntryCompleted?.Invoke(this, stored);
     }
 
-    internal static string SanitizePathAndQuery(Uri? uri)
+    internal static IReadOnlyDictionary<string, string> CaptureHeaders(params HttpHeaders?[] collections)
     {
-        if (uri is null)
-            return string.Empty;
-        if (string.IsNullOrEmpty(uri.Query))
-            return uri.AbsolutePath;
-        var pairs = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
-            .Select(pair =>
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var collection in collections)
+        {
+            if (collection is null)
+                continue;
+            foreach (var header in collection)
             {
-                var index = pair.IndexOf('=');
-                var encodedKey = index < 0 ? pair : pair[..index];
-                var key = Uri.UnescapeDataString(encodedKey);
-                if (IsSensitiveName(key))
-                    return $"{encodedKey}=[redacted]";
-                return pair;
-            });
-        return $"{uri.AbsolutePath}?{string.Join('&', pairs)}";
+                var value = string.Join(", ", header.Value);
+                headers[header.Key] = headers.TryGetValue(header.Key, out var existing)
+                    ? $"{existing}, {value}"
+                    : value;
+            }
+        }
+        return headers;
     }
 
-    internal static IReadOnlyDictionary<string, string> SanitizeHeaders(HttpHeaders? headers)
+    internal static async Task<NetworkDiagnosticPayload?> CapturePayloadAsync(HttpContent? content)
     {
-        if (headers is null)
-            return new Dictionary<string, string>();
-        return headers.Take(32).ToDictionary(
-            pair => pair.Key,
-            pair => IsSensitiveName(pair.Key) ? "[redacted]" : Truncate(string.Join(", ", pair.Value), 512),
-            StringComparer.OrdinalIgnoreCase);
+        if (content is null)
+            return null;
+
+        try
+        {
+            var bytes = await content.ReadAsByteArrayAsync().ConfigureAwait(false);
+            var mediaType = content.Headers.ContentType?.MediaType;
+            if (!IsTextContent(mediaType))
+                return new NetworkDiagnosticPayload(Convert.ToBase64String(bytes), $"base64 ({mediaType ?? "binary"})");
+
+            var encoding = GetEncoding(content.Headers.ContentType?.CharSet);
+            return new NetworkDiagnosticPayload(encoding.GetString(bytes), $"{mediaType ?? "text/plain"}; charset={encoding.WebName}");
+        }
+        catch (Exception exception)
+        {
+            return new NetworkDiagnosticPayload($"<Unable to capture body: {exception.Message}>", "unavailable");
+        }
     }
 
     internal static bool IsMediaContent(string? contentType, Uri? requestUri)
@@ -255,14 +275,27 @@ public sealed class NetworkDiagnosticsService : IDisposable
         + entry.Source.Length * 2 + entry.Name.Length * 2 + entry.PathAndQuery.Length * 2
         + (entry.ContentType?.Length ?? 0) * 2 + (entry.ErrorKind?.Length ?? 0) * 2
         + (entry.RequestHeaders?.Sum(pair => pair.Key.Length + pair.Value.Length) ?? 0) * 2
-        + (entry.ResponseHeaders?.Sum(pair => pair.Key.Length + pair.Value.Length) ?? 0) * 2;
+        + (entry.ResponseHeaders?.Sum(pair => pair.Key.Length + pair.Value.Length) ?? 0) * 2
+        + (entry.RequestBody?.Content.Length ?? 0) * 2
+        + (entry.ResponseBody?.Content.Length ?? 0) * 2;
 
-    private static bool IsSensitiveName(string name) => name.Contains("token", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("secret", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("password", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("cookie", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("authorization", StringComparison.OrdinalIgnoreCase)
-        || name.Equals("key", StringComparison.OrdinalIgnoreCase);
+    private static bool IsTextContent(string? mediaType) => string.IsNullOrEmpty(mediaType)
+        || mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("application/xml", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("application/javascript", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase)
+        || mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase)
+        || mediaType.EndsWith("+xml", StringComparison.OrdinalIgnoreCase);
 
-    private static string Truncate(string value, int limit) => value.Length <= limit ? value : value[..limit] + "…";
+    private static Encoding GetEncoding(string? charset)
+    {
+        if (!string.IsNullOrWhiteSpace(charset))
+        {
+            try { return Encoding.GetEncoding(charset); }
+            catch (ArgumentException) { }
+        }
+        return Encoding.UTF8;
+    }
+
 }

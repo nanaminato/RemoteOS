@@ -82,7 +82,11 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
     private readonly LocalizationService _localization;
     private readonly ObservableCollection<string> _rows = new();
     private readonly ListBox _list = new();
-    private readonly TextBox _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+    private readonly TextBox _summary = CreateReadOnlyTextBox();
+    private readonly TextBox _requestHeaders = CreateReadOnlyTextBox();
+    private readonly TextBox _requestBody = CreateReadOnlyTextBox();
+    private readonly TextBox _responseHeaders = CreateReadOnlyTextBox();
+    private readonly TextBox _responseBody = CreateReadOnlyTextBox();
     private readonly TextBlock _status = new() { Opacity = 0.72, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _record = new() { MinWidth = 104 };
     private readonly Button _clear = new() { MinWidth = 80 };
@@ -125,28 +129,39 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         toolbar.Children.Add(_clear);
         toolbar.Children.Add(_filter);
         toolbar.Children.Add(_status);
-        var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        var details = new TabControl { Margin = new Avalonia.Thickness(16, 0, 16, 16) };
+        details.Items.Add(new TabItem { Header = T("network_inspector.summary", "Summary"), Content = _summary });
+        details.Items.Add(new TabItem
+        {
+            Header = T("network_inspector.request", "Request"),
+            Content = CreatePayloadPanel(_requestHeaders, _requestBody)
+        });
+        details.Items.Add(new TabItem
+        {
+            Header = T("network_inspector.response", "Response"),
+            Content = CreatePayloadPanel(_responseHeaders, _responseBody)
+        });
+
+        var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,280") };
         grid.Children.Add(toolbar);
         grid.Children.Add(_list);
-        grid.Children.Add(_details);
+        grid.Children.Add(details);
         Grid.SetRow(_list, 1);
-        Grid.SetRow(_details, 2);
+        Grid.SetRow(details, 2);
         _list.Margin = new Avalonia.Thickness(16, 0, 16, 8);
-        _details.Margin = new Avalonia.Thickness(16, 0, 16, 16);
-        _details.MinHeight = 170;
         Content = grid;
     }
 
     private void Refresh()
     {
-        // New requests are inserted above the current rows. Preserve the selected
-        // request by its stable diagnostic ID instead of retaining a shifting index.
+        // Requests are shown in capture order so each new one appears at the end.
+        // Preserve the selected request by its stable diagnostic ID instead of retaining a shifting index.
         var selectedIndexBeforeRefresh = _list.SelectedIndex;
         var selectedId = selectedIndexBeforeRefresh >= 0 && selectedIndexBeforeRefresh < _visible.Count
             ? _visible[selectedIndexBeforeRefresh].Id
             : (long?)null;
         var snapshot = _diagnostics.GetSnapshot(new NetworkDiagnosticsQuery(Text: _filter.Text));
-        _visible = snapshot.Entries.Reverse().ToArray();
+        _visible = snapshot.Entries;
         _rows.Clear();
         foreach (var entry in _visible)
             _rows.Add($"{entry.StartedAt:HH:mm:ss.fff}  {entry.Kind,-7}  {entry.Method ?? "—",-6}  {entry.Outcome,-14}  {entry.StatusCode?.ToString() ?? "—",-4}  {entry.Duration.TotalMilliseconds,6:0} ms  {entry.PathAndQuery}");
@@ -167,18 +182,59 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
     {
         if (index < 0 || index >= _visible.Count)
         {
-            _details.Text = T("network_inspector.select", "Select a request to view its summary.");
+            _summary.Text = T("network_inspector.select", "Select a request to view its summary.");
+            _requestHeaders.Text = string.Empty;
+            _requestBody.Text = string.Empty;
+            _responseHeaders.Text = string.Empty;
+            _responseBody.Text = string.Empty;
             return;
         }
         var entry = _visible[index];
-        _details.Text = $"{entry.Kind} · {entry.Outcome}\n{entry.Method ?? "—"} {entry.PathAndQuery}\n"
+        _summary.Text = $"{entry.Kind} · {entry.Outcome}\n{entry.Method ?? "—"} {entry.PathAndQuery}\n"
             + $"{T("network_inspector.status", "Status")}: {entry.StatusCode?.ToString() ?? "—"}\n"
             + $"{T("network_inspector.duration", "Duration")}: {entry.Duration.TotalMilliseconds:0} ms\n"
             + $"{T("network_inspector.source", "Source")}: {entry.Source}\n"
             + $"{T("network_inspector.type", "Type")}: {entry.ContentType ?? "—"}\n"
             + $"{T("network_inspector.size", "Size")}: {entry.DeclaredContentLength?.ToString() ?? "—"}\n"
             + $"{T("network_inspector.error", "Error")}: {entry.ErrorKind ?? "—"}";
+        _requestHeaders.Text = FormatHeaders(entry.RequestHeaders);
+        _requestBody.Text = FormatPayload(entry.RequestBody, "No request body.");
+        _responseHeaders.Text = FormatHeaders(entry.ResponseHeaders);
+        _responseBody.Text = FormatPayload(entry.ResponseBody, "No response body.");
     }
+
+    private static TextBox CreateReadOnlyTextBox() => new()
+    {
+        IsReadOnly = true,
+        AcceptsReturn = true,
+        TextWrapping = Avalonia.Media.TextWrapping.NoWrap,
+        VerticalContentAlignment = VerticalAlignment.Stretch
+    };
+
+    private Grid CreatePayloadPanel(TextBox headers, TextBox body)
+    {
+        var panel = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto,*") };
+        var headersLabel = new TextBlock { Text = T("network_inspector.headers", "Headers"), Margin = new Avalonia.Thickness(8, 4, 8, 2) };
+        var bodyLabel = new TextBlock { Text = T("network_inspector.body", "Body"), Margin = new Avalonia.Thickness(8, 6, 8, 2) };
+        headers.Margin = new Avalonia.Thickness(8, 0, 8, 0);
+        body.Margin = new Avalonia.Thickness(8, 0, 8, 8);
+        panel.Children.Add(headersLabel);
+        panel.Children.Add(headers);
+        panel.Children.Add(bodyLabel);
+        panel.Children.Add(body);
+        Grid.SetRow(headers, 1);
+        Grid.SetRow(bodyLabel, 2);
+        Grid.SetRow(body, 3);
+        return panel;
+    }
+
+    private static string FormatHeaders(IReadOnlyDictionary<string, string>? headers) => headers is null || headers.Count == 0
+        ? "No headers."
+        : string.Join(Environment.NewLine, headers.Select(header => $"{header.Key}: {header.Value}"));
+
+    private static string FormatPayload(NetworkDiagnosticPayload? payload, string emptyMessage) => payload is null
+        ? emptyMessage
+        : $"{payload.Format}\n\n{payload.Content}";
 
     private void OnEntryCompleted(object? sender, NetworkDiagnosticEntry entry) => Dispatcher.UIThread.Post(Refresh);
     private void OnStateChanged(object? sender, NetworkDiagnosticsState state) => Dispatcher.UIThread.Post(Refresh);

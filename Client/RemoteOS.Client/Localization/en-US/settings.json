@@ -60,7 +60,7 @@
         "settings.developer_mode.description": "Enable the local debug bridge for paired developer tools.",
         "settings.developer_mode.note": "Turning this off stops the local debug bridge immediately.",
         "settings.network_inspector": "Network Inspector",
-        "settings.network_inspector.description": "View redacted RemoteOS API and SignalR diagnostics for this client session.",
+        "settings.network_inspector.description": "View RemoteOS API request/response payloads and SignalR diagnostics for this client session.",
         "settings.network_inspector.open": "Open Network Inspector",
         "settings.network_inspector.requires_developer_mode": "Enable Developer Mode to use Network Inspector.",
         "settings.network_inspector.ready": "Ready — Ctrl+Shift+I",

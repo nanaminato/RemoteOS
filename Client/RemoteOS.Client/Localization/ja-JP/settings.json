@@ -60,7 +60,7 @@
         "settings.developer_mode.description": "ペアリング済みの開発者ツール用にローカル デバッグ ブリッジを有効にします。",
         "settings.developer_mode.note": "これをオフにすると、ローカル デバッグ ブリッジは直ちに停止します。",
         "settings.network_inspector": "ネットワーク インスペクター",
-        "settings.network_inspector.description": "このクライアント セッションの、マスク済み RemoteOS API および SignalR 診断を表示します。",
+        "settings.network_inspector.description": "このクライアント セッションの RemoteOS API のリクエスト/レスポンス本文と SignalR 診断を表示します。",
         "settings.network_inspector.open": "ネットワーク インスペクターを開く",
         "settings.network_inspector.requires_developer_mode": "ネットワーク インスペクターを使用するには開発者モードを有効にしてください。",
         "settings.network_inspector.ready": "準備完了 — Ctrl+Shift+I",
