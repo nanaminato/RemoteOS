@@ -169,6 +169,16 @@ public sealed partial class TaskManagerViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        RebuildFilteredProcesses(SelectedProcess);
+    }
+
+    /// <summary>
+    /// Rebuilds the visible list and restores selection after the collection change.
+    /// ListBox clears its SelectedItem while its source is rebuilt, so restoring it
+    /// before changing <see cref="FilteredProcesses"/> is not sufficient.
+    /// </summary>
+    private void RebuildFilteredProcesses(ProcessInfoDto? selectedProcess)
+    {
         var filter = ProcessFilter?.Trim() ?? string.Empty;
         IEnumerable<ProcessInfoDto> source = _allProcesses;
         if (!string.IsNullOrEmpty(filter))
@@ -181,25 +191,17 @@ public sealed partial class TaskManagerViewModel : ObservableObject
         FilteredProcesses.Clear();
         foreach (var p in source) FilteredProcesses.Add(p);
 
-        // Do not leave a selectable process that has been filtered out.
-        if (SelectedProcess is not null && !FilteredProcesses.Contains(SelectedProcess))
-            SelectedProcess = null;
+        // A process snapshot contains new DTO instances every time.  Restore the
+        // matching instance only after the visible collection has been updated.
+        SelectedProcess = selectedProcess is null ? null : FilteredProcesses.FirstOrDefault(p =>
+            p.Id == selectedProcess.Id && p.StartTime == selectedProcess.StartTime);
     }
 
     private void UpdateProcesses(IReadOnlyList<ProcessInfoDto> processes)
     {
         var selected = SelectedProcess;
         _allProcesses = processes.ToList();
-
-        // A refresh creates new DTO instances. Keep the selection only when it still
-        // identifies the same running process in the latest snapshot.
-        if (selected is not null)
-        {
-            SelectedProcess = _allProcesses.FirstOrDefault(p =>
-                p.Id == selected.Id && p.StartTime == selected.StartTime);
-        }
-
-        ApplyFilter();
+        RebuildFilteredProcesses(selected);
     }
 
     private void UpdateCharts(SystemMetricsDto metrics)

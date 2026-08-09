@@ -139,6 +139,12 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
 
     private void Refresh()
     {
+        // New requests are inserted above the current rows. Preserve the selected
+        // request by its stable diagnostic ID instead of retaining a shifting index.
+        var selectedIndexBeforeRefresh = _list.SelectedIndex;
+        var selectedId = selectedIndexBeforeRefresh >= 0 && selectedIndexBeforeRefresh < _visible.Count
+            ? _visible[selectedIndexBeforeRefresh].Id
+            : (long?)null;
         var snapshot = _diagnostics.GetSnapshot(new NetworkDiagnosticsQuery(Text: _filter.Text));
         _visible = snapshot.Entries.Reverse().ToArray();
         _rows.Clear();
@@ -149,9 +155,12 @@ internal sealed class NetworkInspectorView : UserControl, IDisposable
         _filter.PlaceholderText = T("network_inspector.filter", "Filter");
         _status.Text = snapshot.State.IsAvailable
             ? $"{_visible.Count} {T("network_inspector.requests", "requests")}" : snapshot.State.UnavailableReason;
-        if (_list.SelectedIndex >= _visible.Count)
-            _list.SelectedIndex = -1;
-        ShowDetails(_list.SelectedIndex);
+
+        var selectedIndex = selectedId is long id
+            ? Array.FindIndex(_visible.ToArray(), entry => entry.Id == id)
+            : -1;
+        _list.SelectedIndex = selectedIndex;
+        ShowDetails(selectedIndex);
     }
 
     private void ShowDetails(int index)
