@@ -11,6 +11,7 @@
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/NetworkPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/SettingsView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/TaskManager/Views/TaskManagerMainView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Services/Diagnostics/NetworkInspectorView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Views/Shell/DesktopShellView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
       </map>
     </option>

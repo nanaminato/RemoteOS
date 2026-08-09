@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Client.Services;
@@ -15,6 +16,8 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private readonly LocalizationService _localization;
     private readonly ObservableCollection<NetworkInspectorRow> _rows = new();
     private IReadOnlyList<NetworkDiagnosticEntry> _visible = Array.Empty<NetworkDiagnosticEntry>();
+    private bool _detailsInitialized;
+    private GridLength _detailsWidth = new GridLength(390);
 
     public NetworkInspectorView(NetworkDiagnosticsService diagnostics, LocalizationService localization)
     {
@@ -52,10 +55,24 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
 
     private void Filter_TextChanged(object? sender, TextChangedEventArgs args) => Refresh();
 
-    private void Requests_SelectionChanged(object? sender, SelectionChangedEventArgs args)
-        => ShowDetails((RequestsGrid.SelectedItem as NetworkInspectorRow)?.Id);
+    private void NameText_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not TextBlock textBlock)
+            return;
 
-    private void CloseDetails_Click(object? sender, RoutedEventArgs args) => RequestsGrid.SelectedItem = null;
+        if (textBlock.DataContext is NetworkInspectorRow row)
+        {
+            RequestsGrid.SelectedItem = row;
+            ShowDetails(row.Id);
+            e.Handled = true;
+        }
+    }
+
+    private void CloseDetails_Click(object? sender, RoutedEventArgs args)
+    {
+        RequestsGrid.SelectedItem = null;
+        ShowDetails(null);
+    }
 
     private void Refresh()
     {
@@ -117,9 +134,30 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
 
     private void SetDetailsVisibility(bool isVisible)
     {
-        DetailsSplitter.IsVisible = isVisible;
-        DetailsPanel.IsVisible = isVisible;
-        ContentGrid.ColumnDefinitions = new ColumnDefinitions(isVisible ? "390,5,*" : "*,0,0");
+        if (isVisible)
+        {
+            if (ContentGrid.ColumnDefinitions.Count == 3)
+            {
+                ContentGrid.ColumnDefinitions[1].Width = new GridLength(5);
+                ContentGrid.ColumnDefinitions[2].Width = _detailsWidth;
+            }
+
+            DetailsSplitter.IsVisible = true;
+            DetailsPanel.IsVisible = true;
+        }
+        else
+        {
+            if (ContentGrid.ColumnDefinitions.Count == 3)
+            {
+                _detailsWidth = ContentGrid.ColumnDefinitions[2].Width;
+
+                ContentGrid.ColumnDefinitions[1].Width = new GridLength(0);
+                ContentGrid.ColumnDefinitions[2].Width = new GridLength(0);
+            }
+
+            DetailsSplitter.IsVisible = false;
+            DetailsPanel.IsVisible = false;
+        }
     }
 
     private string FormatResponse(NetworkDiagnosticEntry entry)

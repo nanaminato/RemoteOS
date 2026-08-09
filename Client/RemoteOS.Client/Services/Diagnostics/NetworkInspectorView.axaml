@@ -22,7 +22,6 @@
                       Margin="10 0"
                       ColumnHeaderHeight="28"
                       BorderThickness="0"
-                      SelectionChanged="Requests_SelectionChanged"
                       >
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Header="{loc:Loc network_inspector.name}" 
@@ -31,7 +30,10 @@
                                             MinWidth="140">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="diagnostics:NetworkInspectorRow">
-                                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           PointerPressed="NameText_PointerPressed" />
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
