@@ -2,9 +2,27 @@
 
 > 内置进程守护管理器。它统一管理由 RemoteOS 声明和守护的后台程序，并以只读/受控方式管理现有 `systemd` 单元和 Windows SCM 服务；不是任务管理器的替代品。
 >
-> 当前状态：**已实现**独立 Guardian Agent 可执行体、本机认证 IPC、工作负载声明的最小持久化以及启动/停止/重启。服务安装/修复、日志轮转、健康检查、自动退避、审计和原生服务适配仍为**设计中**；Server 不会替代 Agent 守护任何进程。
+> 当前状态：**已实现**独立 Guardian Agent 可执行体、本机认证 IPC、工作负载声明持久化、启动/停止/重启/删除、退出退避、健康检查、审计，以及 Windows/Linux 的服务部署脚本。正式安装包、可视化安装向导、日志轮转和完整原生服务管理仍待完成；Server 不会替代 Agent 守护任何用户工作负载。
 >
-> 当前 Agent 启动时必须由宿主配置 `REMOTEOS_GUARDIAN_SHARED_SECRET` 与非空的 `REMOTEOS_GUARDIAN_ALLOWED_ROOTS`（以平台路径分隔符分隔）。它仅启动这些根目录内的绝对可执行文件，并拒绝 `cmd`、PowerShell、`sh` 和 `bash` 作为隐式 shell 入口。
+> 当前 Agent 启动时必须由宿主配置 `REMOTEOS_GUARDIAN_SHARED_SECRET` 与非空的 `REMOTEOS_GUARDIAN_ALLOWED_ROOTS`（以平台路径分隔符分隔）。仓库现提供 Windows/Linux 部署脚本，用于一次性注册 Server 和 Agent 系统服务、生成受 ACL 保护的配置及 IPC 密钥；最终安装包应调用这些脚本，最终用户无需手动把 Agent 配置成服务。**当前尚未有接入客户端或 Server 的成品安装向导。**它仅启动这些根目录内的绝对可执行文件，并拒绝 `cmd`、PowerShell、`sh` 和 `bash` 作为隐式 shell 入口。
+
+> **面向的对象是用户后台工作负载，而非 RemoteOS.Server。**例如，自包含 .NET 应用可直接登记发布后的可执行文件；依赖运行时的 .NET 应用可登记绝对路径的 `dotnet` 并将 `MyApp.dll` 作为独立参数；Spring Boot 可登记绝对路径的 `java` 并使用 `-jar`、`app.jar` 等独立参数。`REMOTEOS_GUARDIAN_ALLOWED_ROOTS` 必须同时包含运行时可执行文件目录和应用发布目录。RemoteOS Server 的健康监控是安装程序创建的受保护基础设施规则，不会出现在用户可编辑的 workload 列表中。
+
+### Windows 正式部署布局
+
+Windows 部署脚本默认采用以下布局。它只注册服务和生成机器配置；发布/安装包必须先将两个 self-contained 发布产物放到对应位置。
+
+```text
+C:\Program Files\RemoteOS\
+├── server\RemoteOS.Server.exe
+└── guardian\RemoteOS.Guardian.Agent.exe
+
+C:\ProgramData\RemoteOS\
+├── guardian\guardian.json       # 安装程序生成，ACL 保护
+└── workloads\                    # 用户的受守护应用发布目录
+```
+
+在管理员 PowerShell 中运行 `deployment\windows\Install-RemoteOSServices.ps1` 即使用这套默认布局。若 Server 监听端口不是 `5000`，传入 `-ServerPort <端口>`；若使用 framework-dependent .NET 或 Java，额外以 `-AllowedRoot` 明确加入 `dotnet.exe` / `java.exe` 所在目录及应用发布目录。
 >
 > - 即时进程查看与结束任务：[`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)
 > - 安全与权限提升：[`RemoteOS.Security.md`](./RemoteOS.Security.md)

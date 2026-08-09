@@ -42,7 +42,9 @@ internal sealed partial class WorkloadSupervisor
             {
                 "status" => new GuardianAgentResponse(true, string.Empty, new GuardianStatusDto(true, true, string.Empty, "0.1.0")),
                 "list" => new GuardianAgentResponse(true, string.Empty, Workloads: _workloads.Values.Select(ToDto).ToArray()),
+                "definition" => Definition(request.WorkloadId),
                 "upsert" => await UpsertAsync(request.Definition, cancellationToken),
+                "delete" => await DeleteAsync(request.WorkloadId, cancellationToken),
                 "start" => await ApplyAsync(request.WorkloadId, StartAsync, cancellationToken),
                 "stop" => await ApplyAsync(request.WorkloadId, StopAsync, cancellationToken),
                 "restart" => await RestartAsync(request.WorkloadId, cancellationToken),
@@ -50,7 +52,7 @@ internal sealed partial class WorkloadSupervisor
                 "audit" => await ReadAuditAsync(cancellationToken),
                 _ => new GuardianAgentResponse(false, "guardian.ipc_invalid_command"),
             };
-            if (request.Command is "upsert" or "start" or "stop" or "restart")
+            if (request.Command is "upsert" or "delete" or "start" or "stop" or "restart")
                 await WriteAuditAsync(request.Command, request.WorkloadId ?? request.Definition?.Id, response, cancellationToken);
             return response;
         }
@@ -84,6 +86,23 @@ internal sealed partial class WorkloadSupervisor
     {
         if (string.IsNullOrWhiteSpace(workloadId) || !_workloads.TryGetValue(workloadId, out var workload)) return new GuardianAgentResponse(false, "guardian.workload_not_found");
         return new GuardianAgentResponse(true, string.Empty, Logs: workload.Logs.ToArray());
+    }
+
+    private GuardianAgentResponse Definition(string? workloadId)
+    {
+        if (string.IsNullOrWhiteSpace(workloadId) || !_workloads.TryGetValue(workloadId, out var workload))
+            return new GuardianAgentResponse(false, "guardian.workload_not_found");
+        return new GuardianAgentResponse(true, string.Empty, Definition: workload.Definition);
+    }
+
+    private async Task<GuardianAgentResponse> DeleteAsync(string? workloadId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(workloadId) || !_workloads.TryGetValue(workloadId, out var workload))
+            return new GuardianAgentResponse(false, "guardian.workload_not_found");
+        await StopAsync(workload, cancellationToken);
+        _workloads.Remove(workloadId);
+        await PersistAsync(cancellationToken);
+        return new GuardianAgentResponse(true, string.Empty);
     }
 
     private async Task StartAsync(ManagedWorkload workload, CancellationToken cancellationToken)

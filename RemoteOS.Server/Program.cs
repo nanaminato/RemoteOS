@@ -16,6 +16,9 @@ using Server.Storage;
 using Server.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+// The signed host installer writes this ACL-protected file. It keeps machine-only
+// Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
+builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
 
 // 序列化：与 RemoteOsJsonOptions.Default 对齐（camelCase + 枚举字符串），保证线协议一致
 builder.Services.ConfigureHttpJsonOptions(opts =>
@@ -297,6 +300,7 @@ else
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapAppCapabilityEndpoints();

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Client.Localization;
 using Client.Services.Auth;
@@ -33,6 +34,9 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         create.Children.Add(BoundTextBox("guardian.create.executable", nameof(viewModel.ExecutablePath)));
         create.Children.Add(BoundTextBox("guardian.create.working_directory", nameof(viewModel.WorkingDirectory)));
         create.Children.Add(BoundTextBox("guardian.create.arguments", nameof(viewModel.ArgumentsText), true));
+        var enabledOnBoot = new CheckBox { Content = LocalizedText.Get("guardian.create.enabled_on_boot") };
+        enabledOnBoot.Bind(ToggleButton.IsCheckedProperty, new Avalonia.Data.Binding(nameof(viewModel.EnabledOnBoot)) { Mode = Avalonia.Data.BindingMode.TwoWay });
+        create.Children.Add(enabledOnBoot);
         create.Children.Add(new Button { Content = LocalizedText.Get("guardian.create.submit"), Command = viewModel.CreateWorkloadCommand, HorizontalAlignment = HorizontalAlignment.Left });
         DockPanel.SetDock(create, Dock.Top); root.Children.Add(create);
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -40,6 +44,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.start"), Command = viewModel.StartWorkloadCommand });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.stop"), Command = viewModel.StopWorkloadCommand });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.restart"), Command = viewModel.RestartWorkloadCommand });
+        toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.action.delete"), Command = viewModel.DeleteWorkloadCommand });
         toolbar.Children.Add(new Button { Content = LocalizedText.Get("guardian.logs.show"), Command = viewModel.LoadLogsCommand });
         DockPanel.SetDock(toolbar, Dock.Top); root.Children.Add(toolbar);
         var status = new TextBlock { Margin = new Avalonia.Thickness(0, 12, 0, 12), TextWrapping = Avalonia.Media.TextWrapping.Wrap };

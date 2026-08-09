@@ -17,8 +17,14 @@ public sealed class NamedPipeProcessGuardianService(GuardianAgentOptions options
     public async Task<IReadOnlyList<GuardianWorkloadDto>> ListWorkloadsAsync(CancellationToken cancellationToken = default)
         => (await SendAsync(new GuardianAgentRequest(options.SharedSecret, "list"), cancellationToken))?.Workloads ?? Array.Empty<GuardianWorkloadDto>();
 
+    public async Task<GuardianAgentResponse> GetDefinitionAsync(string workloadId, CancellationToken cancellationToken = default)
+        => await SendAsync(new GuardianAgentRequest(options.SharedSecret, "definition", workloadId), cancellationToken) ?? new GuardianAgentResponse(false, "guardian.agent_unavailable");
+
     public async Task<GuardianAgentResponse> UpsertAsync(ProcessDefinitionDto definition, CancellationToken cancellationToken = default)
         => await SendAsync(new GuardianAgentRequest(options.SharedSecret, "upsert", Definition: definition), cancellationToken) ?? new GuardianAgentResponse(false, "guardian.agent_unavailable");
+
+    public async Task<GuardianAgentResponse> DeleteAsync(string workloadId, CancellationToken cancellationToken = default)
+        => await SendAsync(new GuardianAgentRequest(options.SharedSecret, "delete", workloadId), cancellationToken) ?? new GuardianAgentResponse(false, "guardian.agent_unavailable");
 
     public async Task<GuardianAgentResponse> ApplyActionAsync(string workloadId, string action, CancellationToken cancellationToken = default)
     {

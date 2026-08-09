@@ -1,13 +1,20 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using RemoteOS.Guardian.Agent;
 
-var options = GuardianAgentOptions.Load();
+var options = GuardianAgentOptions.Load(args);
 if (string.IsNullOrWhiteSpace(options.SharedSecret))
     throw new InvalidOperationException("REMOTEOS_GUARDIAN_SHARED_SECRET must be configured for the Guardian Agent.");
 
-var supervisor = new WorkloadSupervisor(options);
-await supervisor.RestoreEnabledWorkloadsAsync(CancellationToken.None);
-using var shutdown = new CancellationTokenSource();
-Console.CancelKeyPress += (_, args) => { args.Cancel = true; shutdown.Cancel(); };
-var healthChecks = supervisor.RunHealthChecksAsync(shutdown.Token);
-await new GuardianPipeServer(options, supervisor).RunAsync(shutdown.Token);
-await healthChecks;
+var builder = Host.CreateApplicationBuilder(args);
+// These lifetimes activate only when launched by the corresponding service manager.
+// The same executable remains convenient to run interactively during development.
+builder.Services.AddWindowsService(service => service.ServiceName = "RemoteOSGuardian");
+builder.Services.AddSystemd();
+builder.Services.AddSingleton(options);
+builder.Services.AddSingleton<WorkloadSupervisor>();
+builder.Services.AddSingleton<GuardianPipeServer>();
+builder.Services.AddSingleton<ProtectedServerMonitor>();
+builder.Services.AddHostedService<GuardianWorker>();
+
+await builder.Build().RunAsync();
