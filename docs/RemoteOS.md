@@ -12,7 +12,11 @@
 > - 设置中心见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)
 > - 网络检查器设计见 [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md)
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)
+> - Docker 管理器见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)
+> - 进程守护见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)
 > - 服务端持久化见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)
+> - 开发者指南见 [`RemoteOS.Develop.md`](./RemoteOS.Develop.md)
+> - 开发模式与扩展见 [`RemoteOS.DeveloperMode.md`](./RemoteOS.DeveloperMode.md)
 > 当文档冲突时：本文档代表**当前代码实现**，Architecture 文档代表**设计原则**。
 
 ---
@@ -45,6 +49,10 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置任务管理器已落地（RemoteTaskManager）：参考 Windows 任务管理器 / GNOME 系统监视器，性能 / 进程双标签页。性能页实时展示 CPU（整机 + 每核 + 60 采样柱状图）/ 内存 / 磁盘 / 网络 / GPU（nvidia-smi）/ 运行时间；进程页列出当前可见进程，按名称/PID/用户过滤，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server 端 REST API（`/api/v1/system/*`）拉取，服务端 `ISystemMetricsProvider` 跨平台采集（Linux 读 `/proc`、Windows 走 P/Invoke `GetSystemTimes`/`GlobalMemoryStatusEx`），以宿主 OS 进程身份执行、不持久化。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
 
+内置 Docker 管理器已部分落地（RemoteDocker）：本机 Docker Engine 检测与状态展示、容器启停重启、Compose 校验/部署/停止；镜像、网络、卷管理功能设计中。Server 端通过 `IDockerEngineService` 调用 `docker` CLI，`IDockerComposeService` 处理 Compose 编排。详见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)。
+
+内置进程守护已部分落地（ProcessGuardian）：独立 Guardian Agent 进程、本机认证 IPC（命名管道）、工作负载的声明持久化与启停重启；健康检查、日志广播、systemd/SCM 服务适配设计中。Client 端通过 SignalR Hub 订阅守护日志。详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)。
+
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
 ---
@@ -66,6 +74,7 @@ Framework/
 Shared/
     RemoteOS.Protocol            通信协议契约（Common/Identity/Workspace/Desktop/Files/Hubs，已完整定义）
 RemoteOS.Server/                 服务端（ASP.NET Core，跨平台，已实现 auth 端点）
+RemoteOS.Guardian.Agent/         进程守护独立进程（原生服务管理，命名管道 IPC）
 Windows Server Test/             跨平台能力验证测试床（原生 API 探针）
 ```
 
@@ -169,7 +178,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/special/list/info/download/content/properties/permissions/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化 + 本地端口映射 loopback 转发）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）+ 系统监控端点（`/api/v1/system/*`：metrics/processes/processes/{id}，`ISystemMetricsProvider` 跨平台采集 CPU/内存/磁盘/网络/GPU + 进程列表，不持久化）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) / [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（`WindowsLogonProvider` 迁移自测试床，`LinuxPamProvider` 占位）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/special/list/info/download/content/properties/permissions/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化 + 本地端口映射 loopback 转发）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）+ 系统监控端点（`/api/v1/system/*`：metrics/processes/processes/{id}，`ISystemMetricsProvider` 跨平台采集 CPU/内存/磁盘/网络/GPU + 进程列表，不持久化）+ Docker 管理端点（`/api/v1/docker/*`：status/containers/images/stacks/networks/volumes，`IDockerEngineService` + `IDockerComposeService`，调用 `docker` CLI）+ 进程守护端点（`/api/v1/guardian/*` + SignalR Hub `/hubs/guardian-logs`，`IProcessGuardianService` 通过命名管道与 Guardian Agent IPC）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) / [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) / [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` / `ISystemMetricsProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
 - **持久化**：User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
@@ -183,6 +192,20 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **已验证**：Windows 凭据验证（Win32 `LogonUser` API，支持本地账户 `MACHINE\user` 与域账户 `user@domain`，含错误码映射）。
 - **职责**：为 Server 跨平台支持（Ubuntu + Windows Server）提供原生 API 探针——认证、文件、进程、服务管理等能力的本机验证。
 - **不包含**：生产代码。验证通过的能力后续迁移到 `RemoteOS.Server` 的 OS 抽象层实现中。
+
+### 4.11 RemoteOS.Guardian.Agent
+
+- **类型**：Executable (Console / Windows Service / systemd 守护进程)
+- **定位**：独立于 Server 的受守护工作负载执行代理。以高权限运行，负责实际的进程守护、健康检查和自动恢复。
+- **架构**：
+  - `GuardianWorker`：主工作循环，监听来自 Server 的守护指令
+  - `GuardianPipeServer`：命名管道 IPC 服务端，接收 Server 端 `IProcessGuardianService` 的指令
+  - `WorkloadSupervisor`：工作负载生命周期管理（启动、监控、重启）
+  - `ProtectedServerMonitor`：监控受保护的服务器进程健康状态
+- **通信**：通过命名管道（`NamedPipeProcessGuardianService`）与 Server 端通信，本机认证确保只有合法进程可连接。
+- **已实现**：独立进程骨架、命名管道通信、工作负载启停重启、状态持久化。
+- **设计中**：健康检查、日志广播（SignalR Hub `/hubs/guardian-logs`）、Windows SCP 注册 / systemd 服务适配。
+- **详见**：[`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)
 
 ---
 
@@ -278,6 +301,7 @@ Application Package
 | 阶段 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
 | 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode；RemoteExplorer 浏览、文件打开方式、属性与基本操作；RemoteBrowser 导航+书签+历史+浏览器偏好+本地端口映射；RemoteTaskManager 性能页+进程页，跨平台指标采集） |
 | 阶段 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 完成（登录模块；服务端 SQLite 持久化——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)；设置中心——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)） |
+| 阶段 4 | DockerManager / ProcessGuardian | 部分完成（DockerManager：状态/资源只读、容器启停重启、Compose 校验/部署/停止；ProcessGuardian：独立 Agent、IPC、工作负载启停重启；健康/日志/服务适配设计中，见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
 
 ---
 
@@ -358,4 +382,8 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md) | 所有内置应用的设计先行、国际化、Windows + Ubuntu、协议、安全与质量约束 |
 | [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings/BrowserSettings/Preferences JSON 列、建库策略 |
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | 安全设计、sudo、权限提升、危险操作确认 |
+| [`RemoteOS.Localization.md`](./RemoteOS.Localization.md) | 多语言机制、语言包结构、i18n 约束 |
+| [`RemoteOS.Develop.md`](./RemoteOS.Develop.md) | 开发者快速上手、代码结构、调试指南 |
+| [`RemoteOS.DeveloperMode.md`](./RemoteOS.DeveloperMode.md) | 开发模式、DevCli、应用包发布 |
+| [`RemoteOS.ApplicationCompatibility.md`](./RemoteOS.ApplicationCompatibility.md) | 应用兼容性、平台适配、降级策略 |
 | [`RemoteOS.md`](./RemoteOS.md) | 项目结构、代码位置、当前进度 |

@@ -29,8 +29,10 @@
 - 🪟 **ウィンドウ管理システム** — ウィンドウの完全ライフサイクル：作成、移動、リサイズ、最小化/最大化、Z-Order、モーダルダイアログ
 - 🧩 **アプリケーションSDK** — `IRemoteApplication`インターフェース経由で統一されたウィンドウ管理とライフサイクルを提供
 - 🔌 **SignalRリアルタイム通信** — ターミナルなどのアプリがSignalR Hub経由でリアルタイム双方向通信
+- 🐳 **Docker管理** — リモートDocker Engineの検出、コンテナ/イメージ/Stack管理
+- 🛡️ **プロセスガーディアン** — 保護されたワークロード、ヘルスチェック、自動復旧、ネイティブサービス管理
 - 🌍 **多言語対応** — 中国語、英語、日本語の言語パックを内蔵
-- 📦 **デベロッパー拡張** — `DevCli`ツール経由でカスタムアプリケーションパッケージのインストールと管理に対応
+- 🔧 **デベロッパー拡張** — `DevCli`ツール経由でカスタムアプリケーションパッケージのインストールと管理に対応
 
 ---
 
@@ -67,10 +69,20 @@
 │  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
+│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
+│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
+│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│                                                         │
 │  ┌─────────────────────────────────────────────────┐    │
 │  │         OS Abstraction Layer                     │    │
 │  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
 │  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────┐
+│              RemoteOS.Guardian.Agent                     │
+│       (独立プロセス · 保護ワークロード · ネイティブサービス) │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -106,6 +118,8 @@ RemoteOS/
 │   │   │   ├── Browser/          # ブラウザ
 │   │   │   ├── Settings/         # 設定センター
 │   │   │   ├── TaskManager/      # タスクマネージャ
+│   │   │   ├── Docker/           # Dockerマネージャ
+│   │   │   ├── ProcessGuardian/  # プロセスガーディアン
 │   │   │   ├── Notepad/          # メモ帳
 │   │   │   ├── CodeEditor/       # コードエディタ
 │   │   │   ├── ImageViewer/      # 画像ビューア
@@ -125,12 +139,14 @@ RemoteOS/
 ├── Shared/
 │   └── RemoteOS.Protocol/        # 通信契約（DTO / ルート / Hubインターフェース）
 ├── RemoteOS.Server/              # サーバー（ASP.NET Core）
+├── RemoteOS.Guardian.Agent/      # プロセスガーディアン独立プロセス（ネイティブサービス管理）
 ├── Tools/
 │   └── RemoteOS.DevCli/          # デベロッパーCLIツール
 ├── examples/
 │   ├── VideoPlayer/              # ビデオプレーヤーサンプルアプリ
 │   └── ServerMonitor/            # サーバーモニターサンプルアプリ
 ├── docs/                         # 詳細設計ドキュメント
+├── deployment/                   # デプロイスクリプト（Linux / Windows）
 ├── Directory.Packages.props      # 中央パッケージ管理
 └── RemoteOS.sln                  # ソリューションファイル
 ```
@@ -150,6 +166,8 @@ RemoteOS/
 | **Explorer** | リモートファイルマネージャ（REST API + ホストOS権限活用） | ✅ 実装済み |
 | **Browser** | 内蔵ブラウザ（ブックマーク/履歴の永続化 + ローカルポートマッピング） | ✅ 実装済み |
 | **Task Manager** | リモートタスクマネージャ（CPU/メモリ/ディスク/ネットワーク/GPU + プロセスリスト） | ✅ 実装済み |
+| **Docker Manager** | リモートDocker Engine管理（コンテナ/イメージ/Stack/ネットワーク/ボリューム） | 🚧 部分実装 |
+| **Process Guardian** | プロセスガーディアン（ヘルスチェック、自動復旧、ネイティブサービス管理） | 🚧 部分実装 |
 | **App Installer** | アプリパッケージのインストールと管理 | ✅ 実装済み |
 
 ---
@@ -205,9 +223,17 @@ dotnet run
 | [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴、ローカルポートマッピング |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理 |
+| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack管理 |
+| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | プロセスガーディアン、ヘルスチェック、ネイティブサービス管理 |
 | [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | サーバーパーシステンス、EF Core + SQLite |
 | [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | セキュリティ設計、権限昇格、危険操作 |
 | [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | 多言語メカニズム、言語パック構造 |
+| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | デベロッパークイックスタート、コード構造、デバッグガイド |
+| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | デベロッパーモード、DevCli、アプリパッケージ公開 |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | 内蔵アプリ設計制約、国際化、クロスプラットフォーム |
+| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | アプリケーション互換性、プラットフォーム適応、フォールバック |
+| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | ネットワークインスペクター、診断ツール、ネットワーク分析 |
+| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | ログインモジュール実装詳細、mstscスタイルログインウィンドウ |
 | [RemoteOS.md](./docs/RemoteOS.md) | プロジェクト構造、コードマップ、現在の進捗 |
 
 ---

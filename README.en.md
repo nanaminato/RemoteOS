@@ -29,8 +29,10 @@
 - 🪟 **Window Management System** — Complete window lifecycle: create, move, resize, minimize/maximize, Z-order, modal dialogs
 - 🧩 **Application SDK** — Applications plug in via the `IRemoteApplication` interface with unified window management and lifecycle
 - 🔌 **SignalR Real-Time Communication** — Applications like Terminal use SignalR Hubs for real-time bidirectional interaction
+- 🐳 **Docker Management** — Remote Docker Engine detection, container/image/Stack management
+- 🛡️ **Process Guardian** — Guarded workloads, health checks, auto-recovery, native service management
 - 🌍 **Multi-Language Support** — Built-in language packs for Chinese, English, and Japanese
-- 📦 **Developer Extensibility** — Install and manage custom application packages via the `DevCli` tool
+- 🔧 **Developer Extensibility** — Install and manage custom application packages via the `DevCli` tool
 
 ---
 
@@ -67,10 +69,20 @@
 │  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
+│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
+│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
+│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│                                                         │
 │  ┌─────────────────────────────────────────────────┐    │
 │  │         OS Abstraction Layer                     │    │
 │  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
 │  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────┐
+│              RemoteOS.Guardian.Agent                     │
+│       (Standalone Process · Guarded Workloads · Native)  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -106,6 +118,8 @@ RemoteOS/
 │   │   │   ├── Browser/          # Browser
 │   │   │   ├── Settings/         # Settings Center
 │   │   │   ├── TaskManager/      # Task Manager
+│   │   │   ├── Docker/           # Docker Manager
+│   │   │   ├── ProcessGuardian/  # Process Guardian
 │   │   │   ├── Notepad/          # Notepad
 │   │   │   ├── CodeEditor/       # Code Editor
 │   │   │   ├── ImageViewer/      # Image Viewer
@@ -125,12 +139,14 @@ RemoteOS/
 ├── Shared/
 │   └── RemoteOS.Protocol/        # Communication contracts (DTOs / routes / Hub interfaces)
 ├── RemoteOS.Server/              # Server (ASP.NET Core)
+├── RemoteOS.Guardian.Agent/      # Process guardian standalone (native service management)
 ├── Tools/
 │   └── RemoteOS.DevCli/          # Developer CLI tool
 ├── examples/
 │   ├── VideoPlayer/              # Video Player example app
 │   └── ServerMonitor/            # Server Monitor example app
 ├── docs/                         # Detailed design documentation
+├── deployment/                   # Deployment scripts (Linux / Windows)
 ├── Directory.Packages.props      # Central package management
 └── RemoteOS.sln                  # Solution file
 ```
@@ -150,6 +166,8 @@ RemoteOS/
 | **Explorer** | Remote File Manager (REST API + host OS permission reuse) | ✅ Implemented |
 | **Browser** | Built-in Browser (bookmarks/history persistence + local port mapping) | ✅ Implemented |
 | **Task Manager** | Remote Task Manager (CPU/Memory/Disk/Network/GPU + process list) | ✅ Implemented |
+| **Docker Manager** | Remote Docker Engine management (container/image/Stack/network/volume) | 🚧 Partial |
+| **Process Guardian** | Process guardian (health checks, auto-recovery, native service management) | 🚧 Partial |
 | **App Installer** | App package installation and management | ✅ Implemented |
 
 ---
@@ -205,9 +223,17 @@ The client will open a login dialog. Enter your host system username and passwor
 | [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | Browser, bookmarks/history, local port mapping |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | Task manager, system metrics, process management |
+| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack management |
+| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | Process guardian, health checks, native service management |
 | [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | Server persistence, EF Core + SQLite |
 | [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | Security design, privilege elevation, dangerous operations |
 | [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | Multi-language mechanism, language pack structure |
+| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | Developer quick start, code structure, debugging guide |
+| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | Developer mode, DevCli, app package publishing |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | Built-in app design constraints, i18n, cross-platform |
+| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | Application compatibility, platform adaptation, fallback |
+| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | Network inspector, diagnostics tool, network analysis |
+| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | Login module implementation details, mstsc-style login window |
 | [RemoteOS.md](./docs/RemoteOS.md) | Project structure, code map, current progress |
 
 ---

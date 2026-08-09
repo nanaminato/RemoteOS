@@ -29,8 +29,10 @@
 - 🪟 **窗口管理系统** — 完整的窗口生命周期：创建、移动、缩放、最小化/最大化、Z-Order、模态对话框
 - 🧩 **应用 SDK** — 应用通过 `IRemoteApplication` 接口接入，享受统一的窗口管理与生命周期
 - 🔌 **SignalR 实时通信** — 终端等应用通过 SignalR Hub 实现实时双向交互
+- 🐳 **Docker 管理** — 远端 Docker Engine 检测、容器/镜像/Stack 管理
+- 🛡️ **进程守护** — 受守护工作负载、健康检查、自动恢复、原生服务管理
 - 🌍 **多语言支持** — 内置中文、英文、日文语言包
-- 📦 **开发者扩展** — 支持通过 `DevCli` 工具安装和管理自定义应用包
+- 🔧 **开发者扩展** — 支持通过 `DevCli` 工具安装和管理自定义应用包
 
 ---
 
@@ -67,10 +69,20 @@
 │  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
+│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
+│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
+│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│                                                         │
 │  ┌─────────────────────────────────────────────────┐    │
 │  │         OS Abstraction Layer                     │    │
 │  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
 │  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────┐
+│              RemoteOS.Guardian.Agent                     │
+│       (独立进程 · 受守护工作负载 · 原生服务管理)            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -106,6 +118,8 @@ RemoteOS/
 │   │   │   ├── Browser/          # 浏览器
 │   │   │   ├── Settings/         # 设置中心
 │   │   │   ├── TaskManager/      # 任务管理器
+│   │   │   ├── Docker/           # Docker 管理器
+│   │   │   ├── ProcessGuardian/  # 进程守护
 │   │   │   ├── Notepad/          # 记事本
 │   │   │   ├── CodeEditor/       # 代码编辑器
 │   │   │   ├── ImageViewer/      # 图片查看器
@@ -123,14 +137,16 @@ RemoteOS/
 │   ├── RemoteOS.App.SDK/         # 应用开发 API（AppContext / IRemoteApplication）
 │   └── RemoteOS.Runtime/         # 应用运行时（ApplicationManager）
 ├── Shared/
-│   └── RemoteOS.Protocol/         # 通信协议契约（DTO / 路由 / Hub 接口）
+│   └── RemoteOS.Protocol/        # 通信协议契约（DTO / 路由 / Hub 接口）
 ├── RemoteOS.Server/              # 服务端（ASP.NET Core）
+├── RemoteOS.Guardian.Agent/      # 进程守护独立进程（原生服务管理）
 ├── Tools/
 │   └── RemoteOS.DevCli/          # 开发者 CLI 工具
 ├── examples/
 │   ├── VideoPlayer/              # 视频播放器示例应用
 │   └── ServerMonitor/            # 服务器监控示例应用
 ├── docs/                         # 详细设计文档
+├── deployment/                   # 部署脚本（Linux / Windows）
 ├── Directory.Packages.props      # 中央包管理
 └── RemoteOS.sln                  # 解决方案文件
 ```
@@ -150,6 +166,8 @@ RemoteOS/
 | **Explorer** | 远端文件管理器（REST API + 宿主 OS 权限复用） | ✅ 已实现 |
 | **Browser** | 内置浏览器（书签/历史持久化 + 本地端口映射） | ✅ 已实现 |
 | **Task Manager** | 远端任务管理器（CPU/内存/磁盘/网络/GPU + 进程列表） | ✅ 已实现 |
+| **Docker Manager** | 远端 Docker Engine 管理（容器/镜像/Stack/网络/卷） | 🚧 部分实现 |
+| **Process Guardian** | 进程守护（健康检查、自动恢复、原生服务管理） | 🚧 部分实现 |
 | **App Installer** | 应用包安装与管理 | ✅ 已实现 |
 
 ---
@@ -205,9 +223,17 @@ dotnet run
 | [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | 浏览器、书签/历史、本地端口映射 |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
+| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
+| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
 | [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
 | [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
 | [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
+| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | 开发者快速上手、代码结构、调试指南 |
+| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | 开发模式、DevCli、应用包发布 |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | 内置应用设计约束、国际化、跨平台 |
+| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | 应用兼容性、平台适配、降级策略 |
+| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
+| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
 | [RemoteOS.md](./docs/RemoteOS.md) | 项目结构、代码地图、当前进度 |
 
 ---
