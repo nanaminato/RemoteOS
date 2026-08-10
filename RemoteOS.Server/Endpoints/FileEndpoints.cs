@@ -124,7 +124,7 @@ public static class FileEndpoints
             try
             {
                 fs.CreateDirectory(path);
-                return Results.Created(path, fs.GetInfo(path));
+                return Results.Created(GetInfoLocation(path), fs.GetInfo(path));
             }
             catch (IOException ex) { return Problem(409, "already-exists", "已存在", ex.Message); }
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
@@ -210,7 +210,7 @@ public static class FileEndpoints
             {
                 await using var stream = file.OpenReadStream();
                 var dto = await fs.UploadAsync(path, file.FileName, stream, ctx.RequestAborted);
-                return Results.Created(dto.Path, dto);
+                return Results.Created(GetInfoLocation(dto.Path), dto);
             }
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "目标目录不存在", ex.Message); }
             catch (UnauthorizedAccessException ex) { return Problem(403, "access-denied", "访问被拒", ex.Message); }
@@ -225,4 +225,11 @@ public static class FileEndpoints
 
     private static IResult Problem(int status, string typeSuffix, string title, string detail)
         => Results.Problem(detail: detail, statusCode: status, title: title, type: ProblemBase + typeSuffix);
+
+    /// <summary>
+    /// Builds an ASCII-safe resource URI for a created file-system entry. Host paths may contain
+    /// Unicode (for example, Chinese file names), which cannot be written directly to Location.
+    /// </summary>
+    private static string GetInfoLocation(string path)
+        => $"{FileApiRoutes.Info}?path={Uri.EscapeDataString(path)}";
 }
