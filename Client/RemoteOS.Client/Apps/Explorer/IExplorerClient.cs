@@ -51,5 +51,6 @@ public interface IExplorerClient
     Task<FileSystemEntryDto> CopyAsync(string sourcePath, string destinationPath, bool overwrite = false, CancellationToken ct = default);
 
     /// <summary>上传文件（POST /files/upload）。</summary>
-    Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content, CancellationToken ct = default);
+    Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content,
+        IProgress<long>? progress = null, CancellationToken ct = default);
 }

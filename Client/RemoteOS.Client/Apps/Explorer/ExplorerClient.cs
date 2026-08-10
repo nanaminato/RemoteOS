@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net;
 using Client.Localization;
 using Client.Services.Auth;
 using RemoteOS.Protocol.Common;
@@ -108,11 +109,12 @@ public sealed class ExplorerClient : IExplorerClient
         => SendAsync<FileSystemEntryDto>(HttpMethod.Post, FileApiRoutes.Copy,
             body: new CopyRequest(sourcePath, destinationPath, overwrite), ct: ct);
 
-    public async Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content, CancellationToken ct = default)
+    public async Task<FileEntryDto> UploadAsync(string targetDirectoryPath, string fileName, Stream content,
+        IProgress<long>? progress = null, CancellationToken ct = default)
     {
         var serverUrl = RequireSession();
         using var form = new MultipartFormDataContent();
-        using var fileContent = new StreamContent(content);
+        using var fileContent = new ProgressStreamContent(content, progress);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(fileContent, "file", fileName);
 
@@ -124,6 +126,36 @@ public sealed class ExplorerClient : IExplorerClient
         using var resp = await _http.SendAsync(req, ct);
         await EnsureSuccessAsync(resp, ct);
         return await ReadAsync<FileEntryDto>(resp, ct);
+    }
+
+    /// <summary>Streams multipart content while reporting bytes accepted by the HTTP request body.</summary>
+    private sealed class ProgressStreamContent(Stream source, IProgress<long>? progress) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length)
+        {
+            if (!source.CanSeek) { length = 0; return false; }
+            length = source.Length - source.Position;
+            return true;
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+            => CopyToAsync(stream, CancellationToken.None);
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+            => CopyToAsync(stream, cancellationToken);
+
+        private async Task CopyToAsync(Stream destination, CancellationToken cancellationToken)
+        {
+            var buffer = new byte[81_920];
+            long sent = 0;
+            int read;
+            while ((read = await source.ReadAsync(buffer.AsMemory(), cancellationToken)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                sent += read;
+                progress?.Report(sent);
+            }
+        }
     }
 
     // ---- helpers ----

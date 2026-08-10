@@ -25,6 +25,7 @@
             <MenuItem Header="{loc:Loc explorer.menu.file}">
                 <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload}" Command="{Binding UploadCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.upload_folder}" Command="{Binding UploadFolderCommand}" />
                 <Separator />
                 <MenuItem Header="{loc:Loc explorer.menu.exit}" Command="{Binding CloseCommand}" />
             </MenuItem>
@@ -33,6 +34,9 @@
                 <MenuItem Header="{loc:Loc explorer.menu.rename}" Command="{Binding RenameCommand}" />
                 <Separator />
                 <MenuItem Header="{loc:Loc explorer.menu.copy}" Command="{Binding CopyCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.cut}" Command="{Binding CutCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.paste}" Command="{Binding PasteCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.paste_host}" Command="{Binding PasteFromHostCommand}" />
                 <MenuItem Header="{loc:Loc explorer.menu.move}" Command="{Binding MoveCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Loc explorer.menu.view}">
@@ -55,9 +59,13 @@
                     <Button Content="{loc:Loc explorer.new_folder}" Command="{Binding NewFolderCommand}" Padding="12,6" />
                     <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteCommand}" Padding="12,6" />
                     <Button Content="{loc:Loc common.rename}" Command="{Binding RenameCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc explorer.copy}" Command="{Binding CopyCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc explorer.cut}" Command="{Binding CutCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc explorer.paste}" Command="{Binding PasteCommand}" Padding="12,6" />
                     <Separator Margin="6,0" />
                     <Button Content="{loc:Loc common.download}" Command="{Binding DownloadCommand}" Padding="12,6" />
                     <Button Content="{loc:Loc common.upload}" Command="{Binding UploadCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc explorer.upload_folder}" Command="{Binding UploadFolderCommand}" Padding="12,6" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -78,10 +86,15 @@
 
         <!-- 状态栏 -->
         <Border DockPanel.Dock="Bottom" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,5">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
                 <TextBlock Grid.Column="1" Text="{Binding IsBusy, Converter={x:Static c:ExplorerLoadingStatusConverter.Instance}}"
                            FontSize="12" Opacity="0.6" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding TransferText}" FontSize="12" Opacity="0.75"
+                           Margin="0,5,10,0" IsVisible="{Binding HasTransferProgress}" />
+                <ProgressBar Grid.Row="1" Grid.Column="1" Width="180" Height="6" Minimum="0" Maximum="100"
+                             Value="{Binding TransferProgress}" Margin="0,7,0,0"
+                             IsVisible="{Binding HasTransferProgress}" />
             </Grid>
         </Border>
 
@@ -172,6 +185,13 @@
                     <ContextMenu DataContext="{Binding #EntriesGrid.DataContext}">
                         <MenuItem Header="{loc:Loc common.open}" Command="{Binding OpenCommand}" />
                         <MenuItem Header="{loc:Loc explorer.open_with}" Command="{Binding OpenWithSelectedCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Loc explorer.copy}" Command="{Binding CopyCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.cut}" Command="{Binding CutCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.paste}" Command="{Binding PasteCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Loc common.rename}" Command="{Binding RenameCommand}" />
+                        <MenuItem Header="{loc:Loc common.delete}" Command="{Binding DeleteCommand}" />
                         <Separator />
                         <MenuItem Header="{loc:Loc explorer.properties}" Command="{Binding PropertiesCommand}" />
                     </ContextMenu>

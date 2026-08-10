@@ -32,6 +32,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private bool _isUpdatingPickerText;
     private bool _pickerInitialized;
     private readonly List<string?> _history = new();
+    private IReadOnlyList<FileSystemEntryDto> _fileClipboard = Array.Empty<FileSystemEntryDto>();
+    private RemoteClipboardOperation _fileClipboardOperation;
     private int _historyIndex = -1;
 
     /// <summary>路径变化时同步树选中的抑制标志：避免 SyncTreeSelectionAsync 设 SelectedNode 触发 OnSelectedNodeChanged
@@ -81,8 +83,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public Func<string, string, string, string, Task<string?>>? RequestTextInputAsync { get; set; }
     /// <summary>请求确认对话框。参数：(title, message, confirmLabel) → 返回 true/false。</summary>
     public Func<string, string, string, Task<bool>>? RequestConfirmAsync { get; set; }
-    /// <summary>请求选择本地文件（用于上传源）。返回本地路径或 null。</summary>
-    public Func<Task<string?>>? RequestLocalOpenFileAsync { get; set; }
+    /// <summary>请求选择客户端宿主机文件（可多选）。</summary>
+    public Func<Task<IReadOnlyList<LocalUploadSource>>>? RequestLocalUploadFilesAsync { get; set; }
+    /// <summary>请求选择客户端宿主机文件夹（可多选）。</summary>
+    public Func<Task<IReadOnlyList<LocalUploadSource>>>? RequestLocalUploadFoldersAsync { get; set; }
+    /// <summary>读取宿主机剪贴板中的文件/文件夹。</summary>
+    public Func<Task<IReadOnlyList<LocalUploadSource>>>? RequestClipboardUploadSourcesAsync { get; set; }
     /// <summary>请求本地保存路径（用于下载目标）。参数：默认文件名。返回本地路径或 null。</summary>
     public Func<string, Task<string?>>? RequestLocalSaveFileAsync { get; set; }
     /// <summary>使用默认程序打开一个远程文件。</summary>
@@ -101,17 +107,40 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public bool CanGoBack => _historyIndex > 0;
     public bool CanGoForward => _historyIndex < _history.Count - 1;
     public bool CanGoUp => !string.IsNullOrEmpty(AddressbarPath);
-    public bool HasSelection => SelectedEntry is not null;
+    public bool HasSelection => SelectedEntries.Count != 0 || SelectedEntry is not null;
     public bool IsPickerMode => _pickerOptions is not null && _selectPaths is not null;
     public bool IsFolderPickerMode => IsPickerMode && _pickerOptions!.Mode == ExplorerPickerMode.SelectFolder;
     public bool IsFilePickerMode => IsPickerMode && !IsFolderPickerMode;
     public bool AllowMultipleFiles => IsFilePickerMode && _pickerOptions!.AllowMultiple;
-    public DataGridSelectionMode EntrySelectionMode => AllowMultipleFiles ? DataGridSelectionMode.Extended : DataGridSelectionMode.Single;
+    public DataGridSelectionMode EntrySelectionMode => !IsPickerMode || AllowMultipleFiles
+        ? DataGridSelectionMode.Extended
+        : DataGridSelectionMode.Single;
     public string PickerEntryLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.folder_label") : LocalizedText.Get("explorer.picker.file_name_label");
     public string PickerConfirmLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.select_folder") : LocalizedText.Get("common.open");
     public bool CanConfirmPicker => IsFolderPickerMode
         ? SelectedEntries.Any(IsFolder) || !string.IsNullOrWhiteSpace(AddressbarPath)
         : SelectedEntries.Any(IsSelectableFile) || !string.IsNullOrWhiteSpace(PickerEntryName);
+    public bool HasTransferProgress => IsTransferActive;
+    public double TransferProgress => TransferTotalBytes > 0
+        ? Math.Clamp(TransferBytesCompleted * 100d / TransferTotalBytes, 0, 100)
+        : TransferItemTotal > 0 ? Math.Clamp(TransferItemCompleted * 100d / TransferItemTotal, 0, 100) : 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTransferProgress))]
+    private bool _isTransferActive;
+    [ObservableProperty] private string _transferText = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TransferProgress))]
+    private long _transferBytesCompleted;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TransferProgress))]
+    private long _transferTotalBytes;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TransferProgress))]
+    private int _transferItemCompleted;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TransferProgress))]
+    private int _transferItemTotal;
 
     // ---- 加载根 ----
 
@@ -226,19 +255,14 @@ public sealed partial class ExplorerViewModel : ObservableObject
         // 注意：不在此同步树选中。TextBox.Text TwoWay 绑定默认 PropertyChanged，每个按键都触发本方法，
         // 路径还是半成品时去查找节点无意义且打断输入。同步在 NavigateToAsyncCore 末尾、路径被服务端确认后做。
         GoUpCommand.NotifyCanExecuteChanged();
+        PasteCommand.NotifyCanExecuteChanged();
+        PasteFromHostCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanGoUp));
     }
 
     partial void OnSelectedEntryChanged(FileSystemEntryDto? value)
     {
-        DeleteCommand.NotifyCanExecuteChanged();
-        RenameCommand.NotifyCanExecuteChanged();
-        DownloadCommand.NotifyCanExecuteChanged();
-        CopyCommand.NotifyCanExecuteChanged();
-        MoveCommand.NotifyCanExecuteChanged();
-        OpenCommand.NotifyCanExecuteChanged();
-        OpenWithSelectedCommand.NotifyCanExecuteChanged();
-        PropertiesCommand.NotifyCanExecuteChanged();
+        NotifySelectionCommands();
         ConfirmPickerCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasSelection));
         if (IsPickerMode && !AllowMultipleFiles)
@@ -247,6 +271,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
             if (value is not null) SelectedEntries.Add(value);
             UpdatePickerEntryName();
         }
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        PasteCommand.NotifyCanExecuteChanged();
+        PasteFromHostCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedFilterChanged(ExplorerFileFilter? value)
@@ -521,11 +551,12 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// <summary>Called by the view whenever the list selection changes.</summary>
     public void UpdatePickerSelection(IEnumerable<object> selectedItems)
     {
-        if (!IsPickerMode) return;
         SelectedEntries.Clear();
         foreach (var entry in selectedItems.OfType<FileSystemEntryDto>())
             SelectedEntries.Add(entry);
-        UpdatePickerEntryName();
+        NotifySelectionCommands();
+        OnPropertyChanged(nameof(HasSelection));
+        if (IsPickerMode) UpdatePickerEntryName();
     }
 
     [RelayCommand]
@@ -686,19 +717,101 @@ public sealed partial class ExplorerViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
-    private async Task CopyAsync()
+    private void Copy()
     {
-        if (SelectedEntry is not { } entry) return;
-        var dest = await (RequestTextInputAsync?.Invoke(LocalizedText.Get("common.copy"), LocalizedText.Get("explorer.destination_path_prompt"), entry.Path, LocalizedText.Get("common.copy"))
-            ?? Task.FromResult<string?>(null));
-        if (string.IsNullOrWhiteSpace(dest) || dest == entry.Path) return;
+        _fileClipboard = GetSelectedEntries();
+        _fileClipboardOperation = RemoteClipboardOperation.Copy;
+        PasteCommand.NotifyCanExecuteChanged();
+        StatusText = LocalizedText.Format("explorer.status.copied_to_clipboard", _fileClipboard.Count);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void Cut()
+    {
+        _fileClipboard = GetSelectedEntries();
+        _fileClipboardOperation = RemoteClipboardOperation.Cut;
+        PasteCommand.NotifyCanExecuteChanged();
+        StatusText = LocalizedText.Format("explorer.status.cut_to_clipboard", _fileClipboard.Count);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanPaste))]
+    private async Task PasteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AddressbarPath))
+        {
+            StatusText = LocalizedText.Get("explorer.status.enter_target_directory_first");
+            return;
+        }
+
+        if (_fileClipboard.Count > 0)
+        {
+            await PasteRemoteClipboardAsync(AddressbarPath);
+            return;
+        }
+
+        await PasteHostClipboardAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanPaste))]
+    private async Task PasteFromHostAsync() => await PasteHostClipboardAsync();
+
+    private bool CanPaste() => !IsBusy && !string.IsNullOrWhiteSpace(AddressbarPath);
+
+    private async Task PasteRemoteClipboardAsync(string targetDirectory)
+    {
+        var entries = _fileClipboard
+            .Where(entry => CanPlaceEntryInDirectory(entry, targetDirectory))
+            .ToArray();
+        if (entries.Length == 0)
+        {
+            StatusText = LocalizedText.Get("explorer.status.paste_no_valid_items");
+            return;
+        }
+
+        IsBusy = true;
+        BeginTransfer(LocalizedText.Format("explorer.status.pasting", 0, entries.Length), entries.Length, 0);
         try
         {
-            await _client.CopyAsync(entry.Path, dest, overwrite: false);
-            StatusText = LocalizedText.Format("explorer.status.copied", dest);
+            for (var index = 0; index < entries.Length; index++)
+            {
+                var entry = entries[index];
+                TransferText = LocalizedText.Format("explorer.status.pasting_item", entry.Name, index + 1, entries.Length);
+                var destination = CombineRemotePath(targetDirectory, entry.Name);
+                if (_fileClipboardOperation == RemoteClipboardOperation.Cut)
+                    await _client.MoveAsync(entry.Path, destination, overwrite: false);
+                else
+                    await _client.CopyAsync(entry.Path, destination, overwrite: false);
+                TransferItemCompleted = index + 1;
+            }
+
+            if (_fileClipboardOperation == RemoteClipboardOperation.Cut)
+                _fileClipboard = Array.Empty<FileSystemEntryDto>();
+            StatusText = LocalizedText.Format("explorer.status.paste_completed", entries.Length);
             await RefreshAsync();
         }
-        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.copy_failed", ex.Message); }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.paste_failed", ex.Message); }
+        finally
+        {
+            IsTransferActive = false;
+            IsBusy = false;
+            PasteCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private async Task PasteHostClipboardAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AddressbarPath))
+        {
+            StatusText = LocalizedText.Get("explorer.status.enter_target_directory_first");
+            return;
+        }
+        var sources = await (RequestClipboardUploadSourcesAsync?.Invoke() ?? Task.FromResult<IReadOnlyList<LocalUploadSource>>([]));
+        if (sources.Count == 0)
+        {
+            StatusText = LocalizedText.Get("explorer.status.clipboard_no_files");
+            return;
+        }
+        await UploadSourcesAsync(sources, LocalizedText.Get("explorer.status.pasting_host_files"));
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
@@ -747,22 +860,184 @@ public sealed partial class ExplorerViewModel : ObservableObject
     [RelayCommand]
     private async Task UploadAsync()
     {
-        if (string.IsNullOrEmpty(AddressbarPath))
+        var sources = await (RequestLocalUploadFilesAsync?.Invoke() ?? Task.FromResult<IReadOnlyList<LocalUploadSource>>([]));
+        if (sources.Count > 0) await UploadSourcesAsync(sources, LocalizedText.Get("explorer.status.uploading_files"));
+    }
+
+    [RelayCommand]
+    private async Task UploadFolderAsync()
+    {
+        var sources = await (RequestLocalUploadFoldersAsync?.Invoke() ?? Task.FromResult<IReadOnlyList<LocalUploadSource>>([]));
+        if (sources.Count > 0) await UploadSourcesAsync(sources, LocalizedText.Get("explorer.status.uploading_folders"));
+    }
+
+    private async Task UploadSourcesAsync(IReadOnlyList<LocalUploadSource> sources, string operationName)
+    {
+        if (string.IsNullOrWhiteSpace(AddressbarPath))
         {
             StatusText = LocalizedText.Get("explorer.status.enter_target_directory_first");
             return;
         }
-        var localPath = await (RequestLocalOpenFileAsync?.Invoke() ?? Task.FromResult<string?>(null));
-        if (string.IsNullOrWhiteSpace(localPath)) return;
+
+        UploadPlan plan;
+        try { plan = BuildUploadPlan(sources); }
+        catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.upload_failed", ex.Message); return; }
+        if (plan.Files.Count == 0 && plan.Directories.Count == 0)
+        {
+            StatusText = LocalizedText.Get("explorer.status.no_uploadable_files");
+            return;
+        }
+
+        IsBusy = true;
+        BeginTransfer(operationName, plan.Directories.Count + plan.Files.Count, plan.TotalBytes);
         try
         {
-            var fileName = Path.GetFileName(localPath);
-            using var fs = File.OpenRead(localPath);
-            await _client.UploadAsync(AddressbarPath, fileName, fs);
-            StatusText = LocalizedText.Format("explorer.status.uploaded", fileName);
+            for (var index = 0; index < plan.Directories.Count; index++)
+            {
+                var directory = plan.Directories[index];
+                TransferText = LocalizedText.Format("explorer.status.creating_folder", directory, index + 1, TransferItemTotal);
+                await _client.CreateDirectoryAsync(CombineRemoteRelativePath(AddressbarPath, directory));
+                TransferItemCompleted = index + 1;
+            }
+
+            long completedBytes = 0;
+            for (var index = 0; index < plan.Files.Count; index++)
+            {
+                var file = plan.Files[index];
+                var operationIndex = plan.Directories.Count + index + 1;
+                TransferText = LocalizedText.Format("explorer.status.uploading_item", file.RelativePath, operationIndex, TransferItemTotal);
+                var currentFileStart = completedBytes;
+                var progress = new Progress<long>(uploaded =>
+                {
+                    TransferBytesCompleted = currentFileStart + uploaded;
+                    TransferText = LocalizedText.Format("explorer.status.uploading_item", file.RelativePath, operationIndex, TransferItemTotal);
+                });
+                var destinationDirectory = GetRelativeDirectory(file.RelativePath);
+                var targetDirectory = string.IsNullOrEmpty(destinationDirectory)
+                    ? AddressbarPath
+                    : CombineRemoteRelativePath(AddressbarPath, destinationDirectory);
+                using var stream = File.OpenRead(file.SourcePath);
+                await _client.UploadAsync(targetDirectory, GetRelativeFileName(file.RelativePath), stream, progress);
+                completedBytes += file.Length;
+                TransferBytesCompleted = completedBytes;
+                TransferItemCompleted = operationIndex;
+            }
+
+            StatusText = plan.Directories.Count > 0
+                ? LocalizedText.Format("explorer.status.upload_completed_with_folders", plan.Files.Count, plan.Directories.Count)
+                : LocalizedText.Format("explorer.status.upload_completed", plan.Files.Count);
             await RefreshAsync();
         }
         catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.upload_failed", ex.Message); }
+        finally
+        {
+            IsTransferActive = false;
+            IsBusy = false;
+            PasteCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private IReadOnlyList<FileSystemEntryDto> GetSelectedEntries()
+        => SelectedEntries.Count > 0 ? SelectedEntries.ToArray()
+            : SelectedEntry is null ? [] : [SelectedEntry];
+
+    private bool CanPlaceEntryInDirectory(FileSystemEntryDto entry, string targetDirectory)
+    {
+        var destination = CombineRemotePath(targetDirectory, entry.Name);
+        if (PathEquals(entry.Path, destination)) return false;
+        return entry.Type != FileSystemEntryType.Directory ||
+               !IsAncestorOrEqual(entry.Path, targetDirectory, PathComparison);
+    }
+
+    private void NotifySelectionCommands()
+    {
+        DeleteCommand.NotifyCanExecuteChanged();
+        RenameCommand.NotifyCanExecuteChanged();
+        DownloadCommand.NotifyCanExecuteChanged();
+        CopyCommand.NotifyCanExecuteChanged();
+        CutCommand.NotifyCanExecuteChanged();
+        MoveCommand.NotifyCanExecuteChanged();
+        OpenCommand.NotifyCanExecuteChanged();
+        OpenWithSelectedCommand.NotifyCanExecuteChanged();
+        PropertiesCommand.NotifyCanExecuteChanged();
+    }
+
+    private void BeginTransfer(string text, int itemTotal, long totalBytes)
+    {
+        TransferText = text;
+        TransferItemTotal = itemTotal;
+        TransferItemCompleted = 0;
+        TransferTotalBytes = totalBytes;
+        TransferBytesCompleted = 0;
+        IsTransferActive = true;
+    }
+
+    private static UploadPlan BuildUploadPlan(IEnumerable<LocalUploadSource> sources)
+    {
+        var directories = new HashSet<string>(StringComparer.Ordinal);
+        var files = new List<UploadFile>();
+        foreach (var source in sources.Select(item => item.Path).Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.Ordinal))
+        {
+            if (File.Exists(source))
+            {
+                var info = new FileInfo(source);
+                files.Add(new UploadFile(source, info.Name, info.Length));
+                continue;
+            }
+            if (!Directory.Exists(source)) continue;
+
+            var root = Path.TrimEndingDirectorySeparator(source);
+            if (string.Equals(root, Path.GetPathRoot(root), OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal))
+                throw new ArgumentException("Selecting a filesystem root for upload is not supported.");
+            var parent = Path.GetDirectoryName(root) ?? root;
+            directories.Add(Path.GetRelativePath(parent, root));
+            foreach (var directory in Directory.EnumerateDirectories(root, "*", new EnumerationOptions
+                     {
+                         RecurseSubdirectories = true,
+                         IgnoreInaccessible = true,
+                         AttributesToSkip = FileAttributes.ReparsePoint,
+                     }))
+                directories.Add(Path.GetRelativePath(parent, directory));
+
+            foreach (var file in Directory.EnumerateFiles(root, "*", new EnumerationOptions
+                     {
+                         RecurseSubdirectories = true,
+                         IgnoreInaccessible = true,
+                         AttributesToSkip = FileAttributes.ReparsePoint,
+                     }))
+            {
+                var info = new FileInfo(file);
+                files.Add(new UploadFile(file, Path.GetRelativePath(parent, file), info.Length));
+            }
+        }
+
+        return new UploadPlan(directories.OrderBy(path => path.Length).ToArray(), files, files.Sum(file => file.Length));
+    }
+
+    private sealed record UploadPlan(IReadOnlyList<string> Directories, IReadOnlyList<UploadFile> Files, long TotalBytes);
+    private sealed record UploadFile(string SourcePath, string RelativePath, long Length);
+    private enum RemoteClipboardOperation { Copy, Cut }
+
+    private static string CombineRemoteRelativePath(string directory, string relativePath)
+    {
+        var result = directory;
+        foreach (var segment in relativePath.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries))
+            result = CombineRemotePath(result, segment);
+        return result;
+    }
+
+    private static string? GetRelativeDirectory(string relativePath)
+    {
+        var separator = Math.Max(relativePath.LastIndexOf('/'), relativePath.LastIndexOf('\\'));
+        return separator < 0 ? null : relativePath[..separator];
+    }
+
+    private static string GetRelativeFileName(string relativePath)
+    {
+        var separator = Math.Max(relativePath.LastIndexOf('/'), relativePath.LastIndexOf('\\'));
+        return separator < 0 ? relativePath : relativePath[(separator + 1)..];
     }
 
     [RelayCommand]

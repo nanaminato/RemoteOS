@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -127,16 +128,50 @@ public sealed class ExplorerApp : RemoteApplicationBase
             });
         };
 
-        vm.RequestLocalOpenFileAsync = async () =>
+        vm.RequestLocalUploadFilesAsync = async () =>
         {
             var topLevel = GetTopLevel(context, vm);
-            if (topLevel is null) return null;
+            if (topLevel is null) return [];
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = LocalizedText.Get("explorer.select_upload_file"),
-                AllowMultiple = false,
+                AllowMultiple = true,
             });
-            return files.Count > 0 ? files[0].TryGetLocalPath() : null;
+            return files.Select(file => file.TryGetLocalPath())
+                .OfType<string>().Select(path => new Models.LocalUploadSource(path)).ToArray();
+        };
+
+        vm.RequestLocalUploadFoldersAsync = async () =>
+        {
+            var topLevel = GetTopLevel(context, vm);
+            if (topLevel is null) return [];
+            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = LocalizedText.Get("explorer.select_upload_folder"),
+                AllowMultiple = true,
+            });
+            return folders.Select(folder => folder.TryGetLocalPath())
+                .OfType<string>().Select(path => new Models.LocalUploadSource(path)).ToArray();
+        };
+
+        vm.RequestClipboardUploadSourcesAsync = async () =>
+        {
+            var topLevel = GetTopLevel(context, vm);
+            if (topLevel?.Clipboard is null) return [];
+            var transfer = await topLevel.Clipboard.TryGetDataAsync();
+            if (transfer is null) return [];
+            try
+            {
+                var items = await transfer.TryGetFilesAsync();
+                return items?.Select(item => item.TryGetLocalPath()).OfType<string>()
+                    .Select(path => new Models.LocalUploadSource(path)).ToArray()
+                    ?? [];
+            }
+            finally
+            {
+                if (transfer is IAsyncDisposable asynchronous) await asynchronous.DisposeAsync();
+                else (transfer as IDisposable)?.Dispose();
+            }
         };
 
         vm.RequestLocalSaveFileAsync = async defaultName =>

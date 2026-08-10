@@ -19,7 +19,7 @@ RemoteExplorer 是 RemoteOS 的内置文件管理器，用于浏览与操作**�
 - **不存储密码**：认证委托宿主 OS（已完成于登录模块），Explorer 仅消费 `IAuthSession.Tokens.AccessToken`。
 - **UI 来源**：移植自 Jaya File Manager（BSD-3）。保留 Jaya 的导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏布局；**去除**插件系统（仅保留 FileSystem 单 provider）、Ribbon（后续延后）、About/ManagePlugins/Update 等非核心视图。原始版权头保留于移植文件。
 
-**实现范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/移动/上传/下载）+ 文件打开（默认程序或“打开方式”）+ 文件/目录属性查看（Linux 可编辑 POSIX 权限）。
+**实现范围**：浏览（驱动器/目录/文件）+ 基本操作（新建文件夹/删除/重命名/复制/剪切/粘贴/上传/下载）+ 文件打开（默认程序或“打开方式”）+ 文件/目录属性查看（Linux 可编辑 POSIX 权限）。上传支持多文件与递归文件夹；客户端宿主机剪贴板中的文件/文件夹可直接粘贴到当前远端目录。
 
 ---
 
@@ -49,7 +49,7 @@ ExplorerApp (RemoteApplicationBase)
     |
     ExplorerMainView (UserControl)
     ├── MenuView（顶部：文件/编辑/查看/帮助）
-    ├── ToolbarView（顶部：后退/前进/向上/刷新/新建/删除/重命名/下载/上传）
+    ├── ToolbarView（顶部：后退/前进/向上/刷新/新建/删除/重命名/复制/剪切/粘贴/下载/上传）
     ├── AddressbarView（顶部：路径 TextBox + 转到）
     ├── StatusbarView（底部：状态文本 + 加载指示）
     └── Grid（主体）
@@ -85,7 +85,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 │    ├─ Entries: ObservableCollection<FileSystemEntryDto>（网格）  │    │  IFileService                                  │
 │    ├─ AddressbarPath / StatusText / IsBusy                       │    │    └─ LocalFileService (System.IO, 平台感知)    │
 │    ├─ 历史栈（Back/Forward/Up）                                  │    │         = 移植自 Jaya FileSystemService         │
-│    └─ 文件操作命令（NewFolder/Delete/Rename/Copy/Move/U/D）      │    │         Windows 盘符 / Linux "/" 根特殊处理     │
+│    └─ 文件操作命令（NewFolder/Delete/Rename/Copy/Cut/Paste/U/D） │    │         Windows 盘符 / Linux "/" 根特殊处理     │
 │                                                                  │    │         复用宿主 OS 进程身份与权限              │
 │  IExplorerClient (typed HttpClient, JWT via IAuthSession)        │    │                                                │
 │    └─ ExplorerClient                                             │    │                                                │
@@ -205,7 +205,8 @@ Client/RemoteOS.Client/Apps/Explorer/
 - **双击行为**：目录/驱动器 → `NavigateToAsync`；文件 → `OpenEntryAsync`。先使用 `DefaultAppRegistry` 中有效的扩展名关联；未关联或关联的应用不再声明该扩展名时，回退到第一个兼容的已注册应用；没有兼容应用时给出提示。
 - **打开方式与默认关联**：右键菜单提供 `Open` / `Open with...` / `Properties`。“打开方式”仅列出同时实现 `IFileOpenApplication` 且在 manifest 声明当前扩展名的应用；可将所选应用设为该扩展名的默认程序，映射即时写入注册表并持久化到当前 Workspace。
 - **属性与权限**：属性对话框展示类型、大小、时间、属性和宿主 OS 权限摘要；Linux 返回 `UnixMode` 时可编辑并保存 POSIX 权限位。Windows 等不支持的平台仅展示只读属性。
-- **文件操作命令**：`Open` / `OpenWithSelected` / `Properties` / `NewFolder` / `Delete` / `Rename` / `Copy` / `Move` / `Upload` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成；会改变目录内容的操作后调 `RefreshAsync` 刷新视图。
+- **文件操作命令**：`Open` / `OpenWithSelected` / `Properties` / `NewFolder` / `Delete` / `Rename` / `Copy` / `Cut` / `Paste` / `Move` / `Upload` / `UploadFolder` / `Download` / `About` / `Close`，均通过 `[RelayCommand]` 生成；会改变目录内容的操作后调 `RefreshAsync` 刷新视图。
+- **Windows 式剪贴板与进度**：远端条目复制/剪切仅保存短暂客户端会话引用，粘贴时才调用 Server 的 `Copy`/`Move`；当没有远端剪贴板内容时，“粘贴”读取宿主机系统剪贴板的文件/文件夹并上传。多文件、文件夹和剪贴板导入按项目顺序执行，状态栏显示项目数进度；上传还显示已发送字节百分比。宿主机路径只在 Client 读取，绝不发送给 Server。
 - **可复用远端文件选择器**：`ExplorerPickerOptions` 将同一导航和条目视图嵌入应用的模态对话框；支持单/多文件选择、扩展名通配符过滤及目录选择。Notebook 与 Code Editor 用它选择远端文件，不会绕过 `IExplorerClient` 直接访问服务端文件系统。
 
 #### 多根导航树（参考 Windows File Explorer Navigation Pane）
@@ -251,7 +252,8 @@ Nodes
 | `RequestTextInputAsync` | 新建/重命名/复制/移动目标输入 | `AppContext.ShowDialogAsync<string?>` + `TextInputDialogView` |
 | `RequestConfirmAsync` | 删除确认 | `AppContext.ShowDialogAsync<bool?>` + `ConfirmDialogView` |
 | `ShowMessageAsync` | About 消息 | `ConfirmDialogView`（单按钮） |
-| `RequestLocalOpenFileAsync` | 上传本地源文件选择 | `StorageProvider.OpenFilePickerAsync`（TopLevel = MainWindow） |
+| `RequestLocalUploadFilesAsync` / `RequestLocalUploadFoldersAsync` | 上传本地文件（多选）/ 文件夹（多选） | `StorageProvider.OpenFilePickerAsync` / `OpenFolderPickerAsync`（TopLevel = MainWindow） |
+| `RequestClipboardUploadSourcesAsync` | 导入宿主机剪贴板文件/文件夹 | Avalonia 跨平台 `IClipboard.TryGetDataAsync` + `TryGetFilesAsync` |
 | `RequestLocalSaveFileAsync` | 下载本地保存路径 | `StorageProvider.SaveFilePickerAsync` |
 | `OpenFileAsync` | 根据默认关联或兼容应用打开远端文件 | `ApplicationManager.OpenFile` |
 | `RequestOpenWithAsync` | 显式选择兼容应用并可保存默认关联 | `OpenWithDialogView` + `DefaultAppRegistry` |
