@@ -1,5 +1,5 @@
 using System.Collections.ObjectModel;
-using System.Text;
+using Client.Apps;
 using Client.Apps.Explorer;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -23,7 +23,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
 
     public ObservableCollection<CodeEditorFolderNode> WorkspaceRoots { get; } = [];
     public ObservableCollection<CodeEditorDocument> OpenDocuments { get; } = [];
-    public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
+    public IReadOnlyList<string> AvailableEncodings => TextFileEncodings.Available;
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
     [ObservableProperty] private string _text = string.Empty;
@@ -234,7 +234,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
             var bytes = await _files.ReadFileAsync(path);
             if (bytes is null) { StatusText = LocalizedText.Get("code_editor.status.file_missing"); return; }
             var encoding = existing?.EncodingName ?? EncodingName;
-            var text = Decode(bytes, encoding);
+            var text = TextFileEncodings.Decode(bytes, encoding);
             if (existing is null)
             {
                 existing = new CodeEditorDocument(path, text, encoding,
@@ -287,7 +287,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         if (_files is null || ActiveDocument is null) { StatusText = LocalizedText.Get("code_editor.status.connect_before_save"); return; }
         try
         {
-            await _files.WriteFileAsync(path, GetEncoding(EncodingName).GetBytes(Text));
+            await _files.WriteFileAsync(path, TextFileEncodings.Encode(Text, EncodingName));
             ActiveDocument.Path = path;
             ActiveDocument.EncodingName = EncodingName;
             ActiveDocument.IsDirty = false;
@@ -328,17 +328,4 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         return separator >= 0 && separator < trimmed.Length - 1 ? trimmed[(separator + 1)..] : trimmed;
     }
 
-    private static string Decode(byte[] bytes, string encodingName)
-    {
-        var text = GetEncoding(encodingName).GetString(bytes);
-        return text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
-    }
-
-    private static Encoding GetEncoding(string encodingName) => encodingName switch
-    {
-        "UTF-8 BOM" => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
-        "UTF-16 LE" => Encoding.Unicode,
-        "UTF-16 BE" => Encoding.BigEndianUnicode,
-        _ => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false),
-    };
 }

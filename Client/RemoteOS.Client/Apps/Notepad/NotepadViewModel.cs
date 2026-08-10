@@ -1,4 +1,3 @@
-using System.Text;
 using Client.Apps.Explorer;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -26,7 +25,7 @@ public sealed partial class NotepadViewModel : ObservableObject
     public string LineCountText => LocalizedText.Format("common.line_count_format", LineCount);
     public string CharacterCountText => LocalizedText.Format("common.character_count_format", CharCount);
     public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? LocalizedText.Get("notepad.document.untitled") : Path.GetFileName(CurrentPath) ?? LocalizedText.Get("notepad.document.untitled");
-    public IReadOnlyList<string> AvailableEncodings { get; } = ["UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE"];
+    public IReadOnlyList<string> AvailableEncodings => TextFileEncodings.Available;
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
     partial void OnTextChanged(string value)
@@ -108,7 +107,7 @@ public sealed partial class NotepadViewModel : ObservableObject
             var bytes = await _files.ReadFileAsync(path);
             if (bytes is null) { StatusText = LocalizedText.Get("notepad.status.file_missing"); return; }
             _isLoading = true;
-            Text = Decode(bytes, EncodingName);
+            Text = TextFileEncodings.Decode(bytes, EncodingName);
             CurrentPath = path;
             IsDirty = false;
             StatusText = LocalizedText.Format("notepad.status.opened", Path.GetFileName(path), EncodingName);
@@ -122,7 +121,7 @@ public sealed partial class NotepadViewModel : ObservableObject
         if (_files is null) { StatusText = LocalizedText.Get("notepad.status.connect_before_save"); return; }
         try
         {
-            await _files.WriteFileAsync(path, GetEncoding(EncodingName).GetBytes((string)Text));
+            await _files.WriteFileAsync(path, TextFileEncodings.Encode(Text, EncodingName));
             CurrentPath = path;
             IsDirty = false;
             StatusText = LocalizedText.Format("notepad.status.saved", Path.GetFileName(path), EncodingName);
@@ -130,17 +129,4 @@ public sealed partial class NotepadViewModel : ObservableObject
         catch (Exception ex) { StatusText = LocalizedText.Format("notepad.status.save_failed", ex.Message); }
     }
 
-    private static string Decode(byte[] bytes, string encodingName)
-    {
-        var text = GetEncoding(encodingName).GetString(bytes);
-        return text.Length > 0 && text[0] == '\uFEFF' ? text[1..] : text;
-    }
-
-    private static Encoding GetEncoding(string encodingName) => encodingName switch
-    {
-        "UTF-8 BOM" => new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
-        "UTF-16 LE" => Encoding.Unicode,
-        "UTF-16 BE" => Encoding.BigEndianUnicode,
-        _ => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false),
-    };
 }

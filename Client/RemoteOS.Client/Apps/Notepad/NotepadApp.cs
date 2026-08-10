@@ -14,7 +14,13 @@ namespace Client.Apps.Notepad;
 public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
 {
     public static IReadOnlyList<string> SupportedExtensions { get; } =
-    [".txt", ".text", ".md", ".markdown", ".rst", ".log", ".csv", ".tsv", ".ini", ".cfg", ".conf", ".properties", ".yaml", ".yml", ".toml", ".xml", ".json", ".html", ".htm", ".css"];
+    [
+        ".txt", ".text", ".md", ".markdown", ".mdx", ".rst", ".adoc", ".asciidoc", ".log", ".nfo",
+        ".csv", ".tsv", ".tab", ".ini", ".cfg", ".conf", ".config", ".properties", ".yaml", ".yml", ".toml",
+        ".xml", ".xsd", ".xsl", ".xslt", ".json", ".jsonc", ".json5", ".html", ".htm", ".xhtml",
+        ".css", ".scss", ".sass", ".less", ".tex", ".bib", ".srt", ".vtt", ".ics", ".vcf", ".diff", ".patch",
+        ".asc", ".pem", ".crt", ".cer", ".pub",
+    ];
 
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.notepad"),
