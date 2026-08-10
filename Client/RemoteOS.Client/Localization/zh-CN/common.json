@@ -45,6 +45,9 @@
         "common.user": "用户",
         "common.font_size": "字体大小",
         "common.file_encoding": "文件编码",
+        "common.encoding_action_hint": "选择要执行的操作。",
+        "common.encoding_selection_hint": "选择要使用的文件编码。",
+        "common.reopen": "重新打开",
         "common.line_count_format": "第 {0} 行",
         "common.character_count_format": "{0} 个字符"
     }

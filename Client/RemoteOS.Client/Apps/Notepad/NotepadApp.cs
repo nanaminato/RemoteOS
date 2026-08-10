@@ -73,6 +73,36 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
                 path => !string.IsNullOrWhiteSpace(path));
             return new TextInputDialogView { DataContext = vm };
         });
+        viewModel.RequestEncodingActionAsync = () => context.ShowDialogAsync<EncodingDialogAction?>(window,
+            LocalizedText.Get("common.file_encoding"), dialog =>
+                new EncodingActionDialogView { DataContext = new EncodingActionDialogViewModel(action =>
+                {
+                    if (action is { } choice) dialog.Close(choice);
+                    else dialog.Cancel();
+                }) },
+            new Size(420, 220));
+        viewModel.RequestEncodingAsync = () => context.ShowDialogAsync<string>(window,
+            LocalizedText.Get("common.file_encoding"), dialog =>
+                new EncodingDialogView { DataContext = new EncodingDialogViewModel(viewModel.EncodingName, encoding =>
+                {
+                    if (!string.IsNullOrWhiteSpace(encoding)) dialog.Close(encoding);
+                    else dialog.Cancel();
+                }) },
+            new Size(420, 330));
+        viewModel.RequestDiscardChangesAsync = async () =>
+        {
+            var discard = false;
+            await context.ShowDialogAsync<bool?>(window,
+                LocalizedText.Get("notepad.reopen_dirty_title"), dialog =>
+            {
+                var dialogViewModel = new ConfirmDialogViewModel(
+                    LocalizedText.Get("notepad.reopen_dirty_message"),
+                    confirmed => { discard = confirmed; dialog.Close(confirmed); },
+                    LocalizedText.Get("notepad.discard_changes"));
+                return new ConfirmDialogView { DataContext = dialogViewModel };
+            });
+            return discard;
+        };
         viewModel.RequestSettingsAsync = async () =>
         {
             await context.ShowDialogAsync<bool>(window, LocalizedText.Get("notepad.settings.title"), dialog =>

@@ -45,6 +45,9 @@
         "common.user": "User",
         "common.font_size": "Font size",
         "common.file_encoding": "File encoding",
+        "common.encoding_action_hint": "Choose the action to perform.",
+        "common.encoding_selection_hint": "Choose the file encoding to use.",
+        "common.reopen": "Reopen",
         "common.line_count_format": "Ln {0}",
         "common.character_count_format": "{0} characters"
     }

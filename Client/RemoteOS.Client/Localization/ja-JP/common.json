@@ -45,6 +45,9 @@
         "common.user": "ユーザー",
         "common.font_size": "フォント サイズ",
         "common.file_encoding": "ファイル エンコーディング",
+        "common.encoding_action_hint": "実行する操作を選択してください。",
+        "common.encoding_selection_hint": "使用するファイル エンコーディングを選択してください。",
+        "common.reopen": "再度開く",
         "common.line_count_format": "行 {0}",
         "common.character_count_format": "{0} 文字"
     }

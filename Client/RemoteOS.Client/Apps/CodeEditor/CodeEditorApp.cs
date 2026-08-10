@@ -100,6 +100,22 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                 savePath => !string.IsNullOrWhiteSpace(savePath));
             return new TextInputDialogView { DataContext = vm };
         });
+        viewModel.RequestEncodingActionAsync = () => context.ShowDialogAsync<EncodingDialogAction?>(window,
+            LocalizedText.Get("common.file_encoding"), dialog =>
+                new EncodingActionDialogView { DataContext = new EncodingActionDialogViewModel(action =>
+                {
+                    if (action is { } choice) dialog.Close(choice);
+                    else dialog.Cancel();
+                }) },
+            new Size(420, 220));
+        viewModel.RequestEncodingAsync = () => context.ShowDialogAsync<string>(window,
+            LocalizedText.Get("common.file_encoding"), dialog =>
+                new EncodingDialogView { DataContext = new EncodingDialogViewModel(viewModel.EncodingName, encoding =>
+                {
+                    if (!string.IsNullOrWhiteSpace(encoding)) dialog.Close(encoding);
+                    else dialog.Cancel();
+                }) },
+            new Size(420, 330));
         viewModel.RequestSettingsAsync = async () =>
         {
             await context.ShowDialogAsync<bool>(window, LocalizedText.Get("code_editor.settings.title"), dialog =>

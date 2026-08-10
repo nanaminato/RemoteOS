@@ -1,5 +1,4 @@
 using System.Text;
-using System.Windows.Input;
 using RemoteOS.Protocol.Workspace;
 
 namespace Client.Apps;
@@ -50,6 +49,3 @@ internal static class TextFileEncodings
         _ => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false),
     };
 }
-
-/// <summary>One command entry in an editor's status-bar encoding menu.</summary>
-public sealed record EncodingMenuOption(string Name, ICommand Command);

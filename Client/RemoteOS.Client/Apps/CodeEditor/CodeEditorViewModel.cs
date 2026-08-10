@@ -21,19 +21,11 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         _pathComparer = pathCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
         DefaultEncodingName = TextFileEncodings.IsSupported(defaultEncodingName) ? defaultEncodingName : "UTF-8";
         EncodingName = DefaultEncodingName;
-        ReopenWithEncodingOptions = AvailableEncodings
-            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => ReopenWithEncodingAsync(encoding))))
-            .ToArray();
-        SaveWithEncodingOptions = AvailableEncodings
-            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => SaveWithEncodingAsync(encoding))))
-            .ToArray();
     }
 
     public ObservableCollection<CodeEditorFolderNode> WorkspaceRoots { get; } = [];
     public ObservableCollection<CodeEditorDocument> OpenDocuments { get; } = [];
     public IReadOnlyList<string> AvailableEncodings => TextFileEncodings.Available;
-    public IReadOnlyList<EncodingMenuOption> ReopenWithEncodingOptions { get; }
-    public IReadOnlyList<EncodingMenuOption> SaveWithEncodingOptions { get; }
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
     [ObservableProperty] private string _text = string.Empty;
@@ -62,6 +54,8 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     public Func<string, Task<string?>>? RequestSavePathAsync { get; set; }
     public Func<CodeEditorDocument, Task<bool>>? RequestDiscardChangesAsync { get; set; }
     public Func<Task>? RequestSettingsAsync { get; set; }
+    public Func<Task<EncodingDialogAction?>>? RequestEncodingActionAsync { get; set; }
+    public Func<Task<string?>>? RequestEncodingAsync { get; set; }
     public Action? CloseSettingsAction { get; set; }
     public Func<string, Task>? SaveDefaultEncodingAsync { get; set; }
 
@@ -205,16 +199,26 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(path)) await SaveToPathAsync(path);
     }
 
+    [RelayCommand]
+    private async Task ChooseEncodingAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CurrentPath)) return;
+        var action = await (RequestEncodingActionAsync?.Invoke() ?? Task.FromResult<EncodingDialogAction?>(null));
+        if (action is null) return;
+        var encoding = await (RequestEncodingAsync?.Invoke() ?? Task.FromResult<string?>(null));
+        if (string.IsNullOrWhiteSpace(encoding)) return;
+        if (action == EncodingDialogAction.Reopen)
+            await ReopenWithEncodingAsync(encoding);
+        else
+            await SaveWithEncodingAsync(encoding);
+    }
+
     private async Task ReopenWithEncodingAsync(string encodingName)
     {
         if (string.IsNullOrWhiteSpace(CurrentPath) || !TextFileEncodings.IsSupported(encodingName)) return;
-        if (IsDirty)
-        {
-            StatusText = LocalizedText.Get("code_editor.status.save_or_discard");
-            return;
-        }
+        if (IsDirty && ActiveDocument is not null && !(await (RequestDiscardChangesAsync?.Invoke(ActiveDocument) ?? Task.FromResult(false)))) return;
         EncodingName = encodingName;
-        await OpenPathAsync(CurrentPath, forceReload: true);
+        await OpenPathAsync(CurrentPath, forceReload: true, allowDiscardDirty: true);
     }
 
     private async Task SaveWithEncodingAsync(string encodingName)
@@ -245,7 +249,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         SelectedFolderNode = root;
     }
 
-    public async Task OpenPathAsync(string path, bool forceReload = false)
+    public async Task OpenPathAsync(string path, bool forceReload = false, bool allowDiscardDirty = false)
     {
         if (_files is null) { StatusText = LocalizedText.Get("code_editor.status.connect_before_open"); return; }
         var existing = OpenDocuments.FirstOrDefault(document => !string.IsNullOrWhiteSpace(document.Path) && PathEquals(document.Path, path));
@@ -254,7 +258,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
             ActivateDocument(existing);
             return;
         }
-        if (existing is not null && existing.IsDirty)
+        if (existing is not null && existing.IsDirty && !allowDiscardDirty)
         {
             StatusText = LocalizedText.Get("code_editor.status.save_or_discard");
             return;
