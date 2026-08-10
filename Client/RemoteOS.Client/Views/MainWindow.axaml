@@ -95,44 +95,47 @@
                 ZIndex="20"
                 PointerEntered="ConnectionBar_OnPointerEntered"
                 PointerExited="ConnectionBar_OnPointerExited">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
+            <!-- Fixed side controls leave the centre a real, shrinkable region instead of
+                 allowing long server/user names to overlap neighbouring buttons. -->
+            <Grid ColumnDefinitions="150,1,42,*,42,1,42">
                 <Button Grid.Column="0" Classes="connection-action" Click="ConnectionInfo_OnClick"
                         ToolTip.Tip="{loc:Loc shell.connection.info_tooltip}">
                     <StackPanel Orientation="Horizontal" Spacing="7">
-                        <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
-                        <TextBlock Text="{Binding ConnectionServer}" FontSize="12" VerticalAlignment="Center" />
+                        <TextBlock Text="●" FontSize="12" Foreground="#2E8B57" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ConnectionServer}" FontSize="12" MaxWidth="106"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
                 <Border Grid.Column="1" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
-                        Content="{loc:Loc shell.connection_bar.pin}" ToolTip.Tip="{loc:Loc shell.connection_bar.pin_tooltip}" />
+                        Content="○" ToolTip.Tip="{loc:Loc shell.connection_bar.pin_tooltip}" />
                 <Border Grid.Column="3" x:Name="ConnectionDragHandle" Cursor="SizeWestEast"
                         PointerPressed="ConnectionDragHandle_OnPointerPressed"
                         PointerMoved="ConnectionDragHandle_OnPointerMoved"
                         PointerReleased="ConnectionDragHandle_OnPointerReleased"
                         ToolTip.Tip="{loc:Loc shell.connection_bar.drag_tooltip}">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                        <TextBlock Text="⠿" FontSize="15" Opacity="0.45" VerticalAlignment="Center" />
+                        <TextBlock Text="↔" FontSize="14" Opacity="0.45" VerticalAlignment="Center" />
                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                                     ToolTip.Tip="{loc:Loc shell.connection.user}">
-                            <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="12" Opacity="0.65" />
-                            <TextBlock Text="{Binding ConnectionUser}" FontSize="12" MaxWidth="100"
+                            <TextBlock Text="@" FontSize="12" Opacity="0.65" />
+                            <TextBlock Text="{Binding ConnectionUser}" FontSize="12" MaxWidth="64"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <Border Width="1" Height="14" Background="#D6D6D6" />
                         <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
                                     ToolTip.Tip="{loc:Loc shell.connection.workspace}">
-                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="12" Opacity="0.65" />
-                            <TextBlock Text="{Binding ConnectionWorkspace}" FontSize="12" MaxWidth="130"
+                            <TextBlock Text="#" FontSize="12" Opacity="0.65" />
+                            <TextBlock Text="{Binding ConnectionWorkspace}" FontSize="12" MaxWidth="82"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
                 <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
-                        Click="FullScreen_OnClick" Content="{loc:Loc shell.full_screen.enter}" ToolTip.Tip="{loc:Loc shell.full_screen.enter_tooltip}" />
+                        Click="FullScreen_OnClick" Content="↗" ToolTip.Tip="{loc:Loc shell.full_screen.enter_tooltip}" />
                 <Border Grid.Column="5" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="6" Classes="connection-action disconnect-action" Click="Disconnect_OnClick"
-                        Content="{loc:Loc shell.connection.close}" ToolTip.Tip="{loc:Loc shell.connection.close_tooltip}" />
+                        Content="×" ToolTip.Tip="{loc:Loc shell.connection.close_tooltip}" />
             </Grid>
         </Border>
 

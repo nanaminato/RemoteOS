@@ -40,7 +40,7 @@ public partial class MainWindow : Window
     private void Pin_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _isPinned = !_isPinned;
-        PinButton.Content = T(_isPinned ? "shell.connection_bar.pinned" : "shell.connection_bar.pin", _isPinned ? "Pinned" : "Pin");
+        PinButton.Content = _isPinned ? "●" : "○";
         ToolTip.SetTip(PinButton, T(_isPinned ? "shell.connection_bar.unpin_tooltip" : "shell.connection_bar.pin_tooltip", _isPinned ? "Unpin connection bar" : "Pin connection bar"));
         if (_isPinned)
         {
@@ -56,7 +56,7 @@ public partial class MainWindow : Window
 
         _isFullScreen = !_isFullScreen;
         WindowState = _isFullScreen ? WindowState.FullScreen : _windowStateBeforeFullScreen;
-        FullScreenButton.Content = T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter", _isFullScreen ? "Exit full screen" : "Full screen");
+        FullScreenButton.Content = _isFullScreen ? "↙" : "↗";
         ToolTip.SetTip(FullScreenButton, T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter_tooltip", _isFullScreen ? "Exit full screen" : "Enter full screen"));
         ConnectionInfo.IsVisible = false;
         WindowTitleBar.IsVisible = !_isFullScreen;
@@ -202,9 +202,9 @@ public partial class MainWindow : Window
 
     private void RefreshLocalizedText()
     {
-        PinButton.Content = T(_isPinned ? "shell.connection_bar.pinned" : "shell.connection_bar.pin", _isPinned ? "Pinned" : "Pin");
+        PinButton.Content = _isPinned ? "●" : "○";
         ToolTip.SetTip(PinButton, T(_isPinned ? "shell.connection_bar.unpin_tooltip" : "shell.connection_bar.pin_tooltip", _isPinned ? "Unpin connection bar" : "Pin connection bar"));
-        FullScreenButton.Content = T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter", _isFullScreen ? "Exit full screen" : "Full screen");
+        FullScreenButton.Content = _isFullScreen ? "↙" : "↗";
         ToolTip.SetTip(FullScreenButton, T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter_tooltip", _isFullScreen ? "Exit full screen" : "Enter full screen"));
     }
 
