@@ -15,9 +15,10 @@ public sealed record GuardianWorkloadDto(
     int HealthFailureCount = 0,
     string? ExecutablePath = null,
     string? WorkingDirectory = null,
-    bool EnabledOnBoot = false);
+    bool EnabledOnBoot = false,
+    string? RunAs = null);
 public sealed record GuardianLogEntryDto(DateTimeOffset Timestamp, string Stream, string Message);
-public sealed record GuardianAuditEntryDto(DateTimeOffset Timestamp, string Action, string? WorkloadId, string Outcome, string ProblemCode);
+public sealed record GuardianAuditEntryDto(DateTimeOffset Timestamp, string Action, string? WorkloadId, string Outcome, string ProblemCode, string? RunAs = null);
 public sealed record GuardianHealthCheckDto(string Type, string? Target = null, int IntervalSeconds = 15, int TimeoutSeconds = 5, int FailureThreshold = 3);
 public sealed record NativeServiceDto(string Id, string DisplayName, string Status, string StartMode, string Platform);
 public sealed record NativeServiceActionRequest(bool Confirmed);
@@ -35,7 +36,16 @@ public sealed record ProcessDefinitionDto(
     bool EnabledOnBoot = false,
     int StopTimeoutSeconds = 15,
     int MaxRestartAttempts = 3,
-    GuardianHealthCheckDto? HealthCheck = null);
+    GuardianHealthCheckDto? HealthCheck = null,
+    string? RunAs = null);
+
+/// <summary>One-time administrator credential used only to approve a cross-account RunAs change.</summary>
+public sealed record RunAsAdministratorApproval(string Username, string Password);
+
+/// <summary>HTTP-only workload save request. The approval is never forwarded to the Guardian Agent.</summary>
+public sealed record UpsertGuardianWorkloadRequest(
+    ProcessDefinitionDto Definition,
+    RunAsAdministratorApproval? RunAsApproval = null);
 
 /// <summary>Private local IPC envelope. It is never exposed through RemoteOS HTTP endpoints.</summary>
 public sealed record GuardianAgentRequest(string SharedSecret, string Command, string? WorkloadId = null, ProcessDefinitionDto? Definition = null);

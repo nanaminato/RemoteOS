@@ -88,13 +88,19 @@ internal sealed partial class WorkloadSupervisor
     private async Task<GuardianAgentResponse> ApplyAsync(string? workloadId, Func<ManagedWorkload, CancellationToken, Task> action, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(workloadId) || !_workloads.TryGetValue(workloadId, out var workload)) return new GuardianAgentResponse(false, "guardian.workload_not_found");
-        await action(workload, cancellationToken); return new GuardianAgentResponse(true, string.Empty);
+        await action(workload, cancellationToken);
+        return string.IsNullOrEmpty(workload.LastProblemCode)
+            ? new GuardianAgentResponse(true, string.Empty)
+            : new GuardianAgentResponse(false, workload.LastProblemCode);
     }
 
     private async Task<GuardianAgentResponse> RestartAsync(string? workloadId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(workloadId) || !_workloads.TryGetValue(workloadId, out var workload)) return new GuardianAgentResponse(false, "guardian.workload_not_found");
-        await StopAsync(workload, cancellationToken); await StartAsync(workload, cancellationToken); return new GuardianAgentResponse(true, string.Empty);
+        await StopAsync(workload, cancellationToken); await StartAsync(workload, cancellationToken);
+        return string.IsNullOrEmpty(workload.LastProblemCode)
+            ? new GuardianAgentResponse(true, string.Empty)
+            : new GuardianAgentResponse(false, workload.LastProblemCode);
     }
 
     private GuardianAgentResponse Logs(string? workloadId)
@@ -123,13 +129,19 @@ internal sealed partial class WorkloadSupervisor
     private async Task StartAsync(ManagedWorkload workload, CancellationToken cancellationToken)
     {
         if (workload.Process is { HasExited: false }) return;
+        workload.LastProblemCode = null;
         workload.DesiredState = "Running"; workload.ActualState = "Starting"; workload.Generation++;
-        var start = new ProcessStartInfo(workload.Definition.ExecutablePath) { UseShellExecute = false, WorkingDirectory = workload.Definition.WorkingDirectory, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var argument in workload.Definition.Arguments) start.ArgumentList.Add(argument);
+        var start = CreateStartInfo(workload.Definition, out var launchProblem);
+        if (start is null)
+        {
+            workload.LastProblemCode = launchProblem ?? "guardian.run_as_launch_failed";
+            workload.ActualState = "Failed";
+            return;
+        }
         Process? process;
         try { process = Process.Start(start); }
-        catch (Exception) { workload.ActualState = "Failed"; return; }
-        if (process is null) { workload.ActualState = "Failed"; return; }
+        catch (Exception) { workload.LastProblemCode = "guardian.run_as_launch_failed"; workload.ActualState = "Failed"; return; }
+        if (process is null) { workload.LastProblemCode = "guardian.run_as_launch_failed"; workload.ActualState = "Failed"; return; }
         workload.Process = process; workload.ActualState = "Running";
         _ = CaptureOutputAsync(process.StandardOutput, workload, "stdout");
         _ = CaptureOutputAsync(process.StandardError, workload, "stderr");
@@ -137,6 +149,64 @@ internal sealed partial class WorkloadSupervisor
         process.Exited += (_, _) => _ = HandleExitAsync(workload, process.ExitCode);
         await Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Builds a shell-free launch command. Linux uses util-linux runuser, which performs the
+    /// UID/GID and supplementary-group transition in the child only. Windows deliberately
+    /// refuses cross-account launches until a non-interactive token broker is available;
+    /// accepting a target password here would violate the Guardian credential boundary.
+    /// </summary>
+    private static ProcessStartInfo? CreateStartInfo(ProcessDefinitionDto definition, out string? problem)
+    {
+        problem = null;
+        var runAs = definition.RunAs!;
+        var currentUser = Environment.UserName;
+        var sameAccount = OperatingSystem.IsWindows()
+            ? string.Equals(runAs, currentUser, StringComparison.OrdinalIgnoreCase)
+            : string.Equals(runAs, currentUser, StringComparison.Ordinal);
+
+        if (OperatingSystem.IsWindows() && !sameAccount)
+        {
+            problem = "guardian.run_as_platform_not_supported";
+            return null;
+        }
+
+        if (OperatingSystem.IsLinux() && !sameAccount)
+        {
+            if (!string.Equals(currentUser, "root", StringComparison.Ordinal))
+            {
+                problem = "guardian.run_as_permission_denied";
+                return null;
+            }
+            var runUser = File.Exists("/usr/sbin/runuser") ? "/usr/sbin/runuser"
+                : File.Exists("/usr/bin/runuser") ? "/usr/bin/runuser"
+                : null;
+            if (runUser is null)
+            {
+                problem = "guardian.run_as_launcher_unavailable";
+                return null;
+            }
+            var start = CreateBaseStartInfo(runUser, definition.WorkingDirectory);
+            start.ArgumentList.Add("--user");
+            start.ArgumentList.Add(runAs);
+            start.ArgumentList.Add("--");
+            start.ArgumentList.Add(definition.ExecutablePath);
+            foreach (var argument in definition.Arguments) start.ArgumentList.Add(argument);
+            return start;
+        }
+
+        var direct = CreateBaseStartInfo(definition.ExecutablePath, definition.WorkingDirectory);
+        foreach (var argument in definition.Arguments) direct.ArgumentList.Add(argument);
+        return direct;
+    }
+
+    private static ProcessStartInfo CreateBaseStartInfo(string fileName, string workingDirectory) => new(fileName)
+    {
+        UseShellExecute = false,
+        WorkingDirectory = workingDirectory,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+    };
 
     private static async Task StopAsync(ManagedWorkload workload, CancellationToken cancellationToken)
     {
@@ -256,6 +326,8 @@ internal sealed partial class WorkloadSupervisor
     private bool Validate(ProcessDefinitionDto definition, out string? problem)
     {
         problem = null;
+        if (string.IsNullOrWhiteSpace(definition.RunAs)) { problem = "guardian.run_as_migration_required"; return false; }
+        if (definition.RunAs.IndexOf('\0') >= 0 || definition.RunAs.StartsWith('-')) { problem = "guardian.run_as_invalid_account"; return false; }
         if (string.IsNullOrWhiteSpace(definition.Id) || string.IsNullOrWhiteSpace(definition.Name) || !Path.IsPathFullyQualified(definition.ExecutablePath) || !File.Exists(definition.ExecutablePath)) { problem = "guardian.validation_executable"; return false; }
         if (!Path.IsPathFullyQualified(definition.WorkingDirectory) || !Directory.Exists(definition.WorkingDirectory)) { problem = "guardian.validation_working_directory"; return false; }
         if (_options.AllowedRoots.Count == 0 || !IsAllowedPath(definition.ExecutablePath) || !IsAllowedPath(definition.WorkingDirectory)) { problem = "guardian.validation_allowed_root"; return false; }
@@ -290,7 +362,10 @@ internal sealed partial class WorkloadSupervisor
     private async Task WriteAuditAsync(string action, string? workloadId, GuardianAgentResponse response, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_options.DataDirectory);
-        var entry = new GuardianAuditEntryDto(DateTimeOffset.UtcNow, action, workloadId, response.Success ? "success" : "failed", response.ProblemCode);
+        var runAs = workloadId is not null && _workloads.TryGetValue(workloadId, out var workload)
+            ? workload.Definition.RunAs
+            : null;
+        var entry = new GuardianAuditEntryDto(DateTimeOffset.UtcNow, action, workloadId, response.Success ? "success" : "failed", response.ProblemCode, runAs);
         await File.AppendAllTextAsync(AuditPath, JsonSerializer.Serialize(entry, RemoteOsJsonOptions.Default) + Environment.NewLine, cancellationToken);
     }
 
@@ -317,7 +392,8 @@ internal sealed partial class WorkloadSupervisor
         workload.HealthFailureCount,
         workload.Definition.ExecutablePath,
         workload.Definition.WorkingDirectory,
-        workload.Definition.EnabledOnBoot);
+        workload.Definition.EnabledOnBoot,
+        workload.Definition.RunAs);
 
     private sealed class ManagedWorkload(ProcessDefinitionDto definition)
     {
@@ -331,6 +407,7 @@ internal sealed partial class WorkloadSupervisor
         public string HealthStatus { get; set; } = definition.HealthCheck is null ? "NotConfigured" : "Unknown";
         public int HealthFailureCount { get; set; }
         public DateTimeOffset NextHealthCheckAt { get; set; } = DateTimeOffset.UtcNow;
+        public string? LastProblemCode { get; set; }
         public ConcurrentQueue<GuardianLogEntryDto> Logs { get; } = new();
     }
 }

@@ -170,6 +170,7 @@ builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker
 var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Server.ProcessGuardian.GuardianAgentOptions>() ?? new Server.ProcessGuardian.GuardianAgentOptions();
 builder.Services.AddSingleton(guardianOptions);
 builder.Services.AddSingleton<Server.ProcessGuardian.IProcessGuardianService, Server.ProcessGuardian.NamedPipeProcessGuardianService>();
+builder.Services.AddSingleton<Server.ProcessGuardian.IRunAsAuthorizationService, Server.ProcessGuardian.RunAsAuthorizationService>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianAgentInstaller").Get<Server.ProcessGuardian.GuardianAgentInstallerOptions>() ?? new Server.ProcessGuardian.GuardianAgentInstallerOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Server.ProcessGuardian.GuardianAgentInstaller>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());

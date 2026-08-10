@@ -32,7 +32,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
             return;
         }
 
-        var viewModel = new ProcessGuardianViewModel(client);
+        var viewModel = new ProcessGuardianViewModel(client, session);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.processguardian.display_name"), CreateView(viewModel), new Rect(80, 60, 1240, 700), Manifest.IconGlyph);
         viewModel.ShowEditorAsync = async isEdit =>
         {
@@ -98,6 +98,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         table.Columns.Add(TextColumn("guardian.table.name", nameof(GuardianWorkloadDto.Name), "140"));
         table.Columns.Add(TextColumn("guardian.table.command", nameof(GuardianWorkloadDto.ExecutablePath), "220"));
         table.Columns.Add(TextColumn("guardian.table.working_directory", nameof(GuardianWorkloadDto.WorkingDirectory), "180"));
+        table.Columns.Add(TextColumn("guardian.table.run_as", nameof(GuardianWorkloadDto.RunAs), "140"));
         table.Columns.Add(TextColumn("guardian.table.pid", nameof(GuardianWorkloadDto.ProcessId), "80"));
         table.Columns.Add(TextColumn("guardian.table.restarts", nameof(GuardianWorkloadDto.RestartCount), "80"));
         table.Columns.Add(TextColumn("guardian.table.state", nameof(GuardianWorkloadDto.ActualState), "100"));
@@ -143,6 +144,9 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         panel.Children.Add(EditorField("guardian.create.executable", nameof(vm.ExecutablePath)));
         panel.Children.Add(EditorField("guardian.create.working_directory", nameof(vm.WorkingDirectory)));
         panel.Children.Add(EditorField("guardian.create.arguments", nameof(vm.ArgumentsText), true));
+        panel.Children.Add(EditorField("guardian.create.run_as", nameof(vm.RunAs)));
+        panel.Children.Add(EditorField("guardian.create.administrator_username", nameof(vm.AdministratorUsername)));
+        panel.Children.Add(EditorField("guardian.create.administrator_password", nameof(vm.AdministratorPassword), isPassword: true));
         var enabledOnBoot = new CheckBox { Content = LocalizedText.Get("guardian.create.enabled_on_boot") };
         enabledOnBoot.Bind(ToggleButton.IsCheckedProperty, new Avalonia.Data.Binding(nameof(vm.EnabledOnBoot)) { Mode = Avalonia.Data.BindingMode.TwoWay });
         panel.Children.Add(enabledOnBoot);
@@ -167,12 +171,13 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         return root;
     }
 
-    private static TextBox EditorField(string labelKey, string property, bool acceptsReturn = false) => new()
+    private static TextBox EditorField(string labelKey, string property, bool acceptsReturn = false, bool isPassword = false) => new()
     {
         PlaceholderText = LocalizedText.Get(labelKey),
         AcceptsReturn = acceptsReturn,
         MinHeight = acceptsReturn ? 96 : 0,
         TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
+        PasswordChar = isPassword ? '•' : '\0',
         [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay }
     };
 }

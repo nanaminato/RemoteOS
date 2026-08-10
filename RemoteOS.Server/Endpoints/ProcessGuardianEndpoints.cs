@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using RemoteOS.Protocol.ProcessGuardian;
 
 namespace Server.Endpoints;
@@ -10,7 +12,21 @@ public static class ProcessGuardianEndpoints
         group.MapGet("/status", (Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.GetStatusAsync(ct));
         group.MapGet("/workloads", (Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.ListWorkloadsAsync(ct));
         group.MapGet("/workloads/{id}", (string id, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.GetDefinitionAsync(id, ct));
-        group.MapPost("/workloads", (ProcessDefinitionDto definition, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.UpsertAsync(definition, ct));
+        group.MapPost("/workloads", (
+            UpsertGuardianWorkloadRequest request,
+            HttpContext http,
+            Server.ProcessGuardian.IRunAsAuthorizationService runAs,
+            Server.ProcessGuardian.IProcessGuardianService service,
+            CancellationToken ct) =>
+        {
+            var requester = http.User.FindFirst(JwtRegisteredClaimNames.Name)?.Value
+                            ?? http.User.FindFirst(ClaimTypes.Name)?.Value
+                            ?? string.Empty;
+            var authorization = runAs.Authorize(requester, request.Definition.RunAs, request.RunAsApproval);
+            if (!authorization.Success)
+                return Task.FromResult(new GuardianAgentResponse(false, authorization.ProblemCode));
+            return service.UpsertAsync(request.Definition with { RunAs = authorization.RunAs }, ct);
+        });
         group.MapDelete("/workloads/{id}", (string id, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.DeleteAsync(id, ct));
         group.MapPost("/workloads/{id}/{action}", (string id, string action, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.ApplyActionAsync(id, action, ct));
         group.MapGet("/workloads/{id}/logs", (string id, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.ListLogsAsync(id, ct));

@@ -13,6 +13,7 @@
 > - [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
 > - [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 > - [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
+> - [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)
 > - [`RemoteOS.md`](./RemoteOS.md)
 
 ---
@@ -153,6 +154,12 @@ RemoteOS
     +-- Linux   → sudo → PAM Authentication  → root Capability
     +-- Windows → UAC  → RunAs / Consent UI  → Elevated Token
 ```
+
+### 5.1 ProcessGuardian `RunAs`
+
+进程守护的 `RunAs` 使用刻意简化的例外规则：当前宿主 `root` 或管理员可指定任意有效宿主账户；普通用户可直接指定自己；普通用户指定其他账户时，必须在该次提交中重新验证一名宿主管理员的账户名和密码。该规则只决定是否允许保存目标运行账户，不能绕过已有的 Guardian 管理权限，也不能绕过宿主 OS 的账户状态、启动令牌和文件 ACL 检查。
+
+管理员密码只通过受保护请求即时交给 `IIdentityProvider` 验证，随后立即丢弃；不得写入数据库、定义、日志、审计、浏览器存储、缓存或 Guardian Agent IPC。完整的字段、内置 Server/Agent 的处理及跨平台启动限制见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md) §2.3。
 
 ---
 

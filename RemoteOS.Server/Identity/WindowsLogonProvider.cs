@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
 
 namespace Server.Identity;
 
@@ -59,7 +60,27 @@ public sealed class WindowsLogonProvider : IIdentityProvider
         ParseUserName(userName, out var user, out var domain);
         domain ??= Environment.MachineName;
         var identity = $"{domain}\\{user}";
+        EnsureAccountExists(identity);
         return new PlatformUserInfo(Uid: identity, DisplayName: identity, HomeDirectory: null);
+    }
+
+    private static void EnsureAccountExists(string identity)
+    {
+        uint sidLength = 0;
+        uint domainLength = 0;
+        if (LookupAccountName(null, identity, IntPtr.Zero, ref sidLength, null, ref domainLength, out _)) return;
+        var error = Marshal.GetLastWin32Error();
+        if (error != ERROR_INSUFFICIENT_BUFFER)
+            throw new KeyNotFoundException($"Windows account '{identity}' does not exist.");
+
+        var sid = Marshal.AllocHGlobal((int)sidLength);
+        try
+        {
+            var domain = new StringBuilder((int)domainLength);
+            if (!LookupAccountName(null, identity, sid, ref sidLength, domain, ref domainLength, out _))
+                throw new KeyNotFoundException($"Windows account '{identity}' does not exist.");
+        }
+        finally { Marshal.FreeHGlobal(sid); }
     }
 
     private static void ParseUserName(string raw, out string user, out string? domain)
@@ -98,6 +119,7 @@ public sealed class WindowsLogonProvider : IIdentityProvider
     private const int ERROR_ACCOUNT_EXPIRED = 1793;
     private const int ERROR_ACCOUNT_LOCKED_OUT = 1909;
     private const int ERROR_LOGON_TYPE_NOT_GRANTED = 1385;
+    private const int ERROR_INSUFFICIENT_BUFFER = 122;
 
     // ---- P/Invoke ----
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -105,6 +127,32 @@ public sealed class WindowsLogonProvider : IIdentityProvider
     private static extern bool LogonUser(
         string lpszUsername, string lpszDomain, string lpszPassword,
         int dwLogonType, int dwLogonProvider, out IntPtr phToken);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool LookupAccountName(
+        string? systemName,
+        string accountName,
+        IntPtr sid,
+        ref uint sidLength,
+        StringBuilder? referencedDomainName,
+        ref uint referencedDomainNameLength,
+        out SidNameUse use);
+
+    private enum SidNameUse
+    {
+        User = 1,
+        Group,
+        Domain,
+        Alias,
+        WellKnownGroup,
+        DeletedAccount,
+        Invalid,
+        Unknown,
+        Computer,
+        Label,
+        LogonSession,
+    }
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
