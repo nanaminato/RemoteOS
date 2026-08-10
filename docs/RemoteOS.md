@@ -233,7 +233,7 @@ Application Package
 |------|------|------|
 | **Welcome** | 验证 Runtime、WindowManager | 已实现 |
 | **Notebook** | 远端文本文件编辑（编码打开与保存） | 已实现 |
-| **Code Editor** | 远端代码文件编辑（语法高亮） | 已实现 |
+| **Code Editor** | 远端代码文件编辑（语法高亮、多文件夹工作区与多标签编辑） | 设计中（单文件编辑已实现） |
 | **Image Viewer** | 常见远端图片文件浏览（缩放与滚动） | 已实现 |
 | **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
 | **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode） | 已实现（Remote Mode + Local 回退） |
@@ -373,6 +373,7 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) | 桌面外壳：宿主窗口控制、mstsc 连接栏、模态对话框机制 |
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
+| [`RemoteOS.CodeEditor.md`](./RemoteOS.CodeEditor.md) | 代码编辑器：多文件夹工作区、活动栏、目录树、多标签编辑与文件安全边界 |
 | [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、BrowserSettings 持久化、本地端口映射（loopback → 服务端）、按用户隔离持久化 |
 | [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | 设置中心：5 分类页、Workspace 偏好持久化、PreferencesSync 多设备同步、默认程序映射 |
 | [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md) | 网络检查器：系统窗口 + 宿主采集、REST/SignalR 诊断、内存/隐私边界与国际化设计 |

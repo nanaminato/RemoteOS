@@ -4,7 +4,6 @@ param(
     [string] $ServerExecutable,
     [string] $GuardianExecutable,
     [int] $ServerPort = 5000,
-    [string[]] $AllowedRoot = @(),
     [string] $ServerServiceName = 'RemoteOSServer',
     [string] $GuardianServiceName = 'RemoteOSGuardian'
 )
@@ -26,13 +25,9 @@ if (-not (Test-Path -LiteralPath $ServerExecutable -PathType Leaf) -or -not (Tes
 if ($ServerPort -lt 1 -or $ServerPort -gt 65535) { throw 'ServerPort must be between 1 and 65535.' }
 
 $guardianData = Join-Path $env:ProgramData 'RemoteOS\guardian'
-$workloadRoot = Join-Path $env:ProgramData 'RemoteOS\workloads'
 $guardianConfig = Join-Path $guardianData 'guardian.json'
 $serverHostConfig = Join-Path (Split-Path -Parent $ServerExecutable) 'appsettings.host.json'
-New-Item -ItemType Directory -Force -Path $guardianData, $workloadRoot | Out-Null
-
-if ($AllowedRoot.Count -eq 0) { $AllowedRoot = @($workloadRoot) }
-$AllowedRoot = $AllowedRoot | ForEach-Object { [IO.Path]::GetFullPath($_) } | Select-Object -Unique
+New-Item -ItemType Directory -Force -Path $guardianData | Out-Null
 $secretBytes = New-Object byte[] 48
 [Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
 $sharedSecret = [Convert]::ToBase64String($secretBytes)
@@ -41,7 +36,6 @@ $agentSettings = [ordered]@{
     pipeName = 'remoteos-guardian'
     sharedSecret = $sharedSecret
     dataDirectory = $guardianData
-    allowedRoots = @($AllowedRoot)
     protectedServerMonitor = [ordered]@{
         serviceName = $ServerServiceName
         healthUrl = "http://127.0.0.1:$ServerPort/healthz"

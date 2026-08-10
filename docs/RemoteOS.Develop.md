@@ -4,14 +4,13 @@
 REMOTEOS_GUARDIAN_PIPE=remoteos-guardian-dev
 REMOTEOS_GUARDIAN_SHARED_SECRET=dev-guardian-secret-local-only
 REMOTEOS_GUARDIAN_DATA_DIR=E:\riderprojects\RemoteOS\.codex-scratch\guardian-dev
-REMOTEOS_GUARDIAN_ALLOWED_ROOTS=C:\Windows\System32;C:\Program Files\dotnet;E:\riderprojects\RemoteOS
 ```
 在 RemoteOS.Server 的启动配置中加入同一对 Pipe/密钥：
 ```bash
 GuardianAgent__PipeName=remoteos-guardian-dev
 GuardianAgent__SharedSecret=dev-guardian-secret-local-only
 ```
-注意在 Rider 中每个环境变量单独添加；ALLOWED_ROOTS 的值本身含 ;，不要把全部变量拼成一行。
+注意在 Rider 中每个环境变量单独添加。
 启动顺序：
 RemoteOS.Guardian.Agent
 RemoteOS.Server
@@ -32,4 +31,4 @@ ID：dev-ping
 测试 .NET/Java 时：
 .NET：可执行文件填 C:\Program Files\dotnet\dotnet.exe，工作目录填应用发布目录，参数填 MyApp.dll。
 Java：可执行文件填 ...\bin\java.exe，参数每行填 -jar、app.jar。
-运行时目录和应用目录都必须在 REMOTEOS_GUARDIAN_ALLOWED_ROOTS 中。
+可执行文件和工作目录必须是存在的绝对路径；实际可访问性由目标 `RunAs` 账户的 OS 权限决定。

@@ -35,7 +35,9 @@ public sealed class RunAsAuthorizationService(IIdentityProvider identities) : IR
         catch (KeyNotFoundException) { return new RunAsAuthorizationResult(false, "guardian.run_as_invalid_account"); }
         catch (InvalidOperationException) { return new RunAsAuthorizationResult(false, "guardian.run_as_invalid_account"); }
 
-        if (IsHostAdministrator(requester) || SameAccount(requester, target))
+        // Every cross-account launch requires a fresh administrator confirmation. This
+        // deliberately includes a logged-in root/Administrator switching to another user.
+        if (SameAccount(requester, target))
             return new RunAsAuthorizationResult(true, string.Empty, target);
 
         if (approval is null || string.IsNullOrWhiteSpace(approval.Username) || string.IsNullOrEmpty(approval.Password))

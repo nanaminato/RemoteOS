@@ -1,10 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:app="clr-namespace:Client.Apps"
              xmlns:loc="clr-namespace:Client.Localization"
              xmlns:editor="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              xmlns:codeEditor="clr-namespace:Client.Apps.CodeEditor"
              x:Class="Client.Apps.CodeEditor.CodeEditorView"
+             x:Name="Root"
              x:DataType="codeEditor:CodeEditorViewModel"
              Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto">
@@ -14,6 +14,7 @@
                     <MenuItem Header="{loc:Loc common.file}">
                         <MenuItem Header="{loc:Loc common.new}" Command="{Binding NewDocumentCommand}" />
                         <MenuItem Header="{loc:Loc common.open_ellipsis}" Command="{Binding OpenDocumentCommand}" />
+                        <MenuItem Header="{loc:Loc code_editor.add_folder}" Command="{Binding AddFolderCommand}" />
                         <Separator />
                         <MenuItem Header="{loc:Loc common.save}" Command="{Binding SaveCommand}" />
                         <MenuItem Header="{loc:Loc common.save_as_ellipsis}" Command="{Binding SaveAsCommand}" />
@@ -22,19 +23,94 @@
                         <MenuItem Header="{loc:Loc common.preferences_ellipsis}" Command="{Binding OpenSettingsCommand}" />
                     </MenuItem>
                 </Menu>
-                <TextBlock Grid.Column="1" Text="{Binding DocumentName}" VerticalAlignment="Center"
-                           Margin="10,0" Opacity="0.7" />
+                <TextBlock Grid.Column="1" Text="{Binding DocumentName}" VerticalAlignment="Center" Margin="10,0" Opacity="0.7" />
             </Grid>
         </Border>
 
-        <editor:TextEditor Grid.Row="1"
-                           Name="Editor"
-                           ShowLineNumbers="True"
-                           WordWrap="{Binding WordWrap}"
-                           BorderThickness="0"
-                           Padding="12,10"
-                           FontFamily="Cascadia Code, Consolas, Menlo, monospace"
-                           FontSize="{Binding FontSize}" />
+        <Grid Grid.Row="1" ColumnDefinitions="48,250,4,*">
+            <!-- Activity bar only exposes areas that are implemented. -->
+            <Border Grid.Column="0" Background="#F3F4F6" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0" Padding="4">
+                <StackPanel Spacing="6">
+                    <Button Content="📁" FontSize="17" ToolTip.Tip="{loc:Loc code_editor.sidebar.explorer}"
+                            Command="{Binding SwitchSidebarCommand}" CommandParameter="explorer" />
+                    <Button Content="📄" FontSize="17" ToolTip.Tip="{loc:Loc code_editor.sidebar.open_editors}"
+                            Command="{Binding SwitchSidebarCommand}" CommandParameter="openEditors" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid IsVisible="{Binding IsExplorerSidebar}" RowDefinitions="Auto,*">
+                        <DockPanel Grid.Row="0" Margin="10,8,8,6">
+                            <TextBlock DockPanel.Dock="Left" Text="{loc:Loc code_editor.sidebar.folders}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4">
+                                <Button Content="＋" ToolTip.Tip="{loc:Loc code_editor.add_folder}" Command="{Binding AddFolderCommand}" />
+                                <Button Content="⟳" ToolTip.Tip="{loc:Loc common.refresh}" Command="{Binding RefreshFolderCommand}" />
+                                <Button Content="−" ToolTip.Tip="{loc:Loc code_editor.remove_folder}" Command="{Binding RemoveFolderCommand}" />
+                            </StackPanel>
+                        </DockPanel>
+                        <TreeView Grid.Row="1" ItemsSource="{Binding WorkspaceRoots}" SelectedItem="{Binding SelectedFolderNode, Mode=TwoWay}" Margin="4,0,4,8">
+                            <TreeView.Styles>
+                                <Style Selector="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+                                </Style>
+                            </TreeView.Styles>
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsPlaceholder}">
+                                        <TextBlock Text="{Binding Glyph}" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="190" />
+                                    </StackPanel>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </Grid>
+
+                    <Grid IsVisible="{Binding IsOpenEditorsSidebar}" RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Text="{loc:Loc code_editor.sidebar.open_editors}" FontWeight="SemiBold" Margin="10,10,8,8" />
+                        <ListBox Grid.Row="1" ItemsSource="{Binding OpenDocuments}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}" Margin="4,0,4,8">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="codeEditor:CodeEditorDocument">
+                                    <DockPanel Margin="6,4">
+                                        <Button DockPanel.Dock="Right" Content="×" Padding="4,0"
+                                                Command="{Binding DataContext.CloseDocumentCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="●" Foreground="#C98A00" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Column="2" Width="4" Background="#E0E0E0" ResizeDirection="Columns" />
+
+            <Grid Grid.Column="3" RowDefinitions="Auto,*">
+                <Border Grid.Row="0" Background="#F3F3F3" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                    <ListBox ItemsSource="{Binding OpenDocuments}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}" SelectionMode="Single"
+                             Background="Transparent" BorderThickness="0" Padding="0">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="codeEditor:CodeEditorDocument">
+                                <DockPanel Margin="8,6">
+                                    <Button DockPanel.Dock="Right" Content="×" Padding="5,0" Margin="8,0,0,0"
+                                            Command="{Binding DataContext.CloseDocumentCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                                    <TextBlock Text="{Binding DisplayName}" />
+                                    <TextBlock Text="●" Foreground="#C98A00" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+
+                <editor:TextEditor Grid.Row="1" Name="Editor" ShowLineNumbers="True" WordWrap="{Binding WordWrap}"
+                                   BorderThickness="0" Padding="12,10" FontFamily="Cascadia Code, Consolas, Menlo, monospace"
+                                   FontSize="{Binding FontSize}" />
+            </Grid>
+        </Grid>
 
         <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">

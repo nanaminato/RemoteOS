@@ -8,13 +8,10 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-INSTALL_ROOT="${1:?usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE SERVER_PORT [ALLOWED_ROOT...]}"
+INSTALL_ROOT="${1:?usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE SERVER_PORT}"
 SERVER_EXECUTABLE="${2:?missing SERVER_EXECUTABLE}"
 GUARDIAN_EXECUTABLE="${3:?missing GUARDIAN_EXECUTABLE}"
 SERVER_PORT="${4:?missing SERVER_PORT}"
-shift 4
-ALLOWED_ROOTS=( "$@" )
-if [[ ${#ALLOWED_ROOTS[@]} -eq 0 ]]; then ALLOWED_ROOTS=( "$INSTALL_ROOT" ); fi
 
 for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE"; do
   [[ -f "$file" ]] || { echo "Missing executable: $file" >&2; exit 1; }
@@ -23,13 +20,11 @@ done
 
 install -d -m 0700 /etc/remoteos /var/lib/remoteos/guardian
 SECRET="$(openssl rand -base64 48)"
-ROOTS="$(IFS=:; echo "${ALLOWED_ROOTS[*]}")"
 
 cat >/etc/remoteos/guardian.env <<EOF
 REMOTEOS_GUARDIAN_SHARED_SECRET=$SECRET
 REMOTEOS_GUARDIAN_PIPE=remoteos-guardian
 REMOTEOS_GUARDIAN_DATA_DIR=/var/lib/remoteos/guardian
-REMOTEOS_GUARDIAN_ALLOWED_ROOTS=$ROOTS
 REMOTEOS_GUARDIAN_SERVER_SERVICE=remoteos-server.service
 REMOTEOS_GUARDIAN_SERVER_HEALTH_URL=http://127.0.0.1:$SERVER_PORT/healthz
 EOF

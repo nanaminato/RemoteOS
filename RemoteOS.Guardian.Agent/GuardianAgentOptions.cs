@@ -9,7 +9,6 @@ internal sealed record GuardianAgentOptions(
     string PipeName,
     string SharedSecret,
     string DataDirectory,
-    IReadOnlyList<string> AllowedRoots,
     ProtectedServerMonitorOptions ProtectedServerMonitor)
 {
     public static GuardianAgentOptions Load(string[] args)
@@ -18,10 +17,6 @@ internal sealed record GuardianAgentOptions(
         var dataDirectory = Environment.GetEnvironmentVariable("REMOTEOS_GUARDIAN_DATA_DIR")
             ?? config.DataDirectory
             ?? Path.Combine(AppContext.BaseDirectory, "data");
-        var rootsText = Environment.GetEnvironmentVariable("REMOTEOS_GUARDIAN_ALLOWED_ROOTS");
-        var roots = (rootsText ?? string.Join(Path.PathSeparator, config.AllowedRoots ?? []))
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var monitor = config.ProtectedServerMonitor ?? new ProtectedServerMonitorOptions();
         monitor = monitor with
         {
@@ -31,7 +26,7 @@ internal sealed record GuardianAgentOptions(
         return new GuardianAgentOptions(
             Environment.GetEnvironmentVariable("REMOTEOS_GUARDIAN_PIPE") ?? config.PipeName ?? "remoteos-guardian",
             Environment.GetEnvironmentVariable("REMOTEOS_GUARDIAN_SHARED_SECRET") ?? config.SharedSecret ?? string.Empty,
-            dataDirectory, roots, monitor);
+            dataDirectory, monitor);
     }
 
     private static GuardianMachineConfiguration LoadMachineConfiguration(string[] args)
@@ -62,7 +57,6 @@ internal sealed record GuardianMachineConfiguration(
     string? PipeName = null,
     string? SharedSecret = null,
     string? DataDirectory = null,
-    IReadOnlyList<string>? AllowedRoots = null,
     ProtectedServerMonitorOptions? ProtectedServerMonitor = null);
 
 /// <summary>

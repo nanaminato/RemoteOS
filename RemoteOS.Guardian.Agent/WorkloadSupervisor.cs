@@ -330,7 +330,6 @@ internal sealed partial class WorkloadSupervisor
         if (definition.RunAs.IndexOf('\0') >= 0 || definition.RunAs.StartsWith('-')) { problem = "guardian.run_as_invalid_account"; return false; }
         if (string.IsNullOrWhiteSpace(definition.Id) || string.IsNullOrWhiteSpace(definition.Name) || !Path.IsPathFullyQualified(definition.ExecutablePath) || !File.Exists(definition.ExecutablePath)) { problem = "guardian.validation_executable"; return false; }
         if (!Path.IsPathFullyQualified(definition.WorkingDirectory) || !Directory.Exists(definition.WorkingDirectory)) { problem = "guardian.validation_working_directory"; return false; }
-        if (_options.AllowedRoots.Count == 0 || !IsAllowedPath(definition.ExecutablePath) || !IsAllowedPath(definition.WorkingDirectory)) { problem = "guardian.validation_allowed_root"; return false; }
         var executableName = Path.GetFileNameWithoutExtension(definition.ExecutablePath);
         if (executableName.Equals("cmd", StringComparison.OrdinalIgnoreCase) || executableName.Equals("powershell", StringComparison.OrdinalIgnoreCase) || executableName is "sh" or "bash") { problem = "guardian.validation_shell_not_allowed"; return false; }
         if (definition.Arguments.Any(argument => argument.Contains('\0')) || definition.StopTimeoutSeconds is < 1 or > 300 || definition.MaxRestartAttempts is < 0 or > 100 || !ValidateHealthCheck(definition.HealthCheck)) { problem = "guardian.validation_failed"; return false; }
@@ -345,12 +344,6 @@ internal sealed partial class WorkloadSupervisor
         if (check.Type.Equals("http", StringComparison.OrdinalIgnoreCase))
             return Uri.TryCreate(check.Target, UriKind.Absolute, out var uri) && uri.UserInfo.Length == 0 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
         return check.Type.Equals("tcp", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(check.Target, UriKind.Absolute, out var tcpUri) && tcpUri.UserInfo.Length == 0 && tcpUri.Scheme == "tcp" && tcpUri.Port is > 0 and <= 65535;
-    }
-
-    private bool IsAllowedPath(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        return _options.AllowedRoots.Any(root => fullPath.Equals(root, StringComparison.OrdinalIgnoreCase) || fullPath.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task PersistAsync(CancellationToken cancellationToken)

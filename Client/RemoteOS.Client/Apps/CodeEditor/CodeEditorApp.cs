@@ -3,9 +3,11 @@ using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
+using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Protocol.Common;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.CodeEditor;
@@ -31,7 +33,9 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
     private void OpenEditor(AppContext context, string? path)
     {
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
-        var viewModel = new CodeEditorViewModel(files);
+        var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
+        var pathCaseSensitive = session?.CurrentServer?.Platform != PlatformKind.Windows;
+        var viewModel = new CodeEditorViewModel(files, pathCaseSensitive);
         var view = new CodeEditorView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.codeeditor.display_name"), view,
             bounds: new Rect(140, 80, 920, 640),
@@ -45,6 +49,20 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
                         new ExplorerFileFilter(LocalizedText.Get("code_editor.source_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
                     ]),
+                    paths => dialog.Close(paths[0]))
+                {
+                    CancelAction = dialog.Cancel,
+                };
+                _ = picker.LoadRootAsync();
+                return new ExplorerMainView { DataContext = picker };
+            }, GetFilePickerBounds(window));
+
+        viewModel.RequestFolderAsync = () => files is null
+            ? Task.FromResult<string?>(null)
+            : context.ShowDialogAsync<string>(window, LocalizedText.Get("code_editor.open_remote_folder"), dialog =>
+            {
+                var picker = new ExplorerViewModel(files,
+                    new ExplorerPickerOptions(ExplorerPickerMode.SelectFolder),
                     paths => dialog.Close(paths[0]))
                 {
                     CancelAction = dialog.Cancel,
@@ -67,6 +85,20 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new CodeEditorSettingsView { DataContext = viewModel };
             }, new Size(440, 340));
+        };
+        viewModel.RequestDiscardChangesAsync = async document =>
+        {
+            var discard = false;
+            await context.ShowDialogAsync<bool?>(window,
+                LocalizedText.Get("code_editor.close_dirty_title"), dialog =>
+            {
+                var dialogViewModel = new ConfirmDialogViewModel(
+                    LocalizedText.Format("code_editor.close_dirty_message", document.DisplayName),
+                    confirmed => { discard = confirmed; dialog.Close(confirmed); },
+                    LocalizedText.Get("code_editor.discard_changes"));
+                return new ConfirmDialogView { DataContext = dialogViewModel };
+            });
+            return discard;
         };
 
         if (!string.IsNullOrWhiteSpace(path))

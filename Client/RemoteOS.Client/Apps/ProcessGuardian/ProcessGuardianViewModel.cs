@@ -3,6 +3,7 @@ using Client.Localization;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.ProcessGuardian;
 
 namespace Client.Apps.ProcessGuardian;
@@ -158,7 +159,8 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             ArgumentsText = string.Join(Environment.NewLine, definition.Arguments);
             EnabledOnBoot = definition.EnabledOnBoot;
             RunAs = definition.RunAs ?? string.Empty;
-            AdministratorUsername = AdministratorPassword = string.Empty;
+            AdministratorUsername = DefaultAdministratorUsername();
+            AdministratorPassword = string.Empty;
         }
         catch
         {
@@ -173,8 +175,13 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         DefinitionId = Guid.NewGuid().ToString("N");
         DefinitionName = ExecutablePath = WorkingDirectory = ArgumentsText = string.Empty;
         RunAs = session.CurrentUser?.Username ?? string.Empty;
-        AdministratorUsername = AdministratorPassword = string.Empty;
+        AdministratorUsername = DefaultAdministratorUsername();
+        AdministratorPassword = string.Empty;
         EnabledOnBoot = false;
         SelectedWorkload = null;
     }
+
+    private string DefaultAdministratorUsername() => session.CurrentServer?.Platform == PlatformKind.Windows
+        ? "Administrator"
+        : "root";
 }

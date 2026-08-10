@@ -157,7 +157,7 @@ RemoteOS
 
 ### 5.1 ProcessGuardian `RunAs`
 
-进程守护的 `RunAs` 使用刻意简化的例外规则：当前宿主 `root` 或管理员可指定任意有效宿主账户；普通用户可直接指定自己；普通用户指定其他账户时，必须在该次提交中重新验证一名宿主管理员的账户名和密码。该规则只决定是否允许保存目标运行账户，不能绕过已有的 Guardian 管理权限，也不能绕过宿主 OS 的账户状态、启动令牌和文件 ACL 检查。
+进程守护的 `RunAs` 只保留两条规则：任何已登录用户指定自己时无需额外验证；指定任何其他宿主账户（即使请求者是 `root` 或管理员）时，必须在该次提交中重新验证一名宿主管理员的账户名和密码。客户端默认填入 Linux 的 `root`、Windows 的 `Administrator`，但密码必须由用户输入。用户工作负载不设 Owner、路径白名单或逐工作负载 ACL；任意已登录用户可以配置和启停任意工作负载。该规则仍不能绕过宿主 OS 的账户状态、启动令牌和文件 ACL 检查。
 
 管理员密码只通过受保护请求即时交给 `IIdentityProvider` 验证，随后立即丢弃；不得写入数据库、定义、日志、审计、浏览器存储、缓存或 Guardian Agent IPC。完整的字段、内置 Server/Agent 的处理及跨平台启动限制见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md) §2.3。
 
