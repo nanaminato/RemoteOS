@@ -1,4 +1,5 @@
 using Client.Apps.Settings;
+using Client.Services.AppSettings;
 using Client.Apps.TaskManager;
 using Client.Apps.Explorer;
 using Client.Services.Auth;
@@ -7,6 +8,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Workspace;
 using RemoteOS.Protocol.SystemMonitor;
 using RemoteOS.Protocol.Capabilities;
+using RemoteOS.Protocol.AppSettings;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
 using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
@@ -27,6 +29,7 @@ public sealed class ExternalAppContextFactory
     private readonly IExplorerClient _files;
     private readonly ISettingsNavigation _settingsNavigation;
     private readonly IAppCapabilityClient _capabilities;
+    private readonly IAppSettingsClient _appSettings;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
@@ -39,7 +42,8 @@ public sealed class ExternalAppContextFactory
         ITaskManagerClient systemMonitor,
         IExplorerClient files,
         ISettingsNavigation settingsNavigation,
-        IAppCapabilityClient capabilities)
+        IAppCapabilityClient capabilities,
+        IAppSettingsClient appSettings)
     {
         _permissions = permissions;
         _systemLanguage = systemLanguage;
@@ -52,6 +56,7 @@ public sealed class ExternalAppContextFactory
         _files = files;
         _settingsNavigation = settingsNavigation;
         _capabilities = capabilities;
+        _appSettings = appSettings;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
@@ -62,6 +67,7 @@ public sealed class ExternalAppContextFactory
         new ServerFilesCapability(appId, _permissions, _files),
         new ExternalFileApiAccess(appId, _permissions, _session, _capabilities),
         new ExternalMediaService(appId, _permissions, _session, _capabilities),
+        new ExternalAppSettings(appId, _appSettings),
         _systemLanguage,
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
@@ -74,9 +80,46 @@ public sealed class ExternalAppContextFactory
         IServerFiles ServerFiles,
         IExternalFileApiAccess FileApi,
         IExternalMediaService Media,
+        IExternalAppSettings SettingsStore,
         ISystemLanguage SystemLanguage,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
+
+    private sealed class ExternalAppSettings(AppId appId, IAppSettingsClient client) : IExternalAppSettings
+    {
+        public async Task<ExternalAppSettingsDocument?> GetAsync(
+            ExternalAppSettingsScope scope = ExternalAppSettingsScope.Workspace,
+            string key = "default", CancellationToken cancellationToken = default)
+        {
+            var document = await client.GetAsync(appId.Value, ToProtocolScope(scope), key, cancellationToken);
+            return document is null ? null : ToExternal(document);
+        }
+
+        public async Task<ExternalAppSettingsDocument> SetAsync(
+            System.Text.Json.JsonElement value, int schemaVersion = 1,
+            ExternalAppSettingsScope scope = ExternalAppSettingsScope.Workspace,
+            string key = "default", long? expectedRevision = null, CancellationToken cancellationToken = default)
+            => ToExternal(await client.SaveAsync(appId.Value, ToProtocolScope(scope), key, value,
+                schemaVersion, expectedRevision, cancellationToken));
+
+        private static AppSettingsScope ToProtocolScope(ExternalAppSettingsScope scope) => scope switch
+        {
+            ExternalAppSettingsScope.User => AppSettingsScope.User,
+            ExternalAppSettingsScope.Workspace => AppSettingsScope.Workspace,
+            ExternalAppSettingsScope.Device => AppSettingsScope.Device,
+            _ => throw new ArgumentOutOfRangeException(nameof(scope)),
+        };
+
+        private static ExternalAppSettingsDocument ToExternal(AppSettingsDocumentDto document) => new(
+            document.Scope switch
+            {
+                AppSettingsScope.User => ExternalAppSettingsScope.User,
+                AppSettingsScope.Workspace => ExternalAppSettingsScope.Workspace,
+                AppSettingsScope.Device => ExternalAppSettingsScope.Device,
+                _ => throw new ArgumentOutOfRangeException(nameof(document)),
+            },
+            document.Key, document.Value, document.SchemaVersion, document.Revision, document.UpdatedAt);
+    }
 
     private sealed class ExternalAppWindowService(AppId appId, IWindowManager windowManager) : IExternalAppWindowService
     {

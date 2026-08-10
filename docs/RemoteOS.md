@@ -10,6 +10,7 @@
 > - 文件管理器见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)
 > - 浏览器见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)
 > - 设置中心见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)
+> - 应用私有配置存储见 [`RemoteOS.AppSettings.md`](./RemoteOS.AppSettings.md)
 > - 网络检查器设计见 [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md)
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)
 > - Docker 管理器见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)

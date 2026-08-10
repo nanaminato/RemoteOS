@@ -17,6 +17,7 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
     public DbSet<HistoryEntry> History => Set<HistoryEntry>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -124,6 +125,24 @@ public sealed class RemoteOsDbContext : DbContext
             e.HasIndex(h => new { h.UserId, h.Url }).IsUnique();
             // 按 (userId, lastVisitedAt desc) 索引——ListHistory 排序查询用
             e.HasIndex(h => new { h.UserId, h.LastVisitedAt });
+        });
+
+        // ── app_settings ── application-private, versioned JSON configuration.
+        // ScopeId is the user/workspace/device id selected by Scope; UserId remains the tenant boundary.
+        mb.Entity<AppSetting>(e =>
+        {
+            e.ToTable("app_settings");
+            e.HasKey(setting => new { setting.UserId, setting.Scope, setting.ScopeId, setting.AppId, setting.Key });
+            e.Property(setting => setting.UserId).HasColumnType("TEXT");
+            e.Property(setting => setting.Scope).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(setting => setting.ScopeId).HasColumnType("TEXT");
+            e.Property(setting => setting.AppId).HasMaxLength(128).IsRequired();
+            e.Property(setting => setting.Key).HasMaxLength(64).IsRequired();
+            e.Property(setting => setting.ValueJson).IsRequired();
+            e.Property(setting => setting.SchemaVersion).IsRequired();
+            e.Property(setting => setting.Revision).IsConcurrencyToken().IsRequired();
+            e.Property(setting => setting.UpdatedAt).HasColumnType("TEXT");
+            e.HasIndex(setting => new { setting.UserId, setting.UpdatedAt });
         });
     }
 }

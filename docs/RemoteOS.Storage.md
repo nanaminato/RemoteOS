@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS.Server 的持久化存储方案：技术选型、持久化范围、表结构、仓储层、建库策略、配置项，以及与登录流程的交互。
 >
-> 本文档针对「配置 + 身份」这一组持久实体落地（User / Workspace / Device，含终端外观配置 TerminalSettings），让终端配置等服务端状态跨重启保留。
+> 本文档针对「配置 + 身份」这一组持久实体落地（User / Workspace / Device / AppSettings，含终端外观配置 TerminalSettings），让终端与应用私有配置等服务端状态跨重启保留。
 >
 > - 用户/Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 > - 登录与身份见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) / [`RemoteOS.Login.md`](./RemoteOS.Login.md)
@@ -56,13 +56,14 @@
 | 实体 | 是否持久化 | 理由 |
 |------|-----------|------|
 | **User** | ✅ SQLite | 登录 `FindByUsername` 命中后复用；若不持久化，重启后 User.Id 变化 → `FindByUserId` 找不到旧 Workspace → TerminalSettings 成孤儿丢失。**必须与 Workspace 配套**。 |
-| **Workspace**（含 TerminalSettings / BrowserSettings / Preferences） | ✅ SQLite | 用户核心诉求；文档定义为 Persistent。三组配置均以 JSON 列随 Workspace 持久（`OwnsOne + ToJson`）。TerminalSettings = 终端外观；BrowserSettings = 浏览器配置；Preferences = 设置中心偏好（壁纸/主题/时间格式/语言/区域/默认程序，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)）。 |
+| **Workspace**（含 TerminalSettings / BrowserSettings / Preferences / WindowLayouts） | ✅ SQLite | 系统级、Workspace 语义强的配置均以 JSON 列随 Workspace 持久。 |
+| **AppSettings** | ✅ SQLite | 内置/外置应用的私有版本化 JSON 配置，按 User + scope + AppId + key 隔离；详见 [`RemoteOS.AppSettings.md`](./RemoteOS.AppSettings.md)。 |
 | **Device** | ✅ SQLite | 设备登记历史，与 User/Workspace 同属「持久实体」，保持一致。 |
 | Session | ❌ 内存 | 「连接关系」是运行时状态（Created→Active→Disconnected→Expired），重启后旧 Session 本就应失效，用户重新登录即可。持久化反而引入状态不一致。 |
 | AuthSessionStore（refresh token） | ❌ 内存 | 安全令牌重启失效 = 强制重新登录，符合安全语义（与 mstsc 默认不保存凭据一致）。 |
 | TerminalSessionManager（PTY + 环形缓冲） | ❌ 内存 | PTY 是活进程，无法序列化；重启后用户重连新建 PTY + 回放缓冲（缓冲内存丢失为已知行为，见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)）。 |
 
-> 结论：本次持久化 **User + Workspace + Device**。Session / refresh token / PTY 维持内存，符合各自语义。
+> 结论：持久化 **User + Workspace + Device + AppSettings**，以及浏览器书签/历史。Session / refresh token / PTY 维持内存，符合各自语义。
 
 ---
 
@@ -120,6 +121,18 @@
 
 > Guid 主键存 TEXT；DateTimeOffset 存 TEXT（ISO 8601，SQLite 原生 datetime 处理）。索引与现有内存仓储的 `_byName` / `_byUserId` / `_byKey` 字典键一一对应，保证切换实现后查询语义不变。
 
+### 5.4 app_settings
+
+| 列 | 类型 | 约束 |
+| --- | --- | --- |
+| UserId / Scope / ScopeId / AppId / Key | TEXT | 复合主键；隔离配置所属用户、范围、应用和文档 key |
+| ValueJson | TEXT | NOT NULL，应用私有 JSON（最大 64 KiB 由 API 限制） |
+| SchemaVersion | INTEGER | NOT NULL，应用定义的 JSON 格式版本 |
+| Revision | INTEGER | NOT NULL，EF concurrency token |
+| UpdatedAt | TEXT | NOT NULL（ISO 8601） |
+
+这是独立表，**不得**把任意应用配置追加到 `workspaces` 的系统偏好 JSON 列。旧数据库在服务端启动时以 `CREATE TABLE IF NOT EXISTS` 增量补齐；长期 schema 演进仍应迁移到 EF Core Migrations。
+
 ---
 
 ## 6. 仓储层
@@ -130,6 +143,7 @@
 - `IUserRepository`：FindByUsername / FindById / Add / UpdateLastLogin
 - `IWorkspaceRepository`：FindByUserId / FindById / Add / Update
 - `IDeviceRepository`：FindByNameAndPlatform / FindById / Add / Update
+- `IAppSettingsRepository`：Find / Upsert（带 revision 乐观并发）
 - `ISessionRepository`：始终 `InMemorySessionRepository`（Session 不持久化）
 
 ### 6.2 新增 EF 实现
@@ -240,9 +254,9 @@ if (storageProvider == "sqlite")
 
 实现 RemoteOS.Server 持久化时必须遵守：
 
-- **持久化范围**：持久化 User / Workspace（含 TerminalSettings / BrowserSettings / Preferences）/ Device / Bookmark / HistoryEntry。**不要**把 Session、refresh token（AuthSessionStore）、PTY 会话（TerminalSessionManager）写入数据库——它们是运行时/安全/进程状态，持久化会引入不一致或安全风险。
+- **持久化范围**：持久化 User / Workspace（含 TerminalSettings / BrowserSettings / Preferences / WindowLayouts）/ Device / Bookmark / HistoryEntry / AppSettings。**不要**把 Session、refresh token（AuthSessionStore）、PTY 会话（TerminalSessionManager）写入数据库——它们是运行时/安全/进程状态，持久化会引入不一致或安全风险。
 - **接口稳定**：新增 EF 实现时**不要**改动 `IUserRepository` / `IWorkspaceRepository` / `IDeviceRepository` / `IBrowserRepository` 接口；端点与领域模型不动。
-- **配置存 JSON 列**：TerminalSettings / BrowserSettings / Preferences 均用 `OwnsOne + ToJson`，**不要**拆成独立列——配置应可演进，新增字段不改 schema。新增 Workspace 级 JSON 列时，`Program.cs` 启动时检测 `pragma_table_info` 并 `ALTER TABLE ... ADD COLUMN ... TEXT NULL` 增量补齐既有库（`EnsureCreated` 不为已存在 db 追加列）。
+- **系统配置与应用配置分离**：TerminalSettings / BrowserSettings / Preferences / WindowLayouts 仍用 `OwnsOne + ToJson`；新应用的私有配置使用 `app_settings`，不得追加 Workspace JSON 字段。详见 [`RemoteOS.AppSettings.md`](./RemoteOS.AppSettings.md)。
 - **索引对齐**：SQLite 唯一索引必须与内存仓储的字典键（`_byName`/`_byUserId`/`_byKey`）一一对应，保证切换实现后查询语义不变。
 - **Session 始终内存**：`ISessionRepository` 永远是 `InMemorySessionRepository`，不接入 DbContext。
 - **建库用 EnsureCreated（当前）**：未来切 Migrations 时需先删旧库或初始化迁移历史（EnsureCreated 与 Migrations 互斥）。

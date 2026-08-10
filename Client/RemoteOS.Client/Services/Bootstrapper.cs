@@ -9,6 +9,7 @@ using Client.Apps.Terminal;
 using Client.Apps.Welcome;
 using Client.Services.Auth;
 using Client.Services.AppPermissions;
+using Client.Services.AppSettings;
 using Client.Services.AppPackages;
 using Client.Services.Developer;
 using Client.Services.Diagnostics;
@@ -101,6 +102,9 @@ public static class Bootstrapper
         services.AddSingleton<NetworkInspectorWindowService>();
         services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "capabilities"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<IAppSettingsClient, AppSettingsClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "app-settings"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
         services.AddSingleton<ExternalAppContextFactory>();

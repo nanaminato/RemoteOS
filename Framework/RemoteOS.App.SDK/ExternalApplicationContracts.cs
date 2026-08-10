@@ -2,6 +2,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
 using Avalonia.Controls;
+using System.Text.Json;
 
 namespace RemoteOS.AppSDK;
 
@@ -32,6 +33,8 @@ public interface IExternalAppContext
     IServerFiles ServerFiles { get; }
     IExternalFileApiAccess FileApi { get; }
     IExternalMediaService Media { get; }
+    /// <summary>Versioned JSON configuration private to this application and persisted by the connected server.</summary>
+    IExternalAppSettings SettingsStore { get; }
     /// <summary>Read-only system language and language-change notifications.</summary>
     ISystemLanguage SystemLanguage { get; }
     ISettingsNavigation Settings { get; }
@@ -43,6 +46,44 @@ public interface IAppPermissionScope
 {
     bool IsGranted(string permissionId);
 }
+
+/// <summary>Scope of an application's persisted configuration document.</summary>
+public enum ExternalAppSettingsScope
+{
+    User,
+    Workspace,
+    Device,
+}
+
+/// <summary>Host-mediated storage for configuration owned by the current external application.</summary>
+public interface IExternalAppSettings
+{
+    Task<ExternalAppSettingsDocument?> GetAsync(
+        ExternalAppSettingsScope scope = ExternalAppSettingsScope.Workspace,
+        string key = "default",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces a configuration document. Supply the revision returned by <see cref="GetAsync"/>
+    /// to reject a concurrent overwrite; use <c>0</c> to create only when absent.
+    /// </summary>
+    Task<ExternalAppSettingsDocument> SetAsync(
+        JsonElement value,
+        int schemaVersion = 1,
+        ExternalAppSettingsScope scope = ExternalAppSettingsScope.Workspace,
+        string key = "default",
+        long? expectedRevision = null,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>A versioned JSON configuration document returned through <see cref="IExternalAppSettings"/>.</summary>
+public sealed record ExternalAppSettingsDocument(
+    ExternalAppSettingsScope Scope,
+    string Key,
+    JsonElement Value,
+    int SchemaVersion,
+    long Revision,
+    DateTimeOffset UpdatedAt);
 
 /// <summary>Host-mediated desktop appearance operations available to package applications.</summary>
 public interface IDesktopAppearance

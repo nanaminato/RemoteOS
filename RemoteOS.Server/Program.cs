@@ -196,6 +196,7 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IWorkspaceRepository, SqliteWorkspaceRepository>();
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
+    builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
 }
 else
 {
@@ -204,6 +205,7 @@ else
     builder.Services.AddSingleton<IWorkspaceRepository, InMemoryWorkspaceRepository>();
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
+    builder.Services.AddSingleton<IAppSettingsRepository, InMemoryAppSettingsRepository>();
 }
 // Session 始终内存（连接关系，不持久化）
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
@@ -290,6 +292,20 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_history_entries_UserId_Url" ON "history_entries" ("UserId", "Url");
         CREATE INDEX IF NOT EXISTS "IX_history_entries_UserId_LastVisitedAt" ON "history_entries" ("UserId", "LastVisitedAt");
+
+        CREATE TABLE IF NOT EXISTS "app_settings" (
+            "UserId" TEXT NOT NULL,
+            "Scope" TEXT NOT NULL,
+            "ScopeId" TEXT NOT NULL,
+            "AppId" TEXT NOT NULL,
+            "Key" TEXT NOT NULL,
+            "ValueJson" TEXT NOT NULL,
+            "SchemaVersion" INTEGER NOT NULL,
+            "Revision" INTEGER NOT NULL,
+            "UpdatedAt" TEXT NOT NULL,
+            PRIMARY KEY ("UserId", "Scope", "ScopeId", "AppId", "Key")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_app_settings_UserId_UpdatedAt" ON "app_settings" ("UserId", "UpdatedAt");
         """);
 }
 
@@ -310,6 +326,7 @@ app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapAppCapabilityEndpoints();
+app.MapAppSettingsEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
