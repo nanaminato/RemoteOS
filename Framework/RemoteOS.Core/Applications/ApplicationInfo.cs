@@ -9,12 +9,17 @@ public sealed record ApplicationInfo(
     IReadOnlyList<string>? RequestedPermissions = null,
     IReadOnlyList<string>? SupportedFileExtensions = null,
     string Version = "1.0.0",
-    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null)
+    IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
+    IReadOnlyList<string>? SupportedFileNames = null,
+    bool SupportsExtensionlessFiles = false)
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
 
     /// <summary>File extensions this application explicitly accepts from RemoteExplorer.</summary>
     public IReadOnlyList<string> FileExtensions => SupportedFileExtensions ?? Array.Empty<string>();
+
+    /// <summary>Exact file names this application explicitly accepts from RemoteExplorer.</summary>
+    public IReadOnlyList<string> FileNames => SupportedFileNames ?? Array.Empty<string>();
 
     /// <summary>Returns package-owned metadata in the requested UI language, with stable fallbacks.</summary>
     public ApplicationLocalizedMetadata GetLocalizedMetadata(string culture)

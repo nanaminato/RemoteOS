@@ -22,7 +22,8 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         Version: "1.0.0",
         IconGlyph: "📝",
         Description: "Text editor for remote files",
-        SupportedFileExtensions: SupportedExtensions);
+        SupportedFileExtensions: SupportedExtensions,
+        SupportsExtensionlessFiles: true);
 
     public override void Activate(AppContext context)
         => OpenEditor(context, null);
@@ -45,7 +46,8 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
-                        new ExplorerFileFilter(LocalizedText.Get("notepad.text_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                        new ExplorerFileFilter(LocalizedText.Get("notepad.text_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray(),
+                            IncludeExtensionlessFiles: true),
                     ]),
                     paths => dialog.Close(paths[0]))
                 {

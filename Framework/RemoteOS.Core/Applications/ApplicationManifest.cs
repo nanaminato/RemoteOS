@@ -15,7 +15,9 @@ public sealed record ApplicationManifest(
     IReadOnlyList<string>? SupportedFileExtensions = null,
     IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
     IReadOnlyList<string>? ClientPlatforms = null,
-    ApplicationServerRequirements? ServerRequirements = null)
+    ApplicationServerRequirements? ServerRequirements = null,
+    IReadOnlyList<string>? SupportedFileNames = null,
+    bool SupportsExtensionlessFiles = false)
 {
     /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
     public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);
@@ -31,7 +33,6 @@ public sealed record ApplicationManifest(
 
     /// <summary>
     /// Normalized file extensions that this application accepts from RemoteExplorer.
-    /// An application with no declared extensions is never offered as a file opener.
     /// </summary>
     public IReadOnlyList<string> FileExtensions => SupportedFileExtensions?
         .Where(extension => !string.IsNullOrWhiteSpace(extension))
@@ -41,5 +42,34 @@ public sealed record ApplicationManifest(
         .ToArray()
         ?? Array.Empty<string>();
 
-    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata);
+    /// <summary>Exact file names that this application accepts from RemoteExplorer.</summary>
+    public IReadOnlyList<string> FileNames => SupportedFileNames?
+        .Where(name => !string.IsNullOrWhiteSpace(name))
+        .Select(name => name.Trim())
+        .Where(name => !Path.IsPathRooted(name) && Path.GetFileName(name).Equals(name, StringComparison.Ordinal))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray()
+        ?? Array.Empty<string>();
+
+    /// <summary>Whether this application declares any rule for opening remote files.</summary>
+    public bool SupportsFiles => FileExtensions.Count > 0 || FileNames.Count > 0 || SupportsExtensionlessFiles;
+
+    /// <summary>
+    /// Returns the priority of the matching file rule: exact name (3), extension (2),
+    /// extensionless fallback (1), or no match (0).
+    /// </summary>
+    public int GetFileMatchPriority(string path)
+    {
+        var name = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(name)) return 0;
+        if (FileNames.Contains(name, StringComparer.OrdinalIgnoreCase)) return 3;
+        if (FileExtensions.Contains(Path.GetExtension(name), StringComparer.OrdinalIgnoreCase)) return 2;
+        return SupportsExtensionlessFiles && Path.GetExtension(name).Length == 0 ? 1 : 0;
+    }
+
+    /// <summary>Whether this application explicitly accepts the supplied remote file path.</summary>
+    public bool SupportsFile(string path) => GetFileMatchPriority(path) > 0;
+
+    public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata,
+        FileNames, SupportsExtensionlessFiles);
 }

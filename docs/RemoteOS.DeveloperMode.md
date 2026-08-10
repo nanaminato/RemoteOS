@@ -39,6 +39,8 @@ lib/net10.0/<private dependencies>.dll
   "description": "A development package",
   "requestedPermissions": ["desktop.wallpaper.write"],
   "supportedFileExtensions": [".hello"],
+  "supportedFileNames": [".hellorc"],
+  "supportsExtensionlessFiles": false,
   "clientPlatforms": ["windows", "linux"],
   "serverRequirements": {
     "platforms": ["windows", "linux"],
@@ -55,7 +57,7 @@ contract and the server capability catalogue.
 
 The entry type must implement `RemoteOS.AppSDK.IExternalRemoteApplication`. It receives `IExternalAppContext`, which exposes only approved RemoteOS capabilities, including owned-window creation and the permission-gated desktop appearance service.
 
-To appear in RemoteExplorer's **Open with** menu, the entry type must also implement `IExternalFileOpenApplication` and list every accepted extension in `supportedFileExtensions`. Extensions are case-insensitive and must begin with a dot. Packages that omit this field remain launchable, but are never offered a file path.
+To appear in RemoteExplorer's **Open with** menu, the entry type must also implement `IExternalFileOpenApplication` and declare at least one accepted path rule. `supportedFileExtensions` is case-insensitive and each extension must begin with a dot. `supportedFileNames` accepts exact file names such as `.gitignore`; these take precedence over extension matches. `supportsExtensionlessFiles` enables a low-priority fallback only for files without an extension. Packages that omit all three fields remain launchable, but are never offered a file path.
 
 ## Server monitoring capability
 

@@ -98,7 +98,8 @@ public sealed class DeveloperPackageManager
             var record = new DeveloperAppRecord(appId, manifest.DisplayName.Trim(), version, destination, manifest.EntryAssembly.Trim(), manifest.EntryType.Trim(),
                 manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
                 manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata,
-                manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements);
+                manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements,
+                manifest.SupportedFileNames ?? Array.Empty<string>(), manifest.SupportsExtensionlessFiles);
             await Dispatcher.UIThread.InvokeAsync(() => Register(record));
 
             _catalog[appId] = record;
@@ -157,7 +158,7 @@ public sealed class DeveloperPackageManager
     private void Register(DeveloperAppRecord record)
     {
         UnregisterAndUnload(record.Id);
-        _applications.Register(record.SupportedFileExtensions.Count > 0
+        _applications.Register(record.SupportedFileExtensions.Count > 0 || (record.SupportedFileNames?.Count ?? 0) > 0 || record.SupportsExtensionlessFiles
             ? new ExternalFileApplicationAdapter(record, this, _contextFactory)
             : new ExternalApplicationAdapter(record, this, _contextFactory));
     }
@@ -196,7 +197,7 @@ public sealed class DeveloperPackageManager
     private static ApplicationManifest ToApplicationManifest(DeveloperAppRecord record) => new(
         new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
         record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata,
-        record.ClientPlatforms, record.ServerRequirements);
+        record.ClientPlatforms, record.ServerRequirements, record.SupportedFileNames, record.SupportsExtensionlessFiles);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
@@ -397,7 +398,9 @@ public sealed record DeveloperPackageManifest(
     IReadOnlyList<string>? SupportedFileExtensions = null,
     IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
     IReadOnlyList<string>? ClientPlatforms = null,
-    ApplicationServerRequirements? ServerRequirements = null);
+    ApplicationServerRequirements? ServerRequirements = null,
+    IReadOnlyList<string>? SupportedFileNames = null,
+    bool SupportsExtensionlessFiles = false);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -412,6 +415,8 @@ internal sealed record DeveloperAppRecord(
     IReadOnlyList<string> SupportedFileExtensions,
     IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
     IReadOnlyList<string>? ClientPlatforms = null,
-    ApplicationServerRequirements? ServerRequirements = null);
+    ApplicationServerRequirements? ServerRequirements = null,
+    IReadOnlyList<string>? SupportedFileNames = null,
+    bool SupportsExtensionlessFiles = false);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);

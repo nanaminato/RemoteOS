@@ -191,10 +191,10 @@ public sealed class ExplorerApp : RemoteApplicationBase
         vm.OpenFileAsync = async entry =>
         {
             var extension = Path.GetExtension(entry.Name);
-            var defaultApplicationId = defaults?.Resolve(extension);
+            var defaultApplicationId = string.IsNullOrEmpty(extension) ? null : defaults?.Resolve(extension);
             var applicationId = defaultApplicationId is not null && applications?.SupportsFile(new AppId(defaultApplicationId), entry.Path) == true
                 ? defaultApplicationId
-                : applications?.FileOpenersForExtension(extension).FirstOrDefault()?.Id.Value;
+                : applications?.FileOpenersForPath(entry.Path).FirstOrDefault()?.Id.Value;
             if (applicationId is null || applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.no_file_opener")) ?? Task.CompletedTask);
         };
@@ -203,7 +203,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
         {
             var owner = FindOwnerWindow(context, vm);
             var extension = Path.GetExtension(entry.Name);
-            var openers = applications?.FileOpenersForExtension(extension) ?? Array.Empty<ApplicationInfo>();
+            var openers = applications?.FileOpenersForPath(entry.Path) ?? Array.Empty<ApplicationInfo>();
             if (owner is null || openers.Count == 0)
             {
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_with"), LocalizedText.Get("explorer.no_open_with_app")) ?? Task.CompletedTask);

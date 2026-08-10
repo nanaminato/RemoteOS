@@ -8,7 +8,7 @@ public enum ExplorerPickerMode
 }
 
 /// <summary>A named file-name pattern set displayed by the file-picker filter control.</summary>
-public sealed record ExplorerFileFilter(string Label, IReadOnlyList<string> Patterns)
+public sealed record ExplorerFileFilter(string Label, IReadOnlyList<string> Patterns, bool IncludeExtensionlessFiles = false)
 {
     /// <summary>Matches every file, including names without an extension.</summary>
     public static ExplorerFileFilter AllFiles { get; } = new("All files (*.*)", ["*"]);

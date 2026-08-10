@@ -609,8 +609,10 @@ public sealed partial class ExplorerViewModel : ObservableObject
         => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive;
 
     private bool MatchesSelectedFilter(string name)
-        => SelectedFilter?.Patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name,
-            ignoreCase: !OperatingSystem.IsLinux())) != false;
+        => SelectedFilter is { } filter
+            && (filter.Patterns.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name,
+                    ignoreCase: !OperatingSystem.IsLinux()))
+                || (filter.IncludeExtensionlessFiles && Path.GetExtension(name).Length == 0));
 
     private void UpdatePickerEntryName()
     {

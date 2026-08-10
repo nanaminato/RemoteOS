@@ -18,13 +18,17 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
     public static IReadOnlyList<string> SupportedExtensions { get; } =
     [".cs", ".csx", ".fs", ".fsx", ".vb", ".c", ".h", ".cpp", ".cxx", ".hpp", ".java", ".kt", ".kts", ".go", ".rs", ".py", ".rb", ".php", ".swift", ".sql", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".sh", ".bash", ".ps1", ".bat", ".cmd", ".dockerfile", ".csproj", ".sln", ".xaml", ".axaml"];
 
+    public static IReadOnlyList<string> SupportedFileNames { get; } =
+    [".gitignore", ".gitattributes", ".gitmodules", ".editorconfig", ".env", "Dockerfile", "Makefile", "README", "LICENSE"];
+
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.codeeditor"),
         DisplayName: "Code Editor",
         Version: "1.0.0",
         IconGlyph: "💻",
         Description: "Syntax-highlighted editor for remote files",
-        SupportedFileExtensions: SupportedExtensions);
+        SupportedFileExtensions: SupportedExtensions,
+        SupportedFileNames: SupportedFileNames);
 
     public override void Activate(AppContext context) => OpenEditor(context, null);
 
@@ -47,7 +51,8 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [
-                        new ExplorerFileFilter(LocalizedText.Get("code_editor.source_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray()),
+                        new ExplorerFileFilter(LocalizedText.Get("code_editor.source_file_filter"), SupportedExtensions.Select(extension => $"*{extension}")
+                            .Concat(SupportedFileNames).ToArray()),
                     ]),
                     paths => dialog.Close(paths[0]))
                 {

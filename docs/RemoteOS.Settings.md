@@ -302,7 +302,7 @@ PreferencesSync.OnStateChanged
 6. **`DefaultAppMappingViewModel.SelectedApp` 双向同步**：ComboBox `SelectedItem` 绑 `SelectedApp`（`AppOption?`），setter 写回 `AppId`；`OnAppIdChanged` 时 `OnPropertyChanged(nameof(SelectedApp))` 让 ComboBox 跟随外部 `AppId` 变化（如 `SetMappings` 填充）。
 7. **路由常量 `{id}` 替换**：`WorkspaceApiRoutes.Preferences` 含 `{id}` 占位符，客户端 `SettingsClient.SendAsync` 用 `workspaceId.ToString("D")` 替换。禁止硬编码 URL 字符串。
 8. **时区 / 网络只读**：宿主 OS 时区切换（Linux `timedatectl` / Windows 时区设置）与网卡配置需 sudo/UAC 提权（硬约束「权限提升委托宿主 OS」），Settings 仅只读展示宿主时区 + Client→Server 连接状态，不触及宿主 OS 配置。
-9. **扩展名关联必须受 manifest 约束**：可选扩展名从所有已注册应用的 `SupportedFileExtensions` 聚合；扩展名映射的下拉项只显示声明支持该扩展名的应用。Explorer 打开时会再次验证，历史遗留的错误关联不会把文件交给不兼容应用。
+9. **扩展名关联必须受 manifest 约束**：可选扩展名从所有已注册应用的 `SupportedFileExtensions` 聚合；扩展名映射的下拉项只显示声明支持该扩展名的应用。Explorer 对精确文件名和无扩展名文件也会依据应用的路径规则再次验证，历史遗留的错误关联不会把文件交给不兼容应用。
 10. **`AvailableApps.FirstOrDefault()?.Id`**：`AppsPageViewModel.AddMapping` 用 `?.` 防 `FirstOrDefault()` 返回 null 时 NRE（`AvailableApps` 为 `IReadOnlyList<AppOption>` 引用类型，可能空）。
 
 ---

@@ -28,20 +28,29 @@ public sealed class ApplicationManager
     public IReadOnlyList<ApplicationInfo> Registered =>
         _apps.Values.Select(a => a.Manifest.ToInfo()).OrderBy(i => i.DisplayName).ToList();
 
-    /// <summary>Applications that explicitly declare one or more supported file extensions.</summary>
+    /// <summary>Applications that explicitly declare one or more supported file rules.</summary>
     public IReadOnlyList<ApplicationInfo> FileOpeners =>
-        _apps.Values.Where(a => a is IFileOpenApplication && a.Manifest.FileExtensions.Count > 0).Select(a => a.Manifest.ToInfo())
+        _apps.Values.Where(a => a is IFileOpenApplication && a.Manifest.SupportsFiles).Select(a => a.Manifest.ToInfo())
             .OrderBy(i => i.DisplayName).ToList();
 
     /// <summary>Applications eligible to open the specified file extension.</summary>
     public IReadOnlyList<ApplicationInfo> FileOpenersForExtension(string extension) =>
         FileOpeners.Where(app => app.FileExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase)).ToList();
 
+    /// <summary>Applications eligible to open the supplied path, ordered by rule specificity.</summary>
+    public IReadOnlyList<ApplicationInfo> FileOpenersForPath(string path) =>
+        _apps.Values
+            .Where(app => app is IFileOpenApplication && app.Manifest.SupportsFile(path))
+            .OrderByDescending(app => app.Manifest.GetFileMatchPriority(path))
+            .ThenBy(app => app.Manifest.DisplayName)
+            .Select(app => app.Manifest.ToInfo())
+            .ToList();
+
     /// <summary>Whether the registered application explicitly accepts the supplied file path.</summary>
     public bool SupportsFile(AppId id, string path) =>
         _apps.TryGetValue(id, out var app)
         && app is IFileOpenApplication
-        && app.Manifest.FileExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+        && app.Manifest.SupportsFile(path);
 
     /// <summary>Register an application so it can be launched.</summary>
     public void Register(IRemoteApplication application)
@@ -80,7 +89,7 @@ public sealed class ApplicationManager
     public bool OpenFile(AppId id, string path)
     {
         if (!_apps.TryGetValue(id, out var app) || app is not IFileOpenApplication fileOpener
-            || !app.Manifest.FileExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            || !app.Manifest.SupportsFile(path))
             return false;
 
         if (!EnsureCompatible(app.Manifest))

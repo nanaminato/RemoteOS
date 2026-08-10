@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Client.Apps.Explorer.Models;
 using Client.Apps.Explorer.ViewModels;
@@ -52,20 +51,6 @@ public partial class ExplorerMainView : UserControl
     {
         if (sender is DataGrid grid)
             ViewModel?.UpdatePickerSelection(grid.SelectedItems?.Cast<object>() ?? []);
-    }
-
-    /// <summary>
-    /// Keep the navigation tree horizontally aligned to its left edge after TreeView
-    /// scrolls a newly selected item into view. Vertical auto-scroll is preserved.
-    /// </summary>
-    private void NavigationTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            var scrollViewer = NavigationTree.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scrollViewer is not null && scrollViewer.Offset.X != 0)
-                scrollViewer.Offset = new Vector(0, scrollViewer.Offset.Y);
-        }, DispatcherPriority.Background);
     }
 
     private void EntriesGrid_PointerPressed(object? sender, PointerPressedEventArgs e)

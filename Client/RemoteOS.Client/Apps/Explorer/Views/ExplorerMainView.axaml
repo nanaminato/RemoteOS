@@ -128,7 +128,8 @@
                       x:Name="NavigationTree"
                       ItemsSource="{Binding Nodes}"
                       SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
-                      SelectionChanged="NavigationTree_SelectionChanged"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                       DragDrop.AllowDrop="True"
                       DragDrop.DragOver="Explorer_DragOver"
                       DragDrop.Drop="Explorer_Drop">
@@ -144,11 +145,14 @@
                 </TreeView.Styles>
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal" Spacing="6"
+                        <!-- Do not use a stretch column here: TreeViewItem headers inherit the
+                             resized pane width and a star column can visually separate icon/text. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Left"
                                     IsVisible="{Binding !IsPlaceholder}">
                             <TextBlock Text="{Binding IconKind, Converter={StaticResource NodeGlyphConverter}}"
-                                       FontSize="13" />
-                            <TextBlock Text="{Binding Label}" />
+                                       FontSize="13" Width="18" />
+                            <TextBlock Text="{Binding Label}" Width="188" MaxLines="1"
+                                       TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </TreeDataTemplate>
                 </TreeView.ItemTemplate>
