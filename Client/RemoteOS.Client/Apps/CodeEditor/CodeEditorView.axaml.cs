@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using AvaloniaEdit.Highlighting;
 
 namespace Client.Apps.CodeEditor;
@@ -41,6 +42,12 @@ public partial class CodeEditorView : UserControl
     {
         if (_viewModel is not null && _viewModel.Text != Editor.Text)
             _viewModel.Text = Editor.Text;
+    }
+
+    private void EncodingButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control control && control.ContextMenu is { } menu)
+            menu.Open(control);
     }
 
     private void UpdateSyntaxHighlighting(string? path)

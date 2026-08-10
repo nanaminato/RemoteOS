@@ -2,7 +2,9 @@
     "Culture": "ja-JP",
     "Strings": {
         "notepad.settings.title": "メモ帳の設定",
-        "notepad.settings.encoding_note": "エンコーディングの変更は、現在のリモート ファイルを再度開いたときに適用されます。",
+        "notepad.settings.default_encoding": "既定のエンコーディング",
+        "notepad.encoding.reopen_with": "エンコーディングを指定して再度開く",
+        "notepad.encoding.save_with": "エンコーディングを指定して保存",
         "notepad.status.ready": "準備完了",
         "notepad.document.untitled": "無題",
         "notepad.status.new_document": "新しいドキュメント",

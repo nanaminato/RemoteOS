@@ -90,6 +90,7 @@ public static class Bootstrapper
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
+        services.AddSingleton<TextEditorEncodingSettings>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<DeveloperModeService>();
         // The session must be resolved only when diagnostics are used. Resolving it while an

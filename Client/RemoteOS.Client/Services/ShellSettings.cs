@@ -21,6 +21,8 @@ public sealed partial class ShellSettings : ObservableObject
     [ObservableProperty] private string _dateFormat = "yyyy/M/d";
     [ObservableProperty] private string _language;
     [ObservableProperty] private string _region = WorkspacePreferencesDto.Default.Region;
+    [ObservableProperty] private string _notepadDefaultEncoding = TextEncodingPreferences.Default;
+    [ObservableProperty] private string _codeEditorDefaultEncoding = TextEncodingPreferences.Default;
 
     public IBrush CurrentWallpaper => Wallpapers[WallpaperIndex].Brush;
 
@@ -71,13 +73,17 @@ public sealed partial class ShellSettings : ObservableObject
         DateFormat = prefs.DateFormat;
         Language = prefs.Language;
         Region = prefs.Region;
+        NotepadDefaultEncoding = TextEncodingPreferences.IsSupported(prefs.NotepadDefaultEncoding)
+            ? prefs.NotepadDefaultEncoding! : TextEncodingPreferences.Default;
+        CodeEditorDefaultEncoding = TextEncodingPreferences.IsSupported(prefs.CodeEditorDefaultEncoding)
+            ? prefs.CodeEditorDefaultEncoding! : TextEncodingPreferences.Default;
         WallpaperIndex = IndexForKey(prefs.WallpaperKey);
     }
 
     /// <summary>导出当前活状态为服务端 DTO（保存时用）。</summary>
     public WorkspacePreferencesDto ToPreferences(IReadOnlyList<DefaultAppMappingDto>? defaultApps = null)
         => new(CurrentWallpaperKey, Theme, TimeFormat, DateFormat, Language, Region,
-            defaultApps ?? Array.Empty<DefaultAppMappingDto>());
+            defaultApps ?? Array.Empty<DefaultAppMappingDto>(), NotepadDefaultEncoding, CodeEditorDefaultEncoding);
 
     /// <summary>按 key 设置壁纸（来自设置应用的选择）。</summary>
     public bool TrySetWallpaperKey(string key)

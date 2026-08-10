@@ -3,7 +3,10 @@
     "Strings": {
         "code_editor.settings.title": "コード エディターの設定",
         "code_editor.settings.font_size": "エディターのフォント サイズ",
+        "code_editor.settings.default_encoding": "既定のエンコーディング",
         "code_editor.settings.syntax_note": "構文の強調表示は、リモート ファイルの拡張子に基づいて自動的に選択されます。",
+        "code_editor.encoding.reopen_with": "エンコーディングを指定して再度開く",
+        "code_editor.encoding.save_with": "エンコーディングを指定して保存",
         "code_editor.status.ready": "準備完了",
         "code_editor.document.untitled": "無題",
         "code_editor.document.untitled_number": "無題 {0}",

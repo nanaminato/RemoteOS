@@ -15,20 +15,31 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     private bool _isLoadingDocument;
     private int _untitledSequence;
 
-    public CodeEditorViewModel(IExplorerClient? files, bool pathCaseSensitive = true)
+    public CodeEditorViewModel(IExplorerClient? files, bool pathCaseSensitive = true, string defaultEncodingName = "UTF-8")
     {
         _files = files;
         _pathComparer = pathCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+        DefaultEncodingName = TextFileEncodings.IsSupported(defaultEncodingName) ? defaultEncodingName : "UTF-8";
+        EncodingName = DefaultEncodingName;
+        ReopenWithEncodingOptions = AvailableEncodings
+            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => ReopenWithEncodingAsync(encoding))))
+            .ToArray();
+        SaveWithEncodingOptions = AvailableEncodings
+            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => SaveWithEncodingAsync(encoding))))
+            .ToArray();
     }
 
     public ObservableCollection<CodeEditorFolderNode> WorkspaceRoots { get; } = [];
     public ObservableCollection<CodeEditorDocument> OpenDocuments { get; } = [];
     public IReadOnlyList<string> AvailableEncodings => TextFileEncodings.Available;
+    public IReadOnlyList<EncodingMenuOption> ReopenWithEncodingOptions { get; }
+    public IReadOnlyList<EncodingMenuOption> SaveWithEncodingOptions { get; }
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
 
     [ObservableProperty] private string _text = string.Empty;
     [ObservableProperty] private string? _currentPath;
     [ObservableProperty] private string _encodingName = "UTF-8";
+    [ObservableProperty] private string _defaultEncodingName = "UTF-8";
     [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private bool _wordWrap;
     [ObservableProperty] private bool _isDirty;
@@ -44,6 +55,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     public string DocumentName => ActiveDocument?.DisplayName ?? LocalizedText.Get("code_editor.document.untitled");
     public bool IsExplorerSidebar => ActiveSidebar == "explorer";
     public bool IsOpenEditorsSidebar => ActiveSidebar == "openEditors";
+    public bool HasOpenFile => !string.IsNullOrWhiteSpace(CurrentPath);
 
     public Func<Task<string?>>? RequestFileAsync { get; set; }
     public Func<Task<string?>>? RequestFolderAsync { get; set; }
@@ -51,6 +63,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     public Func<CodeEditorDocument, Task<bool>>? RequestDiscardChangesAsync { get; set; }
     public Func<Task>? RequestSettingsAsync { get; set; }
     public Action? CloseSettingsAction { get; set; }
+    public Func<string, Task>? SaveDefaultEncodingAsync { get; set; }
 
     partial void OnTextChanged(string value)
     {
@@ -67,10 +80,20 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         }
     }
 
-    partial void OnCurrentPathChanged(string? value) => OnPropertyChanged(nameof(DocumentName));
+    partial void OnCurrentPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(DocumentName));
+        OnPropertyChanged(nameof(HasOpenFile));
+    }
     partial void OnEncodingNameChanged(string value)
     {
         if (ActiveDocument is not null && !_isLoadingDocument) ActiveDocument.EncodingName = value;
+    }
+
+    partial void OnDefaultEncodingNameChanged(string value)
+    {
+        if (TextFileEncodings.IsSupported(value))
+            _ = SaveDefaultEncodingAsync?.Invoke(value);
     }
 
     partial void OnActiveDocumentChanged(CodeEditorDocument? value)
@@ -110,7 +133,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     [RelayCommand]
     private void NewDocument()
     {
-        var document = new CodeEditorDocument(null, string.Empty, "UTF-8",
+        var document = new CodeEditorDocument(null, string.Empty, DefaultEncodingName,
             LocalizedText.Format("code_editor.document.untitled_number", ++_untitledSequence));
         OpenDocuments.Add(document);
         ActiveDocument = document;
@@ -182,16 +205,23 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(path)) await SaveToPathAsync(path);
     }
 
-    [RelayCommand]
-    private async Task ReopenWithEncodingAsync()
+    private async Task ReopenWithEncodingAsync(string encodingName)
     {
-        if (string.IsNullOrWhiteSpace(CurrentPath)) return;
+        if (string.IsNullOrWhiteSpace(CurrentPath) || !TextFileEncodings.IsSupported(encodingName)) return;
         if (IsDirty)
         {
             StatusText = LocalizedText.Get("code_editor.status.save_or_discard");
             return;
         }
+        EncodingName = encodingName;
         await OpenPathAsync(CurrentPath, forceReload: true);
+    }
+
+    private async Task SaveWithEncodingAsync(string encodingName)
+    {
+        if (string.IsNullOrWhiteSpace(CurrentPath) || !TextFileEncodings.IsSupported(encodingName)) return;
+        EncodingName = encodingName;
+        await SaveToPathAsync(CurrentPath);
     }
 
     [RelayCommand]
@@ -233,7 +263,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
         {
             var bytes = await _files.ReadFileAsync(path);
             if (bytes is null) { StatusText = LocalizedText.Get("code_editor.status.file_missing"); return; }
-            var encoding = existing?.EncodingName ?? EncodingName;
+            var encoding = existing?.EncodingName ?? DefaultEncodingName;
             var text = TextFileEncodings.Decode(bytes, encoding);
             if (existing is null)
             {

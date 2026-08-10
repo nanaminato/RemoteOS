@@ -4,6 +4,7 @@
              xmlns:loc="clr-namespace:Client.Localization"
              xmlns:notepad="clr-namespace:Client.Apps.Notepad"
              x:Class="Client.Apps.Notepad.NotepadView"
+             x:Name="Root"
              x:DataType="notepad:NotepadViewModel"
              Background="#FFFFFF">
     <Grid RowDefinitions="Auto,*,Auto">
@@ -38,10 +39,31 @@
                  CaretBrush="#4CC2FF" />
 
         <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="14">
                 <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Column="1" Text="{Binding LineCountText}" FontSize="12" Opacity="0.7" />
-                <TextBlock Grid.Column="2" Text="{Binding CharacterCountText}" FontSize="12" Opacity="0.7" />
+                <Button Grid.Column="1" x:Name="EncodingButton" Content="{Binding EncodingName}" FontSize="12" Padding="4,0"
+                        IsVisible="{Binding HasOpenFile}" ToolTip.Tip="{loc:Loc common.file_encoding}" Click="EncodingButton_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu DataContext="{Binding #EncodingButton.DataContext}">
+                            <MenuItem Header="{loc:Loc notepad.encoding.reopen_with}" ItemsSource="{Binding ReopenWithEncodingOptions}">
+                                <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="app:EncodingMenuOption">
+                                        <MenuItem Header="{Binding Name}" Command="{Binding Command}" />
+                                    </DataTemplate>
+                                </MenuItem.ItemTemplate>
+                            </MenuItem>
+                            <MenuItem Header="{loc:Loc notepad.encoding.save_with}" ItemsSource="{Binding SaveWithEncodingOptions}">
+                                <MenuItem.ItemTemplate>
+                                    <DataTemplate x:DataType="app:EncodingMenuOption">
+                                        <MenuItem Header="{Binding Name}" Command="{Binding Command}" />
+                                    </DataTemplate>
+                                </MenuItem.ItemTemplate>
+                            </MenuItem>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <TextBlock Grid.Column="2" Text="{Binding LineCountText}" FontSize="12" Opacity="0.7" />
+                <TextBlock Grid.Column="3" Text="{Binding CharacterCountText}" FontSize="12" Opacity="0.7" />
             </Grid>
         </Border>
     </Grid>

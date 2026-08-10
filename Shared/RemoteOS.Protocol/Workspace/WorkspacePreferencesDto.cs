@@ -16,7 +16,9 @@ public sealed record WorkspacePreferencesDto(
     [property: JsonPropertyName("dateFormat")] string DateFormat,
     [property: JsonPropertyName("language")] string Language,
     [property: JsonPropertyName("region")] string Region,
-    [property: JsonPropertyName("defaultApps")] IReadOnlyList<DefaultAppMappingDto> DefaultApps)
+    [property: JsonPropertyName("defaultApps")] IReadOnlyList<DefaultAppMappingDto> DefaultApps,
+    [property: JsonPropertyName("notepadDefaultEncoding")] string? NotepadDefaultEncoding = TextEncodingPreferences.Default,
+    [property: JsonPropertyName("codeEditorDefaultEncoding")] string? CodeEditorDefaultEncoding = TextEncodingPreferences.Default)
 {
     // EF Core materializes the scalar JSON properties after constructing the owned type.
     // The public positional constructor cannot be used because DefaultApps is an owned
@@ -43,5 +45,7 @@ public sealed record WorkspacePreferencesDto(
         DateFormat: "yyyy/M/d",
         Language: "en-US",
         Region: "en-US",
-        DefaultApps: Array.Empty<DefaultAppMappingDto>());
+        DefaultApps: Array.Empty<DefaultAppMappingDto>(),
+        NotepadDefaultEncoding: TextEncodingPreferences.Default,
+        CodeEditorDefaultEncoding: TextEncodingPreferences.Default);
 }

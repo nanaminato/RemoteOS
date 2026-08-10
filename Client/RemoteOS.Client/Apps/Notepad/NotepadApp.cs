@@ -3,6 +3,7 @@ using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
+using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -40,7 +41,11 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
     private void OpenEditor(AppContext context, string? path)
     {
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
-        var viewModel = new NotepadViewModel(files);
+        var encodingSettings = context.Services.GetService(typeof(TextEditorEncodingSettings)) as TextEditorEncodingSettings;
+        var viewModel = new NotepadViewModel(files, encodingSettings?.NotepadDefaultEncoding ?? "UTF-8")
+        {
+            SaveDefaultEncodingAsync = encoding => encodingSettings?.SetNotepadDefaultEncodingAsync(encoding) ?? Task.CompletedTask,
+        };
         var view = new NotepadView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.notepad.display_name"), view,
             bounds: new Rect(160, 100, 820, 580),

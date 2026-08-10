@@ -3,7 +3,10 @@
     "Strings": {
         "code_editor.settings.title": "Code Editor settings",
         "code_editor.settings.font_size": "Editor font size",
+        "code_editor.settings.default_encoding": "Default encoding",
         "code_editor.settings.syntax_note": "Syntax highlighting is selected automatically from the remote file extension.",
+        "code_editor.encoding.reopen_with": "Reopen with Encoding",
+        "code_editor.encoding.save_with": "Save with Encoding",
         "code_editor.status.ready": "Ready",
         "code_editor.document.untitled": "Untitled",
         "code_editor.document.untitled_number": "Untitled {0}",

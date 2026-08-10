@@ -4,6 +4,7 @@ using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -50,8 +51,12 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
     {
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
+        var encodingSettings = context.Services.GetService(typeof(TextEditorEncodingSettings)) as TextEditorEncodingSettings;
         var pathCaseSensitive = session?.CurrentServer?.Platform != PlatformKind.Windows;
-        var viewModel = new CodeEditorViewModel(files, pathCaseSensitive);
+        var viewModel = new CodeEditorViewModel(files, pathCaseSensitive, encodingSettings?.CodeEditorDefaultEncoding ?? "UTF-8")
+        {
+            SaveDefaultEncodingAsync = encoding => encodingSettings?.SetCodeEditorDefaultEncodingAsync(encoding) ?? Task.CompletedTask,
+        };
         var view = new CodeEditorView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.codeeditor.display_name"), view,
             bounds: new Rect(140, 80, 920, 640),

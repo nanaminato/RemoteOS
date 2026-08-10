@@ -11,11 +11,23 @@ public sealed partial class NotepadViewModel : ObservableObject
     private readonly IExplorerClient? _files;
     private bool _isLoading;
 
-    public NotepadViewModel(IExplorerClient? files) => _files = files;
+    public NotepadViewModel(IExplorerClient? files, string defaultEncodingName = "UTF-8")
+    {
+        _files = files;
+        DefaultEncodingName = TextFileEncodings.IsSupported(defaultEncodingName) ? defaultEncodingName : "UTF-8";
+        EncodingName = DefaultEncodingName;
+        ReopenWithEncodingOptions = AvailableEncodings
+            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => ReopenWithEncodingAsync(encoding))))
+            .ToArray();
+        SaveWithEncodingOptions = AvailableEncodings
+            .Select(encoding => new EncodingMenuOption(encoding, new AsyncRelayCommand(() => SaveWithEncodingAsync(encoding))))
+            .ToArray();
+    }
 
     [ObservableProperty] private string _text = string.Empty;
     [ObservableProperty] private string? _currentPath;
     [ObservableProperty] private string _encodingName = "UTF-8";
+    [ObservableProperty] private string _defaultEncodingName = "UTF-8";
     [ObservableProperty] private double _fontSize = 14;
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private string _statusText = LocalizedText.Get("notepad.status.ready");
@@ -26,7 +38,10 @@ public sealed partial class NotepadViewModel : ObservableObject
     public string CharacterCountText => LocalizedText.Format("common.character_count_format", CharCount);
     public string DocumentName => string.IsNullOrWhiteSpace(CurrentPath) ? LocalizedText.Get("notepad.document.untitled") : Path.GetFileName(CurrentPath) ?? LocalizedText.Get("notepad.document.untitled");
     public IReadOnlyList<string> AvailableEncodings => TextFileEncodings.Available;
+    public IReadOnlyList<EncodingMenuOption> ReopenWithEncodingOptions { get; }
+    public IReadOnlyList<EncodingMenuOption> SaveWithEncodingOptions { get; }
     public IReadOnlyList<double> FontSizes { get; } = [12, 13, 14, 16, 18, 20];
+    public bool HasOpenFile => !string.IsNullOrWhiteSpace(CurrentPath);
 
     partial void OnTextChanged(string value)
     {
@@ -37,7 +52,17 @@ public sealed partial class NotepadViewModel : ObservableObject
         if (!_isLoading) IsDirty = true;
     }
 
-    partial void OnCurrentPathChanged(string? value) => OnPropertyChanged(nameof(DocumentName));
+    partial void OnCurrentPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(DocumentName));
+        OnPropertyChanged(nameof(HasOpenFile));
+    }
+
+    partial void OnDefaultEncodingNameChanged(string value)
+    {
+        if (TextFileEncodings.IsSupported(value))
+            _ = SaveDefaultEncodingAsync?.Invoke(value);
+    }
 
     [RelayCommand]
     private void NewDocument()
@@ -45,7 +70,7 @@ public sealed partial class NotepadViewModel : ObservableObject
         _isLoading = true;
         Text = string.Empty;
         CurrentPath = null;
-        EncodingName = "UTF-8";
+        EncodingName = DefaultEncodingName;
         IsDirty = false;
         StatusText = LocalizedText.Get("notepad.status.new_document");
         _isLoading = false;
@@ -55,6 +80,7 @@ public sealed partial class NotepadViewModel : ObservableObject
     public Func<string, Task<string?>>? RequestSavePathAsync { get; set; }
     public Func<Task>? RequestSettingsAsync { get; set; }
     public Action? CloseSettingsAction { get; set; }
+    public Func<string, Task>? SaveDefaultEncodingAsync { get; set; }
 
     [RelayCommand]
     private async Task OpenDocumentAsync()
@@ -80,16 +106,23 @@ public sealed partial class NotepadViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(path)) await SaveToPathAsync(path);
     }
 
-    [RelayCommand]
-    private async Task ReopenWithEncodingAsync()
+    private async Task ReopenWithEncodingAsync(string encodingName)
     {
-        if (string.IsNullOrWhiteSpace(CurrentPath)) return;
+        if (string.IsNullOrWhiteSpace(CurrentPath) || !TextFileEncodings.IsSupported(encodingName)) return;
         if (IsDirty)
         {
             StatusText = LocalizedText.Get("notepad.status.save_or_discard");
             return;
         }
-        await OpenPathAsync(CurrentPath);
+        EncodingName = encodingName;
+        await OpenPathAsync(CurrentPath, encodingName);
+    }
+
+    private async Task SaveWithEncodingAsync(string encodingName)
+    {
+        if (string.IsNullOrWhiteSpace(CurrentPath) || !TextFileEncodings.IsSupported(encodingName)) return;
+        EncodingName = encodingName;
+        await SaveToPathAsync(CurrentPath);
     }
 
     [RelayCommand]
@@ -99,18 +132,20 @@ public sealed partial class NotepadViewModel : ObservableObject
     [RelayCommand]
     private void CloseSettings() => CloseSettingsAction?.Invoke();
 
-    public async Task OpenPathAsync(string path)
+    public async Task OpenPathAsync(string path, string? requestedEncoding = null)
     {
         if (_files is null) { StatusText = LocalizedText.Get("notepad.status.connect_before_open"); return; }
         try
         {
             var bytes = await _files.ReadFileAsync(path);
             if (bytes is null) { StatusText = LocalizedText.Get("notepad.status.file_missing"); return; }
+            var encoding = requestedEncoding ?? DefaultEncodingName;
             _isLoading = true;
-            Text = TextFileEncodings.Decode(bytes, EncodingName);
+            Text = TextFileEncodings.Decode(bytes, encoding);
+            EncodingName = encoding;
             CurrentPath = path;
             IsDirty = false;
-            StatusText = LocalizedText.Format("notepad.status.opened", Path.GetFileName(path), EncodingName);
+            StatusText = LocalizedText.Format("notepad.status.opened", Path.GetFileName(path), encoding);
         }
         catch (Exception ex) { StatusText = LocalizedText.Format("notepad.status.open_failed", ex.Message); }
         finally { _isLoading = false; }

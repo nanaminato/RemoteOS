@@ -2,7 +2,9 @@
     "Culture": "zh-CN",
     "Strings": {
         "notepad.settings.title": "记事本设置",
-        "notepad.settings.encoding_note": "更改编码后，在重新打开当前远程文件时生效。",
+        "notepad.settings.default_encoding": "默认打开编码",
+        "notepad.encoding.reopen_with": "使用编码重新打开",
+        "notepad.encoding.save_with": "使用编码保存",
         "notepad.status.ready": "就绪",
         "notepad.document.untitled": "无标题",
         "notepad.status.new_document": "新建文档",

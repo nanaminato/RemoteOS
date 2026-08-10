@@ -2,7 +2,9 @@
     "Culture": "en-US",
     "Strings": {
         "notepad.settings.title": "Notebook settings",
-        "notepad.settings.encoding_note": "Changing the encoding applies when you reopen the current remote file.",
+        "notepad.settings.default_encoding": "Default encoding",
+        "notepad.encoding.reopen_with": "Reopen with Encoding",
+        "notepad.encoding.save_with": "Save with Encoding",
         "notepad.status.ready": "Ready",
         "notepad.document.untitled": "Untitled",
         "notepad.status.new_document": "New document",

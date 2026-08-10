@@ -1,15 +1,15 @@
 using System.Text;
+using System.Windows.Input;
+using RemoteOS.Protocol.Workspace;
 
 namespace Client.Apps;
 
 /// <summary>Shared encoding choices and byte conversion for the built-in text editors.</summary>
 internal static class TextFileEncodings
 {
-    public static IReadOnlyList<string> Available { get; } =
-    [
-        "UTF-8", "UTF-8 BOM", "UTF-16 LE", "UTF-16 BE", "UTF-32 LE", "UTF-32 BE",
-        "ASCII", "ISO-8859-1", "Windows-1252", "GB18030", "GBK", "Big5", "Shift JIS", "EUC-KR",
-    ];
+    public static IReadOnlyList<string> Available => TextEncodingPreferences.Supported;
+
+    public static bool IsSupported(string? encodingName) => TextEncodingPreferences.IsSupported(encodingName);
 
     static TextFileEncodings() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -50,3 +50,6 @@ internal static class TextFileEncodings
         _ => new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false),
     };
 }
+
+/// <summary>One command entry in an editor's status-bar encoding menu.</summary>
+public sealed record EncodingMenuOption(string Name, ICommand Command);

@@ -133,6 +133,14 @@ public static class WorkspaceEndpoints
         var region = request.Region?.Trim();
         if (region is { Length: > 16 })
             return false;
+        var notepadEncoding = request.NotepadDefaultEncoding?.Trim();
+        if (string.IsNullOrEmpty(notepadEncoding)) notepadEncoding = TextEncodingPreferences.Default;
+        if (!TextEncodingPreferences.IsSupported(notepadEncoding))
+            return false;
+        var codeEditorEncoding = request.CodeEditorDefaultEncoding?.Trim();
+        if (string.IsNullOrEmpty(codeEditorEncoding)) codeEditorEncoding = TextEncodingPreferences.Default;
+        if (!TextEncodingPreferences.IsSupported(codeEditorEncoding))
+            return false;
 
         var sourceApps = request.DefaultApps ?? Array.Empty<DefaultAppMappingDto>();
         if (sourceApps.Count > 64)
@@ -154,7 +162,7 @@ public static class WorkspaceEndpoints
             wallpaperKey, request.Theme, timeFormat!, dateFormat!,
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
-            deduped.Values.ToList());
+            deduped.Values.ToList(), notepadEncoding, codeEditorEncoding);
         return true;
     }
 
