@@ -89,7 +89,7 @@
             </Grid>
         </Border>
 
-        <!-- mstsc-style connection bar. The centre is intentionally reserved for future actions. -->
+        <!-- mstsc-style connection bar. Its centre exposes connection context and a drag handle. -->
         <Border x:Name="ConnectionBar" Classes="connection-bar"
                 HorizontalAlignment="Center" VerticalAlignment="Top" Width="520" Height="34"
                 ZIndex="20"
@@ -106,7 +106,28 @@
                 <Border Grid.Column="1" Width="1" Background="#D6D6D6" Margin="0,7" />
                 <Button Grid.Column="2" x:Name="PinButton" Classes="connection-action" Click="Pin_OnClick"
                         Content="{loc:Loc shell.connection_bar.pin}" ToolTip.Tip="{loc:Loc shell.connection_bar.pin_tooltip}" />
-                <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Center" />
+                <Border Grid.Column="3" x:Name="ConnectionDragHandle" Cursor="SizeWestEast"
+                        PointerPressed="ConnectionDragHandle_OnPointerPressed"
+                        PointerMoved="ConnectionDragHandle_OnPointerMoved"
+                        PointerReleased="ConnectionDragHandle_OnPointerReleased"
+                        ToolTip.Tip="{loc:Loc shell.connection_bar.drag_tooltip}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                        <TextBlock Text="⠿" FontSize="15" Opacity="0.45" VerticalAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                    ToolTip.Tip="{loc:Loc shell.connection.user}">
+                            <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="12" Opacity="0.65" />
+                            <TextBlock Text="{Binding ConnectionUser}" FontSize="12" MaxWidth="100"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Border Width="1" Height="14" Background="#D6D6D6" />
+                        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center"
+                                    ToolTip.Tip="{loc:Loc shell.connection.workspace}">
+                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="12" Opacity="0.65" />
+                            <TextBlock Text="{Binding ConnectionWorkspace}" FontSize="12" MaxWidth="130"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                 <Button Grid.Column="4" x:Name="FullScreenButton" Classes="connection-action"
                         Click="FullScreen_OnClick" Content="{loc:Loc shell.full_screen.enter}" ToolTip.Tip="{loc:Loc shell.full_screen.enter_tooltip}" />
                 <Border Grid.Column="5" Width="1" Background="#D6D6D6" Margin="0,7" />

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Client.Services.Auth;
 using Client.Services.WindowLayout;
@@ -16,6 +17,9 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _hideBarTimer;
     private bool _isPinned;
     private bool _isFullScreen;
+    private bool _isDraggingConnectionBar;
+    private Point _connectionDragStart;
+    private double _connectionBarOffset;
     private WindowState _windowStateBeforeFullScreen = WindowState.Maximized;
     private readonly LocalizationService _localization;
 
@@ -27,6 +31,7 @@ public partial class MainWindow : Window
         RefreshLocalizedText();
         _hideBarTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _hideBarTimer.Tick += (_, _) => HideConnectionBar();
+        SizeChanged += (_, _) => ApplyConnectionBarOffset();
     }
 
     private void ConnectionInfo_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -133,6 +138,48 @@ public partial class MainWindow : Window
     private void ConnectionBar_OnPointerEntered(object? sender, PointerEventArgs e) => _hideBarTimer.Stop();
 
     private void ConnectionBar_OnPointerExited(object? sender, PointerEventArgs e) => ScheduleConnectionBarHide();
+
+    private void ConnectionDragHandle_OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || sender is not Control handle)
+            return;
+
+        _isDraggingConnectionBar = true;
+        _connectionDragStart = e.GetPosition(this);
+        e.Pointer.Capture(handle);
+        e.Handled = true;
+    }
+
+    private void ConnectionDragHandle_OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isDraggingConnectionBar || sender is not Control handle || e.Pointer.Captured != handle)
+            return;
+
+        var current = e.GetPosition(this);
+        _connectionBarOffset += current.X - _connectionDragStart.X;
+        _connectionDragStart = current;
+        ApplyConnectionBarOffset();
+        e.Handled = true;
+    }
+
+    private void ConnectionDragHandle_OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isDraggingConnectionBar || sender is not Control handle)
+            return;
+
+        _isDraggingConnectionBar = false;
+        if (e.Pointer.Captured == handle)
+            e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void ApplyConnectionBarOffset()
+    {
+        // The bar is centred by layout, so retain only a bounded horizontal translation.
+        var maximumOffset = Math.Max(0, (Bounds.Width - ConnectionBar.Bounds.Width) / 2 - 8);
+        _connectionBarOffset = Math.Clamp(_connectionBarOffset, -maximumOffset, maximumOffset);
+        ConnectionBar.RenderTransform = new TranslateTransform(_connectionBarOffset, 0);
+    }
 
     private void ScheduleConnectionBarHide()
     {

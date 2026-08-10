@@ -10,7 +10,10 @@ namespace Client.Apps.ProcessGuardian;
 
 public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient client, IAuthSession session) : ObservableObject
 {
-    private int _latestRefreshVersion;
+    // The Guardian Agent accepts one local pipe connection at a time. Keep UI refreshes
+    // serialized too, otherwise concurrent status/list requests can time out and replace
+    // a freshly saved workload list with an empty response.
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private int _activeRefreshes;
     public ObservableCollection<GuardianWorkloadDto> Workloads { get; } = [];
     [ObservableProperty] private GuardianWorkloadDto? _selectedWorkload;
@@ -34,30 +37,30 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        var refreshVersion = Interlocked.Increment(ref _latestRefreshVersion);
+        await _refreshGate.WaitAsync();
         Interlocked.Increment(ref _activeRefreshes);
         IsLoading = true;
         try
         {
-            var statusTask = client.GetStatusAsync(); var workloadsTask = client.ListWorkloadsAsync();
-            await Task.WhenAll(statusTask, workloadsTask); var status = await statusTask;
-            if (refreshVersion != Volatile.Read(ref _latestRefreshVersion)) return;
+            // These are deliberately sequential: the Agent's pipe server has one instance.
+            var status = await client.GetStatusAsync();
+            var workloads = await client.ListWorkloadsAsync();
             StatusText = status.IsInstalled
                 ? LocalizedText.Format("guardian.status.available", status.Version ?? "")
                 : status.ProblemCode is "guardian.agent_not_configured" or "guardian.agent_not_installed"
                     ? LocalizedText.Get("guardian.status.install_required")
                     : LocalizedText.Format("guardian.status.unavailable", status.ProblemCode);
-            Workloads.Clear(); foreach (var workload in await workloadsTask) Workloads.Add(workload);
+            Workloads.Clear(); foreach (var workload in workloads) Workloads.Add(workload);
         }
         catch (Exception exception)
         {
-            if (refreshVersion == Volatile.Read(ref _latestRefreshVersion))
-                StatusText = LocalizedText.Format("guardian.status.failed", exception.Message);
+            StatusText = LocalizedText.Format("guardian.status.failed", exception.Message);
         }
         finally
         {
             if (Interlocked.Decrement(ref _activeRefreshes) == 0)
                 IsLoading = false;
+            _refreshGate.Release();
         }
     }
     [RelayCommand] private Task OpenCreateWorkloadAsync()

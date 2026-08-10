@@ -16,6 +16,7 @@
         "shell.connection_bar.pinned": "已固定",
         "shell.connection_bar.pin_tooltip": "固定连接栏",
         "shell.connection_bar.unpin_tooltip": "取消固定连接栏",
+        "shell.connection_bar.drag_tooltip": "向左或向右拖动连接栏",
         "shell.full_screen.enter": "全屏",
         "shell.full_screen.enter_tooltip": "进入全屏",
         "shell.full_screen.exit": "退出全屏"
