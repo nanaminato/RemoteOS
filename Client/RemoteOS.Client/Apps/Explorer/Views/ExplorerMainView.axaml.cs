@@ -24,6 +24,13 @@ public partial class ExplorerMainView : UserControl
         InitializeComponent();
     }
 
+    /// <summary>Moves keyboard focus to the current-folder address field.</summary>
+    public void FocusAddressBox()
+    {
+        AddressBox.Focus();
+        AddressBox.SelectAll();
+    }
+
     private ExplorerViewModel? ViewModel => DataContext as ExplorerViewModel;
 
     /// <summary>地址栏回车跳转。</summary>

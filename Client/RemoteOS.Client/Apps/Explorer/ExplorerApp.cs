@@ -14,6 +14,7 @@ using Client.Services;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Protocol.Files;
 using RemoteOS.Protocol.Workspace;
@@ -64,6 +65,26 @@ public sealed class ExplorerApp : RemoteApplicationBase
             bounds: new Rect(80, 60, 960, 640),
             iconGlyph: Manifest.IconGlyph);
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
+        window.KeyDown += (_, e) =>
+        {
+            if (e.Key == RemoteKey.Letter('L') && e.Modifiers == RemoteKeyModifiers.Control)
+            {
+                view.FocusAddressBox();
+                e.Handled = true;
+                return;
+            }
+
+            _ = WindowShortcut.TryExecute(e, RemoteKey.Left, RemoteKeyModifiers.Alt, viewModel.GoBackCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Right, RemoteKeyModifiers.Alt, viewModel.GoForwardCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Up, RemoteKeyModifiers.Alt, viewModel.GoUpCommand)
+                || WindowShortcut.TryExecute(e, new RemoteKey("F5"), RemoteKeyModifiers.None, viewModel.RefreshCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('N'), RemoteKeyModifiers.Control | RemoteKeyModifiers.Shift, viewModel.NewFolderCommand)
+                || WindowShortcut.TryExecute(e, new RemoteKey("F2"), RemoteKeyModifiers.None, viewModel.RenameCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Delete, RemoteKeyModifiers.None, viewModel.DeleteCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('C'), RemoteKeyModifiers.Control, viewModel.CopyCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('X'), RemoteKeyModifiers.Control, viewModel.CutCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('V'), RemoteKeyModifiers.Control, viewModel.PasteCommand);
+        };
 
         // 窗口打开后异步加载根
         _ = viewModel.LoadRootAsync();

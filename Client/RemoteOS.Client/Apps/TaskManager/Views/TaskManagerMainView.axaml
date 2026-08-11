@@ -45,7 +45,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" Padding="12,6" />
+                    <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" Padding="12,6" ToolTip.Tip="F5" />
                     <CheckBox Content="{loc:Loc task_manager.auto_refresh}" IsChecked="{Binding IsAutoRefresh, Mode=TwoWay}"
                               VerticalAlignment="Center" />
                 </StackPanel>
@@ -233,7 +233,7 @@
                 <!-- 工具栏：过滤 + 结束任务 -->
                 <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,6">
                     <Grid ColumnDefinitions="*,Auto,Auto">
-                        <TextBox Grid.Column="0" Text="{Binding ProcessFilter, Mode=TwoWay}"
+                        <TextBox x:Name="FilterBox" Grid.Column="0" Text="{Binding ProcessFilter, Mode=TwoWay}"
                                  PlaceholderText="{loc:Loc task_manager.filter_placeholder}"
                                  KeyDown="FilterBox_KeyDown" />
                         <Button Grid.Column="1" Content="{loc:Loc common.clear}" Command="{Binding ClearFilterCommand}" Padding="12,6" Margin="6,0,0,0" />

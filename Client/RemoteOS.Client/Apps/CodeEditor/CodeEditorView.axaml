@@ -12,12 +12,12 @@
             <Grid ColumnDefinitions="Auto,*">
                 <Menu Grid.Column="0" Background="Transparent" BorderThickness="0">
                     <MenuItem Header="{loc:Loc common.file}">
-                        <MenuItem Header="{loc:Loc common.new}" Command="{Binding NewDocumentCommand}" />
-                        <MenuItem Header="{loc:Loc common.open_ellipsis}" Command="{Binding OpenDocumentCommand}" />
+                        <MenuItem Header="{loc:Loc common.new}" Command="{Binding NewDocumentCommand}" InputGesture="Ctrl+N" />
+                        <MenuItem Header="{loc:Loc common.open_ellipsis}" Command="{Binding OpenDocumentCommand}" InputGesture="Ctrl+O" />
                         <MenuItem Header="{loc:Loc code_editor.add_folder}" Command="{Binding AddFolderCommand}" />
                         <Separator />
-                        <MenuItem Header="{loc:Loc common.save}" Command="{Binding SaveCommand}" />
-                        <MenuItem Header="{loc:Loc common.save_as_ellipsis}" Command="{Binding SaveAsCommand}" />
+                        <MenuItem Header="{loc:Loc common.save}" Command="{Binding SaveCommand}" InputGesture="Ctrl+S" />
+                        <MenuItem Header="{loc:Loc common.save_as_ellipsis}" Command="{Binding SaveAsCommand}" InputGesture="Ctrl+Shift+S" />
                     </MenuItem>
                     <MenuItem Header="{loc:Loc common.settings}">
                         <MenuItem Header="{loc:Loc common.preferences_ellipsis}" Command="{Binding OpenSettingsCommand}" />

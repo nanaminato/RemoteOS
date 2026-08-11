@@ -7,6 +7,7 @@ using Client.Services.Auth;
 using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Protocol.Common;
 using AppContext = RemoteOS.AppSDK.AppContext;
@@ -61,6 +62,14 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.codeeditor.display_name"), view,
             bounds: new Rect(140, 80, 920, 640),
             iconGlyph: Manifest.IconGlyph);
+        window.KeyDown += (_, e) =>
+        {
+            _ = WindowShortcut.TryExecute(e, RemoteKey.Letter('N'), RemoteKeyModifiers.Control, viewModel.NewDocumentCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('O'), RemoteKeyModifiers.Control, viewModel.OpenDocumentCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('S'), RemoteKeyModifiers.Control, viewModel.SaveCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('S'), RemoteKeyModifiers.Control | RemoteKeyModifiers.Shift, viewModel.SaveAsCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('W'), RemoteKeyModifiers.Control, viewModel.CloseDocumentCommand);
+        };
 
         viewModel.RequestFileAsync = () => files is null
             ? Task.FromResult<string?>(null)

@@ -51,6 +51,13 @@ public partial class BrowserMainView : UserControl
         Unloaded += OnUnloaded;
     }
 
+    /// <summary>Moves keyboard focus to the address field and selects the current address.</summary>
+    public void FocusAddressBox()
+    {
+        AddressBox.Focus();
+        AddressBox.SelectAll();
+    }
+
     private void CreateEmbeddedWebView()
     {
         _webView = new NativeWebView();

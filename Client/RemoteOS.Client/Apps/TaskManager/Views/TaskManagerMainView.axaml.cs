@@ -15,6 +15,13 @@ public partial class TaskManagerMainView : UserControl
         Unloaded += OnUnloaded;
     }
 
+    /// <summary>Moves keyboard focus to the process filter field.</summary>
+    public void FocusProcessFilter()
+    {
+        FilterBox.Focus();
+        FilterBox.SelectAll();
+    }
+
     private TaskManagerViewModel? ViewModel => DataContext as TaskManagerViewModel;
 
     private void FilterBox_KeyDown(object? sender, KeyEventArgs e)

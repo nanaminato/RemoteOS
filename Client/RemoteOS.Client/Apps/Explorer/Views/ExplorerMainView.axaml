@@ -23,24 +23,24 @@
         <!-- 顶部菜单栏（简化版） -->
         <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
             <MenuItem Header="{loc:Loc explorer.menu.file}">
-                <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" InputGesture="Ctrl+Shift+N" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload}" Command="{Binding UploadCommand}" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload_folder}" Command="{Binding UploadFolderCommand}" />
                 <Separator />
                 <MenuItem Header="{loc:Loc explorer.menu.exit}" Command="{Binding CloseCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Loc explorer.menu.edit}">
-                <MenuItem Header="{loc:Loc explorer.menu.delete}" Command="{Binding DeleteCommand}" />
-                <MenuItem Header="{loc:Loc explorer.menu.rename}" Command="{Binding RenameCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.delete}" Command="{Binding DeleteCommand}" InputGesture="Delete" />
+                <MenuItem Header="{loc:Loc explorer.menu.rename}" Command="{Binding RenameCommand}" InputGesture="F2" />
                 <Separator />
-                <MenuItem Header="{loc:Loc explorer.menu.copy}" Command="{Binding CopyCommand}" />
-                <MenuItem Header="{loc:Loc explorer.menu.cut}" Command="{Binding CutCommand}" />
-                <MenuItem Header="{loc:Loc explorer.menu.paste}" Command="{Binding PasteCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.copy}" Command="{Binding CopyCommand}" InputGesture="Ctrl+C" />
+                <MenuItem Header="{loc:Loc explorer.menu.cut}" Command="{Binding CutCommand}" InputGesture="Ctrl+X" />
+                <MenuItem Header="{loc:Loc explorer.menu.paste}" Command="{Binding PasteCommand}" InputGesture="Ctrl+V" />
                 <MenuItem Header="{loc:Loc explorer.menu.paste_host}" Command="{Binding PasteFromHostCommand}" />
                 <MenuItem Header="{loc:Loc explorer.menu.move}" Command="{Binding MoveCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Loc explorer.menu.view}">
-                <MenuItem Header="{loc:Loc explorer.menu.refresh}" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="{loc:Loc explorer.menu.refresh}" Command="{Binding RefreshCommand}" InputGesture="F5" />
             </MenuItem>
             <MenuItem Header="{loc:Loc explorer.menu.help}">
                 <MenuItem Header="{loc:Loc explorer.menu.about}" Command="{Binding AboutCommand}" />

@@ -1,8 +1,10 @@
 using Client.Apps.Explorer;
 using Client.Apps.ImageViewer.ViewModels;
 using Client.Apps.ImageViewer.Views;
+using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
@@ -34,6 +36,15 @@ public sealed class ImageViewerApp : RemoteApplicationBase, IFileOpenApplication
         var window = context.ShowWindow("Image Viewer", view,
             bounds: new Rect(180, 100, 880, 640),
             iconGlyph: Manifest.IconGlyph);
+        window.KeyDown += (_, e) =>
+        {
+            if (e.Modifiers == RemoteKeyModifiers.Control && e.Key.Value is "Add" or "OemPlus")
+                WindowShortcut.TryExecute(e, e.Key, RemoteKeyModifiers.Control, viewModel.ZoomInCommand);
+            else if (e.Modifiers == RemoteKeyModifiers.Control && e.Key.Value is "Subtract" or "OemMinus")
+                WindowShortcut.TryExecute(e, e.Key, RemoteKeyModifiers.Control, viewModel.ZoomOutCommand);
+            else
+                WindowShortcut.TryExecute(e, RemoteKey.Digit(0), RemoteKeyModifiers.Control, viewModel.ResetZoomCommand);
+        };
 
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, closedWindow) =>

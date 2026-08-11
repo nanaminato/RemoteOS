@@ -30,22 +30,22 @@
                 <MenuItem Header="{loc:Loc common.close}" Command="{Binding CloseCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Loc browser.menu.navigate}">
-                <MenuItem Header="{loc:Loc common.back}" Command="{Binding GoBackCommand}" />
-                <MenuItem Header="{loc:Loc common.forward}" Command="{Binding GoForwardCommand}" />
+                <MenuItem Header="{loc:Loc common.back}" Command="{Binding GoBackCommand}" InputGesture="Alt+Left" />
+                <MenuItem Header="{loc:Loc common.forward}" Command="{Binding GoForwardCommand}" InputGesture="Alt+Right" />
                 <MenuItem Header="{loc:Loc common.home}" Command="{Binding GoHomeCommand}" />
                 <Separator />
-                <MenuItem Header="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" InputGesture="Ctrl+R" />
                 <MenuItem Header="{loc:Loc common.stop}" Command="{Binding StopCommand}" />
             </MenuItem>
             <MenuItem Header="{loc:Loc browser.bookmarks}">
-                <MenuItem Header="{loc:Loc browser.toggle_bookmark}" Command="{Binding ToggleBookmarkCommand}" />
+                <MenuItem Header="{loc:Loc browser.toggle_bookmark}" Command="{Binding ToggleBookmarkCommand}" InputGesture="Ctrl+D" />
                 <Separator />
                 <MenuItem Header="{loc:Loc browser.show_bookmarks}" Command="{Binding SwitchToBookmarksCommand}" />
-                <MenuItem Header="{loc:Loc browser.show_history}" Command="{Binding SwitchToHistoryCommand}" />
+                <MenuItem Header="{loc:Loc browser.show_history}" Command="{Binding SwitchToHistoryCommand}" InputGesture="Ctrl+H" />
             </MenuItem>
             <MenuItem Header="{loc:Loc common.view}">
                 <MenuItem Header="{loc:Loc browser.toggle_sidebar}" Command="{Binding ToggleSidebarCommand}" />
-                <MenuItem Header="{Binding FullScreenMenuText}" Command="{Binding ToggleFullScreenCommand}" />
+                <MenuItem Header="{Binding FullScreenMenuText}" Command="{Binding ToggleFullScreenCommand}" InputGesture="F11" />
             </MenuItem>
         </Menu>
 

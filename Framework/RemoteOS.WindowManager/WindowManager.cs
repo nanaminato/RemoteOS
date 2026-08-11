@@ -458,6 +458,18 @@ public sealed class WindowManager : IWindowManager
 
     private void HandleWindowKeyDown(ManagedWindow window, RemoteKeyEventArgs e)
     {
+        // Keep the conventional desktop close gesture available to every managed application.
+        // Dialogs retain their existing Escape-to-cancel behavior below; Alt+F4 closes the
+        // focused managed surface in the same way as its title-bar close button.
+        if (!e.IsRepeat
+            && e.Key == new RemoteKey("F4")
+            && e.Modifiers == RemoteKeyModifiers.Alt)
+        {
+            Close(window);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != RemoteKey.Escape)
             return;
 

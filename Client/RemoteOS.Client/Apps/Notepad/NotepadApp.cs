@@ -6,6 +6,7 @@ using Client.Localization;
 using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
@@ -50,6 +51,13 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.notepad.display_name"), view,
             bounds: new Rect(160, 100, 820, 580),
             iconGlyph: Manifest.IconGlyph);
+        window.KeyDown += (_, e) =>
+        {
+            _ = WindowShortcut.TryExecute(e, RemoteKey.Letter('N'), RemoteKeyModifiers.Control, viewModel.NewDocumentCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('O'), RemoteKeyModifiers.Control, viewModel.OpenDocumentCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('S'), RemoteKeyModifiers.Control, viewModel.SaveCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('S'), RemoteKeyModifiers.Control | RemoteKeyModifiers.Shift, viewModel.SaveAsCommand);
+        };
 
         viewModel.RequestFileAsync = () => files is null
             ? Task.FromResult<string?>(null)

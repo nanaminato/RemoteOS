@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Client.Localization;
+using Client.Services;
 using Client.Apps.Browser.ViewModels;
 using Client.Apps.Browser.Views;
 using Client.Services.Auth;
@@ -59,6 +60,22 @@ public sealed class BrowserApp : RemoteApplicationBase
             iconGlyph: Manifest.IconGlyph);
         window.KeyDown += (_, e) =>
         {
+            if (e.Key == RemoteKey.Letter('L') && e.Modifiers == RemoteKeyModifiers.Control)
+            {
+                view.FocusAddressBox();
+                e.Handled = true;
+                return;
+            }
+
+            if (WindowShortcut.TryExecute(e, RemoteKey.Left, RemoteKeyModifiers.Alt, viewModel.GoBackCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Right, RemoteKeyModifiers.Alt, viewModel.GoForwardCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('R'), RemoteKeyModifiers.Control, viewModel.RefreshCommand)
+                || WindowShortcut.TryExecute(e, new RemoteKey("F5"), RemoteKeyModifiers.None, viewModel.RefreshCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('D'), RemoteKeyModifiers.Control, viewModel.ToggleBookmarkCommand)
+                || WindowShortcut.TryExecute(e, RemoteKey.Letter('H'), RemoteKeyModifiers.Control, viewModel.SwitchToHistoryCommand)
+                || WindowShortcut.TryExecute(e, new RemoteKey("F11"), RemoteKeyModifiers.None, viewModel.ToggleFullScreenCommand))
+                return;
+
             if (e.Key != RemoteKey.Escape || !window.IsFullScreen)
                 return;
 

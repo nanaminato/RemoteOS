@@ -6,8 +6,10 @@ using Client.Localization;
 using Client.Apps.TaskManager.ViewModels;
 using Client.Apps.TaskManager.Views;
 using Client.Services.Auth;
+using Client.Services;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
@@ -55,6 +57,17 @@ public sealed class TaskManagerApp : RemoteApplicationBase
             bounds: new Rect(70, 55, 980, 680),
             iconGlyph: Manifest.IconGlyph);
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
+        window.KeyDown += (_, e) =>
+        {
+            if (e.Key == RemoteKey.Letter('F') && e.Modifiers == RemoteKeyModifiers.Control)
+            {
+                view.FocusProcessFilter();
+                e.Handled = true;
+                return;
+            }
+
+            WindowShortcut.TryExecute(e, new RemoteKey("F5"), RemoteKeyModifiers.None, viewModel.RefreshCommand);
+        };
 
         // 窗口打开后启动实时刷新
         _ = viewModel.StartAsync();
