@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.ViewModels.Shell"
              xmlns:wm="clr-namespace:RemoteOS.WindowManager;assembly=RemoteOS.WindowManager"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -329,9 +330,11 @@
                     <Button Classes="start-item" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Command="{Binding ShutdownCommand}">
                         <Grid ColumnDefinitions="40,*">
-                            <TextBlock Grid.Column="0" Text="&#xE7E8;" FontFamily="Segoe MDL2 Assets"
-                                       FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="Shut down" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            <Path Grid.Column="0"
+                                  Data="M 12,2 L 12,12 M 6.34,4.34 A 8,8 0 1 0 17.66,4.34"
+                                  Stroke="#4B5563" StrokeThickness="2" StrokeLineCap="Round"
+                                  Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{loc:Loc shell.shutdown}" Margin="10,0,0,0" VerticalAlignment="Center" />
                         </Grid>
                     </Button>
                 </Border>

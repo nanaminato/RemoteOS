@@ -65,6 +65,8 @@
                         ToolTip.Tip="{loc:Loc browser.toggle_bookmark}" />
                 <Separator Margin="6,0" />
                 <Button Classes="icon" Content="📑" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="{loc:Loc browser.toggle_sidebar}" />
+                <Button Content="{loc:Loc browser.toolbar.full_screen}" Command="{Binding ToggleFullScreenCommand}" />
+                <Button Content="{loc:Loc common.settings}" Command="{Binding OpenSettingsCommand}" />
             </StackPanel>
         </Border>
 
@@ -209,7 +211,14 @@
             <!-- Linux delegates pages to the system browser process; other platforms use
                  an embedded NativeWebView. This avoids an unsupported WebKitGTK host. -->
             <Grid Grid.Column="2" Background="#FFFFFF">
-                <ContentControl x:Name="WebViewHost" />
+                <ContentControl x:Name="WebViewHost">
+                    <ContentControl.Content>
+                        <Border Padding="24">
+                            <TextBlock Text="{loc:Loc browser.linux.external_browser_notice}"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                    </ContentControl.Content>
+                </ContentControl>
             </Grid>
         </Grid>
     </DockPanel>

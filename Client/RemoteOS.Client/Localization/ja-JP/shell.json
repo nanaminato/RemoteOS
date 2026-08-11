@@ -17,6 +17,7 @@
         "shell.connection_bar.pin_tooltip": "接続バーを固定",
         "shell.connection_bar.unpin_tooltip": "接続バーの固定を解除",
         "shell.connection_bar.drag_tooltip": "接続バーを左右にドラッグ",
+        "shell.shutdown": "シャットダウン",
         "shell.full_screen.enter": "全画面表示",
         "shell.full_screen.enter_tooltip": "全画面表示に切り替える",
         "shell.full_screen.exit": "全画面表示を終了"

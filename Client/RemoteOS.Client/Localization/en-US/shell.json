@@ -17,6 +17,7 @@
         "shell.connection_bar.pin_tooltip": "Pin connection bar",
         "shell.connection_bar.unpin_tooltip": "Unpin connection bar",
         "shell.connection_bar.drag_tooltip": "Drag the connection bar left or right",
+        "shell.shutdown": "Shut down",
         "shell.full_screen.enter": "Full screen",
         "shell.full_screen.enter_tooltip": "Enter full screen",
         "shell.full_screen.exit": "Exit full screen"

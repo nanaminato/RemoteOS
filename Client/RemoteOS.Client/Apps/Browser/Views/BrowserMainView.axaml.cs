@@ -20,7 +20,6 @@ public partial class BrowserMainView : UserControl
     private readonly bool _useExternalBrowser = OperatingSystem.IsLinux();
     private NativeWebView? _webView;
     private double _sidebarWidth = DefaultSidebarWidth;
-    private bool _settingsButtonAdded;
 
     private ColumnDefinition SidebarColumn => BrowserContentGrid.ColumnDefinitions[0];
     private ColumnDefinition SidebarSplitterColumn => BrowserContentGrid.ColumnDefinitions[1];
@@ -31,22 +30,9 @@ public partial class BrowserMainView : UserControl
         BrowserDiagnostics.Record(_useExternalBrowser
             ? "BrowserMainView initialized; Linux will use the system browser process."
             : "BrowserMainView initialized; creating embedded NativeWebView.");
-        if (_useExternalBrowser)
-        {
-            WebViewHost.Content = new Border
-            {
-                Padding = new Thickness(24),
-                Child = new TextBlock
-                {
-                    Text = "Web pages open in your system browser on Linux.",
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                },
-            };
-        }
-        else
-        {
+        // On Linux, retain the localized XAML fallback; other platforms host NativeWebView.
+        if (!_useExternalBrowser)
             CreateEmbeddedWebView();
-        }
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -100,31 +86,8 @@ public partial class BrowserMainView : UserControl
         BrowserDiagnostics.Record("BrowserMainView loaded.");
         WireWebViewCommands();
         ObserveViewModel();
-        MoveBrowserSettingsToDialog();
         // Let an embedded WebView receive keyboard input.
         _webView?.Focus();
-    }
-
-    private void MoveBrowserSettingsToDialog()
-    {
-        if (_settingsButtonAdded || Content is not DockPanel root)
-            return;
-
-        var toolbar = root.Children.OfType<Border>().FirstOrDefault()?.Child as StackPanel;
-        if (toolbar is null)
-            return;
-
-        toolbar.Children.Add(new Button
-        {
-            Content = "Full screen",
-            Command = ViewModel?.ToggleFullScreenCommand,
-        });
-        toolbar.Children.Add(new Button
-        {
-            Content = "Settings",
-            Command = ViewModel?.OpenSettingsCommand,
-        });
-        _settingsButtonAdded = true;
     }
 
     /// <summary>把 VM 的 GoBack/GoForward/Refresh/Stop 命令接到 NativeWebView 的实际方法。</summary>
