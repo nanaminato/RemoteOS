@@ -161,9 +161,10 @@
 
             <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns" />
 
-            <!-- File Explorer-style details view. The DataGrid owns its headers, cells,
-                 sorting indicators, and column resize handles, so every row always uses
-                 the exact same column geometry. -->
+            <!-- File Explorer-style details view. Each column starts with a fixed width:
+                 spare viewport space remains empty instead of stretching a column;
+                 narrower viewports use the grid's horizontal scrollbar. Users can drag
+                 the header dividers to change any column width. -->
             <DataGrid Grid.Column="2"
                       x:Name="EntriesGrid"
                       ItemsSource="{Binding Entries}"
@@ -174,6 +175,8 @@
                       IsReadOnly="True"
                       CanUserResizeColumns="True"
                       CanUserSortColumns="True"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
                       GridLinesVisibility="None"
                       RowHeight="32"
                       ColumnHeaderHeight="30"
@@ -213,7 +216,7 @@
                     </Style>
                 </DataGrid.Styles>
                 <DataGrid.Columns>
-                    <DataGridTemplateColumn Header="{loc:Loc common.name}" Width="*" MinWidth="180" SortMemberPath="Name">
+                    <DataGridTemplateColumn Header="{loc:Loc common.name}" Width="300" MinWidth="180" SortMemberPath="Name">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,2">
@@ -225,7 +228,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{loc:Loc explorer.size}" Width="110" MinWidth="96" SortMemberPath="Size">
+                    <DataGridTemplateColumn Header="{loc:Loc explorer.size}" Width="112" MinWidth="96" SortMemberPath="Size">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Size, Converter={StaticResource SizeConverter}}" Padding="8,0"
@@ -233,7 +236,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{loc:Loc explorer.modified}" Width="160" MinWidth="150" SortMemberPath="Modified">
+                    <DataGridTemplateColumn Header="{loc:Loc explorer.modified}" Width="164" MinWidth="150" SortMemberPath="Modified">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Modified, StringFormat='{}{0:yyyy/MM/dd HH:mm}'}" Padding="8,0"
@@ -241,7 +244,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="{loc:Loc common.type}" Width="110" MinWidth="96" SortMemberPath="Type">
+                    <DataGridTemplateColumn Header="{loc:Loc common.type}" Width="120" MinWidth="96" SortMemberPath="Type">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="d:FileSystemEntryDto">
                                 <TextBlock Text="{Binding Type, Converter={StaticResource TypeTextConverter}}" Padding="8,0"
