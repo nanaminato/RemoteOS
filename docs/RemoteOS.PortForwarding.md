@@ -15,8 +15,8 @@ for the next bindable loopback port and returns that effective URL.
   They cannot become arbitrary network proxies.
 - SSH authentication is delegated to the host `ssh` program and its existing config, key files, and
   agent. RemoteOS neither collects nor stores passwords, private keys, or tokens.
-- The service is registered as `IPortForwardingService`, so first-party callers can request a tunnel
-  and receive `PortForwardInfo.LocalUri` without opening the UI.
+- The service is registered as `IPortForwardingService` for the Port Forwarding application's local
+  lifecycle; RemoteBrowser does not call it or create tunnels automatically.
 
 ## Local-only state
 

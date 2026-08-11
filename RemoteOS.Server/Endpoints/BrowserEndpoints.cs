@@ -1,8 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 using RemoteOS.Protocol.Browser;
-using Server.Browser;
 using Server.Storage;
 
 namespace Server.Endpoints;
@@ -35,45 +33,6 @@ public static class BrowserEndpoints
         })
         .RequireAuthorization()
         .WithTags("Browser");
-
-        app.MapMethods(BrowserApiRoutes.LocalPortForwarding,
-            ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-            async (HttpContext context, string host, string scheme, int port, string? path,
-                ClaimsPrincipal principal, IWorkspaceRepository workspaces, LocalPortForwarder forwarder) =>
-            {
-                var workspace = workspaces.FindByUserId(GetUserId(principal));
-                if (workspace?.BrowserSettings.LocalPortForwardingEnabled != true)
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsync("Local port forwarding is disabled for this browser.", context.RequestAborted);
-                    return;
-                }
-
-                // The initial WebView navigation carries a normal JWT in its query string.
-                // Exchange it for an HttpOnly path-scoped cookie before loading the real page,
-                // so subresources and forms are authenticated without exposing the JWT to scripts.
-                if (context.Request.Query.TryGetValue(BrowserApiRoutes.LocalPortForwardingTokenQuery, out var token) && !string.IsNullOrWhiteSpace(token))
-                {
-                    context.Response.Cookies.Append(BrowserApiRoutes.LocalPortForwardingAuthCookie, token!, new CookieOptions
-                    {
-                        HttpOnly = true,
-                        IsEssential = true,
-                        SameSite = SameSiteMode.Strict,
-                        Secure = context.Request.IsHttps,
-                        Path = BrowserApiRoutes.LocalPortForwardingPrefix,
-                        MaxAge = TimeSpan.FromHours(8),
-                    });
-                    var query = context.Request.Query
-                        .Where(pair => !pair.Key.Equals(BrowserApiRoutes.LocalPortForwardingTokenQuery, StringComparison.OrdinalIgnoreCase))
-                        .SelectMany(pair => pair.Value.Select(value => new KeyValuePair<string, string?>(pair.Key, value)));
-                    context.Response.Redirect(context.Request.Path + QueryString.Create(query));
-                    return;
-                }
-
-                await forwarder.ForwardAsync(context, host, scheme, port, path, context.RequestAborted);
-            })
-            .RequireAuthorization()
-            .WithTags("Browser");
 
         // ── bookmarks ──
 

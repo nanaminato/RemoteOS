@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Client.Localization;
 using Client.Apps.Browser;
-using Client.Apps.PortForwarding;
 using RemoteOS.Protocol.Browser;
 
 namespace Client.Apps.Browser.ViewModels;
@@ -23,14 +22,11 @@ namespace Client.Apps.Browser.ViewModels;
 public sealed partial class BrowserViewModel : ObservableObject
 {
     private readonly IBrowserClient _client;
-    private readonly IPortForwardingService? _portForwards;
-    private bool _savedLocalPortForwardingEnabled;
     private Uri? _currentUri;          // 当前 WebView 实际加载的 URI（区别于地址栏文本，可能正在输入未提交）
 
-    public BrowserViewModel(IBrowserClient client, IPortForwardingService? portForwards = null)
+    public BrowserViewModel(IBrowserClient client)
     {
         _client = client;
-        _portForwards = portForwards;
         Bookmarks = new ObservableCollection<BookmarkDto>();
         History = new ObservableCollection<HistoryEntryDto>();
     }
@@ -53,8 +49,6 @@ public sealed partial class BrowserViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FullScreenMenuText))]
     private bool _isFullScreen;
-    [ObservableProperty] private bool _isLocalPortForwardingEnabled;
-    [ObservableProperty] private string _localPortForwardingStatus = LocalizedText.Get("browser.port_forwarding.off");
     [ObservableProperty] private string _homePageText = BrowserSettingsDto.Default.HomePage!;
     [ObservableProperty] private BrowserLinkOpenTarget _linkOpenTarget = BrowserLinkOpenTarget.BuiltInBrowser;
 
@@ -79,11 +73,10 @@ public sealed partial class BrowserViewModel : ObservableObject
     /// 更新地址栏为实际正在加载的 URI；记录"开始加载"状态。</summary>
     public void OnNavigationStarted(Uri url)
     {
-        var displayUrl = ToDisplayUrl(url);
-        _currentUri = displayUrl;
-        AddressText = displayUrl.IsAbsoluteUri ? displayUrl.ToString() : displayUrl.OriginalString;
+        _currentUri = url;
+        AddressText = url.IsAbsoluteUri ? url.ToString() : url.OriginalString;
         IsLoading = true;
-        StatusText = LocalizedText.Format("browser.status.loading_url", displayUrl);
+        StatusText = LocalizedText.Format("browser.status.loading_url", url);
     }
 
     /// <summary>由 View code-behind 在 NativeWebView.NavigationCompleted 触发时调用。
@@ -93,13 +86,12 @@ public sealed partial class BrowserViewModel : ObservableObject
         IsLoading = false;
         if (url is not null && isSuccess)
         {
-            var displayUrl = ToDisplayUrl(url);
-            _currentUri = displayUrl;
-            AddressText = displayUrl.ToString();
-            StatusText = LocalizedText.Format("browser.status.completed", displayUrl);
+            _currentUri = url;
+            AddressText = url.ToString();
+            StatusText = LocalizedText.Format("browser.status.completed", url);
             // 异步记录到服务端历史（fire-and-forget 友好：失败只更新状态栏不阻塞 UI）
-            _ = RecordVisitAsync(displayUrl);
-            _ = RefreshBookmarkStarAsync(displayUrl);
+            _ = RecordVisitAsync(url);
+            _ = RefreshBookmarkStarAsync(url);
         }
         else
         {
@@ -113,52 +105,32 @@ public sealed partial class BrowserViewModel : ObservableObject
     /// 同步当前 URI（用于历史记录与书签星标刷新）。</summary>
     public void OnNavigatedToExisting(Uri url)
     {
-        var displayUrl = ToDisplayUrl(url);
-        _currentUri = displayUrl;
-        AddressText = displayUrl.IsAbsoluteUri ? displayUrl.ToString() : displayUrl.OriginalString;
-        _ = RefreshBookmarkStarAsync(displayUrl);
+        _currentUri = url;
+        AddressText = url.IsAbsoluteUri ? url.ToString() : url.OriginalString;
+        _ = RefreshBookmarkStarAsync(url);
     }
 
     // ---- 导航命令 ----
 
     [RelayCommand]
-    private async Task NavigateAsync(string? address)
+    private Task NavigateAsync(string? address)
     {
         BrowserDiagnostics.Record("Browser navigation requested from command.");
         var uri = NormalizeAddress(address);
         if (uri is null)
         {
             StatusText = LocalizedText.Get("browser.status.invalid_address");
-            return;
-        }
-        var displayUri = uri;
-        // Loopback names refer to the Client host from a WebView. Ask the host-local tunnel
-        // manager for a server-loopback mapping first, then navigate to its effective URL.
-        if (IsLoopbackTarget(uri) && _portForwards is not null
-            && !_portForwards.List().Any(forward => forward.LocalPort == uri.Port))
-        {
-            try
-            {
-                var forward = await _portForwards.StartAsync(new PortForwardRequest(
-                    uri.Host, uri.Port, uri.Scheme, uri.Port, uri.PathAndQuery));
-                uri = forward.LocalUri;
-                displayUri = uri;
-            }
-            catch (Exception ex)
-            {
-                StatusText = LocalizedText.Format("browser.status.port_mapping_create_failed", ex.Message);
-                return;
-            }
+            return Task.CompletedTask;
         }
 
         if (LinkOpenTarget == BrowserLinkOpenTarget.HostBrowser)
         {
-            OpenWithHostRequested?.Invoke(displayUri);
-            _currentUri = displayUri;
-            AddressText = displayUri.ToString();
-            StatusText = LocalizedText.Format("browser.status.opened_on_host", displayUri);
-            _ = RecordVisitAsync(displayUri);
-            return;
+            OpenWithHostRequested?.Invoke(uri);
+            _currentUri = uri;
+            AddressText = uri.ToString();
+            StatusText = LocalizedText.Format("browser.status.opened_on_host", uri);
+            _ = RecordVisitAsync(uri);
+            return Task.CompletedTask;
         }
 
         WebViewSource = uri;
@@ -166,11 +138,12 @@ public sealed partial class BrowserViewModel : ObservableObject
         // OnNavigationStarted 由 View 转发；这里也同步一份防事件丢失
         if (_currentUri != uri)
         {
-            _currentUri = displayUri;
-            AddressText = displayUri.ToString();
+            _currentUri = uri;
+            AddressText = uri.ToString();
             IsLoading = true;
-            StatusText = LocalizedText.Format("browser.status.loading_url", displayUri);
+            StatusText = LocalizedText.Format("browser.status.loading_url", uri);
         }
+        return Task.CompletedTask;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
@@ -360,22 +333,15 @@ public sealed partial class BrowserViewModel : ObservableObject
             // overwrite a preference changed from Settings while the browser is open.
             var current = await _client.GetSettingsAsync();
             var saved = await _client.SaveSettingsAsync(new BrowserSettingsDto(
-                current.LocalPortForwardingEnabled, homePage.AbsoluteUri, current.LinkOpenTarget));
-            IsLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
-            _savedLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
+                homePage.AbsoluteUri, current.LinkOpenTarget));
             HomePageText = saved.HomePage ?? BrowserSettingsDto.Default.HomePage!;
             HomePage = new Uri(HomePageText);
             LinkOpenTarget = saved.LinkOpenTarget;
-            LocalPortForwardingStatus = saved.LocalPortForwardingEnabled
-                ? LocalizedText.Get("browser.port_forwarding.on")
-                : LocalizedText.Get("browser.port_forwarding.off");
-            StatusText = LocalPortForwardingStatus;
+            StatusText = LocalizedText.Get("browser.settings.saved");
         }
         catch (Exception ex)
         {
-            IsLocalPortForwardingEnabled = _savedLocalPortForwardingEnabled;
-            LocalPortForwardingStatus = LocalizedText.Format("browser.port_forwarding.save_failed", ex.Message);
-            StatusText = LocalPortForwardingStatus;
+            StatusText = LocalizedText.Format("browser.settings.save_failed", ex.Message);
         }
     }
 
@@ -395,14 +361,9 @@ public sealed partial class BrowserViewModel : ObservableObject
             History.Clear();
             foreach (var h in hist) History.Add(h);
             var settings = await _client.GetSettingsAsync();
-            IsLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
-            _savedLocalPortForwardingEnabled = settings.LocalPortForwardingEnabled;
             HomePageText = settings.HomePage ?? BrowserSettingsDto.Default.HomePage!;
             HomePage = new Uri(HomePageText);
             LinkOpenTarget = settings.LinkOpenTarget;
-            LocalPortForwardingStatus = settings.LocalPortForwardingEnabled
-                ? LocalizedText.Get("browser.port_forwarding.on")
-                : LocalizedText.Get("browser.port_forwarding.off");
             StatusText = LocalizedText.Format("browser.status.summary", Bookmarks.Count, History.Count);
         }
         catch (Exception ex)
@@ -458,7 +419,7 @@ public sealed partial class BrowserViewModel : ObservableObject
             return new Uri(trimmed);
         // localhost:9999 is a normal browser address even without an explicit scheme.
         if (Uri.TryCreate("http://" + trimmed, UriKind.Absolute, out var loopback)
-            && IsLoopbackTarget(loopback))
+            && IsLoopbackAddress(loopback))
             return loopback;
         // 看起来像域名（无 scheme）—— 补 https://
         if (trimmed.Contains('.') && !trimmed.Contains(' '))
@@ -467,9 +428,7 @@ public sealed partial class BrowserViewModel : ObservableObject
         return new Uri("https://www.bing.com/search?q=" + Uri.EscapeDataString(trimmed));
     }
 
-    private Uri ToDisplayUrl(Uri url) => _client.TryGetLocalPortForwardingTarget(url) ?? url;
-
-    private static bool IsLoopbackTarget(Uri uri)
+    private static bool IsLoopbackAddress(Uri uri)
         => uri.IsAbsoluteUri
            && (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || uri.Host == "127.0.0.1")
            && (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)

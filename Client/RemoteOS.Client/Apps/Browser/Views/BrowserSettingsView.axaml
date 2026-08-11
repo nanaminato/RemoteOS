@@ -5,15 +5,13 @@
              x:Class="Client.Apps.Browser.Views.BrowserSettingsView"
              x:DataType="vm:BrowserViewModel"
              Width="520">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+    <Grid RowDefinitions="Auto,Auto,Auto" Margin="20" RowSpacing="14">
         <TextBlock Text="{loc:Loc browser.settings.title}" FontSize="18" FontWeight="SemiBold" />
         <StackPanel Grid.Row="1" Spacing="6">
             <TextBlock Text="{loc:Loc browser.settings.home_page}" FontWeight="SemiBold" />
             <TextBox Text="{Binding HomePageText, Mode=TwoWay}" Watermark="https://example.com" />
         </StackPanel>
-        <TextBlock Grid.Row="2" Text="{loc:Loc browser.settings.port_forwarding_note}"
-                   TextWrapping="Wrap" Opacity="0.7" />
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.save}" Command="{Binding SaveBrowserSettingsCommand}" />
             <Button Classes="primary" Content="Done" Command="{Binding CloseSettingsCommand}" />
         </StackPanel>

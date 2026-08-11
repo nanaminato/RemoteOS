@@ -114,10 +114,6 @@ public partial class BrowserMainView : UserControl
         if (toolbar is null)
             return;
 
-        var forwardingToggle = toolbar.Children.OfType<CheckBox>().FirstOrDefault();
-        if (forwardingToggle is not null)
-            forwardingToggle.IsVisible = false;
-
         toolbar.Children.Add(new Button
         {
             Content = "Full screen",

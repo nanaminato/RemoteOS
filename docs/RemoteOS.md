@@ -179,7 +179,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（Windows LogonUser / Linux PAM + NSS）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/special/list/info/download/content/properties/permissions/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化 + 本地端口映射 loopback 转发）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）+ 系统监控端点（`/api/v1/system/*`：metrics/processes/processes/{id}，`ISystemMetricsProvider` 跨平台采集 CPU/内存/磁盘/网络/GPU + 进程列表，不持久化）+ Docker 管理端点（`/api/v1/docker/*`：status/containers/images/stacks/networks/volumes，`IDockerEngineService` + `IDockerComposeService`，调用 `docker` CLI）+ 进程守护端点（`/api/v1/guardian/*` + SignalR Hub `/hubs/guardian-logs`，`IProcessGuardianService` 通过命名管道与 Guardian Agent IPC）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) / [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) / [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（Windows LogonUser / Linux PAM + NSS）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/special/list/info/download/content/properties/permissions/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）+ 系统监控端点（`/api/v1/system/*`：metrics/processes/processes/{id}，`ISystemMetricsProvider` 跨平台采集 CPU/内存/磁盘/网络/GPU + 进程列表，不持久化）+ Docker 管理端点（`/api/v1/docker/*`：status/containers/images/stacks/networks/volumes，`IDockerEngineService` + `IDockerComposeService`，调用 `docker` CLI）+ 进程守护端点（`/api/v1/guardian/*` + SignalR Hub `/hubs/guardian-logs`，`IProcessGuardianService` 通过命名管道与 Guardian Agent IPC）。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) / [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) / [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` / `ISystemMetricsProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
 - **持久化**：User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
@@ -239,7 +239,7 @@ Application Package
 | **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
 | **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode） | 已实现（Remote Mode + Local 回退） |
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（浏览、基本操作、文件打开方式、属性与 Linux 权限编辑） |
-| **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server + 本地端口映射） | 已实现（导航 + 书签 + 历史 + 浏览器偏好 + 本地端口映射） |
+| **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server） | 已实现（导航 + 书签 + 历史 + 浏览器偏好） |
 | **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
 | **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 已实现（状态和资源只读列表、容器启停重启、Compose 校验/部署/停止；其余功能设计中，详见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md)） |
 | **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载的声明持久化与启停重启；健康/日志/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
@@ -253,9 +253,9 @@ Application Package
 - **定位**：不是远程浏览器。网页内容走客户端网络由平台原生引擎渲染（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK）。
 - **结构**：`RemoteBrowser → RemoteWindow → NativeWebView (Avalonia.Controls.WebView 12.0.1)`。
 - **网页**：本地加载。
-- **同步到 Server**：History、Bookmark（已实现，按用户隔离，EF Core+SQLite 持久化）；BrowserSettings（已实现，随 Workspace 持久化，控制本地端口映射开关）；Cookie/Extension Config（未实现）。
-- **端口转发**（已实现）：浏览器或其他第一方调用方把服务端 loopback URL 交给 Port Forwarding；该应用建立仅 `127.0.0.1` 监听的 SSH 本地转发，并在端口冲突时返回替代链接。SSH 设置与运行中隧道仅保存在 Client 本机。
-- **已实现**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 主机本地 SSH 端口转发；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+- **同步到 Server**：History、Bookmark（已实现，按用户隔离，EF Core+SQLite 持久化）；BrowserSettings（已实现，随 Workspace 持久化）；Cookie/Extension Config（未实现）。
+- **端口转发**（已实现）：由 Port Forwarding 应用显式建立仅 `127.0.0.1` 监听的 SSH 本地转发；端口冲突时返回替代链接。SSH 设置与运行中隧道仅保存在 Client 本机。
+- **已实现**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
 
 ### Port Forwarding
 
@@ -305,7 +305,7 @@ Application Package
 |------|------|------|
 | 阶段 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)） |
 | 阶段 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
-| 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode；RemoteExplorer 浏览、文件打开方式、属性与基本操作；RemoteBrowser 导航+书签+历史+浏览器偏好+本地端口映射；RemoteTaskManager 性能页+进程页，跨平台指标采集） |
+| 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode；RemoteExplorer 浏览、文件打开方式、属性与基本操作；RemoteBrowser 导航+书签+历史+浏览器偏好；RemoteTaskManager 性能页+进程页，跨平台指标采集） |
 | 阶段 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 完成（登录模块；服务端 SQLite 持久化——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)；设置中心——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)） |
 | 阶段 4 | DockerManager / ProcessGuardian | 部分完成（DockerManager：状态/资源只读、容器启停重启、Compose 校验/部署/停止；ProcessGuardian：独立 Agent、IPC、工作负载启停重启；健康/日志/服务适配设计中，见 [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)） |
 

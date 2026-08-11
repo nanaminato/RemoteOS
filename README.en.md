@@ -164,7 +164,7 @@ RemoteOS/
 | **Settings** | System settings center (5 categories, preferences persisted to Workspace) | ✅ Implemented |
 | **Terminal** | Remote Terminal (Remote Mode: SignalR + PTY; Local Mode fallback) | ✅ Implemented |
 | **Explorer** | Remote File Manager (REST API + host OS permission reuse) | ✅ Implemented |
-| **Browser** | Built-in Browser (bookmarks/history persistence + local port mapping) | ✅ Implemented |
+| **Browser** | Built-in Browser (bookmarks/history persistence) | ✅ Implemented |
 | **Task Manager** | Remote Task Manager (CPU/Memory/Disk/Network/GPU + process list) | ✅ Implemented |
 | **Docker Manager** | Remote Docker Engine management (container/image/Stack/network/volume) | 🚧 Partial |
 | **Process Guardian** | Process guardian (health checks, auto-recovery, native service management) | 🚧 Partial |
@@ -220,7 +220,7 @@ The client will open a login dialog. Enter your host system username and passwor
 | [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | Desktop shell, window control, modal dialogs |
 | [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | Terminal app, SignalR, PTY, session management |
 | [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | File manager, REST API, permission reuse |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | Browser, bookmarks/history, local port mapping |
+| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | Browser, bookmarks/history |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | Task manager, system metrics, process management |
 | [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack management |

@@ -164,7 +164,7 @@ RemoteOS/
 | **Settings** | システム設定センター（5カテゴリ、設定はWorkspaceに永続化） | ✅ 実装済み |
 | **Terminal** | リモートターミナル（Remote Mode: SignalR + PTY; Local Modeフォールバック） | ✅ 実装済み |
 | **Explorer** | リモートファイルマネージャ（REST API + ホストOS権限活用） | ✅ 実装済み |
-| **Browser** | 内蔵ブラウザ（ブックマーク/履歴の永続化 + ローカルポートマッピング） | ✅ 実装済み |
+| **Browser** | 内蔵ブラウザ（ブックマーク/履歴の永続化） | ✅ 実装済み |
 | **Task Manager** | リモートタスクマネージャ（CPU/メモリ/ディスク/ネットワーク/GPU + プロセスリスト） | ✅ 実装済み |
 | **Docker Manager** | リモートDocker Engine管理（コンテナ/イメージ/Stack/ネットワーク/ボリューム） | 🚧 部分実装 |
 | **Process Guardian** | プロセスガーディアン（ヘルスチェック、自動復旧、ネイティブサービス管理） | 🚧 部分実装 |
@@ -220,7 +220,7 @@ dotnet run
 | [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | デスクトップシェル、ウィンドウ制御、モーダルダイアログ |
 | [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | ターミナルアプリ、SignalR、PTY、セッション管理 |
 | [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | ファイルマネージャ、REST API、権限活用 |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴、ローカルポートマッピング |
+| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴 |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理 |
 | [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack管理 |

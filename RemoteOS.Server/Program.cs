@@ -6,10 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using RemoteOS.Protocol.Browser;
 using RemoteOS.Protocol.Common;
 using RoyalTerminal.Terminal;
-using Server.Browser;
 using Server.Endpoints;
 using Server.Hubs;
 using Server.Identity;
@@ -78,13 +76,6 @@ builder.Services.AddAuthentication(options =>
                 {
                     context.Token = accessToken;
                 }
-                else if (path.StartsWithSegments(BrowserApiRoutes.LocalPortForwardingPrefix))
-                {
-                    var proxyToken = context.Request.Query[BrowserApiRoutes.LocalPortForwardingTokenQuery];
-                    context.Token = !string.IsNullOrEmpty(proxyToken)
-                        ? proxyToken
-                        : context.Request.Cookies[BrowserApiRoutes.LocalPortForwardingAuthCookie];
-                }
                 return Task.CompletedTask;
             }
         };
@@ -131,18 +122,6 @@ builder.Services.AddAuthorization(options =>
                 || context.User.HasClaim(RemoteOsAuthSchemes.ScopeClaim, requiredScope)));
     }
 });
-
-// The forwarding client has no cookie jar and never follows redirects automatically.
-// This prevents requests or session state from one RemoteOS user reaching another user's
-// loopback service; redirects are validated and rewritten by LocalPortForwarder instead.
-builder.Services.AddHttpClient(LocalPortForwarder.HttpClientName, client =>
-    client.Timeout = TimeSpan.FromMinutes(5))
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        AllowAutoRedirect = false,
-        UseCookies = false,
-    });
-builder.Services.AddSingleton<LocalPortForwarder>();
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
 if (OperatingSystem.IsWindows())

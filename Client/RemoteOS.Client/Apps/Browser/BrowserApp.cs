@@ -52,9 +52,7 @@ public sealed class BrowserApp : RemoteApplicationBase
             return;
         }
 
-        var portForwards = context.Services.GetService(typeof(Client.Apps.PortForwarding.IPortForwardingService))
-                           as Client.Apps.PortForwarding.IPortForwardingService;
-        var viewModel = new BrowserViewModel(client, portForwards);
+        var viewModel = new BrowserViewModel(client);
         var view = new BrowserMainView { DataContext = viewModel };
         BrowserDiagnostics.Record("Browser view and view-model created; opening managed window.");
         var window = context.ShowWindow("RemoteBrowser", view,

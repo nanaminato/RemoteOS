@@ -221,7 +221,7 @@ dotnet run
 | [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框 |
 | [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
 | [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | 浏览器、书签/历史、本地端口映射 |
+| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | 浏览器、书签/历史 |
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
 | [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |

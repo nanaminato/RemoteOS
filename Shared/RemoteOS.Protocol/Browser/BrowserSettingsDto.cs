@@ -3,17 +3,11 @@ using System.Text.Json.Serialization;
 namespace RemoteOS.Protocol.Browser;
 
 /// <summary>Persistent per-workspace browser preferences.</summary>
-/// <remarks>
-/// Local port tunnels deliberately do not belong here: they run on a particular client host and
-/// are therefore managed by the local Port Forwarding application.
-/// </remarks>
 public sealed record BrowserSettingsDto(
-    [property: JsonPropertyName("localPortForwardingEnabled")] bool LocalPortForwardingEnabled,
     [property: JsonPropertyName("homePage")] string? HomePage = null,
     [property: JsonPropertyName("linkOpenTarget")] BrowserLinkOpenTarget LinkOpenTarget = BrowserLinkOpenTarget.BuiltInBrowser)
 {
     public static BrowserSettingsDto Default { get; } = new(
-        LocalPortForwardingEnabled: false,
         HomePage: "https://www.bing.com",
         LinkOpenTarget: BrowserLinkOpenTarget.BuiltInBrowser);
 

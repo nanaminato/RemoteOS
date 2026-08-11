@@ -28,7 +28,7 @@ Protocol 程序集**零 PackageReference**，不引用 Core（避免线协议与
 
 | 通道 | 用途 |
 |------|------|
-| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写、**文件管理**（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload）、**浏览器**（`/api/v1/browser/*`：书签/历史 CRUD + `BrowserSettings` GET/PUT + 本地端口映射 loopback 转发）、**Workspace 偏好**（`/api/v1/workspaces/{id}/preferences` GET/PUT）、**系统监控**（`/api/v1/system/*`：metrics/processes/processes/{id}） |
+| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写、**文件管理**（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload）、**浏览器**（`/api/v1/browser/*`：书签/历史 CRUD + `BrowserSettings` GET/PUT）、**Workspace 偏好**（`/api/v1/workspaces/{id}/preferences` GET/PUT）、**系统监控**（`/api/v1/system/*`：metrics/processes/processes/{id}） |
 | **SignalR Hub**（`/hubs/workspace`） | 实时双向：桌面状态增量广播、设备上下线通知、控制权变更通知、Session/Workspace 状态变更通知 |
 | **SignalR Hub**（`/hubs/terminals`） | 实时双向：远端 PTY 字节流中继（输入/输出/尺寸/退出/会话附加/列表/手动终止）。PTY 由 `TerminalSessionManager` 持有，与 Hub 连接解耦 |
 
@@ -45,7 +45,7 @@ Shared/RemoteOS.Protocol/
 ├── Workspace/     # WorkspaceDto、SessionDto、DeviceDto、ControllerLeaseInfo、3 enum、WorkspacePreferencesDto、DefaultAppMappingDto、WorkspaceApiRoutes
 ├── Desktop/       # DesktopStateDto/Patch、IconPositionDto、WallpaperDto、ThemeKind
 ├── Files/         # FileSystemEntryType/Dto、FileEntryDto、DirectoryDto、DriveDto、Rename/Move/CopyRequest、FileApiRoutes
-├── Browser/       # BookmarkDto、HistoryEntryDto、Create*Request、BrowserSettingsDto、BrowserApiRoutes（含本地端口映射常量）
+├── Browser/       # BookmarkDto、HistoryEntryDto、Create*Request、BrowserSettingsDto、BrowserApiRoutes
 ├── SystemMonitor/ # SystemMetricsDto、Cpu/Memory/Disk/Network/GpuUsageDto、ProcessInfoDto、KillProcessResultDto、SystemMonitorApiRoutes
 └── Hubs/          # Workspace Hub（IWorkspaceHubClient/Methods/Events、JoinWorkspaceRequest、事件参数）
                   # + Terminal Hub（ITerminalHubClient、TerminalHubMethods/Events、StartTerminalRequest、AttachTerminalResponse、TerminalSessionInfo）
@@ -124,7 +124,6 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 |---|---|---|---|---|
 | GET | `/api/v1/browser/settings` | — | `BrowserSettingsDto` | JWT |
 | PUT | `/api/v1/browser/settings` | `BrowserSettingsDto` | `BrowserSettingsDto` | JWT |
-| * | `/api/v1/browser/local/{host}/{scheme}/{port:int}/{**path}` | loopback 转发 | 流式响应 | JWT（query token 或 HttpOnly cookie） |
 | GET | `/api/v1/browser/bookmarks` | — | `BookmarkDto[]` | JWT |
 | POST | `/api/v1/browser/bookmarks` | `CreateBookmarkRequest` | `BookmarkDto`（201） | JWT |
 | DELETE | `/api/v1/browser/bookmarks/{id}` | — | 204 | JWT |
@@ -133,8 +132,6 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | POST | `/api/v1/browser/history` | `CreateHistoryEntryRequest` | `HistoryEntryDto`（201） | JWT |
 | DELETE | `/api/v1/browser/history/{id}` | — | 204 | JWT |
 | DELETE | `/api/v1/browser/history` | — | `{ removed }` | JWT |
-
-> 本地端口映射（`/api/v1/browser/local/*`）受 `BrowserSettings.LocalPortForwardingEnabled` 门控（false → 403）。仅 `localhost` / `127.0.0.1` + http/https，非通用代理。首次导航带 query `remoteos_port_forwarding_token=<JWT>`，服务端换 `RemoteOS.LocalPortForwarding.Auth` HttpOnly cookie（`Path=/api/v1/browser/local` / `MaxAge=8h`）后 302 重定向去 token。
 
 ### Workspace Preferences（设置中心偏好）
 路由常量见 `WorkspaceApiRoutes.Preferences`。复用 `FindAuthorizedWorkspace` 按 JWT `sub` 校验 Workspace 归属。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
@@ -262,7 +259,7 @@ RemoteTerminal 的 PTY 流传输**已在 Protocol 契约内**，走 SignalR Hub 
 | [`RemoteOS.Security.md`](./RemoteOS.Security.md) | Session 安全、权限提升 |
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | Terminal Hub 实现、持久会话、断开语义 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理端点实现、宿主 OS 权限复用 |
-| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 浏览器端点实现、BrowserSettings 持久化、本地端口映射 |
+| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 浏览器端点实现、BrowserSettings 持久化 |
 | [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | Workspace 偏好端点实现、PreferencesSync 多设备同步 |
 | [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 系统监控端点实现、跨平台 ISystemMetricsProvider |
 | [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | EF Core + SQLite 持久化、表结构 |
