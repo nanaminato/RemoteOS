@@ -55,13 +55,16 @@ public sealed partial class ShellSettings : ObservableObject
             new WallpaperOption("mist", "Mist", Gradient("#F7F7F7", "#E9EDF2", "#D8E0EA")),
             new WallpaperOption("cobalt", "Cobalt", Gradient("#E8F1FF", "#D5E6FF", "#BDD4F5")),
         ];
-        _wallpaperIndex = 0;
+        WallpaperIndex = 0;
         SetBuiltInWallpaper(0);
     }
 
     partial void OnWallpaperIndexChanged(int value)
     {
-        SetBuiltInWallpaper(value);
+        // -1 is the explicit "custom image" selection; it must not replace the image brush
+        // with a built-in fallback while the asynchronous resource load is in progress.
+        if (value >= 0)
+            SetBuiltInWallpaper(value);
     }
 
     partial void OnThemeChanged(ThemeKind value)
@@ -117,7 +120,7 @@ public sealed partial class ShellSettings : ObservableObject
         }
         _customWallpaper?.Dispose();
         _customWallpaper = bitmap;
-        _wallpaperIndex = -1;
+        WallpaperIndex = -1;
         _currentWallpaperKey = key;
         _currentWallpaper = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
         OnPropertyChanged(nameof(CurrentWallpaper));
@@ -158,7 +161,7 @@ public sealed partial class ShellSettings : ObservableObject
     {
         _customWallpaper?.Dispose();
         _customWallpaper = null;
-        _wallpaperIndex = -1;
+        WallpaperIndex = -1;
         _currentWallpaperKey = key;
         // A download failure must not leave the desktop blank; retain a deterministic built-in fallback.
         _currentWallpaper = Wallpapers[0].Brush;

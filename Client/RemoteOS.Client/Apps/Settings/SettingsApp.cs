@@ -18,6 +18,7 @@ using RemoteOS.Core.Primitives;
 using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
+using AvaloniaApplication = Avalonia.Application;
 
 namespace Client.Apps.Settings;
 
@@ -64,7 +65,7 @@ public sealed class SettingsApp : RemoteApplicationBase
         var personalizationPage = viewModel.Pages.OfType<PersonalizationPageViewModel>().Single();
         personalizationPage.RequestCustomWallpaperAsync = async () =>
         {
-            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            var topLevel = AvaloniaApplication.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
                 ? desktop.MainWindow : null;
             if (topLevel is null) return;
             var selected = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

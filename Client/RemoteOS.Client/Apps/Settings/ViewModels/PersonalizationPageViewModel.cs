@@ -6,7 +6,7 @@ namespace Client.Apps.Settings.ViewModels;
 
 /// <summary>「个性化」页：壁纸预设选择 + 主题（Light/Dark/System）。
 /// 透传读写 <see cref="ShellSettings"/>，改动即时反映到桌面外壳（壁纸 / 任务栏底色）并触发保存。</summary>
-public sealed class PersonalizationPageViewModel : SettingsPageViewModel
+public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
 {
     public PersonalizationPageViewModel(ShellSettings settings, Action? save) : base(settings, save)
     {
