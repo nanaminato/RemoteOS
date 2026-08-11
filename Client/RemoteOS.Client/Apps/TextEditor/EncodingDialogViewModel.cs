@@ -2,7 +2,7 @@ using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Client.Apps;
+namespace Client.Apps.TextEditor;
 
 /// <summary>显示可用编码并返回用户确认的选择。</summary>
 public sealed partial class EncodingDialogViewModel : ObservableObject

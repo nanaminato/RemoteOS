@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:Client.Localization"
-             xmlns:app="clr-namespace:Client.Apps"
-             x:Class="Client.Apps.EncodingDialogView"
+             xmlns:app="clr-namespace:Client.Apps.TextEditor"
+             x:Class="Client.Apps.TextEditor.EncodingDialogView"
              x:DataType="app:EncodingDialogViewModel"
              Background="#FFFFFF">
     <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="14">

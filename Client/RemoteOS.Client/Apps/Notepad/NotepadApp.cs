@@ -2,6 +2,7 @@ using Client.Apps.Explorer;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Apps.TextEditor;
 using Client.Localization;
 using Client.Services;
 using RemoteOS.AppSDK;

@@ -1,5 +1,5 @@
-using Client.Apps;
 using Client.Apps.Settings;
+using Client.Apps.TextEditor;
 using Client.Services.Auth;
 
 namespace Client.Services;

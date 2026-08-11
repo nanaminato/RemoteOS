@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
-using Client.Apps;
 using Client.Apps.Explorer;
+using Client.Apps.TextEditor;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

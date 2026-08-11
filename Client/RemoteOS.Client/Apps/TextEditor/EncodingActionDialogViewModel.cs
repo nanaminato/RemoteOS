@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Client.Apps;
+namespace Client.Apps.TextEditor;
 
 /// <summary>第一步：选择以指定编码重新打开，或以指定编码保存。</summary>
 public sealed partial class EncodingActionDialogViewModel : ObservableObject

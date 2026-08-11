@@ -1,7 +1,7 @@
 using System.Text;
 using RemoteOS.Protocol.Workspace;
 
-namespace Client.Apps;
+namespace Client.Apps.TextEditor;
 
 /// <summary>Shared encoding choices and byte conversion for the built-in text editors.</summary>
 internal static class TextFileEncodings
