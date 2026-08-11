@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Core.Windows;
 using Rect = RemoteOS.Core.Primitives.Rect;
@@ -40,6 +41,7 @@ public class RemoteWindow : TemplatedControl
     private ResizeEdge _resizeEdge;
     private Point _resizeStart;
     private Rect _resizeStartBounds;
+    private readonly HashSet<RemoteKey> _pressedKeys = [];
 
     /// <summary>Raised while the user drags the title bar. Carries the press-time bounds and current delta.</summary>
     public event EventHandler<DragBoundsEventArgs>? DragRequested;
@@ -65,6 +67,8 @@ public class RemoteWindow : TemplatedControl
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Left;
         VerticalAlignment = VerticalAlignment.Top;
+        KeyDown += OnKeyDown;
+        KeyUp += OnKeyUp;
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
@@ -116,6 +120,31 @@ public class RemoteWindow : TemplatedControl
         // Any press inside the window brings it to the front. Does not interfere with
         // child controls because we never mark the event handled.
         FocusRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ViewModel is null)
+            return;
+
+        var key = new RemoteKey(e.Key.ToString());
+        var input = new RemoteKeyEventArgs(key, ToRemoteModifiers(e.KeyModifiers), !_pressedKeys.Add(key));
+        ViewModel.RaiseKeyDown(input);
+        if (input.Handled)
+            e.Handled = true;
+    }
+
+    private void OnKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || ViewModel is null)
+            return;
+
+        var key = new RemoteKey(e.Key.ToString());
+        _pressedKeys.Remove(key);
+        var input = new RemoteKeyEventArgs(key, ToRemoteModifiers(e.KeyModifiers));
+        ViewModel.RaiseKeyUp(input);
+        if (input.Handled)
+            e.Handled = true;
     }
 
     private ManagedWindow? ViewModel => DataContext as ManagedWindow;
@@ -244,7 +273,12 @@ public class RemoteWindow : TemplatedControl
         UpdateResizeLayer();
     }
 
-    internal void SetActive(bool active) => PseudoClasses.Set(":active", active);
+    internal void SetActive(bool active)
+    {
+        PseudoClasses.Set(":active", active);
+        if (!active)
+            _pressedKeys.Clear();
+    }
 
     private void UpdateResizeLayer()
     {
@@ -261,5 +295,15 @@ public class RemoteWindow : TemplatedControl
     {
         base.OnDataContextChanged(e);
         UpdateResizeLayer();
+    }
+
+    private static RemoteKeyModifiers ToRemoteModifiers(KeyModifiers modifiers)
+    {
+        var result = RemoteKeyModifiers.None;
+        if (modifiers.HasFlag(KeyModifiers.Shift)) result |= RemoteKeyModifiers.Shift;
+        if (modifiers.HasFlag(KeyModifiers.Control)) result |= RemoteKeyModifiers.Control;
+        if (modifiers.HasFlag(KeyModifiers.Alt)) result |= RemoteKeyModifiers.Alt;
+        if (modifiers.HasFlag(KeyModifiers.Meta)) result |= RemoteKeyModifiers.Meta;
+        return result;
     }
 }

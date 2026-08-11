@@ -8,6 +8,7 @@ using Client.Apps.Browser.Views;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
@@ -56,6 +57,14 @@ public sealed class BrowserApp : RemoteApplicationBase
         var window = context.ShowWindow("RemoteBrowser", view,
             bounds: new Rect(60, 50, 1100, 720),
             iconGlyph: Manifest.IconGlyph);
+        window.KeyDown += (_, e) =>
+        {
+            if (e.Key != RemoteKey.Escape || !window.IsFullScreen)
+                return;
+
+            context.ExitFullScreen(window);
+            e.Handled = true;
+        };
         viewModel.CloseAction = () => Dispatcher.UIThread.Post(() =>
         {
             view.ClosePlatformBrowser();

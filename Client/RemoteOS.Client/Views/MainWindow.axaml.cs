@@ -51,10 +51,18 @@ public partial class MainWindow : Window
 
     private void FullScreen_OnClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (!_isFullScreen)
+        SetFullScreen(!_isFullScreen);
+    }
+
+    private void SetFullScreen(bool fullScreen)
+    {
+        if (fullScreen == _isFullScreen)
+            return;
+
+        if (fullScreen)
             _windowStateBeforeFullScreen = WindowState;
 
-        _isFullScreen = !_isFullScreen;
+        _isFullScreen = fullScreen;
         WindowState = _isFullScreen ? WindowState.FullScreen : _windowStateBeforeFullScreen;
         FullScreenButton.Content = _isFullScreen ? "↙" : "↗";
         ToolTip.SetTip(FullScreenButton, T(_isFullScreen ? "shell.full_screen.exit" : "shell.full_screen.enter_tooltip", _isFullScreen ? "Exit full screen" : "Enter full screen"));
@@ -128,6 +136,19 @@ public partial class MainWindow : Window
 
     private void Root_OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Handled)
+            return;
+
+        // This is the final host-level fallback in the routed keyboard chain. A managed
+        // application window gets the same key first and can consume it to leave only its
+        // own full-screen mode.
+        if (e.Key == Key.Escape && _isFullScreen)
+        {
+            SetFullScreen(false);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != Key.I || e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Shift))
             return;
 

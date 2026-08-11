@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Core.Windows;
 using Rect = RemoteOS.Core.Primitives.Rect;
@@ -105,6 +106,8 @@ public sealed class WindowManager : IWindowManager
         var view = new RemoteWindow { Content = options.Content };
         var managed = new ManagedWindow(info, view, options.IsModalDialog);
         view.DataContext = managed;
+
+        managed.KeyDownFallback += (_, e) => HandleWindowKeyDown(managed, e);
 
         managed.FocusRequested += (_, _) => Focus(managed);
         managed.CloseRequested += (_, _) => Close(managed);
@@ -451,6 +454,31 @@ public sealed class WindowManager : IWindowManager
     {
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, owner)).ToList())
             session.Cancel();
+    }
+
+    private void HandleWindowKeyDown(ManagedWindow window, RemoteKeyEventArgs e)
+    {
+        if (e.Key != RemoteKey.Escape)
+            return;
+
+        // A modal is always the active window for its owner. Esc first cancels that modal,
+        // before any full-screen or shell fallback can observe the key.
+        if (window.IsModalDialog)
+        {
+            var session = _modalSessions.LastOrDefault(candidate => ReferenceEquals(candidate.DialogWindow, window));
+            if (session is not null)
+            {
+                session.Cancel();
+                e.Handled = true;
+            }
+            return;
+        }
+
+        if (window.Info.State == WindowState.FullScreen)
+        {
+            ExitFullScreen(window);
+            e.Handled = true;
+        }
     }
 
     private ManagedWindow? GetTopmostModal(ManagedWindow owner)

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RemoteOS.Core.Input;
 using RemoteOS.Core.Windows;
 
 namespace RemoteOS.WindowManager;
@@ -68,6 +69,29 @@ public partial class ManagedWindow : ObservableObject
     public event EventHandler? MinimizeRequested;
     public event EventHandler? MaximizeToggleRequested;
     public event EventHandler? TaskbarToggleRequested;
+
+    /// <summary>
+    /// Raised when an unhandled key-down event bubbles from this active window's content.
+    /// Set <see cref="RemoteKeyEventArgs.Handled"/> to prevent the key from reaching the
+    /// desktop shell and client host.
+    /// </summary>
+    public event EventHandler<RemoteKeyEventArgs>? KeyDown;
+
+    /// <summary>Raised when a key-up event bubbles from this active window's content.</summary>
+    public event EventHandler<RemoteKeyEventArgs>? KeyUp;
+
+    // Window-manager defaults deliberately run after public application handlers. This keeps
+    // Esc application-overridable while still providing a consistent full-screen/modal fallback.
+    internal event EventHandler<RemoteKeyEventArgs>? KeyDownFallback;
+
+    internal void RaiseKeyDown(RemoteKeyEventArgs e)
+    {
+        KeyDown?.Invoke(this, e);
+        if (!e.Handled)
+            KeyDownFallback?.Invoke(this, e);
+    }
+
+    internal void RaiseKeyUp(RemoteKeyEventArgs e) => KeyUp?.Invoke(this, e);
 
     [RelayCommand] private void Activate() => FocusRequested?.Invoke(this, EventArgs.Empty);
     [RelayCommand] private void Close() => CloseRequested?.Invoke(this, EventArgs.Empty);

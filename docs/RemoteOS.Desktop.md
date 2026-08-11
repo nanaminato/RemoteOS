@@ -226,3 +226,26 @@ var result = await context.ShowDialogAsync<string>(window, "选择要打开的�
 - 让模态遮罩脱离 owner 边界（必须 `ApplyBounds(owner.Info.Bounds)` 跟随）。
 - 把宿主 `MainWindow` 的窗口控制与桌面内 `RemoteWindow` 的 resize 混为一谈（两套独立机制）。
 - 在连接栏"关闭连接"里跳过 `LogoutAsync` 直接 `Close()`（会留下未吊销的 RefreshToken）。
+
+---
+
+## 6. 本地键盘路由
+
+键盘输入是客户端本地 UI 事件，不经 Workspace Hub 或任何同步协议。`RemoteWindow` 将
+Avalonia 的键盘事件转换成 `RemoteOS.Core.Input.RemoteKeyEventArgs`，并只在事件从当前
+焦点控件冒泡到该受管窗口时通知 `ManagedWindow.KeyDown` / `KeyUp`。
+
+```text
+焦点控件 → 应用内容 → RemoteWindow / ManagedWindow → DesktopShell → MainWindow
+```
+
+应用可在其 `AppContext.ShowWindow` 返回的 `ManagedWindow` 上订阅 `KeyDown`。将
+`RemoteKeyEventArgs.Handled` 设为 `true` 会同步处理原 Avalonia 事件，因而阻止它继续
+冒泡到 Shell 和宿主窗口。后台窗口不在键盘事件路由中，不能接收活动窗口的输入。
+
+`WindowManager` 的默认处理在应用处理器之后执行：`Esc` 先取消最上层模态窗口；否则，
+若活动受管窗口处于 RemoteOS 全屏，则退出**该窗口**的全屏并处理事件。若两者都未处理，
+事件才会抵达 `MainWindow`；宿主窗口在自身全屏时以 `Esc` 退出客户端全屏。
+
+普通文本与 IME composition 仍由 Avalonia 焦点控件处理，不能从 `KeyDown` 推导或通过
+`RemoteKeyEventArgs` 传递文本。
