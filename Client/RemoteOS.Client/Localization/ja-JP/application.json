@@ -24,6 +24,8 @@
         "application.remoteos.docker.display_name": "Docker マネージャー",
         "application.remoteos.docker.description": "RemoteOS Server のローカル Docker Engine を管理します",
         "application.remoteos.processguardian.display_name": "プロセスガーディアン",
-        "application.remoteos.processguardian.description": "RemoteOS Guardian Agent が監視するワークロードを表示します"
+        "application.remoteos.processguardian.description": "RemoteOS Guardian Agent が監視するワークロードを表示します",
+        "application.remoteos.port-forwarding.display_name": "ポート フォワーディング",
+        "application.remoteos.port-forwarding.description": "RemoteOS Server の loopback サービスへのローカル SSH トンネルを管理します"
     }
 }

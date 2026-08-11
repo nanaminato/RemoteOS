@@ -1,6 +1,6 @@
 # RemoteOS Browser 模块设计
 
-> 内置网页浏览器：基于 `Avalonia.Controls.WebView` 的 `NativeWebView` 控件（平台原生引擎），书签与历史记录持久化到 Server 端（按用户隔离）；浏览器偏好（`BrowserSettings`）随 Workspace 持久化；可选的「本地端口映射」让客户端浏览器经 RemoteOS 鉴权访问**服务端 loopback** HTTP 服务。
+> 内置网页浏览器：基于 `Avalonia.Controls.WebView` 的 `NativeWebView` 控件（平台原生引擎），书签与历史记录持久化到 Server 端（按用户隔离）；浏览器偏好（`BrowserSettings`）随 Workspace 持久化。新端口转发由 [Port Forwarding](./RemoteOS.PortForwarding.md) 内置应用负责。
 >
 > - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
 > - 项目当前状态见 [`RemoteOS.md`](./RemoteOS.md)（§6 内置应用 / §7 RemoteBrowser）
@@ -20,7 +20,7 @@ RemoteBrowser 是 RemoteOS 的内置网页浏览器。
 - **Server 持久化三类数据**：
   - 书签（Bookmark）/ 历史记录（HistoryEntry）：按用户隔离落 SQLite（`bookmarks` / `history_entries` 表）。
   - 浏览器偏好（`BrowserSettings`）：随 Workspace 持久化为 `browser_settings` JSON 列（`OwnsOne + ToJson`，与 `TerminalSettings` / `Preferences` 同模式）。
-- **本地端口映射**（可选）：开启后客户端浏览器导航 `localhost:port` / `127.0.0.1:port` 时，请求改走 RemoteOS 鉴权通道转发到**服务端 loopback**——让用户在远端桌面里访问宿主 OS 上运行的 Web 服务（开发服务器 / 管理面板等）。**仅 loopback**（`localhost` + `127.0.0.1`），**不是通用代理**。
+- **端口转发迁移**：新建隧道由 Port Forwarding 应用管理。浏览器保留旧 HTTP 代理设置的读取兼容性，但不再用它创建转发；当导航到服务端 loopback URL 时，会向该应用请求 SSH 隧道并使用返回的有效 `localhost` 链接。
 - **复用宿主 OS 权限**（project_memory 硬约束）：Server 端 SQLite 文件读写与 loopback 转发均以宿主 OS 进程身份执行，不另建 ACL。Browser REST 端点全 `RequireAuthorization`，按 JWT `sub` claim 取 userId 隔离数据。
 - **不存储密码**：认证委托宿主 OS（已完成于登录模块），Browser 仅消费 `IAuthSession.Tokens.AccessToken`；本地端口映射的 HttpOnly cookie 不含宿主密码。
 
@@ -73,10 +73,12 @@ BrowserApp (RemoteApplicationBase)
 
 ```text
 BrowserSettingsDto (sealed record)
-  LocalPortForwardingEnabled  bool   本地端口映射开关（默认 false）
-
-  static Default { get; } = (LocalPortForwardingEnabled: false)
+  LocalPortForwardingEnabled  bool                 旧代理兼容字段（不再由浏览器使用）
+  HomePage                    string                主页（默认 https://www.bing.com）
+  LinkOpenTarget              BuiltInBrowser|HostBrowser
 ```
+
+主页与链接打开位置随 Workspace 同步；Port Forwarding 的 SSH 配置和运行中隧道只保存在 Client 本机，绝不同步。
 
 随 Workspace 持久化为 `browser_settings` JSON 列（`OwnsOne + ToJson`）。`BrowserSettings` 控制「本地端口映射」功能的启停——关闭时 `/api/v1/browser/local/*` 端点返回 403。
 

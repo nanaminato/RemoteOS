@@ -115,6 +115,10 @@ public static class Bootstrapper
         services.AddSingleton<DeveloperPackageManager>();
         services.AddSingleton<AppPackageInstallerService>();
         services.AddSingleton<DeveloperBridgeService>();
+        // Port forwarding owns local ssh processes and a device-local, non-secret settings file.
+        // It is intentionally not part of Workspace preference synchronization.
+        services.AddSingleton<Client.Apps.PortForwarding.PortForwardingSettingsStore>();
+        services.AddSingleton<Client.Apps.PortForwarding.IPortForwardingService, Client.Apps.PortForwarding.PortForwardingService>();
         // PreferencesSync 监听登录态，登录后把服务端偏好应用到 ShellSettings + DefaultAppRegistry。
         services.AddSingleton<PreferencesSync>();
 
@@ -127,6 +131,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, TerminalApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.PortForwarding.PortForwardingApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.TaskManager.TaskManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();

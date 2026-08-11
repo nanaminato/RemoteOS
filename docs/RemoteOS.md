@@ -44,7 +44,7 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置文件管理器已落地（RemoteExplorer）：UI 移植自 Jaya File Manager（BSD-3），导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏；所有文件操作经 Server 端 REST API（`/api/v1/files/*`）执行，复用宿主 OS 用户/权限（不另建 ACL）；支持浏览、新建文件夹/删除/重命名/复制/移动/上传/下载、文件/目录属性查看（Linux POSIX 权限编辑），以及按扩展名声明进行默认打开或“打开方式”。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
 
-内置浏览器已落地（RemoteBrowser）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；浏览器偏好（`BrowserSettings`）随 Workspace 持久化控制本地端口映射开关；**本地端口映射**开启后 `localhost`/`127.0.0.1` 导航经 RemoteOS 鉴权通道转发到服务端 loopback（仅 loopback，非通用代理；JWT 换 HttpOnly cookie 鉴权）；UI 含顶部工具栏（后退/前进/刷新/停止/主页/加入·删除书签/侧边栏切换/本地端口映射开关）+ 地址栏 + 状态栏 + 左侧边栏双标签页（书签 / 历史，支持双击导航、单条删除、清空全部）。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+内置浏览器已落地（RemoteBrowser）：基于 NuGet 包 `Avalonia.Controls.WebView` 12.0.1 的 `NativeWebView`（平台原生引擎：Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络渲染；书签与历史记录经 Server 端 REST API（`/api/v1/browser/*`）持久化（按用户隔离，EF Core+SQLite）；浏览器设置可同步主页和链接打开位置（内置浏览器或宿主机浏览器）。服务端 loopback URL 由新的本机 Port Forwarding 应用通过 `ssh -L` 映射为有效 localhost 链接；该应用只绑定 loopback，SSH 设置与活动隧道都不会同步。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) 与 [`RemoteOS.PortForwarding.md`](./RemoteOS.PortForwarding.md)。
 
 内置设置中心已落地（RemoteSettings）：Windows 11 / GNOME 风格，5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用）。用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）经 Server 端 REST API（`/api/v1/workspaces/{id}/preferences`）持久化到 Workspace（`OwnsOne + ToJson` 单列 JSON，多设备共享）；登录时 `PreferencesSync` 自动加载应用到桌面外壳（壁纸 / 任务栏底色 / 时钟格式即时生效），设置应用编辑后防抖 300ms 保存。宿主 OS 级设置（时区 / 网卡）只读展示（硬约束「权限提升委托宿主 OS」）。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
 
@@ -254,8 +254,13 @@ Application Package
 - **结构**：`RemoteBrowser → RemoteWindow → NativeWebView (Avalonia.Controls.WebView 12.0.1)`。
 - **网页**：本地加载。
 - **同步到 Server**：History、Bookmark（已实现，按用户隔离，EF Core+SQLite 持久化）；BrowserSettings（已实现，随 Workspace 持久化，控制本地端口映射开关）；Cookie/Extension Config（未实现）。
-- **本地端口映射**（已实现）：开启后客户端浏览器导航 `localhost:port` / `127.0.0.1:port` 时经 RemoteOS 鉴权通道转发到**服务端 loopback**——让用户在远端桌面里访问宿主 OS 上运行的 Web 服务。仅 loopback，非通用代理；JWT 换 HttpOnly cookie 鉴权（不暴露给脚本）。
-- **已实现**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 本地端口映射（loopback → 服务端）；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+- **端口转发**（已实现）：浏览器或其他第一方调用方把服务端 loopback URL 交给 Port Forwarding；该应用建立仅 `127.0.0.1` 监听的 SSH 本地转发，并在端口冲突时返回替代链接。SSH 设置与运行中隧道仅保存在 Client 本机。
+- **已实现**：导航（后退/前进/刷新/停止/主页/地址栏）+ 书签（加入/删除/侧边栏双击导航/清空全部）+ 历史（自动记录访问/侧边栏双击导航/单条删除/清空全部）+ 浏览器偏好持久化 + 主机本地 SSH 端口转发；JWT via IAuthSession；未登录弹提示窗。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+
+### Port Forwarding
+
+- **定位**：Client 本机 SSH 隧道管理器；可由浏览器或第一方服务请求，不经 Server 同步配置。
+- **已实现**：优先绑定请求端口、冲突时自动选取可用 loopback 端口、返回实际链接、运行中隧道列表、更新与停止。详见 [`RemoteOS.PortForwarding.md`](./RemoteOS.PortForwarding.md)。
 
 ### RemoteTaskManager
 
@@ -375,7 +380,8 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | 终端应用：RoyalTerminal 集成、Local Mode PTY、会话生命周期、Remote Mode 演进 |
 | [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理器：Jaya UI 移植、REST API、宿主 OS 权限复用、文件操作、对话框集成 |
 | [`RemoteOS.CodeEditor.md`](./RemoteOS.CodeEditor.md) | 代码编辑器：多文件夹工作区、活动栏、目录树、多标签编辑与文件安全边界 |
-| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、BrowserSettings 持久化、本地端口映射（loopback → 服务端）、按用户隔离持久化 |
+| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 内置浏览器：Avalonia.Controls.WebView、NativeWebView、书签/历史 REST API、主页与链接打开位置、按用户隔离持久化 |
+| [`RemoteOS.PortForwarding.md`](./RemoteOS.PortForwarding.md) | 本机 SSH loopback 隧道：端口冲突回退、调用接口、活动隧道生命周期与不参与同步的安全边界 |
 | [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | 设置中心：5 分类页、Workspace 偏好持久化、PreferencesSync 多设备同步、默认程序映射 |
 | [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md) | 网络检查器：系统窗口 + 宿主采集、REST/SignalR 诊断、内存/隐私边界与国际化设计 |
 | [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 任务管理器：性能/进程双标签页、跨平台 ISystemMetricsProvider（Linux /proc + Windows P/Invoke）、CPU 差分、结束进程不自动提权 |

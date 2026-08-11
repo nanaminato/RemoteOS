@@ -52,7 +52,9 @@ public sealed class BrowserApp : RemoteApplicationBase
             return;
         }
 
-        var viewModel = new BrowserViewModel(client);
+        var portForwards = context.Services.GetService(typeof(Client.Apps.PortForwarding.IPortForwardingService))
+                           as Client.Apps.PortForwarding.IPortForwardingService;
+        var viewModel = new BrowserViewModel(client, portForwards);
         var view = new BrowserMainView { DataContext = viewModel };
         BrowserDiagnostics.Record("Browser view and view-model created; opening managed window.");
         var window = context.ShowWindow("RemoteBrowser", view,
@@ -100,7 +102,7 @@ public sealed class BrowserApp : RemoteApplicationBase
             {
                 viewModel.CloseSettingsAction = () => dialog.Close(true);
                 return new BrowserSettingsView { DataContext = viewModel };
-            }, new RemoteOS.Core.Primitives.Size(480, 280));
+            }, new RemoteOS.Core.Primitives.Size(520, 320));
         };
 
         // NativeWebView is a platform child view and does not participate in Avalonia's

@@ -65,12 +65,6 @@
                         ToolTip.Tip="{loc:Loc browser.toggle_bookmark}" />
                 <Separator Margin="6,0" />
                 <Button Classes="icon" Content="📑" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="{loc:Loc browser.toggle_sidebar}" />
-                <Separator Margin="6,0" />
-                <CheckBox Content="{loc:Loc browser.local_port_forwarding}"
-                          IsChecked="{Binding IsLocalPortForwardingEnabled, Mode=TwoWay}"
-                          Command="{Binding SaveLocalPortForwardingCommand}"
-                          VerticalAlignment="Center"
-                          ToolTip.Tip="{loc:Loc browser.local_port_forwarding.tooltip}" />
             </StackPanel>
         </Border>
 

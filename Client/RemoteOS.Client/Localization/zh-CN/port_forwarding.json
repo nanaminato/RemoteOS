@@ -1,0 +1,16 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "port_forwarding.title": "端口转发",
+    "port_forwarding.description": "从此设备到 RemoteOS Server 上 localhost 服务创建仅限 loopback 的 SSH 隧道。活动隧道与 SSH 设置不会同步。",
+    "port_forwarding.ssh_connection": "SSH 连接（仅此设备）",
+    "port_forwarding.ssh_note": "主机留空时使用当前 RemoteOS 连接的主机。认证交给 ssh 及已有密钥代理或配置。",
+    "port_forwarding.save_ssh": "保存本地 SSH 设置",
+    "port_forwarding.forward_service": "转发服务器 loopback 服务",
+    "port_forwarding.start": "启动转发",
+    "port_forwarding.update": "更新选中项",
+    "port_forwarding.stop": "停止选中项",
+    "port_forwarding.fallback_note": "若请求的本地端口已被占用，将选择下一个可用的 loopback 端口并在下方显示。",
+    "port_forwarding.running": "正在运行的转发"
+  }
+}

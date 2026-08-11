@@ -539,12 +539,13 @@ public sealed class WindowManager : IWindowManager
         double h = Math.Min(rememberedSize?.Height ?? requestedHeight, host.Height);
         var useDefaultPlacement = requested is null || initialPlacement == WindowInitialPlacement.CenteredCascade;
         var cascade = useDefaultPlacement ? (_nextCascadeSlot++ % 6) * 28 : 0;
+        var explicitPosition = requested?.Position;
 
-        double x = !useDefaultPlacement && requested is { } r
-            ? r.X
+        double x = !useDefaultPlacement && explicitPosition.HasValue
+            ? explicitPosition.Value.X
             : host.X + Math.Max(0, (host.Width - w) / 2) + cascade;
-        double y = !useDefaultPlacement && requested is { } r
-            ? r.Y
+        double y = !useDefaultPlacement && explicitPosition.HasValue
+            ? explicitPosition.Value.Y
             : host.Y + Math.Max(0, (host.Height - h) / 2) + cascade;
 
         x = Math.Clamp(x, host.X, Math.Max(host.X, host.Right - w));

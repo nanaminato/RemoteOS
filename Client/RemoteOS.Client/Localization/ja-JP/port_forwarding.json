@@ -1,0 +1,16 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "port_forwarding.title": "ポート フォワーディング",
+    "port_forwarding.description": "このデバイスから RemoteOS Server 上の localhost サービスへ、loopback 専用の SSH トンネルを作成します。アクティブなトンネルと SSH 設定は同期されません。",
+    "port_forwarding.ssh_connection": "SSH 接続（このデバイスのみ）",
+    "port_forwarding.ssh_note": "ホストを空にすると、現在の RemoteOS 接続のホストを使用します。認証には既存の ssh 設定またはキーエージェントを使用します。",
+    "port_forwarding.save_ssh": "ローカル SSH 設定を保存",
+    "port_forwarding.forward_service": "サーバー loopback サービスを転送",
+    "port_forwarding.start": "転送を開始",
+    "port_forwarding.update": "選択項目を更新",
+    "port_forwarding.stop": "選択項目を停止",
+    "port_forwarding.fallback_note": "要求したローカルポートが使用中の場合は、次に利用可能な loopback ポートを選択して下に表示します。",
+    "port_forwarding.running": "実行中の転送"
+  }
+}

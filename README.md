@@ -164,7 +164,8 @@ RemoteOS/
 | **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | ✅ 已实现 |
 | **Terminal** | 远端终端（Remote Mode：SignalR + PTY；Local Mode 回退） | ✅ 已实现 |
 | **Explorer** | 远端文件管理器（REST API + 宿主 OS 权限复用） | ✅ 已实现 |
-| **Browser** | 内置浏览器（书签/历史持久化 + 本地端口映射） | ✅ 已实现 |
+| **Browser** | 内置浏览器（书签/历史、主页与链接打开位置） | ✅ 已实现 |
+| **Port Forwarding** | 本机 SSH loopback 隧道管理（不参与同步） | ✅ 已实现 |
 | **Task Manager** | 远端任务管理器（CPU/内存/磁盘/网络/GPU + 进程列表） | ✅ 已实现 |
 | **Docker Manager** | 远端 Docker Engine 管理（容器/镜像/Stack/网络/卷） | 🚧 部分实现 |
 | **Process Guardian** | 进程守护（健康检查、自动恢复、原生服务管理） | 🚧 部分实现 |

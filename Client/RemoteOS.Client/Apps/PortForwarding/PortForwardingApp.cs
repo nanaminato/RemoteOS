@@ -1,0 +1,36 @@
+using Client.Apps.PortForwarding.ViewModels;
+using Client.Apps.PortForwarding.Views;
+using Microsoft.Extensions.DependencyInjection;
+using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
+using RemoteOS.Core.Primitives;
+using AppContext = RemoteOS.AppSDK.AppContext;
+
+namespace Client.Apps.PortForwarding;
+
+/// <summary>Built-in, host-local SSH port forward manager.</summary>
+public sealed class PortForwardingApp : RemoteApplicationBase
+{
+    public override ApplicationManifest Manifest { get; } = new(
+        Id: new AppId("remoteos.port-forwarding"),
+        DisplayName: "Port Forwarding",
+        Version: "1.0.0",
+        IconGlyph: "↔",
+        Description: "Local SSH tunnels to server loopback services");
+
+    public override void Activate(AppContext context)
+    {
+        var viewModel = new PortForwardingViewModel(context.Services.GetRequiredService<IPortForwardingService>());
+        var view = new PortForwardingMainView { DataContext = viewModel };
+        var window = context.ShowWindow("Port Forwarding", view,
+            bounds: new Rect(160, 100, 760, 650), iconGlyph: Manifest.IconGlyph);
+        EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
+        closed = (_, closedWindow) =>
+        {
+            if (!ReferenceEquals(closedWindow, window)) return;
+            context.WindowManager.WindowClosed -= closed;
+            viewModel.Dispose();
+        };
+        context.WindowManager.WindowClosed += closed;
+    }
+}

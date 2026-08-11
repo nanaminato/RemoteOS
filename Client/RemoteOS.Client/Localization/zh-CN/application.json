@@ -24,6 +24,8 @@
         "application.remoteos.docker.display_name": "Docker 管理器",
         "application.remoteos.docker.description": "管理 RemoteOS Server 本机 Docker Engine",
         "application.remoteos.processguardian.display_name": "进程守护程序",
-        "application.remoteos.processguardian.description": "查看由 RemoteOS Guardian Agent 守护的工作负载"
+        "application.remoteos.processguardian.description": "查看由 RemoteOS Guardian Agent 守护的工作负载",
+        "application.remoteos.port-forwarding.display_name": "端口转发",
+        "application.remoteos.port-forwarding.description": "管理到 RemoteOS Server loopback 服务的本机 SSH 隧道"
     }
 }

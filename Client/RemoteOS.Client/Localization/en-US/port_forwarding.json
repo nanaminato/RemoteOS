@@ -1,0 +1,16 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "port_forwarding.title": "Port Forwarding",
+    "port_forwarding.description": "Create loopback-only SSH tunnels from this device to localhost services on the RemoteOS server. Active tunnels and SSH settings are never synchronized.",
+    "port_forwarding.ssh_connection": "SSH connection (this device only)",
+    "port_forwarding.ssh_note": "Leave host empty to use the host in the current RemoteOS connection. Authentication is delegated to ssh and your existing key agent/configuration.",
+    "port_forwarding.save_ssh": "Save local SSH settings",
+    "port_forwarding.forward_service": "Forward a server loopback service",
+    "port_forwarding.start": "Start forwarding",
+    "port_forwarding.update": "Update selected",
+    "port_forwarding.stop": "Stop selected",
+    "port_forwarding.fallback_note": "If the requested local port is occupied, the next available loopback port is selected and returned below.",
+    "port_forwarding.running": "Running forwards"
+  }
+}

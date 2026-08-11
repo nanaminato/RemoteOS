@@ -4,15 +4,24 @@
              xmlns:vm="clr-namespace:Client.Apps.Browser.ViewModels"
              x:Class="Client.Apps.Browser.Views.BrowserSettingsView"
              x:DataType="vm:BrowserViewModel"
-             Width="480">
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
+             Width="520">
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20" RowSpacing="14">
         <TextBlock Text="{loc:Loc browser.settings.title}" FontSize="18" FontWeight="SemiBold" />
-        <CheckBox Grid.Row="1" Content="Enable local port forwarding"
-                  IsChecked="{Binding IsLocalPortForwardingEnabled, Mode=TwoWay}" />
-        <TextBlock Grid.Row="2" Text="{loc:Loc browser.settings.port_forwarding_note}"
+        <StackPanel Grid.Row="1" Spacing="6">
+            <TextBlock Text="{loc:Loc browser.settings.home_page}" FontWeight="SemiBold" />
+            <TextBox Text="{Binding HomePageText, Mode=TwoWay}" Watermark="https://example.com" />
+        </StackPanel>
+        <StackPanel Grid.Row="2" Spacing="6">
+            <TextBlock Text="{loc:Loc browser.settings.link_open_target}" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="14">
+                <RadioButton Content="{loc:Loc browser.settings.open_built_in}" IsChecked="{Binding OpenLinksInBuiltInBrowser, Mode=TwoWay}" />
+                <RadioButton Content="{loc:Loc browser.settings.open_host}" IsChecked="{Binding OpenLinksOnHost, Mode=TwoWay}" />
+            </StackPanel>
+        </StackPanel>
+        <TextBlock Grid.Row="3" Text="{loc:Loc browser.settings.port_forwarding_note}"
                    TextWrapping="Wrap" Opacity="0.7" />
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-            <Button Content="Save" Command="{Binding SaveLocalPortForwardingCommand}" />
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="{loc:Loc common.save}" Command="{Binding SaveBrowserSettingsCommand}" />
             <Button Classes="primary" Content="Done" Command="{Binding CloseSettingsCommand}" />
         </StackPanel>
     </Grid>

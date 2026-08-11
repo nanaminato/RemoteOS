@@ -64,7 +64,11 @@ public partial class BrowserMainView : UserControl
         _webView.EnvironmentRequested += ConfigureWebViewEnvironment;
         _webView.AdapterCreated += (_, _) => BrowserDiagnostics.Record($"NativeWebView adapter created: {_webView.AdapterInfo?.ToString() ?? "<unknown>"}.");
         _webView.AdapterDestroyed += (_, _) => BrowserDiagnostics.Record("NativeWebView adapter destroyed.");
-        _webView.NavigationStarted += (_, _) => OnNavigationStarted(_webView.Source, _webView.CanGoBack, _webView.CanGoForward, "NativeWebView");
+        _webView.NavigationStarted += (_, args) =>
+        {
+            if (TryOpenNativeLinkOnHost(args)) return;
+            OnNavigationStarted(_webView.Source, _webView.CanGoBack, _webView.CanGoForward, "NativeWebView");
+        };
         _webView.NavigationCompleted += (_, _) => OnNavigationCompleted(_webView.Source, _webView.CanGoBack, _webView.CanGoForward, "NativeWebView");
         WebViewHost.Content = _webView;
     }
@@ -212,6 +216,7 @@ public partial class BrowserMainView : UserControl
                 OpenWithSystemBrowser(source);
         };
         ViewModel.ViewStopRequested = () => _webView?.Stop();
+        ViewModel.OpenWithHostRequested = source => OpenWithSystemBrowser(source, reportNavigation: false);
         ViewModel.UpdateNavigationState(_webView?.CanGoBack ?? false, _webView?.CanGoForward ?? false);
     }
 
@@ -269,26 +274,52 @@ public partial class BrowserMainView : UserControl
         OpenWithSystemBrowser(source);
     }
 
-    private void OpenWithSystemBrowser(Uri source)
+    private void OpenWithSystemBrowser(Uri source, bool reportNavigation = true)
     {
         try
         {
-            var startInfo = new ProcessStartInfo
+            var startInfo = new ProcessStartInfo(source.AbsoluteUri)
             {
-                FileName = "xdg-open",
-                UseShellExecute = false,
-                CreateNoWindow = true,
+                UseShellExecute = true,
             };
-            startInfo.ArgumentList.Add(source.AbsoluteUri);
             Process.Start(startInfo);
-            BrowserDiagnostics.Record($"Delegated Linux navigation to xdg-open: {BrowserDiagnostics.SanitizeUri(source)}.");
-            OnNavigationStarted(source, false, false, "SystemBrowser");
-            OnNavigationCompleted(source, false, false, "SystemBrowser");
+            BrowserDiagnostics.Record($"Delegated navigation to the host browser: {BrowserDiagnostics.SanitizeUri(source)}.");
+            if (reportNavigation)
+            {
+                OnNavigationStarted(source, false, false, "SystemBrowser");
+                OnNavigationCompleted(source, false, false, "SystemBrowser");
+            }
         }
         catch (Exception exception)
         {
-            BrowserDiagnostics.Record($"xdg-open failed: {exception.GetType().Name}: {exception.Message}");
-            ViewModel?.OnNavigationCompleted(source, isSuccess: false);
+            BrowserDiagnostics.Record($"Host browser launch failed: {exception.GetType().Name}: {exception.Message}");
+            if (reportNavigation)
+                ViewModel?.OnNavigationCompleted(source, isSuccess: false);
+        }
+    }
+
+    /// <summary>Cancel an embedded, user-clicked HTTP(S) navigation when the user selected the host browser.</summary>
+    private bool TryOpenNativeLinkOnHost(object? navigationArgs)
+    {
+        var source = _webView?.Source;
+        if (ViewModel?.LinkOpenTarget != BrowserLinkOpenTarget.HostBrowser || source is null
+            || (!source.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !source.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        try
+        {
+            // Avalonia exposes a platform-neutral event but currently uses platform-specific
+            // argument types. All supported adapters expose Cancel; dynamic keeps this source
+            // independent of backend-only assemblies.
+            ((dynamic)navigationArgs!).Cancel = true;
+            OpenWithSystemBrowser(source);
+            return true;
+        }
+        catch (Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
+        {
+            // A backend without cancellable navigation still keeps the in-app page usable.
+            return false;
         }
     }
 

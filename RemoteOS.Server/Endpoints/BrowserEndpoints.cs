@@ -18,7 +18,7 @@ public static class BrowserEndpoints
         app.MapGet(BrowserApiRoutes.Settings, (ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
         {
             var workspace = workspaces.FindByUserId(GetUserId(principal));
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.BrowserSettings);
+            return workspace is null ? Results.NotFound() : Results.Ok(workspace.BrowserSettings.Normalize());
         })
         .RequireAuthorization()
         .WithTags("Browser");
@@ -29,7 +29,7 @@ public static class BrowserEndpoints
             if (workspace is null)
                 return Results.NotFound();
 
-            workspace.BrowserSettings = new BrowserSettingsDto(request.LocalPortForwardingEnabled);
+            workspace.BrowserSettings = request.Normalize();
             workspaces.Update(workspace);
             return Results.Ok(workspace.BrowserSettings);
         })
