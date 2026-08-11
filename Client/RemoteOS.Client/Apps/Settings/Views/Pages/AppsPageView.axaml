@@ -62,6 +62,20 @@
                         <Button Content="{loc:Loc settings.uninstall}" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
                     </StackPanel>
                     <TextBlock Text="{Binding UninstallAvailabilityText}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
+                    <Border IsVisible="{Binding IsBrowserSettingsVisible}" Background="#F8FAFC" CornerRadius="8" Padding="12">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="{loc:Loc settings.apps.browser.settings}" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Loc settings.apps.browser.link_open_target}" FontSize="12" Opacity="0.65" />
+                            <StackPanel Orientation="Horizontal" Spacing="14" IsEnabled="{Binding !IsBrowserSettingsLoading}">
+                                <RadioButton Content="{loc:Loc browser.settings.open_built_in}" IsChecked="{Binding OpenBrowserLinksInBuiltInBrowser, Mode=TwoWay}" />
+                                <RadioButton Content="{loc:Loc browser.settings.open_host}" IsChecked="{Binding OpenBrowserLinksOnHost, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="{loc:Loc common.save}" Command="{Binding SaveBrowserLinkOpenTargetCommand}" IsEnabled="{Binding !IsSavingBrowserSettings}" />
+                                <TextBlock Text="{Binding BrowserSettingsStatus}" IsVisible="{Binding HasBrowserSettingsStatus}" FontSize="12" Opacity="0.68" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                     <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <StackPanel Spacing="3">

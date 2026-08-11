@@ -3,7 +3,6 @@
     "Strings": {
         "browser.settings.title": "Browser settings",
         "browser.settings.home_page": "Home page",
-        "browser.settings.link_open_target": "Open links with",
         "browser.settings.open_built_in": "Built-in browser",
         "browser.settings.open_host": "Host browser",
         "browser.settings.invalid_home_page": "Enter a valid http or https home page URL.",

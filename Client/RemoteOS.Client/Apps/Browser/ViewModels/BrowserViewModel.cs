@@ -60,16 +60,6 @@ public sealed partial class BrowserViewModel : ObservableObject
 
     /// <summary>主页 URI（地址栏"主页"按钮的目标）。可空：未设置时不显示主页按钮或 no-op。</summary>
     public Uri? HomePage { get; private set; } = new(BrowserSettingsDto.Default.HomePage!);
-    public bool OpenLinksInBuiltInBrowser
-    {
-        get => LinkOpenTarget == BrowserLinkOpenTarget.BuiltInBrowser;
-        set { if (value) LinkOpenTarget = BrowserLinkOpenTarget.BuiltInBrowser; }
-    }
-    public bool OpenLinksOnHost
-    {
-        get => LinkOpenTarget == BrowserLinkOpenTarget.HostBrowser;
-        set { if (value) LinkOpenTarget = BrowserLinkOpenTarget.HostBrowser; }
-    }
 
     /// <summary>关闭窗口回调（由 BrowserApp 注入）。</summary>
     public Action? CloseAction { get; set; }
@@ -213,12 +203,6 @@ public sealed partial class BrowserViewModel : ObservableObject
     public Action? ViewStopRequested { get; set; }
     /// <summary>由 View 注入，使用运行 RemoteOS Client 的宿主机默认浏览器打开链接。</summary>
     public Action<Uri>? OpenWithHostRequested { get; set; }
-
-    partial void OnLinkOpenTargetChanged(BrowserLinkOpenTarget value)
-    {
-        OnPropertyChanged(nameof(OpenLinksInBuiltInBrowser));
-        OnPropertyChanged(nameof(OpenLinksOnHost));
-    }
 
     public string FullScreenMenuText => IsFullScreen ? LocalizedText.Get("browser.exit_full_screen") : LocalizedText.Get("browser.enter_full_screen");
 
@@ -371,8 +355,12 @@ public sealed partial class BrowserViewModel : ObservableObject
         }
         try
         {
+            // The link-opening preference is owned by Settings > Applications > Browser.
+            // Read the current value before saving the home page so this dialog can never
+            // overwrite a preference changed from Settings while the browser is open.
+            var current = await _client.GetSettingsAsync();
             var saved = await _client.SaveSettingsAsync(new BrowserSettingsDto(
-                IsLocalPortForwardingEnabled, homePage.AbsoluteUri, LinkOpenTarget));
+                current.LocalPortForwardingEnabled, homePage.AbsoluteUri, current.LinkOpenTarget));
             IsLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
             _savedLocalPortForwardingEnabled = saved.LocalPortForwardingEnabled;
             HomePageText = saved.HomePage ?? BrowserSettingsDto.Default.HomePage!;

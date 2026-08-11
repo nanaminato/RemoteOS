@@ -78,7 +78,7 @@ BrowserSettingsDto (sealed record)
   LinkOpenTarget              BuiltInBrowser|HostBrowser
 ```
 
-主页与链接打开位置随 Workspace 同步；Port Forwarding 的 SSH 配置和运行中隧道只保存在 Client 本机，绝不同步。
+主页与链接打开位置随 Workspace 同步；其中主页在浏览器的设置对话框中编辑，链接打开位置在 **设置 → 应用 → 远程浏览器** 中编辑。Port Forwarding 的 SSH 配置和运行中隧道只保存在 Client 本机，绝不同步。
 
 随 Workspace 持久化为 `browser_settings` JSON 列（`OwnsOne + ToJson`）。`BrowserSettings` 控制「本地端口映射」功能的启停——关闭时 `/api/v1/browser/local/*` 端点返回 403。
 

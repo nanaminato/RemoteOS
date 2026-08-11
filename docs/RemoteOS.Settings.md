@@ -28,7 +28,7 @@ Settings 是 RemoteOS 的内置系统设置应用，参考 Windows 11 设置 / G
 | 个性化 | 🎨 | 内置预设或上传图片壁纸 + 主题（Light / Dark / System） | Workspace.Preferences + Server Storage |
 | 时间和语言 | 🕐 | 12/24 小时制 + 日期格式 + 语言 + 区域（时区只读） | Workspace.Preferences |
 | 网络 | 🌐 | 只读连接状态 + 「测试连接」测往返延迟 | — |
-| 应用 | 📦 | 已注册应用清单、第三方应用权限、开发者模式、默认程序映射编辑器（scheme/ext → appId） | 默认程序映射 → Workspace；应用授权与开发者模式 → 本机 |
+| 应用 | 📦 | 已注册应用清单、第三方应用权限、内置远程浏览器的链接打开位置、开发者模式、默认程序映射编辑器（scheme/ext → appId） | 默认程序映射与浏览器链接打开位置 → Workspace；应用授权与开发者模式 → 本机 |
 
 ---
 
@@ -177,7 +177,7 @@ workspaces
 | `PersonalizationPageViewModel` | `WallpaperIndex` / `Theme` | 主题 RadioButton 辅助属性 `IsLightTheme`/`IsDarkTheme`/`IsSystemTheme`（Theme 变化时刷新） |
 | `TimeLanguagePageViewModel` | `TimeFormat` / `DateFormat` / `Language` / `Region` | `TimeSample` / `DateSample` 实时预览（`FormatTime`/`FormatDate` 供桌面外壳时钟复用）；`TimeZone` 只读展示宿主时区 |
 | `NetworkPageViewModel` | — | 只读连接状态 + `TestConnectionCommand`（`IRemoteOsClient.GetMeAsync` + `Stopwatch` 测延迟） |
-| `AppsPageViewModel` | — | `RegisteredApps`（只读）+ 应用权限入口 + 开发者模式开关/配对令牌 + `Mappings`（`ObservableCollection<DefaultAppMappingViewModel>`，可增删改）+ `SetMappings`/`ToMappings` 与 DTO 互转 |
+| `AppsPageViewModel` | — | `RegisteredApps`（只读）+ 应用权限入口；选择内置 `remoteos.browser` 时读取/保存 `BrowserSettings.LinkOpenTarget`；开发者模式开关/配对令牌 + `Mappings`（`ObservableCollection<DefaultAppMappingViewModel>`，可增删改）+ `SetMappings`/`ToMappings` 与 DTO 互转 |
 
 **`DefaultAppMappingViewModel`**：单条映射（`Scheme` + `AppId` + `SelectedApp` ComboBox 双向同步），`OnSchemeChanged`/`OnAppIdChanged` 触发 `_save`。
 

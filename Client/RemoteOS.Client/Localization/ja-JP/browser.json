@@ -3,7 +3,6 @@
     "Strings": {
         "browser.settings.title": "ブラウザー設定",
         "browser.settings.home_page": "ホーム ページ",
-        "browser.settings.link_open_target": "リンクを開く場所",
         "browser.settings.open_built_in": "内蔵ブラウザー",
         "browser.settings.open_host": "ホストのブラウザー",
         "browser.settings.invalid_home_page": "有効な http または https のホームページ URL を入力してください。",

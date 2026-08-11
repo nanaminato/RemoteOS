@@ -3,7 +3,6 @@
     "Strings": {
         "browser.settings.title": "浏览器设置",
         "browser.settings.home_page": "主页",
-        "browser.settings.link_open_target": "打开链接的位置",
         "browser.settings.open_built_in": "内置浏览器",
         "browser.settings.open_host": "宿主机浏览器",
         "browser.settings.invalid_home_page": "请输入有效的 http 或 https 主页地址。",

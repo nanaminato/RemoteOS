@@ -2,6 +2,7 @@ using Client.Services;
 using Client.Services.Auth;
 using Client.Services.Developer;
 using Client.Services.Diagnostics;
+using Client.Apps.Browser;
 using Client.Apps.TaskManager;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -40,6 +41,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         DefaultAppRegistry? registry,
         DeveloperModeService? developerMode,
         DeveloperPackageManager? packages,
+        IBrowserClient? browserClient,
         NetworkInspectorWindowService? networkInspector = null,
         LocalizationService? localization = null,
         WallpaperService? wallpapers = null)
@@ -63,7 +65,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, localization, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
-            new AppsPageViewModel(settings, apps!, packages!, localization),
+            new AppsPageViewModel(settings, apps!, packages!, localization, browserClient!),
             new DefaultAppsPageViewModel(settings, apps!, save),
             new DeveloperPageViewModel(settings, developerMode!, networkInspector!, localization, save),
         };

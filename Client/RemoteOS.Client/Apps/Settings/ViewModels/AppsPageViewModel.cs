@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Threading;
+using Client.Apps.Browser;
 using Client.Services;
 using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
+using RemoteOS.Protocol.Browser;
 
 namespace Client.Apps.Settings.ViewModels;
 
@@ -17,13 +19,21 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     private readonly ApplicationManager _apps;
     private readonly DeveloperPackageManager _packages;
     private readonly LocalizationService _localization;
+    private readonly IBrowserClient _browserClient;
+    private BrowserSettingsDto? _browserSettings;
 
-    public AppsPageViewModel(ShellSettings settings, ApplicationManager apps, DeveloperPackageManager packages, LocalizationService localization)
+    public AppsPageViewModel(
+        ShellSettings settings,
+        ApplicationManager apps,
+        DeveloperPackageManager packages,
+        LocalizationService localization,
+        IBrowserClient browserClient)
         : base(settings, save: null)
     {
         _apps = apps;
         _packages = packages;
         _localization = localization;
+        _browserClient = browserClient;
         _apps.RegistryChanged += OnRegistryChanged;
         _localization.LanguageChanged += OnLanguageChanged;
         RefreshApplications();
@@ -43,6 +53,10 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     [ObservableProperty] private ApplicationInfo? _selectedApp;
     [ObservableProperty] private string _actionStatus = string.Empty;
     [ObservableProperty] private bool _isUninstalling;
+    [ObservableProperty] private bool _isBrowserSettingsLoading;
+    [ObservableProperty] private bool _isSavingBrowserSettings;
+    [ObservableProperty] private string _browserSettingsStatus = string.Empty;
+    [ObservableProperty] private BrowserLinkOpenTarget _browserLinkOpenTarget = BrowserLinkOpenTarget.BuiltInBrowser;
 
     public bool IsInstalledApps => Subpage == AppsSubpage.InstalledApps;
     public bool IsAppDetails => Subpage == AppsSubpage.AppDetails;
@@ -50,6 +64,18 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     public bool HasActionStatus => !string.IsNullOrWhiteSpace(ActionStatus);
     public bool CanUninstallSelectedApp => !IsUninstalling && SelectedApp is not null
         && _packages.FindInstalled(SelectedApp.Id.Value) is not null;
+    public bool IsBrowserSettingsVisible => SelectedApp?.Id.Value == "remoteos.browser";
+    public bool OpenBrowserLinksInBuiltInBrowser
+    {
+        get => BrowserLinkOpenTarget == BrowserLinkOpenTarget.BuiltInBrowser;
+        set { if (value) BrowserLinkOpenTarget = BrowserLinkOpenTarget.BuiltInBrowser; }
+    }
+    public bool OpenBrowserLinksOnHost
+    {
+        get => BrowserLinkOpenTarget == BrowserLinkOpenTarget.HostBrowser;
+        set { if (value) BrowserLinkOpenTarget = BrowserLinkOpenTarget.HostBrowser; }
+    }
+    public bool HasBrowserSettingsStatus => !string.IsNullOrWhiteSpace(BrowserSettingsStatus);
     public string SelectedAppPermissionSummary => SelectedApp is null || SelectedApp.Permissions.Count == 0
         ? T("settings.apps.no_permissions", "This application does not request RemoteOS permissions.")
         : string.Format(CultureInfo.CurrentCulture,
@@ -85,6 +111,8 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         SelectedApp = app;
         ActionStatus = string.Empty;
         Subpage = AppsSubpage.AppDetails;
+        if (IsBrowserSettingsVisible)
+            _ = LoadBrowserSettingsAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenSelectedApp))]
@@ -132,6 +160,55 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
 
     private bool CanOpenSelectedApp() => SelectedApp is not null;
 
+    [RelayCommand]
+    private async Task SaveBrowserLinkOpenTargetAsync()
+    {
+        if (!IsBrowserSettingsVisible || IsSavingBrowserSettings)
+            return;
+
+        IsSavingBrowserSettings = true;
+        BrowserSettingsStatus = string.Empty;
+        try
+        {
+            var settings = _browserSettings ?? await _browserClient.GetSettingsAsync();
+            var saved = await _browserClient.SaveSettingsAsync(settings with { LinkOpenTarget = BrowserLinkOpenTarget });
+            _browserSettings = saved;
+            BrowserLinkOpenTarget = saved.LinkOpenTarget;
+            BrowserSettingsStatus = T("settings.apps.browser.link_open_target_saved", "Link opening preference saved.");
+        }
+        catch (Exception exception)
+        {
+            BrowserSettingsStatus = string.Format(
+                CultureInfo.CurrentCulture,
+                T("settings.apps.browser.link_open_target_save_failed", "Could not save the link opening preference: {0}"),
+                exception.Message);
+        }
+        finally { IsSavingBrowserSettings = false; }
+    }
+
+    private async Task LoadBrowserSettingsAsync()
+    {
+        IsBrowserSettingsLoading = true;
+        BrowserSettingsStatus = string.Empty;
+        try
+        {
+            var settings = await _browserClient.GetSettingsAsync();
+            if (!IsBrowserSettingsVisible)
+                return;
+            _browserSettings = settings;
+            BrowserLinkOpenTarget = settings.LinkOpenTarget;
+        }
+        catch (Exception exception)
+        {
+            if (IsBrowserSettingsVisible)
+                BrowserSettingsStatus = string.Format(
+                    CultureInfo.CurrentCulture,
+                    T("settings.apps.browser.link_open_target_load_failed", "Could not load the link opening preference: {0}"),
+                    exception.Message);
+        }
+        finally { IsBrowserSettingsLoading = false; }
+    }
+
     partial void OnSubpageChanged(AppsSubpage value)
     {
         OnPropertyChanged(nameof(IsInstalledApps));
@@ -144,6 +221,7 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         OnPropertyChanged(nameof(CanUninstallSelectedApp));
         OnPropertyChanged(nameof(SelectedAppPermissionSummary));
         OnPropertyChanged(nameof(UninstallAvailabilityText));
+        OnPropertyChanged(nameof(IsBrowserSettingsVisible));
         OpenSelectedAppCommand.NotifyCanExecuteChanged();
         UninstallSelectedAppCommand.NotifyCanExecuteChanged();
     }
@@ -156,6 +234,12 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     }
 
     partial void OnActionStatusChanged(string value) => OnPropertyChanged(nameof(HasActionStatus));
+    partial void OnBrowserLinkOpenTargetChanged(BrowserLinkOpenTarget value)
+    {
+        OnPropertyChanged(nameof(OpenBrowserLinksInBuiltInBrowser));
+        OnPropertyChanged(nameof(OpenBrowserLinksOnHost));
+    }
+    partial void OnBrowserSettingsStatusChanged(string value) => OnPropertyChanged(nameof(HasBrowserSettingsStatus));
 
     private ApplicationInfo Localize(ApplicationInfo app)
     {

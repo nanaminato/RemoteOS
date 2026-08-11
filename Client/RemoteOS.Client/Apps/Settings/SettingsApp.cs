@@ -10,6 +10,7 @@ using Client.Services.AppPermissions;
 using Client.Services.Developer;
 using Client.Services.Diagnostics;
 using Client.Apps.TaskManager;
+using Client.Apps.Browser;
 using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
@@ -51,9 +52,10 @@ public sealed class SettingsApp : RemoteApplicationBase
         var networkInspector = context.Services.GetRequiredService<NetworkInspectorWindowService>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
         var wallpapers = context.Services.GetRequiredService<WallpaperService>();
+        var browserClient = context.Services.GetRequiredService<IBrowserClient>();
 
         var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages,
-            networkInspector, wallpapers: wallpapers);
+            browserClient, networkInspector, wallpapers: wallpapers);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),
