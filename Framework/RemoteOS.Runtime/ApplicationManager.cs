@@ -98,6 +98,27 @@ public sealed class ApplicationManager
         return true;
     }
 
+    /// <summary>
+    /// Opens a new terminal in <paramref name="workingDirectory"/> using a registered terminal
+    /// application. This lets applications request a terminal without taking a dependency on a
+    /// concrete terminal implementation.
+    /// </summary>
+    public bool OpenTerminal(string workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory))
+            return false;
+
+        var terminal = _apps.Values
+            .Where(app => app is IOpenTerminalApplication)
+            .OrderBy(app => app.Manifest.DisplayName)
+            .FirstOrDefault();
+        if (terminal is not IOpenTerminalApplication terminalOpener || !EnsureCompatible(terminal.Manifest))
+            return false;
+
+        terminalOpener.OpenTerminal(new AppContext(terminal.Manifest.Id, _windowManager, _services), workingDirectory);
+        return true;
+    }
+
     private bool EnsureCompatible(ApplicationManifest manifest)
     {
         var evaluator = _services.GetService(typeof(IApplicationCompatibilityEvaluator)) as IApplicationCompatibilityEvaluator;

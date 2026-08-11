@@ -23,6 +23,11 @@ RemoteTerminal 是 RemoteOS 的内置应用之一，遵循架构 §6 的两类�
 2. 自动重连、JWT 鉴权、强类型 Hub 契约（`Hub<ITerminalHubClient>`）。
 3. 无需额外引入裸 WebSocket 端点与手写握手机制。
 
+### 1.1 从其他内置应用打开终端
+
+`RemoteOS.AppSDK.IOpenTerminalApplication` 定义了“在指定远程目录中新建终端”的应用契约。内置应用通过
+`ApplicationManager.OpenTerminal(workingDirectory)` 调用该契约，无需依赖 `TerminalApp`；运行时会检查应用兼容性后，将目录传给终端的 `WorkingDirectory`。RemoteExplorer 的“在此处打开终端”菜单会优先使用所选文件夹，否则使用当前地址栏目录。
+
 ---
 
 ## 2. 包与集成方式

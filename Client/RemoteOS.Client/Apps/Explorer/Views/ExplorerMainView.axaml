@@ -26,6 +26,7 @@
                 <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" InputGesture="Ctrl+Shift+N" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload}" Command="{Binding UploadCommand}" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload_folder}" Command="{Binding UploadFolderCommand}" />
+                <MenuItem Header="{loc:Loc explorer.open_terminal}" Command="{Binding OpenTerminalCommand}" />
                 <Separator />
                 <MenuItem Header="{loc:Loc explorer.menu.exit}" Command="{Binding CloseCommand}" />
             </MenuItem>
@@ -189,6 +190,7 @@
                     <ContextMenu DataContext="{Binding #EntriesGrid.DataContext}">
                         <MenuItem Header="{loc:Loc common.open}" Command="{Binding OpenCommand}" />
                         <MenuItem Header="{loc:Loc explorer.open_with}" Command="{Binding OpenWithSelectedCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.open_terminal}" Command="{Binding OpenTerminalCommand}" />
                         <Separator />
                         <MenuItem Header="{loc:Loc explorer.copy}" Command="{Binding CopyCommand}" />
                         <MenuItem Header="{loc:Loc explorer.cut}" Command="{Binding CutCommand}" />

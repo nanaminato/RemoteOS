@@ -209,6 +209,13 @@ public sealed class ExplorerApp : RemoteApplicationBase
 
         var applications = context.Services.GetService(typeof(ApplicationManager)) as ApplicationManager;
         var defaults = context.Services.GetService(typeof(DefaultAppRegistry)) as DefaultAppRegistry;
+        vm.OpenTerminalAtPathAsync = path =>
+        {
+            if (applications?.OpenTerminal(path) == true)
+                return Task.CompletedTask;
+            return vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_terminal"),
+                LocalizedText.Get("explorer.terminal_unavailable")) ?? Task.CompletedTask;
+        };
         vm.OpenFileAsync = async entry =>
         {
             var extension = Path.GetExtension(entry.Name);

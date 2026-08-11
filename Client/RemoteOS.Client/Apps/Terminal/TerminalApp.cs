@@ -14,7 +14,7 @@ namespace Client.Apps.Terminal;
 /// Built-in terminal application. A restored server session always receives its own desktop
 /// window; the terminal never multiplexes multiple sessions inside a single window.
 /// </summary>
-public sealed class TerminalApp : RemoteApplicationBase
+public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplication
 {
     private static int _opening;
 
@@ -30,6 +30,15 @@ public sealed class TerminalApp : RemoteApplicationBase
         if (Interlocked.Exchange(ref _opening, 1) != 0)
             return;
         _ = OpenAsync(context);
+    }
+
+    /// <summary>Opens a fresh terminal at a caller-supplied remote-host directory.</summary>
+    public void OpenTerminal(AppContext context, string workingDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workingDirectory);
+        var session = context.Services.GetService<IAuthSession>();
+        var diagnostics = context.Services.GetService<NetworkDiagnosticsService>();
+        OpenWindow(context, session, diagnostics, sessionId: null, workingDirectory: workingDirectory);
     }
 
     private async Task OpenAsync(AppContext context)
@@ -75,10 +84,15 @@ public sealed class TerminalApp : RemoteApplicationBase
         }
     }
 
-    private void OpenWindow(AppContext context, IAuthSession? session, NetworkDiagnosticsService? diagnostics, string? sessionId)
+    private void OpenWindow(
+        AppContext context,
+        IAuthSession? session,
+        NetworkDiagnosticsService? diagnostics,
+        string? sessionId,
+        string? workingDirectory = null)
     {
         var settingsClient = context.Services.GetRequiredService<ITerminalSettingsClient>();
-        var viewModel = new TerminalViewModel(session, settingsClient, diagnostics, sessionId);
+        var viewModel = new TerminalViewModel(session, settingsClient, diagnostics, sessionId, workingDirectory);
         var view = new TerminalView
         {
             DataContext = viewModel,

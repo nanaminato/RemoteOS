@@ -22,6 +22,7 @@ public partial class TerminalViewModel : ObservableObject
     private readonly IAuthSession? _session;
     private readonly ITerminalSettingsClient _settingsClient;
     private readonly string? _initialSessionId;
+    private readonly string? _initialWorkingDirectory;
     private readonly NetworkDiagnosticsService? _diagnostics;
     private TerminalControl? _terminal;
     private SignalRTransportFactory? _transportFactory;
@@ -44,12 +45,14 @@ public partial class TerminalViewModel : ObservableObject
         IAuthSession? session,
         ITerminalSettingsClient settingsClient,
         NetworkDiagnosticsService? diagnostics,
-        string? initialSessionId = null)
+        string? initialSessionId = null,
+        string? initialWorkingDirectory = null)
     {
         _session = session;
         _settingsClient = settingsClient;
         _diagnostics = diagnostics;
         _initialSessionId = initialSessionId;
+        _initialWorkingDirectory = initialWorkingDirectory;
     }
 
     public static bool IsSessionOpen(string sessionId) => OpenSessions.ContainsKey(sessionId);
@@ -115,6 +118,7 @@ public partial class TerminalViewModel : ObservableObject
                 tokenProvider: () => _session?.Tokens?.AccessToken,
                 accessToken: _session.Tokens.AccessToken,
                 sessionId: sessionId,
+                workingDirectory: _initialWorkingDirectory,
                 diagnostics: _diagnostics);
         }
         else
@@ -122,7 +126,7 @@ public partial class TerminalViewModel : ObservableObject
             Status = LocalizedText.Get("terminal.status.local_fallback");
             options = new PtyTransportOptions(
                 Command: null,
-                WorkingDirectory: Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                WorkingDirectory: _initialWorkingDirectory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 Environment: null,
                 Dimensions: dimensions);
         }

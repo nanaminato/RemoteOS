@@ -95,6 +95,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public Func<FileSystemEntryDto, Task>? OpenFileAsync { get; set; }
     /// <summary>选择程序后打开一个远程文件。</summary>
     public Func<FileSystemEntryDto, Task>? RequestOpenWithAsync { get; set; }
+    /// <summary>在指定远程目录中打开内置终端。</summary>
+    public Func<string, Task>? OpenTerminalAtPathAsync { get; set; }
     /// <summary>显示远程文件或目录的属性。</summary>
     public Func<FilePropertiesDto, Task>? ShowPropertiesAsync { get; set; }
     /// <summary>显示消息（About 等）。参数：(title, message)。</summary>
@@ -108,6 +110,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public bool CanGoForward => _historyIndex < _history.Count - 1;
     public bool CanGoUp => !string.IsNullOrEmpty(AddressbarPath);
     public bool HasSelection => SelectedEntries.Count != 0 || SelectedEntry is not null;
+    public bool CanOpenTerminal => SelectedEntry is { } entry && IsFolder(entry)
+        || !string.IsNullOrWhiteSpace(AddressbarPath);
     public bool IsPickerMode => _pickerOptions is not null && _selectPaths is not null;
     public bool IsFolderPickerMode => IsPickerMode && _pickerOptions!.Mode == ExplorerPickerMode.SelectFolder;
     public bool IsFilePickerMode => IsPickerMode && !IsFolderPickerMode;
@@ -255,6 +259,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         // 注意：不在此同步树选中。TextBox.Text TwoWay 绑定默认 PropertyChanged，每个按键都触发本方法，
         // 路径还是半成品时去查找节点无意义且打断输入。同步在 NavigateToAsyncCore 末尾、路径被服务端确认后做。
         GoUpCommand.NotifyCanExecuteChanged();
+        OpenTerminalCommand.NotifyCanExecuteChanged();
         PasteCommand.NotifyCanExecuteChanged();
         PasteFromHostCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanGoUp));
@@ -263,6 +268,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     partial void OnSelectedEntryChanged(FileSystemEntryDto? value)
     {
         NotifySelectionCommands();
+        OpenTerminalCommand.NotifyCanExecuteChanged();
         ConfirmPickerCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(HasSelection));
         if (IsPickerMode && !AllowMultipleFiles)
@@ -662,6 +668,29 @@ public sealed partial class ExplorerViewModel : ObservableObject
         catch (Exception ex) { StatusText = LocalizedText.Format("explorer.status.file_open_failed", ex.Message); }
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenTerminal))]
+    private async Task OpenTerminalAsync()
+    {
+        var workingDirectory = SelectedEntry is { } entry && IsFolder(entry)
+            ? entry.Path
+            : AddressbarPath;
+        if (string.IsNullOrWhiteSpace(workingDirectory)) return;
+
+        try
+        {
+            if (OpenTerminalAtPathAsync is null)
+            {
+                StatusText = LocalizedText.Get("explorer.status.terminal_unavailable");
+                return;
+            }
+            await OpenTerminalAtPathAsync(workingDirectory);
+        }
+        catch (Exception ex)
+        {
+            StatusText = LocalizedText.Format("explorer.status.terminal_start_failed", ex.Message);
+        }
+    }
+
     // ---- 文件操作 ----
 
     [RelayCommand]
@@ -961,6 +990,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         MoveCommand.NotifyCanExecuteChanged();
         OpenCommand.NotifyCanExecuteChanged();
         OpenWithSelectedCommand.NotifyCanExecuteChanged();
+        OpenTerminalCommand.NotifyCanExecuteChanged();
         PropertiesCommand.NotifyCanExecuteChanged();
     }
 
