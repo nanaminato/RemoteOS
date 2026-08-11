@@ -163,10 +163,29 @@
 
             <!-- File Explorer-style details view. Each column starts with a fixed width:
                  spare viewport space remains empty instead of stretching a column;
-                 narrower viewports use the grid's horizontal scrollbar. Users can drag
+                 narrower viewports use the outer horizontal scrollbar. Users can drag
                  the header dividers to change any column width. -->
-            <DataGrid Grid.Column="2"
-                      x:Name="EntriesGrid"
+            <ScrollViewer Grid.Column="2"
+                          x:Name="EntriesScrollViewer"
+                          Background="#FFFFFF"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto"
+                          DragDrop.AllowDrop="True"
+                          DragDrop.DragOver="Explorer_DragOver"
+                          DragDrop.Drop="Explorer_Drop">
+                <!-- The directory background intentionally has its own menu. File-specific
+                     commands remain on the DataGrid context menu below. -->
+                <ScrollViewer.ContextMenu>
+                    <ContextMenu DataContext="{Binding #EntriesScrollViewer.DataContext}">
+                        <MenuItem Header="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Loc explorer.paste}" Command="{Binding PasteCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.new_folder}" Command="{Binding NewFolderCommand}" />
+                        <MenuItem Header="{loc:Loc explorer.open_terminal}" Command="{Binding OpenTerminalCommand}" />
+                    </ContextMenu>
+                </ScrollViewer.ContextMenu>
+                <DataGrid x:Name="EntriesGrid"
+                      HorizontalAlignment="Left"
                       ItemsSource="{Binding Entries}"
                       SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
                       SelectionMode="{Binding EntrySelectionMode}"
@@ -175,8 +194,8 @@
                       IsReadOnly="True"
                       CanUserResizeColumns="True"
                       CanUserSortColumns="True"
-                      HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Disabled"
                       GridLinesVisibility="None"
                       RowHeight="32"
                       ColumnHeaderHeight="30"
@@ -253,7 +272,8 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                 </DataGrid.Columns>
-            </DataGrid>
+                </DataGrid>
+            </ScrollViewer>
         </Grid>
     </DockPanel>
 </UserControl>

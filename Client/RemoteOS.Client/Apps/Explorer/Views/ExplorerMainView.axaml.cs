@@ -22,7 +22,6 @@ public partial class ExplorerMainView : UserControl
     public ExplorerMainView()
     {
         InitializeComponent();
-        EntriesGrid.AddHandler(InputElement.PointerPressedEvent, EntriesGrid_PreviewPointerPressed, RoutingStrategies.Tunnel);
     }
 
     /// <summary>Moves keyboard focus to the current-folder address field.</summary>
@@ -59,30 +58,6 @@ public partial class ExplorerMainView : UserControl
     {
         if (sender is DataGrid grid)
             ViewModel?.UpdatePickerSelection(grid.SelectedItems?.Cast<object>() ?? []);
-    }
-
-    /// <summary>
-    /// The DataGrid row extends across the viewport even after the last fixed-width column.
-    /// Treat that trailing space as background, like File Explorer, rather than as part of a row.
-    /// </summary>
-    private void EntriesGrid_PreviewPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (FindDataContext<FileSystemEntryDto>(e.Source) is null)
-            return;
-
-        var columnsWidth = EntriesGrid.Columns.Sum(column => column.ActualWidth);
-        if (e.GetPosition(EntriesGrid).X < columnsWidth)
-            return;
-
-        // A left click on the background clears selection, matching Explorer; other
-        // pointer buttons are simply kept from targeting the row beneath them.
-        if (e.GetCurrentPoint(EntriesGrid).Properties.IsLeftButtonPressed)
-        {
-            EntriesGrid.SelectedItem = null;
-            EntriesGrid.SelectedItems?.Clear();
-        }
-
-        e.Handled = true;
     }
 
     private void EntriesGrid_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -179,7 +154,7 @@ public partial class ExplorerMainView : UserControl
                 return path;
 
             // Empty space in the file list represents the directory currently being viewed.
-            if (ReferenceEquals(control, EntriesGrid))
+            if (ReferenceEquals(control, EntriesGrid) || ReferenceEquals(control, EntriesScrollViewer))
                 return ViewModel?.AddressbarPath;
         }
 
