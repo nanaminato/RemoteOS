@@ -15,4 +15,5 @@ public sealed record WindowCreateOptions(
     bool CanResize = true,
     bool CanMinimize = true,
     bool CanMaximize = true,
-    bool IsModalDialog = false);
+    bool IsModalDialog = false,
+    WindowInitialPlacement InitialPlacement = WindowInitialPlacement.Explicit);

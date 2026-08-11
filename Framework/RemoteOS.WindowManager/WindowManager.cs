@@ -29,6 +29,7 @@ public sealed class WindowManager : IWindowManager
     private Rect _fullScreenHostBounds;
     private int _zCounter;
     private int _nextId;
+    private int _nextCascadeSlot;
     private ManagedWindow? _active;
 
     /// <summary>Set by the client shell when a connected workspace can persist window dimensions.</summary>
@@ -86,7 +87,7 @@ public sealed class WindowManager : IWindowManager
 
         var id = new WindowId(++_nextId);
         var layoutKey = GetLayoutKey(options.OwnerAppId, options.Title);
-        var bounds = ResolveInitialBounds(options.Bounds, LayoutStore?.GetSize(layoutKey));
+        var bounds = ResolveInitialBounds(options.Bounds, LayoutStore?.GetSize(layoutKey), options.InitialPlacement);
 
         var info = new WindowInfo
         {
@@ -523,22 +524,28 @@ public sealed class WindowManager : IWindowManager
             _fullScreenHost.IsHitTestVisible = _windows.Any(w => w.Info.State == WindowState.FullScreen);
     }
 
-    private Rect ResolveInitialBounds(Rect? requested, Size? rememberedSize = null)
+    private Rect ResolveInitialBounds(
+        Rect? requested,
+        Size? rememberedSize,
+        WindowInitialPlacement initialPlacement)
     {
         var host = _hostBounds;
         if (host.IsEmpty)
             host = new Rect(0, 0, 1280, 720);
 
-        double w = rememberedSize?.Width ?? requested?.Width ?? Math.Min(900, host.Width - 80);
-        double h = rememberedSize?.Height ?? requested?.Height ?? Math.Min(560, host.Height - 80);
-        var cascade = (_windows.Count % 6) * 28;
+        var requestedWidth = requested?.Width ?? Math.Min(900, host.Width - 80);
+        var requestedHeight = requested?.Height ?? Math.Min(560, host.Height - 80);
+        double w = Math.Min(rememberedSize?.Width ?? requestedWidth, host.Width);
+        double h = Math.Min(rememberedSize?.Height ?? requestedHeight, host.Height);
+        var useDefaultPlacement = requested is null || initialPlacement == WindowInitialPlacement.CenteredCascade;
+        var cascade = useDefaultPlacement ? (_nextCascadeSlot++ % 6) * 28 : 0;
 
-        double x = requested is { } r
+        double x = !useDefaultPlacement && requested is { } r
             ? r.X
             : host.X + Math.Max(0, (host.Width - w) / 2) + cascade;
-        double y = requested is { } rr
-            ? rr.Y
-            : host.Y + Math.Max(0, (host.Height - h) / 2) - 40 + cascade;
+        double y = !useDefaultPlacement && requested is { } r
+            ? r.Y
+            : host.Y + Math.Max(0, (host.Height - h) / 2) + cascade;
 
         x = Math.Clamp(x, host.X, Math.Max(host.X, host.Right - w));
         y = Math.Clamp(y, host.Y, Math.Max(host.Y, host.Bottom - h));

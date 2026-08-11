@@ -42,7 +42,8 @@ public sealed class NetworkInspectorWindowService : IDisposable
         _view = new NetworkInspectorView(_diagnostics, _localization);
         _window = _windows.Create(new WindowCreateOptions(
             new AppId("remoteos.system.network-inspector"), Title(), _view,
-            new Rect(110, 70, 1180, 720), "\U0001F50E"));
+            new Rect(110, 70, 1180, 720), "\U0001F50E",
+            InitialPlacement: WindowInitialPlacement.CenteredCascade));
     }
 
     public void Dispose()

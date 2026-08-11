@@ -140,7 +140,8 @@ public sealed class ExternalAppContextFactory
                 IconGlyph: iconGlyph,
                 CanResize: canResize,
                 CanMinimize: canMinimize,
-                CanMaximize: canMaximize));
+                CanMaximize: canMaximize,
+                InitialPlacement: WindowInitialPlacement.CenteredCascade));
             return new ExternalAppWindowHandle(window, windowManager);
         }
     }

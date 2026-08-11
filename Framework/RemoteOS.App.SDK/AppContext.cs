@@ -39,6 +39,22 @@ public sealed class AppContext
         bool canResize = true,
         bool canMinimize = true,
         bool canMaximize = true)
+        => ShowWindow(title, content, bounds, iconGlyph, canResize, canMinimize, canMaximize,
+            WindowInitialPlacement.CenteredCascade);
+
+    /// <summary>
+    /// Creates and shows a window using an explicit initial-placement policy.
+    /// Applications normally use the overload above, which centers and cascades windows.
+    /// </summary>
+    public ManagedWindow ShowWindow(
+        string title,
+        Control content,
+        Rect? bounds,
+        string? iconGlyph,
+        bool canResize,
+        bool canMinimize,
+        bool canMaximize,
+        WindowInitialPlacement initialPlacement)
     {
         return WindowManager.Create(new WindowCreateOptions(
             OwnerAppId: AppId,
@@ -48,7 +64,8 @@ public sealed class AppContext
             IconGlyph: iconGlyph,
             CanResize: canResize,
             CanMinimize: canMinimize,
-            CanMaximize: canMaximize));
+            CanMaximize: canMaximize,
+            InitialPlacement: initialPlacement));
     }
 
     /// <summary>Displays an application window over the entire desktop, including shell chrome.</summary>
