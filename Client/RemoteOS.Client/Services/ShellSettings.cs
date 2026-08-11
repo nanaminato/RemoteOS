@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
@@ -24,11 +25,16 @@ public sealed partial class ShellSettings : ObservableObject
     [ObservableProperty] private string _notepadDefaultEncoding = TextEncodingPreferences.Default;
     [ObservableProperty] private string _codeEditorDefaultEncoding = TextEncodingPreferences.Default;
 
-    public IBrush CurrentWallpaper => Wallpapers[WallpaperIndex].Brush;
+    private IBrush _currentWallpaper = Brushes.LightTaskbar;
+    private string _currentWallpaperKey = WorkspacePreferencesDto.Default.WallpaperKey;
+    private Bitmap? _customWallpaper;
+
+    public IBrush CurrentWallpaper => _currentWallpaper;
 
     /// <summary>当前壁纸的持久 key（含 <c>builtin:</c> 前缀，与服务端 DTO 对齐）。</summary>
-    public string CurrentWallpaperKey =>
-        WorkspacePreferencesDto.BuiltInWallpaperPrefix + Wallpapers[WallpaperIndex].Key;
+    public string CurrentWallpaperKey => _currentWallpaperKey;
+
+    public bool IsCustomWallpaper => _customWallpaper is not null;
 
     /// <summary>任务栏 / 开始菜单底色（随主题切换的最小可见主题效果）。</summary>
     public IBrush TaskbarBackground => IsDarkTheme ? Brushes.DarkTaskbar : Brushes.LightTaskbar;
@@ -50,12 +56,12 @@ public sealed partial class ShellSettings : ObservableObject
             new WallpaperOption("cobalt", "Cobalt", Gradient("#E8F1FF", "#D5E6FF", "#BDD4F5")),
         ];
         _wallpaperIndex = 0;
+        SetBuiltInWallpaper(0);
     }
 
     partial void OnWallpaperIndexChanged(int value)
     {
-        OnPropertyChanged(nameof(CurrentWallpaper));
-        OnPropertyChanged(nameof(CurrentWallpaperKey));
+        SetBuiltInWallpaper(value);
     }
 
     partial void OnThemeChanged(ThemeKind value)
@@ -77,7 +83,15 @@ public sealed partial class ShellSettings : ObservableObject
             ? prefs.NotepadDefaultEncoding! : TextEncodingPreferences.Default;
         CodeEditorDefaultEncoding = TextEncodingPreferences.IsSupported(prefs.CodeEditorDefaultEncoding)
             ? prefs.CodeEditorDefaultEncoding! : TextEncodingPreferences.Default;
-        WallpaperIndex = IndexForKey(prefs.WallpaperKey);
+        if (TryIndexForKey(prefs.WallpaperKey, out var index))
+        {
+            WallpaperIndex = index;
+            // ObservableProperty does not notify when the index is unchanged. Explicitly reset
+            // an already-loaded custom image when the server selected the default preset.
+            SetBuiltInWallpaper(index);
+        }
+        else
+            SetUnloadedCustomWallpaper(prefs.WallpaperKey);
     }
 
     /// <summary>导出当前活状态为服务端 DTO（保存时用）。</summary>
@@ -88,22 +102,70 @@ public sealed partial class ShellSettings : ObservableObject
     /// <summary>按 key 设置壁纸（来自设置应用的选择）。</summary>
     public bool TrySetWallpaperKey(string key)
     {
-        var idx = IndexForKey(key);
-        if (idx < 0) return false;
+        if (!TryIndexForKey(key, out var idx)) return false;
         WallpaperIndex = idx;
         return true;
     }
 
-    private int IndexForKey(string? key)
+    /// <summary>用已下载的图片替换当前自定义壁纸的内置回退背景。</summary>
+    public void SetCustomWallpaper(string key, Bitmap bitmap)
     {
-        if (string.IsNullOrWhiteSpace(key)) return 0;
+        if (!key.StartsWith(WorkspacePreferencesDto.CustomWallpaperPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            bitmap.Dispose();
+            return;
+        }
+        _customWallpaper?.Dispose();
+        _customWallpaper = bitmap;
+        _wallpaperIndex = -1;
+        _currentWallpaperKey = key;
+        _currentWallpaper = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
+        OnPropertyChanged(nameof(CurrentWallpaper));
+        OnPropertyChanged(nameof(CurrentWallpaperKey));
+        OnPropertyChanged(nameof(IsCustomWallpaper));
+        OnPropertyChanged(nameof(WallpaperIndex));
+    }
+
+    private bool TryIndexForKey(string? key, out int index)
+    {
+        index = 0;
+        if (string.IsNullOrWhiteSpace(key)) return false;
         var bare = key.StartsWith(WorkspacePreferencesDto.BuiltInWallpaperPrefix, StringComparison.OrdinalIgnoreCase)
             ? key[WorkspacePreferencesDto.BuiltInWallpaperPrefix.Length..]
             : key;
         for (var i = 0; i < Wallpapers.Count; i++)
             if (string.Equals(Wallpapers[i].Key, bare, StringComparison.OrdinalIgnoreCase))
-                return i;
-        return 0;
+            {
+                index = i;
+                return true;
+            }
+        return false;
+    }
+
+    private void SetBuiltInWallpaper(int index)
+    {
+        if (index < 0 || index >= Wallpapers.Count) index = 0;
+        _customWallpaper?.Dispose();
+        _customWallpaper = null;
+        _currentWallpaperKey = WorkspacePreferencesDto.BuiltInWallpaperPrefix + Wallpapers[index].Key;
+        _currentWallpaper = Wallpapers[index].Brush;
+        OnPropertyChanged(nameof(CurrentWallpaper));
+        OnPropertyChanged(nameof(CurrentWallpaperKey));
+        OnPropertyChanged(nameof(IsCustomWallpaper));
+    }
+
+    private void SetUnloadedCustomWallpaper(string key)
+    {
+        _customWallpaper?.Dispose();
+        _customWallpaper = null;
+        _wallpaperIndex = -1;
+        _currentWallpaperKey = key;
+        // A download failure must not leave the desktop blank; retain a deterministic built-in fallback.
+        _currentWallpaper = Wallpapers[0].Brush;
+        OnPropertyChanged(nameof(CurrentWallpaper));
+        OnPropertyChanged(nameof(CurrentWallpaperKey));
+        OnPropertyChanged(nameof(IsCustomWallpaper));
+        OnPropertyChanged(nameof(WallpaperIndex));
     }
 
     private static IBrush Gradient(string c0, string c1, string c2)

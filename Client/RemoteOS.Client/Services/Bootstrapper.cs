@@ -86,11 +86,15 @@ public static class Bootstrapper
         services.AddHttpClient<ISettingsClient, SettingsClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "settings"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<IWallpaperClient, WorkspaceWallpaperClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "wallpaper"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "window-layout"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
+        services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<DeveloperModeService>();

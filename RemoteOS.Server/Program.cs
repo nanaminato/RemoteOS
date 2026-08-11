@@ -224,6 +224,7 @@ builder.Services.AddHostedService<GuardianLogBroadcastService>();
 // LocalFileService 移植自 Jaya FileSystemService 的目录枚举逻辑并扩展为完整文件操作；平台感知（Windows 盘符 / Linux "/" 根）。
 builder.Services.AddSingleton<Server.Files.IFileService, Server.Files.LocalFileService>();
 builder.Services.AddSingleton<Server.Files.MediaLeaseStore>();
+builder.Services.AddSingleton<WorkspaceWallpaperStore>();
 
 // CORS（开发期允许客户端跨域）
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>

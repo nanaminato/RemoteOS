@@ -38,7 +38,8 @@ public static class WorkspaceEndpoints
             return workspace is null ? Results.NotFound() : Results.Ok(workspace.Preferences);
         }).RequireAuthorization().WithTags("Workspace");
 
-        app.MapPut(WorkspaceApiRoutes.Preferences, (Guid id, WorkspacePreferencesDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapPut(WorkspaceApiRoutes.Preferences, async (Guid id, WorkspacePreferencesDto request, ClaimsPrincipal principal,
+            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null)
@@ -47,9 +48,70 @@ public static class WorkspaceEndpoints
             if (!TryNormalize(request, out var normalized))
                 return Results.BadRequest(new { message = "Invalid workspace preferences." });
 
+            var previousKey = workspace.Preferences.WallpaperKey;
             workspace.Preferences = normalized;
             workspaces.Update(workspace);
+            // Switching back to a preset must not leave the previously selected private image
+            // on disk indefinitely. Cleanup is best-effort: the updated preference remains valid
+            // even if a transient filesystem error delays removal.
+            if (TryGetCustomWallpaperId(previousKey, out var previousId)
+                && !string.Equals(previousKey, normalized.WallpaperKey, StringComparison.OrdinalIgnoreCase))
+            {
+                try { await wallpapers.DeleteAsync(id, previousId); }
+                catch { /* best-effort orphan cleanup */ }
+            }
             return Results.Ok(normalized);
+        }).RequireAuthorization().WithTags("Workspace");
+
+        // 图片壁纸属于 Workspace 托管资源，不读取或修改宿主机桌面壁纸。上传成功后原子地更新
+        // WallpaperKey，避免客户端在图片尚未同步时引用一个不存在的 blob。
+        app.MapPost(WorkspaceApiRoutes.Wallpaper, async (Guid id, HttpContext context, ClaimsPrincipal principal,
+            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
+        {
+            var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
+            if (workspace is null) return Results.NotFound();
+            if (!context.Request.HasFormContentType)
+                return Results.BadRequest(new { message = "Wallpaper upload must be multipart/form-data." });
+
+            var form = await context.Request.ReadFormAsync(context.RequestAborted);
+            var file = form.Files.FirstOrDefault();
+            if (file is null)
+                return Results.BadRequest(new { message = "No wallpaper image was provided." });
+            try
+            {
+                var stored = await wallpapers.SaveAsync(id, file, context.RequestAborted);
+                var previousKey = workspace.Preferences.WallpaperKey;
+                var updated = workspace.Preferences with
+                {
+                    WallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + stored.Id,
+                };
+                workspace.Preferences = updated;
+                workspaces.Update(workspace);
+
+                if (TryGetCustomWallpaperId(previousKey, out var previousId))
+                {
+                    try { await wallpapers.DeleteAsync(id, previousId); }
+                    catch { /* best-effort orphan cleanup */ }
+                }
+                return Results.Ok(updated);
+            }
+            catch (InvalidWallpaperException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        }).RequireAuthorization().WithTags("Workspace");
+
+        app.MapGet(WorkspaceApiRoutes.WallpaperContent, (Guid id, string blobId, ClaimsPrincipal principal,
+            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
+        {
+            var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
+            // A blob is readable only while it is the Workspace's selected image. This prevents
+            // stale/orphaned ids from acting as a file-access capability.
+            if (workspace is null || !TryGetCustomWallpaperId(workspace.Preferences.WallpaperKey, out var currentId)
+                || !string.Equals(currentId, blobId, StringComparison.OrdinalIgnoreCase))
+                return Results.NotFound();
+            var resource = wallpapers.OpenRead(id, blobId);
+            return resource is null ? Results.NotFound() : Results.File(resource.Value.Stream, resource.Value.ContentType);
         }).RequireAuthorization().WithTags("Workspace");
 
         app.MapGet(WorkspaceApiRoutes.WindowLayouts, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
@@ -118,6 +180,9 @@ public static class WorkspaceEndpoints
         var wallpaperKey = request.WallpaperKey?.Trim();
         if (string.IsNullOrWhiteSpace(wallpaperKey) || wallpaperKey.Length > 128)
             return false;
+        if (!wallpaperKey.StartsWith(WorkspacePreferencesDto.BuiltInWallpaperPrefix, StringComparison.OrdinalIgnoreCase)
+            && !TryGetCustomWallpaperId(wallpaperKey, out _))
+            return false;
         if (!Enum.IsDefined(request.Theme))
             return false;
         var timeFormat = request.TimeFormat?.Trim();
@@ -163,6 +228,18 @@ public static class WorkspaceEndpoints
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
             deduped.Values.ToList(), notepadEncoding, codeEditorEncoding);
+        return true;
+    }
+
+    private static bool TryGetCustomWallpaperId(string? key, out string id)
+    {
+        id = string.Empty;
+        if (string.IsNullOrWhiteSpace(key)
+            || !key.StartsWith(WorkspacePreferencesDto.CustomWallpaperPrefix, StringComparison.OrdinalIgnoreCase))
+            return false;
+        var value = key[WorkspacePreferencesDto.CustomWallpaperPrefix.Length..];
+        if (!Guid.TryParseExact(value, "N", out _)) return false;
+        id = value;
         return true;
     }
 

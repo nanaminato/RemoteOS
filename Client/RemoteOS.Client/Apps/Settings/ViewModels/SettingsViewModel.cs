@@ -26,6 +26,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly DefaultAppRegistry? _registry;
     private readonly DeveloperModeService? _developerMode;
     private readonly DeveloperPackageManager? _packages;
+    private readonly WallpaperService? _wallpapers;
     private CancellationTokenSource? _saveCts;
     private bool _initialized;
 
@@ -40,7 +41,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         DeveloperModeService? developerMode,
         DeveloperPackageManager? packages,
         NetworkInspectorWindowService? networkInspector = null,
-        LocalizationService? localization = null)
+        LocalizationService? localization = null,
+        WallpaperService? wallpapers = null)
     {
         _settings = settings;
         _client = client;
@@ -51,6 +53,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _registry = registry;
         _developerMode = developerMode;
         _packages = packages;
+        _wallpapers = wallpapers;
         localization ??= App.Services.GetRequiredService<LocalizationService>();
 
         var save = (Action)Save;
@@ -91,7 +94,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         try
         {
             var prefs = await _client.GetAsync(url, tokens.AccessToken, ws.Id);
-            _settings.Apply(prefs);
+            if (_wallpapers is not null)
+                await _wallpapers.ApplyAsync(prefs);
+            else
+                _settings.Apply(prefs);
             if (Pages.OfType<DefaultAppsPageViewModel>().FirstOrDefault() is { } defaultAppsPage)
                 defaultAppsPage.SetMappings(prefs.DefaultApps);
         }

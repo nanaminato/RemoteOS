@@ -1,4 +1,5 @@
 using Client.Services;
+using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Desktop;
 
 namespace Client.Apps.Settings.ViewModels;
@@ -27,6 +28,9 @@ public sealed class PersonalizationPageViewModel : SettingsPageViewModel
 
     public IReadOnlyList<Client.Services.WallpaperOption> Wallpapers => Settings.Wallpapers;
 
+    /// <summary>由 SettingsApp 提供本机文件选择器；VM 不直接依赖 Avalonia TopLevel。</summary>
+    public Func<Task>? RequestCustomWallpaperAsync { get; set; }
+
     public int WallpaperIndex
     {
         get => Settings.WallpaperIndex;
@@ -42,4 +46,11 @@ public sealed class PersonalizationPageViewModel : SettingsPageViewModel
     public bool IsLightTheme { get => Theme == ThemeKind.Light; set { if (value) Theme = ThemeKind.Light; } }
     public bool IsDarkTheme { get => Theme == ThemeKind.Dark; set { if (value) Theme = ThemeKind.Dark; } }
     public bool IsSystemTheme { get => Theme == ThemeKind.System; set { if (value) Theme = ThemeKind.System; } }
+
+    [RelayCommand]
+    private async Task ChooseImageAsync()
+    {
+        if (RequestCustomWallpaperAsync is not null)
+            await RequestCustomWallpaperAsync();
+    }
 }

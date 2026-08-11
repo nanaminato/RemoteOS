@@ -12,6 +12,10 @@
             <StackPanel Spacing="10">
                 <TextBlock Text="{loc:Loc settings.wallpaper}" Classes="title" />
                 <TextBlock Text="{loc:Loc settings.wallpaper.description}" Opacity="0.7" />
+                <Button Content="{loc:Loc settings.wallpaper.choose_image}"
+                        Command="{Binding ChooseImageCommand}"
+                        HorizontalAlignment="Left" />
+                <TextBlock Text="{loc:Loc settings.wallpaper.sync_hint}" Opacity="0.6" FontSize="12" />
                 <ListBox ItemsSource="{Binding Wallpapers}"
                          SelectedIndex="{Binding WallpaperIndex, Mode=TwoWay}"
                          Background="Transparent" BorderThickness="0" Padding="0">

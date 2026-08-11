@@ -1,4 +1,6 @@
 using Avalonia.Threading;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using Client.Apps.Settings.ViewModels;
 using Client.Apps.Settings.Views;
 using Client.Apps.Explorer.Dialogs;
@@ -47,8 +49,10 @@ public sealed class SettingsApp : RemoteApplicationBase
         var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
         var networkInspector = context.Services.GetRequiredService<NetworkInspectorWindowService>();
         var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
+        var wallpapers = context.Services.GetRequiredService<WallpaperService>();
 
-        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages, networkInspector);
+        var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages,
+            networkInspector, wallpapers: wallpapers);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),
@@ -57,6 +61,29 @@ public sealed class SettingsApp : RemoteApplicationBase
             navigation.Register(window, viewModel);
 
         var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
+        var personalizationPage = viewModel.Pages.OfType<PersonalizationPageViewModel>().Single();
+        personalizationPage.RequestCustomWallpaperAsync = async () =>
+        {
+            var topLevel = Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow : null;
+            if (topLevel is null) return;
+            var selected = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = LocalizedText.Get("settings.wallpaper.choose_image"),
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType(LocalizedText.Get("settings.wallpaper"))
+                    {
+                        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"],
+                    },
+                ],
+            });
+            var file = selected.FirstOrDefault();
+            if (file is null) return;
+            await using var stream = await file.OpenReadAsync();
+            await wallpapers.UploadAndApplyAsync(stream, file.Name);
+        };
         appsPage.RequestPermissionEditorAsync = async app =>
         {
             AppPermissionDialogViewModel? dialogViewModel = null;

@@ -25,7 +25,7 @@ Settings 是 RemoteOS 的内置系统设置应用，参考 Windows 11 设置 / G
 | 页 | 图标 | 能力 | 持久化 |
 |----|------|------|--------|
 | 系统 | 💻 | 只读展示版本 / Server URL / 用户 / Workspace / 设备 / 连接状态 | — |
-| 个性化 | 🎨 | 壁纸预设选择 + 主题（Light / Dark / System） | Workspace.Preferences |
+| 个性化 | 🎨 | 内置预设或上传图片壁纸 + 主题（Light / Dark / System） | Workspace.Preferences + Server Storage |
 | 时间和语言 | 🕐 | 12/24 小时制 + 日期格式 + 语言 + 区域（时区只读） | Workspace.Preferences |
 | 网络 | 🌐 | 只读连接状态 + 「测试连接」测往返延迟 | — |
 | 应用 | 📦 | 已注册应用清单、第三方应用权限、开发者模式、默认程序映射编辑器（scheme/ext → appId） | 默认程序映射 → Workspace；应用授权与开发者模式 → 本机 |
@@ -187,23 +187,24 @@ workspaces
 
 ```text
 ShellSettings (ObservableObject, 单例)
-  Wallpapers          IReadOnlyList<WallpaperOption>  5 个预设渐变壁纸
-  WallpaperIndex      int                              当前壁纸索引
+  Wallpapers          IReadOnlyList<WallpaperOption>  5 个内置预设渐变壁纸
+  WallpaperIndex      int                              当前内置壁纸索引；自定义图片时为 -1
   Theme               ThemeKind                        Light/Dark/System
   TimeFormat          string                           "24h"(默认) / "12h"
   DateFormat          string                           "yyyy/M/d"(默认)
   Language            string                           "zh-CN"(默认)
   Region              string                           "zh-CN"(默认)
 
-  CurrentWallpaper      → Wallpapers[WallpaperIndex].Brush (绑桌面背景)
-  CurrentWallpaperKey   → "builtin:" + Wallpapers[WallpaperIndex].Key (与服务端 DTO 对齐)
+  CurrentWallpaper      → 内置 Brush 或已下载的 ImageBrush (绑桌面背景)
+  CurrentWallpaperKey   → "builtin:{key}" 或 "custom:{blobId}"（与服务端 DTO 对齐）
   TaskbarBackground     → 暗/亮主题对应任务栏底色
   TaskbarForeground     → 暗/亮主题对应前景
   IsDarkTheme           → Theme == Dark
 
   Apply(WorkspacePreferencesDto)   服务端偏好 → 本地活状态
   ToPreferences(defaultApps?)      本地活状态 → 服务端 DTO
-  TrySetWallpaperKey(key)          按 key 设置壁纸
+  TrySetWallpaperKey(key)          按内置 key 设置壁纸
+  SetCustomWallpaper(key, bitmap)  将下载的 Workspace 图片应用为壁纸
 ```
 
 **主题最小可见效果**：`TaskbarBackground` / `TaskbarForeground` 随主题切换（亮=#F7F7F7 / 暗=#1F1F1F）。完整主题切换（控件样式）为后续演进项。
@@ -310,7 +311,7 @@ PreferencesSync.OnStateChanged
 ## 8. 后续演进
 
 - **完整主题切换**：当前仅任务栏底色随主题切换。后续接入 `RemoteOS.UI` 的 Light/Dark 样式切换（控件级主题）。
-- **自定义壁纸**：当前仅 5 个预设渐变壁纸。后续支持上传图片壁纸（存到 Server Storage，key 用 `custom:{blobId}`）。
+- **自定义壁纸**：支持从本机选择 PNG/JPEG/WebP/GIF（最大 10 MB）。服务端以 Workspace 私有 blob 保存，偏好仅保存 `custom:{blobId}`；同 Workspace 的其他设备登录时按需下载并渲染。默认不读取、不同步或修改宿主 OS 的壁纸。
 - **URI scheme 自动路由**：文件扩展名关联已由 RemoteExplorer 使用；后续让 http/mailto 等链接也通过 `DefaultAppRegistry.Resolve` 启动映射应用。
 - **更多语言资源**：当前语言切换仅影响时钟格式化 culture。后续接入 i18n 资源文件，UI 文案随语言切换。
 - **区域格式化**：当前区域仅存储未深度应用。后续按区域格式化数字 / 货币 / 首日星期。

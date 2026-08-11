@@ -8,4 +8,7 @@ public sealed class StorageOptions
 
     /// <summary>SQLite 数据库文件相对路径（相对 ContentRoot）。默认 data/remoteos.db。</summary>
     public string DatabasePath { get; set; } = "data/remoteos.db";
+
+    /// <summary>Workspace 托管壁纸文件的相对目录（相对 ContentRoot）。</summary>
+    public string WallpaperPath { get; set; } = "data/wallpapers";
 }

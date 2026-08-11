@@ -14,17 +14,20 @@ public sealed class PreferencesSync : IDisposable
     private readonly ISettingsClient _client;
     private readonly ShellSettings _settings;
     private readonly DefaultAppRegistry _registry;
+    private readonly WallpaperService _wallpapers;
 
     public PreferencesSync(
         IAuthSession session,
         ISettingsClient client,
         ShellSettings settings,
-        DefaultAppRegistry registry)
+        DefaultAppRegistry registry,
+        WallpaperService wallpapers)
     {
         _session = session;
         _client = client;
         _settings = settings;
         _registry = registry;
+        _wallpapers = wallpapers;
         _session.StateChanged += OnStateChanged;
         // 桌面外壳可能在登录后才构造本服务——若此时已认证，立即加载。
         _ = LoadIfAuthenticatedAsync();
@@ -48,7 +51,7 @@ public sealed class PreferencesSync : IDisposable
         try
         {
             var prefs = await _client.GetAsync(url, tokens.AccessToken, ws.Id);
-            _settings.Apply(prefs);
+            await _wallpapers.ApplyAsync(prefs);
             _registry.SetMappings(prefs.DefaultApps);
         }
         catch

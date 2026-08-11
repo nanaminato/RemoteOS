@@ -31,6 +31,12 @@ public static class WorkspaceApiRoutes
     /// <summary>Workspace 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序，GET/PUT）。{id} 为 Workspace ID。</summary>
     public const string Preferences = $"/{V1}/workspaces/{{id}}/preferences";
 
+    /// <summary>上传并设为当前 Workspace 图片壁纸（POST multipart/form-data）。{id} 为 Workspace ID。</summary>
+    public const string Wallpaper = $"/{V1}/workspaces/{{id}}/wallpaper";
+
+    /// <summary>读取当前 Workspace 的图片壁纸资源（GET）。{id} 为 Workspace ID，{blobId} 为服务端生成的资源 ID。</summary>
+    public const string WallpaperContent = $"/{V1}/workspaces/{{id}}/wallpaper/{{blobId}}";
+
     /// <summary>Workspace application and modal window dimensions (GET/PUT).</summary>
     public const string WindowLayouts = $"/{V1}/workspaces/{{id}}/window-layouts";
 

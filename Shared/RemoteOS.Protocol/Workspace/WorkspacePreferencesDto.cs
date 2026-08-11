@@ -38,6 +38,10 @@ public sealed record WorkspacePreferencesDto(
     /// <summary>内置壁纸 key 前缀（客户端预设目录使用）。</summary>
     public const string BuiltInWallpaperPrefix = "builtin:";
 
+    /// <summary>Workspace 托管图片壁纸的 key 前缀。前缀后的值是服务端生成的 blob id，
+    /// 因此不会把宿主机路径暴露或同步到其他设备。</summary>
+    public const string CustomWallpaperPrefix = "custom:";
+
     public static WorkspacePreferencesDto Default { get; } = new(
         WallpaperKey: BuiltInWallpaperPrefix + "bloom",
         Theme: ThemeKind.Light,
