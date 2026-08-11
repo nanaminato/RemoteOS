@@ -110,8 +110,8 @@ public sealed class PortForwardingService : IPortForwardingService
             host = serverUri.Host;
         }
         user ??= _session.CurrentUser?.Username;
-        if (host.StartsWith('-', StringComparison.Ordinal) || host.Any(char.IsWhiteSpace)
-            || user?.StartsWith('-', StringComparison.Ordinal) == true
+        if (host.StartsWith("-", StringComparison.Ordinal) || host.Any(char.IsWhiteSpace)
+            || user?.StartsWith("-", StringComparison.Ordinal) == true
             || user?.Any(char.IsWhiteSpace) == true)
             throw new InvalidOperationException("SSH host and user cannot contain whitespace or start with '-'.");
         return (host, user, _settings.SshPort);
@@ -179,7 +179,7 @@ public sealed class PortForwardingService : IPortForwardingService
         if (!isWebScheme)
             throw new ArgumentException("Only HTTP and HTTPS links can be returned by this application.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.PathAndQuery)
-            || !request.PathAndQuery.StartsWith('/', StringComparison.Ordinal))
+            || !request.PathAndQuery.StartsWith("/", StringComparison.Ordinal))
             throw new ArgumentException("The forwarded link path must start with '/'.", nameof(request));
     }
 
