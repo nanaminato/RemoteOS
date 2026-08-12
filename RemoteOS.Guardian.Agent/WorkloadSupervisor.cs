@@ -24,13 +24,17 @@ internal sealed partial class WorkloadSupervisor
         Directory.CreateDirectory(_options.DataDirectory);
         if (!File.Exists(DefinitionsPath)) return;
         var definitions = JsonSerializer.Deserialize<IReadOnlyList<ProcessDefinitionDto>>(await File.ReadAllTextAsync(DefinitionsPath, cancellationToken), RemoteOsJsonOptions.Default) ?? [];
+        var requiresPersist = false;
         foreach (var definition in definitions)
         {
-            if (!Validate(definition, out _)) continue;
-            var workload = new ManagedWorkload(definition) { DesiredState = definition.EnabledOnBoot ? "Running" : "Stopped" };
-            _workloads[definition.Id] = workload;
-            if (definition.EnabledOnBoot) await StartAsync(workload, cancellationToken);
+            if (!TryNormalizeExecutablePath(definition, out var normalizedDefinition, out _)
+                || !Validate(normalizedDefinition, out _)) continue;
+            var workload = new ManagedWorkload(normalizedDefinition) { DesiredState = normalizedDefinition.EnabledOnBoot ? "Running" : "Stopped" };
+            _workloads[normalizedDefinition.Id] = workload;
+            requiresPersist |= !string.Equals(normalizedDefinition.ExecutablePath, definition.ExecutablePath, StringComparison.Ordinal);
+            if (normalizedDefinition.EnabledOnBoot) await StartAsync(workload, cancellationToken);
         }
+        if (requiresPersist) await PersistAsync(cancellationToken);
     }
 
     /// <summary>Stops children started by this Agent before an intentional development or service shutdown.</summary>
@@ -77,10 +81,12 @@ internal sealed partial class WorkloadSupervisor
     private async Task<GuardianAgentResponse> UpsertAsync(ProcessDefinitionDto? definition, CancellationToken cancellationToken)
     {
         if (definition is null) return new GuardianAgentResponse(false, "guardian.validation_failed");
-        if (!Validate(definition, out var problem)) return new GuardianAgentResponse(false, problem ?? "guardian.validation_failed");
-        if (_workloads.TryGetValue(definition.Id, out var existing) && existing.Process is { HasExited: false })
+        if (!TryNormalizeExecutablePath(definition, out var normalizedDefinition, out var problem)
+            || !Validate(normalizedDefinition, out problem))
+            return new GuardianAgentResponse(false, problem ?? "guardian.validation_failed");
+        if (_workloads.TryGetValue(normalizedDefinition.Id, out var existing) && existing.Process is { HasExited: false })
             return new GuardianAgentResponse(false, "guardian.workload_running");
-        _workloads[definition.Id] = new ManagedWorkload(definition) { DesiredState = definition.EnabledOnBoot ? "Running" : "Stopped" };
+        _workloads[normalizedDefinition.Id] = new ManagedWorkload(normalizedDefinition) { DesiredState = normalizedDefinition.EnabledOnBoot ? "Running" : "Stopped" };
         await PersistAsync(cancellationToken);
         return new GuardianAgentResponse(true, string.Empty);
     }
@@ -334,6 +340,103 @@ internal sealed partial class WorkloadSupervisor
         if (executableName.Equals("cmd", StringComparison.OrdinalIgnoreCase) || executableName.Equals("powershell", StringComparison.OrdinalIgnoreCase) || executableName is "sh" or "bash") { problem = "guardian.validation_shell_not_allowed"; return false; }
         if (definition.Arguments.Any(argument => argument.Contains('\0')) || definition.StopTimeoutSeconds is < 1 or > 300 || definition.MaxRestartAttempts is < 0 or > 100 || !ValidateHealthCheck(definition.HealthCheck)) { problem = "guardian.validation_failed"; return false; }
         return true;
+    }
+
+    /// <summary>
+    /// Converts a bare program name to the concrete executable selected from the Agent launch
+    /// environment's PATH. The resulting absolute path is persisted, so later restarts neither
+    /// depend on PATH ordering nor pick up a replacement with the same name. The Agent does not
+    /// load an interactive shell or a user's profile; that would make service launches ambiguous.
+    /// On Linux, runuser inherits this environment for the launched child.
+    /// </summary>
+    private static bool TryNormalizeExecutablePath(ProcessDefinitionDto definition, out ProcessDefinitionDto normalizedDefinition, out string? problem)
+    {
+        normalizedDefinition = definition;
+        problem = null;
+        var executable = definition.ExecutablePath;
+        if (string.IsNullOrWhiteSpace(executable))
+        {
+            problem = "guardian.validation_executable";
+            return false;
+        }
+
+        if (Path.IsPathFullyQualified(executable))
+        {
+            try
+            {
+                normalizedDefinition = definition with { ExecutablePath = Path.GetFullPath(executable) };
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                problem = "guardian.validation_executable";
+                return false;
+            }
+            catch (NotSupportedException)
+            {
+                problem = "guardian.validation_executable";
+                return false;
+            }
+        }
+
+        if (executable.IndexOfAny(['/', '\\', '\0']) >= 0 || executable.StartsWith('-'))
+        {
+            problem = "guardian.validation_executable";
+            return false;
+        }
+
+        if (!TryResolveFromPath(executable, out var resolvedPath))
+        {
+            problem = "guardian.validation_executable";
+            return false;
+        }
+
+        normalizedDefinition = definition with { ExecutablePath = resolvedPath };
+        return true;
+    }
+
+    private static bool TryResolveFromPath(string executableName, out string resolvedPath)
+    {
+        resolvedPath = string.Empty;
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var suffixes = GetExecutableSuffixes(executableName);
+        foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // Relative and empty PATH entries make resolution depend on an incidental working
+            // directory. Skip them so accepting a bare name remains deterministic.
+            if (!Path.IsPathFullyQualified(directory)) continue;
+            foreach (var suffix in suffixes)
+            {
+                try
+                {
+                    var candidate = Path.GetFullPath(Path.Combine(directory, executableName + suffix));
+                    if (!File.Exists(candidate)) continue;
+                    resolvedPath = candidate;
+                    return true;
+                }
+                catch (ArgumentException)
+                {
+                    // A malformed PATH entry cannot be used to launch a workload.
+                }
+                catch (NotSupportedException)
+                {
+                    // A malformed PATH entry cannot be used to launch a workload.
+                }
+            }
+        }
+        return false;
+    }
+
+    private static IReadOnlyList<string> GetExecutableSuffixes(string executableName)
+    {
+        if (!OperatingSystem.IsWindows() || Path.HasExtension(executableName)) return [string.Empty];
+        var configured = Environment.GetEnvironmentVariable("PATHEXT");
+        var extensions = string.IsNullOrWhiteSpace(configured)
+            ? [".COM", ".EXE", ".BAT", ".CMD"]
+            : configured.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return [string.Empty, .. extensions.Where(extension => extension.StartsWith('.'))];
     }
 
     private static bool ValidateHealthCheck(GuardianHealthCheckDto? check)

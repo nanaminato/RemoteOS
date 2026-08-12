@@ -41,4 +41,4 @@ ID：dev-ping
 测试 .NET/Java 时：
 .NET：可执行文件填 C:\Program Files\dotnet\dotnet.exe，工作目录填应用发布目录，参数填 MyApp.dll。
 Java：可执行文件填 ...\bin\java.exe，参数每行填 -jar、app.jar。
-可执行文件和工作目录必须是存在的绝对路径；实际可访问性由目标 `RunAs` 账户的 OS 权限决定。
+工作目录必须是存在的绝对路径。可执行文件可填写存在的绝对路径，或填写 Guardian Agent `PATH` 中的程序名（例如 `dotnet`）；后者保存时会解析并持久化为绝对路径。实际可访问性由目标 `RunAs` 账户的 OS 权限决定。
