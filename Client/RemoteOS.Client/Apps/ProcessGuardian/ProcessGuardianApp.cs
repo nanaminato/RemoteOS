@@ -34,6 +34,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
 
         var viewModel = new ProcessGuardianViewModel(client, session);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.processguardian.display_name"), CreateView(viewModel), new Rect(80, 60, 1240, 700), Manifest.IconGlyph);
+        viewModel.RequestAdministratorApprovalAsync = () => RequestAdministratorApprovalAsync(context, window, session);
         viewModel.ShowEditorAsync = async isEdit =>
         {
             await context.ShowDialogAsync<bool>(window,
@@ -145,8 +146,6 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         panel.Children.Add(EditorField("guardian.create.working_directory", nameof(vm.WorkingDirectory)));
         panel.Children.Add(EditorField("guardian.create.arguments", nameof(vm.ArgumentsText), true));
         panel.Children.Add(EditorField("guardian.create.run_as", nameof(vm.RunAs)));
-        panel.Children.Add(EditorField("guardian.create.administrator_username", nameof(vm.AdministratorUsername)));
-        panel.Children.Add(EditorField("guardian.create.administrator_password", nameof(vm.AdministratorPassword), isPassword: true));
         var enabledOnBoot = new CheckBox { Content = LocalizedText.Get("guardian.create.enabled_on_boot") };
         enabledOnBoot.Bind(ToggleButton.IsCheckedProperty, new Avalonia.Data.Binding(nameof(vm.EnabledOnBoot)) { Mode = Avalonia.Data.BindingMode.TwoWay });
         panel.Children.Add(enabledOnBoot);
@@ -180,4 +179,34 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         PasswordChar = isPassword ? '•' : '\0',
         [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay }
     };
+
+    private static Task<RunAsAdministratorApproval?> RequestAdministratorApprovalAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner, IAuthSession session) =>
+        context.ShowDialogAsync<RunAsAdministratorApproval?>(owner, LocalizedText.Get("guardian.admin_approval.title"), dialog =>
+        {
+            var username = new TextBox
+            {
+                Text = session.CurrentServer?.Platform == PlatformKind.Windows ? "Administrator" : "root",
+                PlaceholderText = LocalizedText.Get("guardian.admin_approval.username"),
+            };
+            var password = new TextBox { PasswordChar = '•', PlaceholderText = LocalizedText.Get("guardian.admin_approval.password") };
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+            cancel.Click += (_, _) => dialog.Cancel();
+            var confirm = new Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+            confirm.Click += (_, _) => dialog.Close(new RunAsAdministratorApproval(username.Text?.Trim() ?? string.Empty, password.Text ?? string.Empty));
+            actions.Children.Add(cancel);
+            actions.Children.Add(confirm);
+            return new StackPanel
+            {
+                Spacing = 12,
+                Margin = new Avalonia.Thickness(20),
+                Children =
+                {
+                    new TextBlock { Text = LocalizedText.Get("guardian.admin_approval.message"), TextWrapping = TextWrapping.Wrap },
+                    username,
+                    password,
+                    actions,
+                },
+            };
+        }, new RemoteOS.Core.Primitives.Size(460, 230));
 }

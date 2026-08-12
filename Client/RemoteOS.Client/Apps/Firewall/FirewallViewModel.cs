@@ -7,7 +7,7 @@ using RemoteOS.Protocol.Firewall;
 
 namespace Client.Apps.Firewall;
 
-/// <summary>Window-local Linux UFW editor state. Passwords are one-shot and never retained after a mutation.</summary>
+/// <summary>Window-local Linux UFW editor state. Passwords are requested one-shot and never retained by the view model.</summary>
 public sealed partial class FirewallViewModel(IRemoteFirewallClient client, IAuthSession session) : ObservableObject
 {
     public ObservableCollection<FirewallRuleDto> Rules { get; } = [];
@@ -22,10 +22,11 @@ public sealed partial class FirewallViewModel(IRemoteFirewallClient client, IAut
     [ObservableProperty] private string _source = "any";
     [ObservableProperty] private string _destination = "any";
     [ObservableProperty] private string _port = string.Empty;
-    [ObservableProperty] private string _password = string.Empty;
     [ObservableProperty] private bool _isLoading;
 
     public bool IsRoot => string.Equals(session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    /// <summary>Provided by the window so a credential is collected only for the pending operation.</summary>
+    public Func<Task<string?>>? RequestPasswordAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -53,34 +54,39 @@ public sealed partial class FirewallViewModel(IRemoteFirewallClient client, IAut
     }
 
     [RelayCommand]
-    private Task EnableAsync() => ApplyAsync(() => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(true, Confirmation())));
+    private Task EnableAsync() => ApplyAsync(confirmation => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(true, confirmation)));
     [RelayCommand]
-    private Task DisableAsync() => ApplyAsync(() => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(false, Confirmation())));
+    private Task DisableAsync() => ApplyAsync(confirmation => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(false, confirmation)));
     [RelayCommand]
-    private Task SaveDefaultsAsync() => ApplyAsync(() => client.SetDefaultsAsync(new UpdateFirewallDefaultsRequest(IncomingPolicy, OutgoingPolicy, Confirmation())));
+    private Task SaveDefaultsAsync() => ApplyAsync(confirmation => client.SetDefaultsAsync(new UpdateFirewallDefaultsRequest(IncomingPolicy, OutgoingPolicy, confirmation)));
     [RelayCommand]
     private async Task AddRuleAsync()
     {
         if (string.IsNullOrWhiteSpace(Port)) { StatusText = LocalizedText.Get("firewall.validation.port_required"); return; }
-        await ApplyAsync(() => client.CreateRuleAsync(new CreateFirewallRuleRequest(Action, Direction, Protocol, Source, Destination, Port, Confirmation())));
+        await ApplyAsync(confirmation => client.CreateRuleAsync(new CreateFirewallRuleRequest(Action, Direction, Protocol, Source, Destination, Port, confirmation)));
     }
     [RelayCommand]
-    private Task DeleteRuleAsync(FirewallRuleDto? rule) => rule is null ? Task.CompletedTask : ApplyAsync(() => client.DeleteRuleAsync(rule.Number, new DeleteFirewallRuleRequest(Confirmation())));
+    private Task DeleteRuleAsync(FirewallRuleDto? rule) => rule is null ? Task.CompletedTask : ApplyAsync(confirmation => client.DeleteRuleAsync(rule.Number, new DeleteFirewallRuleRequest(confirmation)));
 
-    private FirewallCredentialConfirmation? Confirmation() => IsRoot ? null : new FirewallCredentialConfirmation(Password);
-    private async Task ApplyAsync(Func<Task<FirewallOperationResult>> operation)
+    private async Task ApplyAsync(Func<FirewallCredentialConfirmation?, Task<FirewallOperationResult>> operation)
     {
+        FirewallCredentialConfirmation? confirmation = null;
+        if (!IsRoot)
+        {
+            var password = await (RequestPasswordAsync?.Invoke() ?? Task.FromResult<string?>(null));
+            if (password is null) return;
+            confirmation = new FirewallCredentialConfirmation(password);
+        }
+
         IsLoading = true;
         try
         {
-            var result = await operation();
+            var result = await operation(confirmation);
             StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", result.ProblemCode);
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("firewall.operation.failed", exception.Message); }
         finally
         {
-            // Password belongs to this single request only, even when it fails.
-            Password = string.Empty;
             IsLoading = false;
         }
         await RefreshAsync();

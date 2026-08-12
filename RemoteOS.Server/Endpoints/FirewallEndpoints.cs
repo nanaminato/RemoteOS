@@ -17,7 +17,9 @@ public static class FirewallEndpoints
             AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "set-defaults", () => firewall.SetDefaultsAsync(request.IncomingPolicy, request.OutgoingPolicy, ct)));
         group.MapPost("/rules", (CreateFirewallRuleRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
             AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "create-rule", () => firewall.CreateRuleAsync(request, ct)));
-        group.MapDelete("/rules/{number:int}", (int number, DeleteFirewallRuleRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
+        // DELETE endpoints do not infer request bodies. This operation still needs the
+        // credential confirmation, so declare its source explicitly.
+        group.MapDelete("/rules/{number:int}", (int number, [Microsoft.AspNetCore.Mvc.FromBody] DeleteFirewallRuleRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
             AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "delete-rule", () => firewall.DeleteRuleAsync(number, ct)));
         return app;
     }

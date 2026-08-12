@@ -25,13 +25,13 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     [ObservableProperty] private string _workingDirectory = string.Empty;
     [ObservableProperty] private string _argumentsText = string.Empty;
     [ObservableProperty] private string _runAs = string.Empty;
-    [ObservableProperty] private string _administratorUsername = string.Empty;
-    [ObservableProperty] private string _administratorPassword = string.Empty;
     [ObservableProperty] private bool _enabledOnBoot;
 
     public Func<bool, Task>? ShowEditorAsync { get; set; }
     public Func<GuardianWorkloadDto, Task>? ShowLogsAsync { get; set; }
     public Func<Task>? CloseEditorAsync { get; set; }
+    /// <summary>Provided by the window and called only for a cross-account RunAs change.</summary>
+    public Func<Task<RunAsAdministratorApproval?>>? RequestAdministratorApprovalAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
     [RelayCommand]
@@ -123,14 +123,17 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             return;
         }
         var saved = false;
+        RunAsAdministratorApproval? approval = null;
+        if (RequiresAdministratorApproval())
+        {
+            approval = await (RequestAdministratorApprovalAsync?.Invoke() ?? Task.FromResult<RunAsAdministratorApproval?>(null));
+            if (approval is null) return;
+        }
         IsLoading = true;
         try
         {
             var arguments = ArgumentsText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var definition = new ProcessDefinitionDto(DefinitionId.Trim(), DefinitionName.Trim(), ExecutablePath.Trim(), arguments, WorkingDirectory.Trim(), EnabledOnBoot, RunAs: RunAs.Trim());
-            var approval = string.IsNullOrWhiteSpace(AdministratorUsername) && string.IsNullOrEmpty(AdministratorPassword)
-                ? null
-                : new RunAsAdministratorApproval(AdministratorUsername.Trim(), AdministratorPassword);
             var result = await client.UpsertAsync(new UpsertGuardianWorkloadRequest(definition, approval));
             StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", result.ProblemCode);
             saved = result.Success;
@@ -138,9 +141,6 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.create.failed", exception.Message); }
         finally
         {
-            // This value is intentionally one-shot: never retain an administrator password
-            // after the request has been sent, regardless of success or failure.
-            AdministratorPassword = string.Empty;
             IsLoading = false;
         }
         if (!saved) return;
@@ -162,8 +162,6 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             ArgumentsText = string.Join(Environment.NewLine, definition.Arguments);
             EnabledOnBoot = definition.EnabledOnBoot;
             RunAs = definition.RunAs ?? string.Empty;
-            AdministratorUsername = DefaultAdministratorUsername();
-            AdministratorPassword = string.Empty;
         }
         catch
         {
@@ -178,13 +176,11 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         DefinitionId = Guid.NewGuid().ToString("N");
         DefinitionName = ExecutablePath = WorkingDirectory = ArgumentsText = string.Empty;
         RunAs = session.CurrentUser?.Username ?? string.Empty;
-        AdministratorUsername = DefaultAdministratorUsername();
-        AdministratorPassword = string.Empty;
         EnabledOnBoot = false;
         SelectedWorkload = null;
     }
 
-    private string DefaultAdministratorUsername() => session.CurrentServer?.Platform == PlatformKind.Windows
-        ? "Administrator"
-        : "root";
+    private bool RequiresAdministratorApproval() => session.CurrentServer?.Platform == PlatformKind.Windows
+        ? !string.Equals(session.CurrentUser?.Username?.Trim(), RunAs.Trim(), StringComparison.OrdinalIgnoreCase)
+        : !string.Equals(session.CurrentUser?.Username?.Trim(), RunAs.Trim(), StringComparison.Ordinal);
 }

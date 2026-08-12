@@ -30,7 +30,8 @@ public sealed class FirewallApp : RemoteApplicationBase
             return;
         }
         var viewModel = new FirewallViewModel(client, session);
-        context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(90, 65, 980, 700), Manifest.IconGlyph);
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(90, 65, 980, 700), Manifest.IconGlyph);
+        viewModel.RequestPasswordAsync = () => RequestPasswordAsync(context, window);
         _ = viewModel.StartAsync();
     }
 
@@ -51,12 +52,6 @@ public sealed class FirewallApp : RemoteApplicationBase
         actions.Children.Add(Field(vm, nameof(vm.OutgoingPolicy), "firewall.default_outgoing", 120));
         actions.Children.Add(new Button { Content = LocalizedText.Get("firewall.save_defaults"), Command = vm.SaveDefaultsCommand });
         settings.Children.Add(actions);
-        if (!vm.IsRoot)
-        {
-            var password = new TextBox { Width = 260, PasswordChar = '•', PlaceholderText = LocalizedText.Get("firewall.password_placeholder") };
-            password.Bind(TextBox.TextProperty, new Avalonia.Data.Binding(nameof(vm.Password)) { Mode = Avalonia.Data.BindingMode.TwoWay });
-            settings.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = LocalizedText.Get("firewall.password_required"), VerticalAlignment = VerticalAlignment.Center }, password } });
-        }
         DockPanel.SetDock(settings, Dock.Top); root.Children.Add(settings);
 
         var rules = new DockPanel();
@@ -85,4 +80,28 @@ public sealed class FirewallApp : RemoteApplicationBase
         Width = width, PlaceholderText = LocalizedText.Get(placeholder),
         [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay },
     };
+
+    private static Task<string?> RequestPasswordAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner) =>
+        context.ShowDialogAsync<string?>(owner, LocalizedText.Get("firewall.password_dialog.title"), dialog =>
+        {
+            var password = new TextBox { PasswordChar = '•', PlaceholderText = LocalizedText.Get("firewall.password_placeholder") };
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+            cancel.Click += (_, _) => dialog.Cancel();
+            var confirm = new Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+            confirm.Click += (_, _) => dialog.Close(password.Text);
+            actions.Children.Add(cancel);
+            actions.Children.Add(confirm);
+            return new StackPanel
+            {
+                Spacing = 12,
+                Margin = new Avalonia.Thickness(20),
+                Children =
+                {
+                    new TextBlock { Text = LocalizedText.Get("firewall.password_dialog.message"), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    password,
+                    actions,
+                },
+            };
+        }, new RemoteOS.Core.Primitives.Size(420, 180));
 }
