@@ -1,0 +1,39 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using RemoteOS.Protocol.Firewall;
+
+namespace Server.Endpoints;
+
+public static class FirewallEndpoints
+{
+    public static IEndpointRouteBuilder MapFirewallEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/firewall").RequireAuthorization().WithTags("Firewall");
+        group.MapGet("/status", (Server.Firewall.IHostFirewallService firewall, CancellationToken ct) => firewall.GetStatusAsync(ct));
+        group.MapGet("/rules", (Server.Firewall.IHostFirewallService firewall, CancellationToken ct) => firewall.ListRulesAsync(ct));
+        group.MapPut("/enabled", (UpdateFirewallEnabledRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
+            AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "set-enabled", () => firewall.SetEnabledAsync(request.Enabled, ct)));
+        group.MapPut("/defaults", (UpdateFirewallDefaultsRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
+            AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "set-defaults", () => firewall.SetDefaultsAsync(request.IncomingPolicy, request.OutgoingPolicy, ct)));
+        group.MapPost("/rules", (CreateFirewallRuleRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
+            AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "create-rule", () => firewall.CreateRuleAsync(request, ct)));
+        group.MapDelete("/rules/{number:int}", (int number, DeleteFirewallRuleRequest request, HttpContext context, Server.Firewall.IFirewallChangeAuthorizationService authorization, Server.Firewall.IHostFirewallService firewall, ILoggerFactory loggers, CancellationToken ct) =>
+            AuthorizeThenRun(context.User, request.CredentialConfirmation, authorization, loggers.CreateLogger("FirewallAudit"), "delete-rule", () => firewall.DeleteRuleAsync(number, ct)));
+        return app;
+    }
+
+    private static async Task<FirewallOperationResult> AuthorizeThenRun(ClaimsPrincipal user, FirewallCredentialConfirmation? confirmation,
+        Server.Firewall.IFirewallChangeAuthorizationService authorization, ILogger logger, string action, Func<Task<FirewallOperationResult>> operation)
+    {
+        var requester = user.FindFirst(JwtRegisteredClaimNames.Name)?.Value ?? user.FindFirst(ClaimTypes.Name)?.Value ?? string.Empty;
+        var result = authorization.Authorize(requester, confirmation);
+        if (!result.Success)
+        {
+            logger.LogWarning("Firewall change denied. Action={Action}, Requester={Requester}, Problem={ProblemCode}", action, requester, result.ProblemCode);
+            return result;
+        }
+        result = await operation();
+        logger.LogInformation("Firewall change completed. Action={Action}, Requester={Requester}, Success={Success}, Problem={ProblemCode}", action, requester, result.Success, result.ProblemCode);
+        return result;
+    }
+}

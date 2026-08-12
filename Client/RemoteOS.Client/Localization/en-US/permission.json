@@ -32,6 +32,10 @@
         "permission.server.guardian.read.display_name": "Read guardian workloads",
         "permission.server.guardian.read.description": "View the Guardian Agent, workloads, states, and sanitized logs.",
         "permission.server.guardian.manage.display_name": "Manage guardian workloads",
-        "permission.server.guardian.manage.description": "Create and control workloads supervised by the Guardian Agent."
+        "permission.server.guardian.manage.description": "Create and control workloads supervised by the Guardian Agent.",
+        "permission.server.firewall.read.display_name": "Read firewall configuration",
+        "permission.server.firewall.read.description": "View the Linux server firewall status, defaults, and rules.",
+        "permission.server.firewall.manage.display_name": "Manage firewall configuration",
+        "permission.server.firewall.manage.description": "Change the Linux server firewall status, default policies, and rules."
     }
 }

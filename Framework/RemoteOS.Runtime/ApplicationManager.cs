@@ -72,6 +72,11 @@ public sealed class ApplicationManager
     public IRemoteApplication? Get(AppId id) => _apps.GetValueOrDefault(id);
     public ApplicationManifest? GetManifest(AppId id) => _apps.GetValueOrDefault(id)?.Manifest;
 
+    /// <summary>Returns the current host compatibility without showing an unavailable-app window.</summary>
+    public ApplicationCompatibilityResult EvaluateCompatibility(ApplicationManifest manifest) =>
+        (_services.GetService(typeof(IApplicationCompatibilityEvaluator)) as IApplicationCompatibilityEvaluator)
+            ?.Evaluate(manifest) ?? ApplicationCompatibilityResult.Compatible;
+
     /// <summary>Launch the application with the given id (no-op if not registered).</summary>
     public bool Launch(AppId id)
     {
@@ -121,11 +126,7 @@ public sealed class ApplicationManager
 
     private bool EnsureCompatible(ApplicationManifest manifest)
     {
-        var evaluator = _services.GetService(typeof(IApplicationCompatibilityEvaluator)) as IApplicationCompatibilityEvaluator;
-        if (evaluator is null)
-            return true;
-
-        var result = evaluator.Evaluate(manifest);
+        var result = EvaluateCompatibility(manifest);
         if (result.IsCompatible)
             return true;
 

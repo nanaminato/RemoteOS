@@ -44,6 +44,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
         _windowManager.ActiveWindowChanged += (_, _) => RefreshTaskbarGroups();
         _applications.RegistryChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
+        _session.StateChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
         _localization.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             PopulateDesktop();
@@ -79,6 +80,10 @@ public partial class DesktopShellViewModel : ObservableObject
     public void PopulateDesktop()
     {
         var entries = _applications.Registered
+            // An app that needs a connected Linux Server must not be advertised on a Windows
+            // Server desktop or Start menu. Launch still performs the same check for defense in depth.
+            .Where(application => _applications.GetManifest(application.Id) is { } manifest
+                && _applications.EvaluateCompatibility(manifest).IsCompatible)
             .Select(i => new AppEntryViewModel(Localize(i), _applications))
             .ToList();
 

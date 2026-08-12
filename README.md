@@ -169,6 +169,7 @@ RemoteOS/
 | **Task Manager** | 远端任务管理器（CPU/内存/磁盘/网络/GPU + 进程列表） | ✅ 已实现 |
 | **Docker Manager** | 远端 Docker Engine 管理（容器/镜像/Stack/网络/卷） | 🚧 部分实现 |
 | **Process Guardian** | 进程守护（健康检查、自动恢复、原生服务管理） | 🚧 部分实现 |
+| **Firewall** | Linux Server UFW 防火墙状态、默认策略与规则管理 | ✅ 已实现 |
 | **App Installer** | 应用包安装与管理 | ✅ 已实现 |
 
 ---
@@ -225,6 +226,7 @@ dotnet run
 | [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
 | [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
 | [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
+| [RemoteOS.Firewall.md](./docs/RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用 |
 | [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
 | [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
 | [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |

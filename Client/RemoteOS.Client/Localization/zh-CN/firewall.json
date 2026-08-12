@@ -1,0 +1,29 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "firewall.login_required": "登录 RemoteOS Server 后才能管理防火墙。",
+    "firewall.status.loading": "正在加载防火墙状态…",
+    "firewall.status.ready": "已就绪 — {0} {1}",
+    "firewall.status.unavailable": "防火墙不可用：{0}",
+    "firewall.status.failed": "无法加载防火墙状态：{0}",
+    "firewall.warning": "防火墙更改可能使当前 RemoteOS 会话断开。应用规则前请确认管理访问仍可用。",
+    "firewall.enable": "启用防火墙",
+    "firewall.disable": "禁用防火墙",
+    "firewall.default_incoming": "入站默认策略",
+    "firewall.default_outgoing": "出站默认策略",
+    "firewall.save_defaults": "保存默认策略",
+    "firewall.password_required": "每次更改都需要输入您的 Linux 密码：",
+    "firewall.password_placeholder": "输入本次更改所需密码",
+    "firewall.rule.action": "动作",
+    "firewall.rule.direction": "方向",
+    "firewall.rule.protocol": "协议",
+    "firewall.rule.source": "来源",
+    "firewall.rule.destination": "目标",
+    "firewall.rule.port": "端口",
+    "firewall.rule.add": "添加规则",
+    "firewall.rule.delete": "删除所选规则",
+    "firewall.validation.port_required": "必须填写端口或端口范围。",
+    "firewall.operation.succeeded": "防火墙配置已更新。",
+    "firewall.operation.failed": "防火墙更改失败：{0}"
+  }
+}

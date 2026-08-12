@@ -26,6 +26,8 @@
         "application.remoteos.processguardian.display_name": "プロセスガーディアン",
         "application.remoteos.processguardian.description": "RemoteOS Guardian Agent が監視するワークロードを表示します",
         "application.remoteos.port-forwarding.display_name": "ポート フォワーディング",
-        "application.remoteos.port-forwarding.description": "RemoteOS Server の loopback サービスへのローカル SSH トンネルを管理します"
+        "application.remoteos.port-forwarding.description": "RemoteOS Server の loopback サービスへのローカル SSH トンネルを管理します",
+        "application.remoteos.firewall.display_name": "ファイアウォール",
+        "application.remoteos.firewall.description": "Linux Server の UFW ファイアウォールルールを管理します"
     }
 }

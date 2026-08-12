@@ -24,6 +24,10 @@
         "permission.desktop.wallpaper.write.display_name": "更改桌面壁纸",
         "permission.desktop.wallpaper.write.description": "允许此应用程序通过 RemoteOS 更改当前工作区的壁纸。",
         "permission.server.metrics.read.display_name": "读取服务器性能指标",
-        "permission.server.metrics.read.description": "读取服务器的 CPU、内存、磁盘、网络和 GPU 汇总性能指标。"
+        "permission.server.metrics.read.description": "读取服务器的 CPU、内存、磁盘、网络和 GPU 汇总性能指标。",
+        "permission.server.firewall.read.display_name": "读取防火墙配置",
+        "permission.server.firewall.read.description": "查看 Linux Server 防火墙状态、默认策略和规则。",
+        "permission.server.firewall.manage.display_name": "管理防火墙配置",
+        "permission.server.firewall.manage.description": "更改 Linux Server 防火墙状态、默认策略和规则。"
     }
 }

@@ -174,7 +174,10 @@ public static class AuthEndpoints
             ServerCapabilities.Terminal,
         };
         if (!isWindows)
+        {
             capabilities.Add(ServerCapabilities.PosixPermissions);
+            capabilities.Add(ServerCapabilities.Firewall);
+        }
 
         return new ServerDescriptorDto(isWindows ? PlatformKind.Windows : PlatformKind.Linux, capabilities);
     }

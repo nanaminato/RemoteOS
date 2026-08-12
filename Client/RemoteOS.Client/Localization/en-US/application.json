@@ -26,6 +26,8 @@
         "application.remoteos.processguardian.display_name": "Process Guardian",
         "application.remoteos.processguardian.description": "View workloads supervised by the RemoteOS Guardian Agent",
         "application.remoteos.port-forwarding.display_name": "Port Forwarding",
-        "application.remoteos.port-forwarding.description": "Manage local SSH tunnels to RemoteOS Server loopback services"
+        "application.remoteos.port-forwarding.description": "Manage local SSH tunnels to RemoteOS Server loopback services",
+        "application.remoteos.firewall.display_name": "Firewall",
+        "application.remoteos.firewall.description": "Manage Linux Server UFW firewall rules"
     }
 }

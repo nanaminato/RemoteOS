@@ -54,6 +54,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置进程守护已部分落地（ProcessGuardian）：独立 Guardian Agent 进程、本机认证 IPC（命名管道）、工作负载的声明持久化与启停重启；健康检查、日志广播、systemd/SCM 服务适配设计中。Client 端通过 SignalR Hub 订阅守护日志。详见 [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md)。
 
+内置防火墙应用已落地（Firewall）：仅 Linux Server + UFW，支持读取状态与编号规则、修改启用状态和默认策略、添加或删除经过结构化校验的规则。root 会话无需再次验证；其他用户每次变更均以其自身密码通过 PAM 一次性确认。Windows Server 不显示此应用。详见 [`RemoteOS.Firewall.md`](./RemoteOS.Firewall.md)。
+
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
 ---
@@ -386,6 +388,7 @@ RemoteOS.Server     = Cloud Backend
 | [`RemoteOS.NetworkInspector.md`](./RemoteOS.NetworkInspector.md) | 网络检查器：系统窗口 + 宿主采集、REST/SignalR 诊断、内存/隐私边界与国际化设计 |
 | [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 任务管理器：性能/进程双标签页、跨平台 ISystemMetricsProvider（Linux /proc + Windows P/Invoke）、CPU 差分、结束进程不自动提权 |
 | [`RemoteOS.DockerManager.md`](./RemoteOS.DockerManager.md) | Docker 管理器：本机 Engine、安装预检与引导、容器/镜像/Stack/网络/卷、权限与审计设计 |
+| [`RemoteOS.Firewall.md`](./RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用：结构化规则、一次性 PAM 确认与平台限制 |
 | [`RemoteOS.ProcessGuardian.md`](./RemoteOS.ProcessGuardian.md) | 进程守护管理器：独立 Guardian Agent、守护定义、健康检查、重启策略、systemd/SCM 适配设计 |
 | [`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md) | 所有内置应用的设计先行、国际化、Windows + Ubuntu、协议、安全与质量约束 |
 | [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | 服务端持久化：EF Core + SQLite、持久化范围、表结构、TerminalSettings/BrowserSettings/Preferences JSON 列、建库策略 |

@@ -155,6 +155,15 @@ builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Se
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
 
+// Firewall keeps a deliberately narrow UFW-only surface. On Linux the RemoteOS Server service
+// is the privileged host facade; on Windows the unavailable provider is retained only so all
+// endpoint wiring has one stable abstraction (the app itself is hidden by its Linux manifest).
+if (OperatingSystem.IsLinux())
+    builder.Services.AddSingleton<Server.Firewall.IHostFirewallService, Server.Firewall.LinuxUfwFirewallService>();
+else
+    builder.Services.AddSingleton<Server.Firewall.IHostFirewallService, Server.Firewall.UnavailableHostFirewallService>();
+builder.Services.AddSingleton<Server.Firewall.IFirewallChangeAuthorizationService, Server.Firewall.FirewallChangeAuthorizationService>();
+
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
 // 详见 docs/RemoteOS.Storage.md。
@@ -312,6 +321,8 @@ app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
+if (OperatingSystem.IsLinux())
+    app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 app.MapHub<GuardianLogsHub>(RemoteOsEndpoints.GuardianLogsHubPath);
 

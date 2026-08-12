@@ -1,0 +1,29 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "firewall.login_required": "ファイアウォールを管理するには RemoteOS Server にサインインしてください。",
+    "firewall.status.loading": "ファイアウォールの状態を読み込んでいます…",
+    "firewall.status.ready": "準備完了 — {0} {1}",
+    "firewall.status.unavailable": "ファイアウォールを利用できません: {0}",
+    "firewall.status.failed": "ファイアウォールの状態を読み込めません: {0}",
+    "firewall.warning": "ファイアウォールを変更すると、この RemoteOS セッションが切断される可能性があります。適用前に管理アクセスを確認してください。",
+    "firewall.enable": "ファイアウォールを有効化",
+    "firewall.disable": "ファイアウォールを無効化",
+    "firewall.default_incoming": "受信の既定ポリシー",
+    "firewall.default_outgoing": "送信の既定ポリシー",
+    "firewall.save_defaults": "既定を保存",
+    "firewall.password_required": "変更ごとに Linux パスワードが必要です:",
+    "firewall.password_placeholder": "この変更用のパスワードを入力",
+    "firewall.rule.action": "アクション",
+    "firewall.rule.direction": "方向",
+    "firewall.rule.protocol": "プロトコル",
+    "firewall.rule.source": "送信元",
+    "firewall.rule.destination": "送信先",
+    "firewall.rule.port": "ポート",
+    "firewall.rule.add": "ルールを追加",
+    "firewall.rule.delete": "選択したルールを削除",
+    "firewall.validation.port_required": "ポートまたはポート範囲が必要です。",
+    "firewall.operation.succeeded": "ファイアウォールの設定を更新しました。",
+    "firewall.operation.failed": "ファイアウォールの変更に失敗しました: {0}"
+  }
+}
