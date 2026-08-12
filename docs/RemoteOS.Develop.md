@@ -1,4 +1,19 @@
-﻿开发调试时不要运行部署脚本，也不需要注册 Windows 服务。直接在 Rider 中同时启动 Agent 和 Server 即可。
+﻿常规开发调试时不要运行部署脚本，也不需要注册 Windows 服务。直接在 Rider 中同时启动 Agent 和 Server 即可；仅当需要测试真实 Linux UFW 变更时，按下节完成一次特权 helper 配置。
+
+## Linux 防火墙调试
+
+Firewall 不要求以 root 启动 `dotnet run`。若要在 Linux 调试其真实 UFW 操作，管理员可用现有部署脚本的第五个参数指定当前开发账户；脚本会安装一次 root-owned helper 和仅针对该账户的受限 `sudoers` 规则：
+
+```bash
+sudo deployment/linux/install-remoteos-services.sh \
+  /absolute/publish-root \
+  /absolute/publish-root/RemoteOS.Server \
+  /absolute/publish-root/RemoteOS.Guardian.Agent \
+  5000 \
+  "$USER"
+```
+
+随后以该普通账户运行 Server；它使用 `sudo -n /usr/local/lib/remoteos/remoteos-firewall-helper` 完成经过双重校验的 UFW 操作。不要使用 `sudo dotnet run`。若只调试 UI/API 而未安装 helper，Firewall 会稳定显示 `firewall.privileged_proxy_required`。
 新建 RemoteOS.Guardian.Agent 的 .NET Project 启动配置，在“环境变量”中逐项加入：
 ```bash
 REMOTEOS_GUARDIAN_PIPE=remoteos-guardian-dev

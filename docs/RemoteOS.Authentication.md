@@ -367,12 +367,7 @@ remoteos-server
 Host OS (Ubuntu / Windows Server)
 ```
 
-RemoteOS **不创建/修改**宿主 OS 用户数据库：
-
-- Linux：不写 `/etc/passwd`、`/etc/shadow`
-- Windows：不操作 SAM / AD
-
-宿主 OS 用户由系统管理员管理。
+RemoteOS 不管理用于登录的宿主 OS 用户或密码数据库。Linux 部署脚本唯一的例外是创建/复用不允许交互登录的 `remoteos-server` **服务账户**，用于以最小权限运行 Server；它不属于 RemoteOS 登录账户，不写入业务用户资料。Windows 不操作 SAM / AD。
 
 ---
 

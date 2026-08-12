@@ -434,7 +434,7 @@ RemoteOS Server 应：
 - 不默认 root（Linux）/ 不默认 Administrator（Windows）
 - 使用 sudo / UAC 执行需要权限的任务
 
-推荐：
+当前 Linux 部署脚本会创建（或复用）`remoteos-server` 系统账户，以该账户运行 HTTP Server，并仅通过 root-owned 的受限 helper 执行防火墙操作。推荐模式为：
 
 ```text
 Linux:    remoteos-server → sudo limited commands

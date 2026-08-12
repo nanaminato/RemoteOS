@@ -26,11 +26,13 @@ Firewall 是 RemoteOS 的内置 Linux Server 防火墙编辑器。它读取并�
 
 | 平台 | 状态 | 说明 |
 | --- | --- | --- |
-| Linux Server（UFW 已安装） | 已实现 | 通过 UFW 管理。RemoteOS Server 服务本身必须拥有执行 UFW 的受限 root 权限。 |
+| Linux Server（UFW 已安装） | 已实现 | 通过 root-owned helper 管理。RemoteOS Server 仅获准以 `sudo -n` 调用该 helper。 |
 | Linux Server（无 UFW） | 不支持 | 返回 `firewall.ufw_not_installed`，不会尝试安装或切换后端。 |
 | Windows Server | 不支持 | Manifest 仅声明 Linux + `server.firewall`；图标不显示，防火墙 API 也不会注册。 |
 
-服务部署必须将 RemoteOS Server 作为受管理的特权宿主服务运行，或授予其仅对已验证 UFW 参数执行的等价受限代理权限；应用绝不把用户密码传给 `sudo`，也不接受任意命令。若服务没有该权限，变更返回 `firewall.privileged_proxy_required`。
+Linux 部署脚本会安装 root:root 的 `remoteos-firewall-helper`，并创建仅允许 Server 服务账户无密码调用它的 `sudoers` 规则。helper 不是常驻进程，只接受固定的状态、启停、默认策略和结构化规则子命令，并再次校验参数后才执行 UFW。应用绝不把用户密码传给 `sudo`，也不接受任意命令。helper 或其权限缺失时返回 `firewall.privileged_proxy_required`。
+
+安装脚本默认创建 `remoteos-server` 系统账户并以其运行 Server；可用第五个参数指定已有账户（例如开发机上的 `nanami`）。脚本可重复执行：它会修复 helper、sudoers 规则、服务单元和运行数据目录权限，而不会自动启用 UFW。
 
 ## 安全与错误行为
 

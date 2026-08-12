@@ -5,26 +5,26 @@ using RemoteOS.Protocol.Firewall;
 
 namespace Server.Firewall;
 
-/// <summary>Linux-only, injection-safe facade over the locally installed UFW executable.</summary>
+/// <summary>Linux-only, injection-safe facade over the root-owned UFW helper.</summary>
 public sealed class LinuxUfwFirewallService : IHostFirewallService
 {
     private static readonly Regex NumberedRule = new(
         @"^\[\s*(?<number>\d+)\]\s+(?<port>\S+)\s+(?<action>ALLOW|DENY|REJECT|LIMIT)\s+(?<direction>IN|OUT)\s+(?<source>.+?)(?:\s+#.*)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private readonly ILogger<LinuxUfwFirewallService> _logger;
-    private readonly string _ufwPath;
+    private readonly FirewallPrivilegedHelperOptions _helper;
 
     public LinuxUfwFirewallService(IConfiguration configuration, ILogger<LinuxUfwFirewallService> logger)
     {
         _logger = logger;
-        _ufwPath = configuration["Firewall:UfwPath"] ?? "/usr/sbin/ufw";
+        _helper = configuration.GetSection("Firewall").Get<FirewallPrivilegedHelperOptions>() ?? new FirewallPrivilegedHelperOptions();
     }
 
     public async Task<FirewallStatusDto> GetStatusAsync(CancellationToken cancellationToken)
     {
-        if (!IsUfwInstalled()) return new(false, false, "ufw", null, null, null, "firewall.ufw_not_installed");
-        var version = await RunAsync(["--version"], cancellationToken);
-        var status = await RunAsync(["status", "verbose"], cancellationToken);
+        if (!IsHelperInstalled()) return new(false, false, "ufw", null, null, null, "firewall.privileged_proxy_required");
+        var version = await RunAsync(["version"], cancellationToken);
+        var status = await RunAsync(["status-verbose"], cancellationToken);
         if (!status.Success) return new(false, false, "ufw", ParseVersion(version.Output), null, null, status.ProblemCode);
 
         var enabled = status.Output.Contains("Status: active", StringComparison.OrdinalIgnoreCase);
@@ -36,7 +36,7 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
 
     public async Task<IReadOnlyList<FirewallRuleDto>> ListRulesAsync(CancellationToken cancellationToken)
     {
-        var result = await RunAsync(["status", "numbered"], cancellationToken);
+        var result = await RunAsync(["status-numbered"], cancellationToken);
         if (!result.Success) return [];
         var rules = new List<FirewallRuleDto>();
         foreach (var line in result.Output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
@@ -55,7 +55,7 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     }
 
     public Task<FirewallOperationResult> SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
-        RunOperationAsync([enabled ? "--force" : "--force", enabled ? "enable" : "disable"], cancellationToken);
+        RunOperationAsync([enabled ? "enable" : "disable"], cancellationToken);
 
     public async Task<FirewallOperationResult> SetDefaultsAsync(string incomingPolicy, string outgoingPolicy, CancellationToken cancellationToken)
     {
@@ -69,19 +69,19 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     public Task<FirewallOperationResult> CreateRuleAsync(CreateFirewallRuleRequest request, CancellationToken cancellationToken)
     {
         if (!TryValidateRule(request, out var args, out var problem)) return Task.FromResult(new FirewallOperationResult(false, problem));
-        return RunOperationAsync(args, cancellationToken);
+        return RunOperationAsync(["rule", .. args], cancellationToken);
     }
 
     public Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken) =>
         number is <= 0 or > 10_000
             ? Task.FromResult(new FirewallOperationResult(false, "firewall.invalid_rule_number"))
-            : RunOperationAsync(["--force", "delete", number.ToString(System.Globalization.CultureInfo.InvariantCulture)], cancellationToken);
+            : RunOperationAsync(["delete", number.ToString(System.Globalization.CultureInfo.InvariantCulture)], cancellationToken);
 
-    private bool IsUfwInstalled() => File.Exists(_ufwPath) || _ufwPath == "ufw";
+    private bool IsHelperInstalled() => File.Exists(_helper.HelperPath);
 
     private async Task<FirewallOperationResult> RunOperationAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
-        if (!IsUfwInstalled()) return new(false, "firewall.ufw_not_installed");
+        if (!IsHelperInstalled()) return new(false, "firewall.privileged_proxy_required");
         var result = await RunAsync(arguments, cancellationToken);
         return result.Success ? new(true) : new(false, result.ProblemCode);
     }
@@ -90,10 +90,12 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     {
         try
         {
-            var start = new ProcessStartInfo(_ufwPath)
+            var start = new ProcessStartInfo(_helper.SudoPath)
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
             };
+            start.ArgumentList.Add("-n");
+            start.ArgumentList.Add(_helper.HelperPath);
             foreach (var argument in arguments) start.ArgumentList.Add(argument);
             using var process = Process.Start(start);
             if (process is null) return new(false, "", "firewall.command_unavailable");
@@ -103,17 +105,31 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
             var text = await output;
             var stderr = await error;
             if (process.ExitCode == 0) return new(true, text, string.Empty);
-            _logger.LogWarning("UFW operation failed with exit code {ExitCode}; stderr omitted from API.", process.ExitCode);
-            return new(false, text, stderr.Contains("permission denied", StringComparison.OrdinalIgnoreCase)
-                ? "firewall.privileged_proxy_required" : "firewall.operation_failed");
+            _logger.LogWarning("Firewall helper failed with exit code {ExitCode}; stderr omitted from API.", process.ExitCode);
+            return new(false, text, ProblemCodeForFailure(stderr));
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "UFW operation could not be started.");
+            _logger.LogWarning(exception, "Firewall helper operation could not be started.");
             return new(false, "", "firewall.command_unavailable");
         }
     }
+
+    private static string ProblemCodeForFailure(string stderr)
+    {
+        if (stderr.Contains("ufw is not installed", StringComparison.OrdinalIgnoreCase)) return "firewall.ufw_not_installed";
+        return IsPrivilegeFailure(stderr) ? "firewall.privileged_proxy_required" : "firewall.operation_failed";
+    }
+
+    private static bool IsPrivilegeFailure(string stderr) =>
+        stderr.Contains("permission denied", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("sudo:", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("a password is required", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("not allowed to run sudo", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("not in the sudoers", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("root is required", StringComparison.OrdinalIgnoreCase)
+        || stderr.Contains("only be run as root", StringComparison.OrdinalIgnoreCase);
 
     private static string? ParseVersion(string text) => Regex.Match(text, @"ufw\s+(?<version>[\d.]+)", RegexOptions.IgnoreCase) is { Success: true } match
         ? match.Groups["version"].Value : null;
@@ -129,12 +145,10 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
         if (!IsAction(request.Action) || !IsDirection(request.Direction) || !IsProtocol(request.Protocol)) return false;
         if (!TryNormalizeEndpoint(request.Source, out var source) || !TryNormalizeEndpoint(request.Destination, out var destination)) return false;
         if (!TryNormalizePort(request.Port, out var port)) return false;
-        var values = new List<string> { request.Action.Trim().ToLowerInvariant(), request.Direction.Trim().ToLowerInvariant() };
-        if (!string.Equals(request.Protocol, "any", StringComparison.OrdinalIgnoreCase)) { values.Add("proto"); values.Add(request.Protocol.Trim().ToLowerInvariant()); }
-        if (source != "any") { values.Add("from"); values.Add(source); }
-        if (destination != "any") { values.Add("to"); values.Add(destination); }
-        if (port != "any") { values.Add("port"); values.Add(port); }
-        args = values; problem = string.Empty; return true;
+        args = [request.Action.Trim().ToLowerInvariant(), request.Direction.Trim().ToLowerInvariant(),
+            request.Protocol.Trim().ToLowerInvariant(), source, destination, port];
+        problem = string.Empty;
+        return true;
     }
 
     private static bool TryNormalizeEndpoint(string? value, out string normalized)

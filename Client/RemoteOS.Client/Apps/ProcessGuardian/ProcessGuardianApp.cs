@@ -9,6 +9,7 @@ using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.ProcessGuardian;
 using Rect = RemoteOS.Core.Primitives.Rect;
 using AppContext = RemoteOS.AppSDK.AppContext;
