@@ -39,6 +39,7 @@ public partial class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var session = Services.GetRequiredService<IAuthSession>();
+            var notificationPreferences = Services.GetRequiredService<LoginNotificationPreferenceStore>();
             var loginViewModel = Services.GetRequiredService<LoginViewModel>();
             var loginWindow = new LoginWindow
             {
@@ -54,8 +55,9 @@ public partial class App : Application
                 Dispatcher.UIThread.Post(async () =>
                 {
                     if (e.RememberedProfileSaveResult is { } saveResult
-                        && saveResult != RememberedProfileSaveResult.Saved)
-                        await ShowRememberedProfileSaveWarningAsync(loginWindow, saveResult);
+                        && saveResult != RememberedProfileSaveResult.Saved
+                        && !notificationPreferences.IsPasswordSaveWarningDismissed())
+                        await ShowRememberedProfileSaveWarningAsync(loginWindow, saveResult, notificationPreferences);
 
                     var shell = Services.GetRequiredService<DesktopShellViewModel>();
                     var mainWindow = new MainWindow { DataContext = shell };
@@ -75,7 +77,8 @@ public partial class App : Application
     }
 
     private static async Task ShowRememberedProfileSaveWarningAsync(
-        Window owner, RememberedProfileSaveResult saveResult)
+        Window owner, RememberedProfileSaveResult saveResult,
+        LoginNotificationPreferenceStore notificationPreferences)
     {
         var localization = Services.GetRequiredService<LoginLocalizationService>();
         var messageKey = saveResult == RememberedProfileSaveResult.SecureStorageUnavailable
@@ -103,7 +106,18 @@ public partial class App : Application
             Padding = new Thickness(16, 6),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
-        acknowledge.Click += (_, _) => dialog.Close();
+        var doNotShowAgain = new CheckBox
+        {
+            Content = localization.Get("login.password_save.do_not_show_again", "Don't show this again"),
+            FontSize = 13,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        acknowledge.Click += (_, _) =>
+        {
+            if (doNotShowAgain.IsChecked == true)
+                notificationPreferences.DismissPasswordSaveWarning();
+            dialog.Close();
+        };
         dialog.Content = new StackPanel
         {
             Margin = new Thickness(24),
@@ -116,6 +130,7 @@ public partial class App : Application
                     TextWrapping = TextWrapping.Wrap,
                     FontSize = 13,
                 },
+                doNotShowAgain,
                 acknowledge,
             },
         };

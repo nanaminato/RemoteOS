@@ -35,6 +35,7 @@ public static class Bootstrapper
         services.AddSingleton(windowManager);
         services.AddSingleton<IWindowManager>(windowManager);
         services.AddSingleton<LocalLanguageStore>();
+        services.AddSingleton<LoginNotificationPreferenceStore>();
         services.AddSingleton<ShellSettings>();
         services.AddSingleton<LocalizationService>();
         services.AddSingleton<LoginLocalizationService>();

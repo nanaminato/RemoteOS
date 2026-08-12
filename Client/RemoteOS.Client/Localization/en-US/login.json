@@ -19,6 +19,7 @@
         "login.password_save.title": "Password not saved",
         "login.password_save.secure_storage_unavailable": "You signed in, but the password could not be saved securely. The server and username were saved. Start or unlock the system keyring or credential service, then sign in again. On Linux, use a Secret Service provider such as GNOME Keyring or KWallet.",
         "login.password_save.local_storage_failed": "You signed in, but RemoteOS could not save this remembered connection. Check that the system credential store and local data directory are available, then sign in again.",
+        "login.password_save.do_not_show_again": "Don't show this again",
         "login.identity_notice": "You will be prompted to verify the identity of the remote computer.",
         "login.connection_settings": "Connection settings",
         "login.connection_settings_description": "RemoteOS will open the workspace using this computer\u0027s name and local display settings.",
