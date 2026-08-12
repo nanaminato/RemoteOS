@@ -36,19 +36,15 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
 
     public async Task<IReadOnlyList<FirewallRuleDto>> ListRulesAsync(CancellationToken cancellationToken)
     {
-        var result = await RunAsync(["status-numbered"], cancellationToken);
+        var result = await ReadRulesAsync(cancellationToken);
         if (!result.Success) return [];
-        var rules = new List<FirewallRuleDto>();
-        foreach (var line in result.Output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-        {
-            var match = NumberedRule.Match(line);
-            if (!match.Success || !int.TryParse(match.Groups["number"].Value, out var number)) continue;
-            var (destination, port, protocol) = ParseTarget(match.Groups["target"].Value);
-            rules.Add(new FirewallRuleDto(number, match.Groups["action"].Value.ToLowerInvariant(),
-                match.Groups["direction"].Value.ToLowerInvariant(), protocol,
-                match.Groups["source"].Value.Trim(), destination, port));
-        }
-        return rules;
+
+        // UFW expands an any-to-any rule into adjacent IPv4 and IPv6 entries.
+        // They are one logical rule from the application's perspective.
+        return result.Rules
+            .Where(rule => !rule.IsIpv6 || !HasCompanion(result.Rules, rule))
+            .Select(rule => rule.Rule)
+            .ToArray();
     }
 
     public Task<FirewallOperationResult> SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
@@ -69,19 +65,78 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
         return RunOperationAsync(["rule", .. args], cancellationToken);
     }
 
-    public Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken)
+    public async Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken)
     {
-        if (number is <= 0 or > 10_000) return Task.FromResult(new FirewallOperationResult(false, "firewall.invalid_rule_number"));
-        if (!TryValidateRule(request.Action, request.Direction, request.Protocol, request.Source, request.Destination, request.Port, out var args, out var problem)) return Task.FromResult(new FirewallOperationResult(false, problem));
-        return RunOperationAsync(["replace", number.ToString(System.Globalization.CultureInfo.InvariantCulture), .. args], cancellationToken);
+        if (number is <= 0 or > 10_000) return new(false, "firewall.invalid_rule_number");
+        if (!TryValidateRule(request.Action, request.Direction, request.Protocol, request.Source, request.Destination, request.Port, out var args, out var problem)) return new(false, problem);
+        var numbers = await GetRuleNumbersAsync(number, cancellationToken);
+        if (!numbers.Success) return new(false, numbers.ProblemCode);
+        return await RunOperationAsync(["replace", .. numbers.Numbers, .. args], cancellationToken);
     }
 
-    public Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken) =>
-        number is <= 0 or > 10_000
-            ? Task.FromResult(new FirewallOperationResult(false, "firewall.invalid_rule_number"))
-            : RunOperationAsync(["delete", number.ToString(System.Globalization.CultureInfo.InvariantCulture)], cancellationToken);
+    public async Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken)
+    {
+        if (number is <= 0 or > 10_000) return new(false, "firewall.invalid_rule_number");
+        var numbers = await GetRuleNumbersAsync(number, cancellationToken);
+        return !numbers.Success
+            ? new(false, numbers.ProblemCode)
+            : await RunOperationAsync(["delete", .. numbers.Numbers], cancellationToken);
+    }
 
     private bool IsHelperInstalled() => File.Exists(_helper.HelperPath);
+
+    private async Task<ParsedRuleList> ReadRulesAsync(CancellationToken cancellationToken)
+    {
+        var result = await RunAsync(["status-numbered"], cancellationToken);
+        if (!result.Success) return new([], result.ProblemCode);
+
+        var rules = new List<ParsedFirewallRule>();
+        foreach (var line in result.Output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var match = NumberedRule.Match(line);
+            if (!match.Success || !int.TryParse(match.Groups["number"].Value, out var number)) continue;
+            var target = ParseTarget(match.Groups["target"].Value);
+            var source = NormalizeStatusEndpoint(match.Groups["source"].Value, out var sourceIsIpv6);
+            rules.Add(new ParsedFirewallRule(new FirewallRuleDto(number, match.Groups["action"].Value.ToLowerInvariant(),
+                match.Groups["direction"].Value.ToLowerInvariant(), target.Protocol, source, target.Destination, target.Port),
+                target.IsIpv6 || sourceIsIpv6));
+        }
+        return new(rules, string.Empty);
+    }
+
+    private async Task<RuleNumbersResult> GetRuleNumbersAsync(int number, CancellationToken cancellationToken)
+    {
+        var result = await ReadRulesAsync(cancellationToken);
+        if (!result.Success) return new([], result.ProblemCode);
+        var selected = result.Rules.FirstOrDefault(rule => rule.Rule.Number == number);
+        if (selected is null) return new([], "firewall.invalid_rule_number");
+
+        var companion = GetCompanion(result.Rules, selected);
+        var primary = companion is null ? selected.Rule.Number : Math.Min(selected.Rule.Number, companion.Rule.Number);
+        var secondary = companion is null ? "none" : Math.Max(selected.Rule.Number, companion.Rule.Number).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return new([primary.ToString(System.Globalization.CultureInfo.InvariantCulture), secondary], string.Empty);
+    }
+
+    private static bool HasCompanion(IReadOnlyList<ParsedFirewallRule> rules, ParsedFirewallRule rule) => GetCompanion(rules, rule) is not null;
+
+    private static ParsedFirewallRule? GetCompanion(IReadOnlyList<ParsedFirewallRule> rules, ParsedFirewallRule rule)
+    {
+        // UFW emits the IPv4 member immediately before the IPv6 member. Limiting
+        // the pairing to adjacent entries avoids merging two intentionally
+        // duplicated rules that happen to have identical fields.
+        var companionNumber = rule.IsIpv6 ? rule.Rule.Number - 1 : rule.Rule.Number + 1;
+        return rules.FirstOrDefault(candidate => candidate.Rule.Number == companionNumber
+            && candidate.IsIpv6 != rule.IsIpv6
+            && SameRule(candidate.Rule, rule.Rule));
+    }
+
+    private static bool SameRule(FirewallRuleDto left, FirewallRuleDto right) =>
+        string.Equals(left.Action, right.Action, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Direction, right.Direction, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Protocol, right.Protocol, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Source, right.Source, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Destination, right.Destination, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(left.Port, right.Port, StringComparison.OrdinalIgnoreCase);
 
     private async Task<FirewallOperationResult> RunOperationAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
@@ -138,16 +193,17 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     private static string? ParseVersion(string text) => Regex.Match(text, @"ufw\s+(?<version>[\d.]+)", RegexOptions.IgnoreCase) is { Success: true } match
         ? match.Groups["version"].Value : null;
 
-    private static (string Destination, string Port, string Protocol) ParseTarget(string target)
+    private static ParsedTarget ParseTarget(string target)
     {
         // `ufw status numbered` has a column-like target field. It is usually
         // `22/tcp`, but can also be `192.0.2.10 22/tcp` or `22/tcp (v6)`.
         // Keeping the destination separate makes the table accurately reflect
         // rules that constrain the local address as well as the port.
         var normalized = target.Trim();
-        if (normalized.EndsWith(" (v6)", StringComparison.OrdinalIgnoreCase)) normalized = normalized[..^5].TrimEnd();
-        if (normalized.Equals("anywhere", StringComparison.OrdinalIgnoreCase)) return ("any", "any", "any");
-        if (TryNormalizeEndpoint(normalized, out var endpoint)) return (endpoint, "any", "any");
+        var isIpv6 = normalized.EndsWith(" (v6)", StringComparison.OrdinalIgnoreCase);
+        if (isIpv6) normalized = normalized[..^5].TrimEnd();
+        if (normalized.Equals("anywhere", StringComparison.OrdinalIgnoreCase)) return new("any", "any", "any", isIpv6);
+        if (TryNormalizeEndpoint(normalized, out var endpoint)) return new(endpoint, "any", "any", isIpv6);
 
         var parts = normalized.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var portAndProtocol = parts[^1];
@@ -155,7 +211,15 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
         var port = slash > 0 ? portAndProtocol[..slash] : portAndProtocol;
         var protocol = slash > 0 ? portAndProtocol[(slash + 1)..].ToLowerInvariant() : "any";
         var destination = parts.Length > 1 ? string.Join(' ', parts[..^1]) : "any";
-        return (destination.Equals("anywhere", StringComparison.OrdinalIgnoreCase) ? "any" : destination, port, protocol);
+        return new(destination.Equals("anywhere", StringComparison.OrdinalIgnoreCase) ? "any" : destination, port, protocol, isIpv6);
+    }
+
+    private static string NormalizeStatusEndpoint(string source, out bool isIpv6)
+    {
+        var normalized = source.Trim();
+        isIpv6 = normalized.EndsWith(" (v6)", StringComparison.OrdinalIgnoreCase);
+        if (isIpv6) normalized = normalized[..^5].TrimEnd();
+        return normalized.Equals("anywhere", StringComparison.OrdinalIgnoreCase) ? "any" : normalized;
     }
 
     private static bool IsPolicy(string? value) => value?.Trim().ToLowerInvariant() is "allow" or "deny" or "reject";
@@ -197,4 +261,14 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     }
 
     private sealed record CommandResult(bool Success, string Output, string ProblemCode);
+    private sealed record ParsedRuleList(IReadOnlyList<ParsedFirewallRule> Rules, string ProblemCode)
+    {
+        public bool Success => string.IsNullOrEmpty(ProblemCode);
+    }
+    private sealed record ParsedFirewallRule(FirewallRuleDto Rule, bool IsIpv6);
+    private sealed record ParsedTarget(string Destination, string Port, string Protocol, bool IsIpv6);
+    private sealed record RuleNumbersResult(IReadOnlyList<string> Numbers, string ProblemCode)
+    {
+        public bool Success => string.IsNullOrEmpty(ProblemCode);
+    }
 }

@@ -61,9 +61,35 @@ run_rule() {
   exec "$UFW" "${arguments[@]}"
 }
 
+is_rule_number() {
+  [[ $1 =~ ^[1-9][0-9]{0,3}$ ]]
+}
+
+delete_rule_numbers() {
+  local primary=$1 secondary=$2
+  is_rule_number "$primary" || fail
+  [[ $secondary == none ]] || is_rule_number "$secondary" || fail
+  [[ $secondary != "$primary" ]] || fail
+
+  # Delete the higher number first so the lower rule's number does not shift.
+  if [[ $secondary != none ]]; then
+    if (( 10#$secondary > 10#$primary )); then
+      "$UFW" --force delete "$secondary"
+      "$UFW" --force delete "$primary"
+    else
+      "$UFW" --force delete "$primary"
+      "$UFW" --force delete "$secondary"
+    fi
+  else
+    "$UFW" --force delete "$primary"
+  fi
+}
+
 replace_rule() {
-  local number=$1 action=$2 direction=$3 protocol=$4 source=$5 destination=$6 port=$7
+  local number=$1 companion=$2 action=$3 direction=$4 protocol=$5 source=$6 destination=$7 port=$8
   [[ $number =~ ^[1-9][0-9]{0,3}$ ]] || fail
+  [[ $companion == none ]] || is_rule_number "$companion" || fail
+  [[ $companion != "$number" ]] || fail
   [[ $action =~ ^(allow|deny|reject|limit)$ ]] || fail
   [[ $direction =~ ^(in|out)$ ]] || fail
   [[ $protocol =~ ^(tcp|udp|any)$ ]] || fail
@@ -73,7 +99,7 @@ replace_rule() {
   [[ $protocol == any ]] || arguments+=(proto "$protocol")
   arguments+=(from "$source" to "$destination")
   [[ $port == any ]] || arguments+=(port "$port")
-  "$UFW" --force delete "$number"
+  delete_rule_numbers "$number" "$companion"
   exec "$UFW" "${arguments[@]}"
 }
 
@@ -104,12 +130,25 @@ case "${1:-}" in
     run_rule "$2" "$3" "$4" "$5" "$6" "$7"
     ;;
   replace)
-    [[ $# -eq 8 ]] || fail
-    replace_rule "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+    # The legacy form only replaced one UFW number. The current form carries
+    # the paired IPv4/IPv6 number (or "none") so an update stays one logical
+    # rule when UFW expands an any-to-any rule into two entries.
+    if [[ $# -eq 8 ]]; then
+      replace_rule "$2" none "$3" "$4" "$5" "$6" "$7" "$8"
+    elif [[ $# -eq 9 ]]; then
+      replace_rule "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9"
+    else
+      fail
+    fi
     ;;
   delete)
-    [[ $# -eq 2 && $2 =~ ^[1-9][0-9]{0,3}$ ]] || fail
-    exec "$UFW" --force delete "$2"
+    if [[ $# -eq 2 ]]; then
+      delete_rule_numbers "$2" none
+    elif [[ $# -eq 3 ]]; then
+      delete_rule_numbers "$2" "$3"
+    else
+      fail
+    fi
     ;;
   verify)
     [[ $# -eq 1 ]] || fail
