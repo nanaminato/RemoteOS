@@ -8,87 +8,206 @@ using RemoteOS.Protocol.Firewall;
 namespace Client.Apps.Firewall;
 
 /// <summary>Window-local Linux UFW editor state. Passwords are requested one-shot and never retained by the view model.</summary>
-public sealed partial class FirewallViewModel(IRemoteFirewallClient client, IAuthSession session) : ObservableObject
+public sealed partial class FirewallViewModel : ObservableObject
 {
-    public ObservableCollection<FirewallRuleDto> Rules { get; } = [];
-    [ObservableProperty] private FirewallRuleDto? _selectedRule;
-    [ObservableProperty] private string _statusText = LocalizedText.Get("firewall.status.loading");
-    [ObservableProperty] private bool _isEnabled;
-    [ObservableProperty] private string _incomingPolicy = "deny";
-    [ObservableProperty] private string _outgoingPolicy = "allow";
-    [ObservableProperty] private string _action = "allow";
-    [ObservableProperty] private string _direction = "in";
-    [ObservableProperty] private string _protocol = "tcp";
-    [ObservableProperty] private string _source = "any";
-    [ObservableProperty] private string _destination = "any";
-    [ObservableProperty] private string _port = string.Empty;
-    [ObservableProperty] private bool _isLoading;
+    private readonly IRemoteFirewallClient _client;
+    private readonly IAuthSession _session;
 
-    public bool IsRoot => string.Equals(session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    public FirewallViewModel(IRemoteFirewallClient client, IAuthSession session)
+    {
+        _client = client;
+        _session = session;
+        Policies = [Option("allow", "firewall.choice.allow"), Option("deny", "firewall.choice.deny"), Option("reject", "firewall.choice.reject")];
+        Actions = [.. Policies, Option("limit", "firewall.choice.limit")];
+        Directions = [Option("in", "firewall.choice.in"), Option("out", "firewall.choice.out")];
+        Protocols = [Option("tcp", "firewall.choice.tcp"), Option("udp", "firewall.choice.udp"), Option("any", "firewall.choice.any")];
+        SelectedIncomingPolicy = Policies[1];
+        SelectedOutgoingPolicy = Policies[0];
+        SelectedAction = Actions[0];
+        SelectedDirection = Directions[0];
+        SelectedProtocol = Protocols[0];
+    }
+
+    public ObservableCollection<FirewallRuleDto> Rules { get; } = [];
+    public IReadOnlyList<FirewallOption> Policies { get; }
+    public IReadOnlyList<FirewallOption> Actions { get; }
+    public IReadOnlyList<FirewallOption> Directions { get; }
+    public IReadOnlyList<FirewallOption> Protocols { get; }
+
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(UpdateRuleCommand), nameof(DeleteRuleCommand))]
+    private FirewallRuleDto? _selectedRule;
+    [ObservableProperty] private string _statusText = LocalizedText.Get("firewall.status.loading");
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(AddRuleCommand), nameof(UpdateRuleCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
+    private bool _isAvailable;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EnableCommand), nameof(DisableCommand))]
+    private bool _isEnabled;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(AddRuleCommand), nameof(UpdateRuleCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
+    private bool _isLoading;
+    [ObservableProperty] private FirewallOption? _selectedIncomingPolicy;
+    [ObservableProperty] private FirewallOption? _selectedOutgoingPolicy;
+    [ObservableProperty] private FirewallOption? _selectedAction;
+    [ObservableProperty] private FirewallOption? _selectedDirection;
+    [ObservableProperty] private FirewallOption? _selectedProtocol;
+    [ObservableProperty] private string _source = string.Empty;
+    [ObservableProperty] private string _destination = string.Empty;
+    [ObservableProperty] private string _port = string.Empty;
+
+    public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     /// <summary>Provided by the window so a credential is collected only for the pending operation.</summary>
     public Func<Task<string?>>? RequestPasswordAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
     {
         IsLoading = true;
         try
         {
-            var status = await client.GetStatusAsync();
+            var status = await _client.GetStatusAsync();
             Rules.Clear();
+            SelectedRule = null;
+            IsAvailable = status.IsAvailable;
+            IsEnabled = status.IsEnabled;
             if (!status.IsAvailable)
             {
                 StatusText = LocalizedText.Format("firewall.status.unavailable", status.ProblemCode);
                 return;
             }
-            IsEnabled = status.IsEnabled;
-            IncomingPolicy = status.DefaultIncomingPolicy ?? "deny";
-            OutgoingPolicy = status.DefaultOutgoingPolicy ?? "allow";
-            foreach (var rule in await client.ListRulesAsync()) Rules.Add(rule);
-            StatusText = LocalizedText.Format("firewall.status.ready", status.Backend, status.Version ?? "");
+
+            SelectedIncomingPolicy = Find(Policies, status.DefaultIncomingPolicy, "deny");
+            SelectedOutgoingPolicy = Find(Policies, status.DefaultOutgoingPolicy, "allow");
+            foreach (var rule in await _client.ListRulesAsync()) Rules.Add(rule);
+            StatusText = LocalizedText.Format(status.IsEnabled ? "firewall.status.ready_enabled" : "firewall.status.ready_disabled", status.Backend, status.Version ?? "");
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("firewall.status.failed", exception.Message); }
+        catch (Exception exception)
+        {
+            Rules.Clear();
+            SelectedRule = null;
+            IsAvailable = false;
+            IsEnabled = false;
+            StatusText = LocalizedText.Format("firewall.status.failed", exception.Message);
+        }
         finally { IsLoading = false; }
     }
 
-    [RelayCommand]
-    private Task EnableAsync() => ApplyAsync(confirmation => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(true, confirmation)));
-    [RelayCommand]
-    private Task DisableAsync() => ApplyAsync(confirmation => client.SetEnabledAsync(new UpdateFirewallEnabledRequest(false, confirmation)));
-    [RelayCommand]
-    private Task SaveDefaultsAsync() => ApplyAsync(confirmation => client.SetDefaultsAsync(new UpdateFirewallDefaultsRequest(IncomingPolicy, OutgoingPolicy, confirmation)));
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanEnable))]
+    private Task EnableAsync() => ApplyAsync(confirmation => _client.SetEnabledAsync(new UpdateFirewallEnabledRequest(true, confirmation)));
+
+    [RelayCommand(CanExecute = nameof(CanDisable))]
+    private Task DisableAsync() => ApplyAsync(confirmation => _client.SetEnabledAsync(new UpdateFirewallEnabledRequest(false, confirmation)));
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private Task SaveDefaultsAsync() => ApplyAsync(confirmation => _client.SetDefaultsAsync(new UpdateFirewallDefaultsRequest(
+        SelectedIncomingPolicy?.Value ?? "deny", SelectedOutgoingPolicy?.Value ?? "allow", confirmation)));
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task AddRuleAsync()
     {
-        if (string.IsNullOrWhiteSpace(Port)) { StatusText = LocalizedText.Get("firewall.validation.port_required"); return; }
-        await ApplyAsync(confirmation => client.CreateRuleAsync(new CreateFirewallRuleRequest(Action, Direction, Protocol, Source, Destination, Port, confirmation)));
+        if (!TryBuildRule(out var rule)) return;
+        if (await ApplyAsync(confirmation => _client.CreateRuleAsync(rule with { CredentialConfirmation = confirmation }))) ClearEditor();
     }
-    [RelayCommand]
-    private Task DeleteRuleAsync(FirewallRuleDto? rule) => rule is null ? Task.CompletedTask : ApplyAsync(confirmation => client.DeleteRuleAsync(rule.Number, new DeleteFirewallRuleRequest(confirmation)));
 
-    private async Task ApplyAsync(Func<FirewallCredentialConfirmation?, Task<FirewallOperationResult>> operation)
+    [RelayCommand(CanExecute = nameof(CanUpdateRule))]
+    private async Task UpdateRuleAsync()
+    {
+        if (SelectedRule is null || !TryBuildRule(out var rule)) return;
+        if (await ApplyAsync(confirmation => _client.UpdateRuleAsync(SelectedRule.Number,
+                new UpdateFirewallRuleRequest(rule.Action, rule.Direction, rule.Protocol, rule.Source, rule.Destination, rule.Port, confirmation)))) ClearEditor();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteRule))]
+    private async Task DeleteRuleAsync()
+    {
+        if (SelectedRule is null) return;
+        if (await ApplyAsync(confirmation => _client.DeleteRuleAsync(SelectedRule.Number, new DeleteFirewallRuleRequest(confirmation)))) ClearEditor();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private void ClearEditor()
+    {
+        SelectedRule = null;
+        SelectedAction = Actions[0];
+        SelectedDirection = Directions[0];
+        SelectedProtocol = Protocols[0];
+        Source = string.Empty;
+        Destination = string.Empty;
+        Port = string.Empty;
+    }
+
+    partial void OnSelectedRuleChanged(FirewallRuleDto? rule)
+    {
+        if (rule is null) return;
+        SelectedAction = Find(Actions, rule.Action, "allow");
+        SelectedDirection = Find(Directions, rule.Direction, "in");
+        SelectedProtocol = Find(Protocols, rule.Protocol, "any");
+        Source = rule.Source == "any" ? string.Empty : rule.Source;
+        Destination = rule.Destination == "any" ? string.Empty : rule.Destination;
+        Port = rule.Port == "any" ? string.Empty : rule.Port;
+    }
+
+    private bool TryBuildRule(out CreateFirewallRuleRequest rule)
+    {
+        var port = Port.Trim();
+        if (!string.IsNullOrEmpty(port) && !IsPort(port))
+        {
+            StatusText = LocalizedText.Get("firewall.validation.port_invalid");
+            rule = default!;
+            return false;
+        }
+
+        rule = new CreateFirewallRuleRequest(SelectedAction?.Value ?? "allow", SelectedDirection?.Value ?? "in", SelectedProtocol?.Value ?? "tcp",
+            NormalizeEndpoint(Source), NormalizeEndpoint(Destination), string.IsNullOrEmpty(port) ? "any" : port, null);
+        return true;
+    }
+
+    private async Task<bool> ApplyAsync(Func<FirewallCredentialConfirmation?, Task<FirewallOperationResult>> operation)
     {
         FirewallCredentialConfirmation? confirmation = null;
         if (!IsRoot)
         {
             var password = await (RequestPasswordAsync?.Invoke() ?? Task.FromResult<string?>(null));
-            if (password is null) return;
+            if (password is null) return false;
             confirmation = new FirewallCredentialConfirmation(password);
         }
 
         IsLoading = true;
+        var success = false;
         try
         {
             var result = await operation(confirmation);
             StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", result.ProblemCode);
+            success = result.Success;
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("firewall.operation.failed", exception.Message); }
-        finally
+        catch (Exception exception)
         {
-            IsLoading = false;
+            StatusText = LocalizedText.Format("firewall.operation.failed", exception.Message);
         }
-        await RefreshAsync();
+        finally { IsLoading = false; }
+        // A successful change is immediately re-read from UFW so button state and
+        // rule numbers always reflect the host rather than optimistic local state.
+        if (success) await RefreshAsync();
+        return success;
+    }
+
+    private bool CanRefresh => !IsLoading;
+    private bool CanManage => IsAvailable && !IsLoading;
+    private bool CanEnable => CanManage && !IsEnabled;
+    private bool CanDisable => CanManage && IsEnabled;
+    private bool CanUpdateRule => CanManage && SelectedRule is not null;
+    private bool CanDeleteRule => CanManage && SelectedRule is not null;
+
+    private static FirewallOption Option(string value, string labelKey) => new(value, LocalizedText.Get(labelKey));
+    private static FirewallOption Find(IEnumerable<FirewallOption> options, string? value, string fallback) =>
+        options.FirstOrDefault(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))
+        ?? options.First(option => option.Value == fallback);
+    private static string NormalizeEndpoint(string value) => string.IsNullOrWhiteSpace(value) ? "any" : value.Trim();
+    private static bool IsPort(string value)
+    {
+        var parts = value.Split(':');
+        return parts.Length is 1 or 2 && parts.All(part => int.TryParse(part, out var port) && port is > 0 and <= 65535)
+            && (parts.Length == 1 || int.Parse(parts[0]) <= int.Parse(parts[1]));
     }
 }
+
+public sealed record FirewallOption(string Value, string Label);

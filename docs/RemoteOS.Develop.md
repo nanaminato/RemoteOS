@@ -2,18 +2,13 @@
 
 ## Linux 防火墙调试
 
-Firewall 不要求以 root 启动 `dotnet run`。若要在 Linux 调试其真实 UFW 操作，管理员可用现有部署脚本的第五个参数指定当前开发账户；脚本会安装一次 root-owned helper 和仅针对该账户的受限 `sudoers` 规则：
+Firewall 不要求以 root 启动 `dotnet run`。若要在 Linux 调试真实 UFW 操作，先由管理员为**实际运行 Rider（或其他 IDE）的 Linux 账户**执行一次开发配置脚本：
 
 ```bash
-sudo deployment/linux/install-remoteos-services.sh \
-  /absolute/publish-root \
-  /absolute/publish-root/RemoteOS.Server \
-  /absolute/publish-root/RemoteOS.Guardian.Agent \
-  5000 \
-  "$USER"
+sudo deployment/linux/install-remoteos-firewall-development.sh "$USER"
 ```
 
-随后以该普通账户运行 Server；它使用 `sudo -n /usr/local/lib/remoteos/remoteos-firewall-helper` 完成经过双重校验的 UFW 操作。不要使用 `sudo dotnet run`。若只调试 UI/API 而未安装 helper，Firewall 会稳定显示 `firewall.privileged_proxy_required`。
+脚本只安装 root-owned 的 helper，并为该开发账户写入只允许调用此 helper 的受限 `sudoers` 规则；不会创建或启动 systemd 服务，也不会启动 Server、Agent 或 Desktop。因此可直接在 Rider 中启动这三个项目进行调试。Server 使用 `sudo -n /usr/local/lib/remoteos/remoteos-firewall-helper` 完成经过双重校验的 UFW 操作。不要使用 `sudo dotnet run`。若只调试 UI/API 而未安装 helper，Firewall 会稳定显示 `firewall.privileged_proxy_required`。
 新建 RemoteOS.Guardian.Agent 的 .NET Project 启动配置，在“环境变量”中逐项加入：
 ```bash
 REMOTEOS_GUARDIAN_PIPE=remoteos-guardian-dev
