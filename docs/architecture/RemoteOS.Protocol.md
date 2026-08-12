@@ -3,8 +3,8 @@
 > 本文档定义 RemoteOS Client↔Server 通信协议契约层 `Shared/RemoteOS.Protocol`：模块结构、序列化约定、REST 端点、SignalR Hub 契约、认证集成方式。
 >
 > - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) §4.8
-> - 当前实现状态见 [`RemoteOS.md`](./RemoteOS.md) §4.8
-> - 登录与身份见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
+> - 当前实现状态见 [`RemoteOS.md`](../README.md) §4.8
+> - 登录与身份见 [`RemoteOS.Authentication.md`](../platform/RemoteOS.Authentication.md)
 > - Workspace 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 
 ---
@@ -97,7 +97,7 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | POST | `/api/v1/devices` | `RegisterDeviceRequest` | `DeviceDto` | JWT |
 
 ### Files（文件管理）
-路由常量见 `FileApiRoutes`。Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL）。详见 [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)。
+路由常量见 `FileApiRoutes`。Server 以宿主 OS 进程身份执行 `System.IO`，复用宿主用户/权限（不另建 ACL）。详见 [`RemoteOS.Explorer.md`](../applications/RemoteOS.Explorer.md)。
 
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
@@ -118,7 +118,7 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | POST | `/api/v1/files/upload` | query: `path` + multipart/form-data | `FileEntryDto` | JWT |
 
 ### Browser（浏览器）
-路由常量见 `BrowserApiRoutes`。书签/历史按 JWT `sub` claim 取 userId 隔离；`BrowserSettings` 随 Workspace 持久化。详见 [`RemoteOS.Browser.md`](./RemoteOS.Browser.md)。
+路由常量见 `BrowserApiRoutes`。书签/历史按 JWT `sub` claim 取 userId 隔离；`BrowserSettings` 随 Workspace 持久化。详见 [`RemoteOS.Browser.md`](../applications/RemoteOS.Browser.md)。
 
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
@@ -134,7 +134,7 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | DELETE | `/api/v1/browser/history` | — | `{ removed }` | JWT |
 
 ### Workspace Preferences（设置中心偏好）
-路由常量见 `WorkspaceApiRoutes.Preferences`。复用 `FindAuthorizedWorkspace` 按 JWT `sub` 校验 Workspace 归属。详见 [`RemoteOS.Settings.md`](./RemoteOS.Settings.md)。
+路由常量见 `WorkspaceApiRoutes.Preferences`。复用 `FindAuthorizedWorkspace` 按 JWT `sub` 校验 Workspace 归属。详见 [`RemoteOS.Settings.md`](../desktop/RemoteOS.Settings.md)。
 
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
@@ -142,7 +142,7 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | PUT | `/api/v1/workspaces/{id}/preferences` | `WorkspacePreferencesDto` | `WorkspacePreferencesDto`（归一化） | JWT（按归属） |
 
 ### SystemMonitor（任务管理器）
-路由常量见 `SystemMonitorApiRoutes`。服务端 `ISystemMetricsProvider` 以宿主 OS 进程身份实时采集，**不持久化**。详见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)。
+路由常量见 `SystemMonitorApiRoutes`。服务端 `ISystemMetricsProvider` 以宿主 OS 进程身份实时采集，**不持久化**。详见 [`RemoteOS.TaskManager.md`](../applications/RemoteOS.TaskManager.md)。
 
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
@@ -178,7 +178,7 @@ Hub 路径 `/hubs/workspace`。Server 端实现 `WorkspaceHub : Hub<IWorkspaceHu
 
 ### Terminal Hub（`/hubs/terminals`）
 
-远端 PTY 字节流中继。Server 端实现 `TerminalHub : Hub<ITerminalHubClient>`，PTY 由 `TerminalSessionManager`（Singleton）持有，与 Hub 连接解耦——连接断开仅 `Detach`，**保留 PTY**。详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+远端 PTY 字节流中继。Server 端实现 `TerminalHub : Hub<ITerminalHubClient>`，PTY 由 `TerminalSessionManager`（Singleton）持有，与 Hub 连接解耦——连接断开仅 `Detach`，**保留 PTY**。详见 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)。
 
 #### Client → Server（invoke，方法名见 `TerminalHubMethods`）
 | 方法 | 参数 | 返回 | 说明 |
@@ -225,7 +225,7 @@ RemoteTerminal 的 PTY 流传输**已在 Protocol 契约内**，走 SignalR Hub 
 - 不启用 `WithAutomaticReconnect`（自动重连后服务端不会自动重新附加会话）；恢复路径是"再次登录打开终端 → 重新 `Start(Attach)` → 回放 1MB 缓冲快照"。
 - `MaximumReceiveMessageSize = null` 解除 SignalR 默认 32KB 上限，允许大块 PTY 输出与 1MB 缓冲快照单帧传输。
 
-完整实现细节（Hub 行为、断开语义、会话生命周期、焦点修复等）见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)。
+完整实现细节（Hub 行为、断开语义、会话生命周期、焦点修复等）见 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)。
 
 ---
 
@@ -253,14 +253,14 @@ RemoteTerminal 的 PTY 流传输**已在 Protocol 契约内**，走 SignalR Hub 
 | 文档 | 用途 |
 |------|------|
 | [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md) | 模块定位、依赖约束、架构原则 |
-| [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) | 登录、身份模型、User/Session/Device 表 |
-| [`RemoteOS.Login.md`](./RemoteOS.Login.md) | 登录模块：auth 端点、JWT、IIdentityProvider |
+| [`RemoteOS.Authentication.md`](../platform/RemoteOS.Authentication.md) | 登录、身份模型、User/Session/Device 表 |
+| [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md) | 登录模块：auth 端点、JWT、IIdentityProvider |
 | [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md) | Workspace 生命周期、Controller/Observer |
-| [`RemoteOS.Security.md`](./RemoteOS.Security.md) | Session 安全、权限提升 |
-| [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md) | Terminal Hub 实现、持久会话、断开语义 |
-| [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md) | 文件管理端点实现、宿主 OS 权限复用 |
-| [`RemoteOS.Browser.md`](./RemoteOS.Browser.md) | 浏览器端点实现、BrowserSettings 持久化 |
-| [`RemoteOS.Settings.md`](./RemoteOS.Settings.md) | Workspace 偏好端点实现、PreferencesSync 多设备同步 |
-| [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md) | 系统监控端点实现、跨平台 ISystemMetricsProvider |
-| [`RemoteOS.Storage.md`](./RemoteOS.Storage.md) | EF Core + SQLite 持久化、表结构 |
-| [`RemoteOS.md`](./RemoteOS.md) | 项目结构、当前进度 |
+| [`RemoteOS.Security.md`](../platform/RemoteOS.Security.md) | Session 安全、权限提升 |
+| [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md) | Terminal Hub 实现、持久会话、断开语义 |
+| [`RemoteOS.Explorer.md`](../applications/RemoteOS.Explorer.md) | 文件管理端点实现、宿主 OS 权限复用 |
+| [`RemoteOS.Browser.md`](../applications/RemoteOS.Browser.md) | 浏览器端点实现、BrowserSettings 持久化 |
+| [`RemoteOS.Settings.md`](../desktop/RemoteOS.Settings.md) | Workspace 偏好端点实现、PreferencesSync 多设备同步 |
+| [`RemoteOS.TaskManager.md`](../applications/RemoteOS.TaskManager.md) | 系统监控端点实现、跨平台 ISystemMetricsProvider |
+| [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md) | EF Core + SQLite 持久化、表结构 |
+| [`RemoteOS.md`](../README.md) | 项目结构、当前进度 |

@@ -2,9 +2,9 @@
 
 > 本文档定义 RemoteOS 登录成功后的桌面外壳交互层：宿主窗口（`MainWindow`）的窗口控制与 mstsc 风格连接栏，以及 Framework 层的可复用模态对话框机制（`ModalDialog` / `ShowDialogAsync`）。
 >
-> - 登录流程与认证会话见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)
-> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - 项目结构与当前进度见 [`RemoteOS.md`](./RemoteOS.md)
+> - 登录流程与认证会话见 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md)
+> - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - 项目结构与当前进度见 [`RemoteOS.md`](../README.md)
 
 ---
 
@@ -95,7 +95,7 @@ ConnectionWorkspace ← IAuthSession.CurrentWorkspace.Name
         → MainWindow.Closed → desktop.Shutdown()   // 进程退出
 ```
 
-> 这是登录会话与桌面外壳的衔接点：连接栏把"断开远程连接"映射为 `IAuthSession.LogoutAsync`，与 [`RemoteOS.Login.md`](./RemoteOS.Login.md) §7 的登出路径一致。当前阶段断开即退出进程（不回 `LoginWindow`），未来可改为回登录窗。
+> 这是登录会话与桌面外壳的衔接点：连接栏把"断开远程连接"映射为 `IAuthSession.LogoutAsync`，与 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md) §7 的登出路径一致。当前阶段断开即退出进程（不回 `LoginWindow`），未来可改为回登录窗。
 
 ---
 

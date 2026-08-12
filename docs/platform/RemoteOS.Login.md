@@ -4,11 +4,11 @@
 >
 > 本文档描述**已实现的登录模块**：客户端可真实登录到本机 Server 并进入桌面。不含 SignalR Hub（桌面状态同步是独立模块）。
 >
-> - 通信契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
+> - 通信契约见 [`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)
 > - 身份模型与认证原则见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)
-> - Workspace / Session / Device 模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
-> - 登录成功后的桌面外壳（连接栏、断开 = 登出）见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
-> - 整体架构见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
+> - Workspace / Session / Device 模型见 [`RemoteOS.Workspace.md`](../architecture/RemoteOS.Workspace.md)
+> - 登录成功后的桌面外壳（连接栏、断开 = 登出）见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md)
+> - 整体架构见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
 
 ---
 
@@ -272,7 +272,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 - AccessToken TTL：15 分钟（`Jwt:AccessTokenTtl`）。
 - RefreshToken TTL：7 天（`Jwt:RefreshTokenTtl`）。
 - 刷新失败（refresh 过期/已吊销）→ `AuthSession.Reset()` → 状态回 `Unauthenticated`。
-- **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（当前阶段断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §2.4。
+- **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（当前阶段断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md) §2.4。
 
 ---
 

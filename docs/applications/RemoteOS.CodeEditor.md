@@ -7,8 +7,8 @@
 相关文档：
 
 - [`RemoteOS.Explorer.md`](./RemoteOS.Explorer.md)：复用文件列举、读取、保存 API 与路径安全边界
-- [`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md)：内置应用通用约束
-- [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)：Files 协议契约
+- [`RemoteOS.BuiltInApplication.Conventions.md`](../development/RemoteOS.BuiltInApplication.Conventions.md)：内置应用通用约束
+- [`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)：Files 协议契约
 
 ---
 

@@ -213,28 +213,28 @@ dotnet run
 
 | ドキュメント | 説明 |
 |-------------|------|
-| [RemoteOS.Architecture.md](./docs/RemoteOS.Architecture.md) | アーキテクチャ原則、モジュール依存、階層アーキテクチャ |
-| [RemoteOS.Protocol.md](./docs/RemoteOS.Protocol.md) | 通信契約、REST/SignalR、シリアライズ規約 |
-| [RemoteOS.Workspace.md](./docs/RemoteOS.Workspace.md) | ユーザー/Workspace/Session/Device、マルチデバイスモデル |
-| [RemoteOS.Authentication.md](./docs/RemoteOS.Authentication.md) | ログインシステム、アイデンティティモデル、OSユーザー統合 |
-| [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | デスクトップシェル、ウィンドウ制御、モーダルダイアログ |
-| [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | ターミナルアプリ、SignalR、PTY、セッション管理 |
-| [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | ファイルマネージャ、REST API、権限活用 |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴 |
-| [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
-| [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理 |
-| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack管理 |
-| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | プロセスガーディアン、ヘルスチェック、ネイティブサービス管理 |
-| [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | サーバーパーシステンス、EF Core + SQLite |
-| [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | セキュリティ設計、権限昇格、危険操作 |
-| [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | 多言語メカニズム、言語パック構造 |
-| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | デベロッパークイックスタート、コード構造、デバッグガイド |
-| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | デベロッパーモード、DevCli、アプリパッケージ公開 |
-| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | 内蔵アプリ設計制約、国際化、クロスプラットフォーム |
-| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | アプリケーション互換性、プラットフォーム適応、フォールバック |
-| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | ネットワークインスペクター、診断ツール、ネットワーク分析 |
-| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | ログインモジュール実装詳細、mstscスタイルログインウィンドウ |
-| [RemoteOS.md](./docs/RemoteOS.md) | プロジェクト構造、コードマップ、現在の進捗 |
+| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | アーキテクチャ原則、モジュール依存、階層アーキテクチャ |
+| [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | 通信契約、REST/SignalR、シリアライズ規約 |
+| [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | ユーザー/Workspace/Session/Device、マルチデバイスモデル |
+| [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | ログインシステム、アイデンティティモデル、OSユーザー統合 |
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | デスクトップシェル、ウィンドウ制御、モーダルダイアログ |
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | ターミナルアプリ、SignalR、PTY、セッション管理 |
+| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | ファイルマネージャ、REST API、権限活用 |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴 |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理 |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack管理 |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | プロセスガーディアン、ヘルスチェック、ネイティブサービス管理 |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | サーバーパーシステンス、EF Core + SQLite |
+| [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | セキュリティ設計、権限昇格、危険操作 |
+| [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | 多言語メカニズム、言語パック構造 |
+| [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | デベロッパークイックスタート、コード構造、デバッグガイド |
+| [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | デベロッパーモード、DevCli、アプリパッケージ公開 |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | 内蔵アプリ設計制約、国際化、クロスプラットフォーム |
+| [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | アプリケーション互換性、プラットフォーム適応、フォールバック |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | ネットワークインスペクター、診断ツール、ネットワーク分析 |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | ログインモジュール実装詳細、mstscスタイルログインウィンドウ |
+| [RemoteOS.md](./docs/README.md) | プロジェクト構造、コードマップ、現在の進捗 |
 
 ---
 

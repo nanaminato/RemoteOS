@@ -13,9 +13,9 @@
 
 ## 2. 设计文档先行
 
-每个内置应用在实现前新增 `docs/RemoteOS.<App>.md`，至少包含：定位/非目标、用户流程和 UI 信息架构、Client/Server/Protocol/存储边界、Ubuntu 与 Windows 支持矩阵、权限与威胁模型、错误/离线/断线行为、持久化与升级策略、实施拆分、验收矩阵及外部参考链接。
+每个内置应用在实现前新增 `docs/applications/RemoteOS.<App>.md`，至少包含：定位/非目标、用户流程和 UI 信息架构、Client/Server/Protocol/存储边界、Ubuntu 与 Windows 支持矩阵、权限与威胁模型、错误/离线/断线行为、持久化与升级策略、实施拆分、验收矩阵及外部参考链接。
 
-功能状态只允许使用“已实现”“设计中”“计划中”“不支持”，并在 [`RemoteOS.md`](./RemoteOS.md) 的应用表和文档索引中同步。不得把设计当作已实现功能描述。
+功能状态只允许使用“已实现”“设计中”“计划中”“不支持”，并在 [`RemoteOS.md`](../README.md) 的应用表和文档索引中同步。不得把设计当作已实现功能描述。
 
 ## 3. 国际化与本地化（强制）
 
@@ -25,7 +25,7 @@
 - 后端返回稳定问题码、字段名和可选安全诊断；客户端负责映射本地化提示。不得把 OS 或第三方原始错误原样展示给用户。
 - 支持语言切换：所有由 ViewModel 管理的标题、按钮、状态、空态、工具提示、菜单、确认文案和动态错误应在 `LanguageChanged` 后更新。新应用须有语言切换 smoke test。
 
-现行语言包格式与动态刷新模式见 [`RemoteOS.Localization.md`](./RemoteOS.Localization.md)。
+现行语言包格式与动态刷新模式见 [`RemoteOS.Localization.md`](../desktop/RemoteOS.Localization.md)。
 
 ## 4. 跨平台（Windows + Ubuntu）
 
@@ -60,4 +60,3 @@
 合并前至少完成：Protocol 序列化与路由测试；Server Provider 的 Ubuntu/Windows 单元或集成测试；授权、输入验证、脱敏、危险确认的安全测试；三语言资源完整性与切换 smoke test；窗口关闭/断线/取消测试；以及每个已声明平台的手工验收记录。
 
 新增依赖需说明许可证、平台兼容性、离线/升级影响和是否替代已有能力。设计完成并不豁免代码审查、`dotnet build`、格式检查和实际平台验证。
-

@@ -213,28 +213,28 @@ The client will open a login dialog. Enter your host system username and passwor
 
 | Document | Description |
 |----------|-------------|
-| [RemoteOS.Architecture.md](./docs/RemoteOS.Architecture.md) | Architecture principles, module dependencies, layered architecture |
-| [RemoteOS.Protocol.md](./docs/RemoteOS.Protocol.md) | Communication contracts, REST/SignalR, serialization conventions |
-| [RemoteOS.Workspace.md](./docs/RemoteOS.Workspace.md) | User/Workspace/Session/Device, multi-device model |
-| [RemoteOS.Authentication.md](./docs/RemoteOS.Authentication.md) | Login system, identity model, OS user integration |
-| [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | Desktop shell, window control, modal dialogs |
-| [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | Terminal app, SignalR, PTY, session management |
-| [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | File manager, REST API, permission reuse |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | Browser, bookmarks/history |
-| [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
-| [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | Task manager, system metrics, process management |
-| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack management |
-| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | Process guardian, health checks, native service management |
-| [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | Server persistence, EF Core + SQLite |
-| [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | Security design, privilege elevation, dangerous operations |
-| [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | Multi-language mechanism, language pack structure |
-| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | Developer quick start, code structure, debugging guide |
-| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | Developer mode, DevCli, app package publishing |
-| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | Built-in app design constraints, i18n, cross-platform |
-| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | Application compatibility, platform adaptation, fallback |
-| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | Network inspector, diagnostics tool, network analysis |
-| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | Login module implementation details, mstsc-style login window |
-| [RemoteOS.md](./docs/RemoteOS.md) | Project structure, code map, current progress |
+| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | Architecture principles, module dependencies, layered architecture |
+| [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | Communication contracts, REST/SignalR, serialization conventions |
+| [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | User/Workspace/Session/Device, multi-device model |
+| [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | Login system, identity model, OS user integration |
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | Desktop shell, window control, modal dialogs |
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | Terminal app, SignalR, PTY, session management |
+| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | File manager, REST API, permission reuse |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | Browser, bookmarks/history |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | Task manager, system metrics, process management |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack management |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | Process guardian, health checks, native service management |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | Server persistence, EF Core + SQLite |
+| [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | Security design, privilege elevation, dangerous operations |
+| [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | Multi-language mechanism, language pack structure |
+| [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | Developer quick start, code structure, debugging guide |
+| [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | Developer mode, DevCli, app package publishing |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | Built-in app design constraints, i18n, cross-platform |
+| [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | Application compatibility, platform adaptation, fallback |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | Network inspector, diagnostics tool, network analysis |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | Login module implementation details, mstsc-style login window |
+| [RemoteOS.md](./docs/README.md) | Project structure, code map, current progress |
 
 ---
 

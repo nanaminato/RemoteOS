@@ -4,7 +4,7 @@
 >
 > 本文档描述**设计原则**，不描述当前完整代码结构。
 >
-> - 当前项目文件清单与代码地图见 [`RemoteOS.md`](./RemoteOS.md)
+> - 当前项目文件清单与代码地图见 [`RemoteOS.md`](../README.md)
 > - 当两者存在差异：**架构原则以本文档为准**，**当前实现以 `RemoteOS.md` 为准**。
 
 ---
@@ -151,7 +151,7 @@ Client ←── Protocol ──→ Server
 
   `WindowManager` 是窗口状态唯一管理者。
 
-- **职责**：Create、Close、Move、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State、**模态对话框（`ShowDialogAsync<TResult>` + `ModalDialog<TResult>` + owner 局部遮罩 `ModalBlocker`，可嵌套）**。详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3。
+- **职责**：Create、Close、Move、Resize、Focus、Minimize、Maximize、Z Order、Taskbar State、**模态对话框（`ShowDialogAsync<TResult>` + `ModalDialog<TResult>` + owner 局部遮罩 `ModalBlocker`，可嵌套）**。详见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md) §3。
 - **应用启动流程**：
 
   ```text
@@ -173,7 +173,7 @@ Client ←── Protocol ──→ Server
 - **定位**：RemoteOS 应用开发接口，类似 Windows SDK / Android SDK。
 - **提供**：
   - **Window API**（已实现）：`AppContext.ShowWindow()`
-  - **Modal Dialog API**（已实现）：`AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)`，可复用、可嵌套、任意结果类型，详见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md) §3
+  - **Modal Dialog API**（已实现）：`AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)`，可复用、可嵌套、任意结果类型，详见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md) §3
   - **Storage API**（规划）：`Storage.Save()` / `Storage.Load()`
   - **Sync API**（规划）：`Sync.Push()` / `Sync.Pull()`
   - **Remote API**（规划）：`RemoteClient.Execute()`
@@ -213,7 +213,7 @@ Client ←── Protocol ──→ Server
 - **提供**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute API、Security Integration。
 - **架构**：单一代码库 + OS 抽象层（`IIdentityProvider`、`IFileSystem`、`IProcessManager`、`IServiceManager` 等接口 + Linux/Windows 实现）。原生 API 先在 `Windows Server Test` 测试床验证，再迁移到 Server 抽象层实现。
 - **禁止**：UI Rendering、Desktop Rendering、Screen Streaming。
-- **详见**：[`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./RemoteOS.Security.md)
+- **详见**：[`RemoteOS.Authentication.md`](../platform/RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)
 
 ---
 
@@ -265,7 +265,7 @@ RemoteOS 应用分为两类。
 - **例如 RemoteTerminal**（**已实现 MVP**，含持久会话）：
   - Client：Terminal Window、Input、Output Rendering（VT 解析在客户端 `TerminalControl` 完成）
   - Server：PTY（ConPTY/forkpty）、Shell、Process（`TerminalHub` 哑中继，只转发字节）；PTY 由 `TerminalSessionManager`（Singleton）持有，与 Hub 连接解耦
-  - 传输：SignalR Hub（`/hubs/terminals`），JWT 鉴权，详见 [`RemoteOS.Terminal.md`](./RemoteOS.Terminal.md)
+  - 传输：SignalR Hub（`/hubs/terminals`），JWT 鉴权，详见 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)
 - **断开**：Client Offline 不会导致 Runtime Destroy。`TerminalHub.OnDisconnectedAsync` 仅 `session.Detach`，**保留 PTY**；只有显式 `Close`（关闭终端窗口 / "断开"按钮）才 `manager.Remove` 杀 PTY。PTY 输出始终追加进 1MB 环形缓冲（ConPTY 读线程持续排空管道，shell 不阻塞）。
 - **重新连接**：Restore Terminal Session —— 再次登录打开终端，`Start(Attach)` 命中存活会话则回放 1MB 缓冲快照重现历史输出，可继续输入。这是"再次登录恢复原桌面"的前提。
 
@@ -300,7 +300,7 @@ RemoteOS 应用分为两类。
 4. `RemoteOS.Runtime`
 5. `RemoteOS.App.SDK`
 
-服务端能力（登录与身份、安全、Workspace、云同步、Storage、Docker 管理）按设计文档逐步实现，详见 [`RemoteOS.md`](./RemoteOS.md) §10。
+服务端能力（登录与身份、安全、Workspace、云同步、Storage、Docker 管理）按设计文档逐步实现，详见 [`RemoteOS.md`](../README.md) §10。
 
 ---
 

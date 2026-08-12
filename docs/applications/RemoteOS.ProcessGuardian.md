@@ -25,8 +25,8 @@ C:\ProgramData\RemoteOS\
 在管理员 PowerShell 中运行 `deployment\windows\Install-RemoteOSServices.ps1` 即使用这套默认布局。若 Server 监听端口不是 `5000`，传入 `-ServerPort <端口>`。framework-dependent .NET 或 Java 可直接登记绝对路径的 `dotnet.exe` / `java.exe` 与应用发布目录。
 >
 > - 即时进程查看与结束任务：[`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)
-> - 安全与权限提升：[`RemoteOS.Security.md`](./RemoteOS.Security.md)
-> - 内置应用通用约束：[`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md)
+> - 安全与权限提升：[`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)
+> - 内置应用通用约束：[`RemoteOS.BuiltInApplication.Conventions.md`](../development/RemoteOS.BuiltInApplication.Conventions.md)
 
 ---
 

@@ -3,7 +3,7 @@
 > 状态：已实现（V1）
 > 目标：提供一个由 RemoteOS Shell 直接拥有的系统调试窗口，用很低的常驻成本查看 **RemoteOS 客户端到 RemoteOS Server** 的 REST API 与 SignalR 调用。它参考 Chrome DevTools 的 Network 面板，但不试图成为通用抓包器。
 
-相关文档：[Developer Mode](./RemoteOS.DeveloperMode.md)、[Localization](./RemoteOS.Localization.md)、[Settings](./RemoteOS.Settings.md)、[Protocol](./RemoteOS.Protocol.md)。
+相关文档：[Developer Mode](../development/RemoteOS.DeveloperMode.md)、[Localization](../desktop/RemoteOS.Localization.md)、[Settings](../desktop/RemoteOS.Settings.md)、[Protocol](../architecture/RemoteOS.Protocol.md)。
 
 ---
 

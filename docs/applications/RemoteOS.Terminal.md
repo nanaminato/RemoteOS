@@ -4,10 +4,10 @@
 
 > 内置终端应用：基于 [RoyalTerminal](https://github.com/royalapplications/RoyalTerminal) NuGet 包引入终端能力，支持 **Remote Mode**（SignalR 远端 PTY）与 **Local Mode**（本地 PTY 回退）。
 >
-> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)（§6 Application Execution Model / §6.2 Remote Service Application）
-> - 项目当前状态见 [`RemoteOS.md`](./RemoteOS.md)（§7 RemoteTerminal）
-> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
-> - 登录与身份认证见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)（终端 Remote Mode 复用 `IAuthSession` JWT）
+> - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)（§6 Application Execution Model / §6.2 Remote Service Application）
+> - 项目当前状态见 [`RemoteOS.md`](../README.md)（§7 RemoteTerminal）
+> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md)
+> - 登录与身份认证见 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md)（终端 Remote Mode 复用 `IAuthSession` JWT）
 
 ---
 
@@ -40,7 +40,7 @@ RemoteTerminal 是 RemoteOS 的内置应用之一，遵循架构 §6 的两类�
 | `RoyalApps.RoyalTerminal.Terminal.Pty.Platform` | 0.4.0 | Server 端 PTY 工厂（Windows ConPTY / Unix forkpty），Terminal Hub 哑中继用 |
 | `Microsoft.AspNetCore.SignalR.Client` | 10.0.0 | Client 端 SignalR 连接（`HubConnection`） |
 
-- 中心化包管理：版本声明在 [`Directory.Packages.props`](../Directory.Packages.props)，csproj 仅 `PackageReference`（不带 Version）。
+- 中心化包管理：版本声明在 [`Directory.Packages.props`](../../Directory.Packages.props)，csproj 仅 `PackageReference`（不带 Version）。
 - `RoyalApps.RoyalTerminal.Avalonia` 传递依赖 `Terminal.Pty.Platform`、`Terminal.Transport.Ssh.Abstractions`、`Terminal.Transport.Ssh.SshNet` 等，Client 端无需单独引用 PTY 平台包（仅 Server 需要）。
 - `AddSignalR` 由 `Microsoft.NET.Sdk.Web` 隐式 FrameworkReference 提供，Server 端无需额外 NuGet。
 - **不引入** `RoyalApps.RoyalTerminal.Avalonia.App`（自带 MainWindow / 标签 / 标题栏，会与 RemoteOS 的 WindowManager 冲突）。

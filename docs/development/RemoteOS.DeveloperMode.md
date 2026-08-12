@@ -63,7 +63,7 @@ To appear in RemoteExplorer's **Open with** menu, the entry type must also imple
 
 `IExternalAppContext.ServerMonitor` provides a stable, read-only aggregate server metrics API. It requires the `server.metrics.read` manifest permission and user approval under **Application permissions**. `GetSnapshotAsync` returns one capability result; `WatchAsync` returns a host-polled sequence (minimum one-second interval) for live dashboards. It deliberately does not expose process enumeration, process termination, raw server credentials, or the task-manager client.
 
-The complete sample is in [`examples/ServerMonitor`](../examples/ServerMonitor). Build and package it with:
+The complete sample is in [`examples/ServerMonitor`](../../examples/ServerMonitor). Build and package it with:
 
 ```powershell
 .\examples\ServerMonitor\build-package.ps1

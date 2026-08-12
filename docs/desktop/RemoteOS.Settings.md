@@ -2,12 +2,12 @@
 
 > 内置设置中心（Windows 11 / GNOME 风格）：5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用），用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）持久化到 Server 端 Workspace（`/workspaces/{id}/preferences`），多设备登录同一 Workspace 共享。
 >
-> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - 项目当前状态见 [`RemoteOS.md`](./RemoteOS.md)（§6 内置应用）
+> - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - 项目当前状态见 [`RemoteOS.md`](../README.md)（§6 内置应用）
 > - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
-> - 登录与身份认证见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)（Settings 复用 `IAuthSession` JWT）
-> - 通信协议契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)（§Workspace Preferences DTO 与路由）
-> - 服务端持久化见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)（Preferences JSON 列）
+> - 登录与身份认证见 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md)（Settings 复用 `IAuthSession` JWT）
+> - 通信协议契约见 [`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)（§Workspace Preferences DTO 与路由）
+> - 服务端持久化见 [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md)（Preferences JSON 列）
 
 ---
 

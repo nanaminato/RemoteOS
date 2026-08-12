@@ -2,11 +2,11 @@
 
 > 内置文件管理器：UI 移植自 [Jaya File Manager](https://github.com/waliarubal/Jaya)（BSD-3-Clause），所有文件操作经 Server 端 REST API 执行，复用宿主 OS 用户/权限体系。
 >
-> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - 项目当前状态见 [`RemoteOS.md`](./RemoteOS.md)（§6 内置应用 / §7 RemoteExplorer）
-> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
-> - 登录与身份认证见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)（Explorer 复用 `IAuthSession` JWT）
-> - 通信协议契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)（§Files DTO 与路由）
+> - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - 项目当前状态见 [`RemoteOS.md`](../README.md)（§6 内置应用 / §7 RemoteExplorer）
+> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md)
+> - 登录与身份认证见 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md)（Explorer 复用 `IAuthSession` JWT）
+> - 通信协议契约见 [`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)（§Files DTO 与路由）
 
 ---
 
@@ -32,7 +32,7 @@ RemoteExplorer 是 RemoteOS 的内置文件管理器，用于浏览与操作**�
 | `Xaml.Behaviors.Avalonia` | 12.0.0.1 | Avalonia 12 兼容的 behaviors（双击导航等交互；wieslawsolotes fork） |
 | `Newtonsoft.Json` | 13.0.3 | Jaya 配置模型序列化（保留 Jaya 原始依赖；线协议 DTO 仍用 System.Text.Json） |
 
-- 中心化包管理：版本声明在 [`Directory.Packages.props`](../Directory.Packages.props)。
+- 中心化包管理：版本声明在 [`Directory.Packages.props`](../../Directory.Packages.props)。
 - **DataGrid**：Avalonia 11+ 起 DataGrid 已并入主 `Avalonia` 包，无需单独引用。当前实际用 `ListBox` + `DataTemplate` 实现条目网格（更轻量，列宽自适应）。
 - **不引入** Jaya 原依赖：`AvaloniaUIRibbon`（不兼容 12.1）、`RestSharp`（去 UpdateService）、`Avalonia.ReactiveUI`、`Avalonia.Controls.DataGrid`（旧独立包）、`Avalonia.Xaml.Behaviors`（旧 0.10 线，已弃用）。
 
@@ -116,7 +116,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 
 ### 4.1 IFileService / LocalFileService
 
-[`RemoteOS.Server/Files/IFileService.cs`](../RemoteOS.Server/Files/IFileService.cs) 定义接口；[`LocalFileService.cs`](../RemoteOS.Server/Files/LocalFileService.cs) 实现。
+[`RemoteOS.Server/Files/IFileService.cs`](../../RemoteOS.Server/Files/IFileService.cs) 定义接口；[`LocalFileService.cs`](../../RemoteOS.Server/Files/LocalFileService.cs) 实现。
 
 - **移植自** Jaya `FileSystemService.GetDirectoryAsync` 的目录枚举逻辑（`DirectoryInfo.EnumerateDirectories` / `EnumerateFiles`）。
 - **平台感知**：`GetDrives()` 返回 `DriveInfo.GetDrives()`；`GetDirectory(null)` 在 Windows 返回盘符聚合视图，在 Linux 返回 "/" 根列举。
@@ -131,11 +131,11 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 
 ### 4.2 FileEndpoints
 
-[`RemoteOS.Server/Endpoints/FileEndpoints.cs`](../RemoteOS.Server/Endpoints/FileEndpoints.cs) — 静态 `MapFileEndpoints(this IEndpointRouteBuilder)`，minimal API，全部 `RequireAuthorization()`。错误用 `Results.Problem(detail, statusCode, title, type: "https://remoteos.app/problems/" + suffix)`（仿 `AuthEndpoints.cs`）。
+[`RemoteOS.Server/Endpoints/FileEndpoints.cs`](../../RemoteOS.Server/Endpoints/FileEndpoints.cs) — 静态 `MapFileEndpoints(this IEndpointRouteBuilder)`，minimal API，全部 `RequireAuthorization()`。错误用 `Results.Problem(detail, statusCode, title, type: "https://remoteos.app/problems/" + suffix)`（仿 `AuthEndpoints.cs`）。
 
 ### 4.3 REST 端点签名
 
-路由常量见 [`FileApiRoutes`](../Shared/RemoteOS.Protocol/Files/FileApiRoutes.cs)，均 `$"/api/v1/files/..."`。
+路由常量见 [`FileApiRoutes`](../../Shared/RemoteOS.Protocol/Files/FileApiRoutes.cs)，均 `$"/api/v1/files/..."`。
 
 | 方法 | 入参 | 返回 | 错误码（type suffix） |
 |------|------|------|----------------------|
@@ -275,7 +275,7 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 
 ## 6. Protocol 层
 
-[`Shared/RemoteOS.Protocol/Files/`](../Shared/RemoteOS.Protocol/Files/) — 零 Newtonsoft，纯 `System.Text.Json`，`sealed record` + `[property: JsonPropertyName("...")]`（camelCase，对齐 `RemoteOsJsonOptions.Default`）。
+[`Shared/RemoteOS.Protocol/Files/`](../../Shared/RemoteOS.Protocol/Files) — 零 Newtonsoft，纯 `System.Text.Json`，`sealed record` + `[property: JsonPropertyName("...")]`（camelCase，对齐 `RemoteOsJsonOptions.Default`）。
 
 | 文件 | 职责 |
 |------|------|
@@ -319,7 +319,7 @@ services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
 4. **错误统一 RFC 7807**：Server `Results.Problem(..., type: "https://remoteos.app/problems/" + suffix)`；Client `ExplorerClient` 解析 `ProblemDetails` 抛 `RemoteOsAuthException`，VM catch 后写 `StatusText`。
 5. **路由常量共用 `FileApiRoutes`**：Server 注册与 Client 拼接 URL 必须用同一常量，禁止硬编码字符串。
 6. **DTO 用 `sealed record` + `[property: JsonPropertyName]`**（Protocol 约定），线协议用 `System.Text.Json`（`RemoteOsJsonOptions.Default`）。Jaya 配置模型（如未来引入 `PaneConfigModel`）保留 Newtonsoft，但不进入线协议。
-7. **移植 Jaya 文件保留原始版权头**（`// Copyright (c) Rubal Walia...`），不删改；新增文件用 RemoteOS 自己的版权头。Jaya 归属见 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)。
+7. **移植 Jaya 文件保留原始版权头**（`// Copyright (c) Rubal Walia...`），不删改；新增文件用 RemoteOS 自己的版权头。Jaya 归属见 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md)。
 8. **不引入 Jaya 的 `ServiceLocator` / `ViewModelLocator` / `EventAggregator` 反射基础设施**。新代码用 RemoteOS DI（`Microsoft.Extensions.DependencyInjection`）+ `CommunityToolkit.Mvvm`（`[ObservableProperty]` / `[RelayCommand]`）。
 9. **对话框走 `AppContext.ShowDialogAsync`**（与 Notepad 同模式），不直接创建 Avalonia `Window`。本地文件选择走 `StorageProvider`（TopLevel = `MainWindow`）。
 10. **编译验证**：`dotnet build RemoteOS.sln -c Debug` 必须 0 错误（NU1903 Microsoft.OpenApi 与 CS0169 TerminalSession._disposed 为既有警告，非本模块引入）。

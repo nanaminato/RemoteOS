@@ -10,10 +10,10 @@
 >
 > 相关文档：
 >
-> - [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
+> - [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - [`RemoteOS.Workspace.md`](../architecture/RemoteOS.Workspace.md)
 > - [`RemoteOS.Security.md`](./RemoteOS.Security.md)
-> - [`RemoteOS.md`](./RemoteOS.md)
+> - [`RemoteOS.md`](../README.md)
 
 ---
 

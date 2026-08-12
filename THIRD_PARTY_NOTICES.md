@@ -31,7 +31,7 @@
   - `Converters/EntryConverters.cs`：`EntrySizeToStringConverter.SizeSuffix` 逻辑移植自 Jaya `FileSystemObjectModel.SizeSuffix`。
   - Server 端 `RemoteOS.Server/Files/LocalFileService.cs` 的目录枚举逻辑移植自 Jaya `Jaya.Provider.FileSystem/Services/FileSystemService.cs`。
 - **改造**：去除插件系统（`ServiceLocator` 反射加载 + 4 个云 Provider）、`ViewModelLocator` 反射装配、`EventAggregator`、Ribbon（Phase 6 延后）、About/ManagePlugins/Update 视图；文件 IO 边界由 `IProviderService` 改为 `IExplorerClient`（typed HttpClient → Server REST API）。移植文件**保留原始版权头**（`// Copyright (c) Rubal Walia...`）。
-- **设计文档**：详见 [`docs/RemoteOS.Explorer.md`](./docs/RemoteOS.Explorer.md)。
+- **设计文档**：详见 [`RemoteOS.Explorer.md`](./docs/applications/RemoteOS.Explorer.md)。
 
 ### BSD 3-Clause License（全文）
 

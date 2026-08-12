@@ -2,13 +2,13 @@
 
 > 内置任务管理器：参考 Windows 任务管理器 / GNOME 系统监视器，两个标签页（性能 / 进程）。性能页实时展示 CPU / 内存 / 磁盘 / 网络 / GPU 占用与历史柱状图；进程页列出当前可见进程，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server REST API 拉取，服务端以宿主 OS 进程身份采集（复用宿主用户/权限，不另建 ACL）。
 >
-> - 架构原则见 [`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - 项目当前状态见 [`RemoteOS.md`](./RemoteOS.md)（§6 内置应用）
-> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](./RemoteOS.Desktop.md)
-> - 登录与身份认证见 [`RemoteOS.Login.md`](./RemoteOS.Login.md)（TaskManager 复用 `IAuthSession` JWT）
-> - 通信协议契约见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)（§SystemMonitor DTO 与路由）
-> - 服务端持久化见 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)（TaskManager 不落库——指标与进程列表均为实时采样）
-> - 安全设计见 [`RemoteOS.Security.md`](./RemoteOS.Security.md)（§权限提升委托宿主 OS——结束进程不自动提权）
+> - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - 项目当前状态见 [`RemoteOS.md`](../README.md)（§6 内置应用）
+> - 桌面外壳与窗口管理见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md)
+> - 登录与身份认证见 [`RemoteOS.Login.md`](../platform/RemoteOS.Login.md)（TaskManager 复用 `IAuthSession` JWT）
+> - 通信协议契约见 [`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)（§SystemMonitor DTO 与路由）
+> - 服务端持久化见 [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md)（TaskManager 不落库——指标与进程列表均为实时采样）
+> - 安全设计见 [`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)（§权限提升委托宿主 OS——结束进程不自动提权）
 
 ---
 

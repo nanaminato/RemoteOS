@@ -4,10 +4,10 @@
 >
 > 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose 的校验、`up` 和 `down` 主路径。安装、创建与删除、镜像构建/拉取、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
 >
-> - 架构与内置应用边界：[`RemoteOS.Architecture.md`](./RemoteOS.Architecture.md)
-> - 协议契约规则：[`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
-> - 权限与危险操作：[`RemoteOS.Security.md`](./RemoteOS.Security.md)
-> - 内置应用通用约束：[`RemoteOS.BuiltInApplication.Conventions.md`](./RemoteOS.BuiltInApplication.Conventions.md)
+> - 架构与内置应用边界：[`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
+> - 协议契约规则：[`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)
+> - 权限与危险操作：[`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)
+> - 内置应用通用约束：[`RemoteOS.BuiltInApplication.Conventions.md`](../development/RemoteOS.BuiltInApplication.Conventions.md)
 
 ---
 

@@ -215,29 +215,29 @@ dotnet run
 
 | 文档 | 说明 |
 |------|------|
-| [RemoteOS.Architecture.md](./docs/RemoteOS.Architecture.md) | 架构设计原则、模块依赖、分层架构 |
-| [RemoteOS.Protocol.md](./docs/RemoteOS.Protocol.md) | 通信协议契约、REST/SignalR、序列化约定 |
-| [RemoteOS.Workspace.md](./docs/RemoteOS.Workspace.md) | 用户/工作区/会话/设备、多设备模型 |
-| [RemoteOS.Authentication.md](./docs/RemoteOS.Authentication.md) | 登录系统、身份模型、OS 用户集成 |
-| [RemoteOS.Desktop.md](./docs/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框 |
-| [RemoteOS.Terminal.md](./docs/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
-| [RemoteOS.Explorer.md](./docs/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
-| [RemoteOS.Browser.md](./docs/RemoteOS.Browser.md) | 浏览器、书签/历史 |
-| [RemoteOS.Settings.md](./docs/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
-| [RemoteOS.TaskManager.md](./docs/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
-| [RemoteOS.DockerManager.md](./docs/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
-| [RemoteOS.Firewall.md](./docs/RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用 |
-| [RemoteOS.ProcessGuardian.md](./docs/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
-| [RemoteOS.Storage.md](./docs/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
-| [RemoteOS.Security.md](./docs/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
-| [RemoteOS.Localization.md](./docs/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
-| [RemoteOS.Develop.md](./docs/RemoteOS.Develop.md) | 开发者快速上手、代码结构、调试指南 |
-| [RemoteOS.DeveloperMode.md](./docs/RemoteOS.DeveloperMode.md) | 开发模式、DevCli、应用包发布 |
-| [RemoteOS.BuiltInApplication.Conventions.md](./docs/RemoteOS.BuiltInApplication.Conventions.md) | 内置应用设计约束、国际化、跨平台 |
-| [RemoteOS.ApplicationCompatibility.md](./docs/RemoteOS.ApplicationCompatibility.md) | 应用兼容性、平台适配、降级策略 |
-| [RemoteOS.NetworkInspector.md](./docs/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
-| [RemoteOS.Login.md](./docs/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
-| [RemoteOS.md](./docs/RemoteOS.md) | 项目结构、代码地图、当前进度 |
+| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | 架构设计原则、模块依赖、分层架构 |
+| [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | 通信协议契约、REST/SignalR、序列化约定 |
+| [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | 用户/工作区/会话/设备、多设备模型 |
+| [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | 登录系统、身份模型、OS 用户集成 |
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框 |
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
+| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | 浏览器、书签/历史 |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
+| [RemoteOS.Firewall.md](./docs/applications/RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用 |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
+| [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
+| [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
+| [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | 开发者快速上手、代码结构、调试指南 |
+| [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | 开发模式、DevCli、应用包发布 |
+| [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | 内置应用设计约束、国际化、跨平台 |
+| [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | 应用兼容性、平台适配、降级策略 |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
+| [RemoteOS.md](./docs/README.md) | 项目结构、代码地图、当前进度 |
 
 ---
 
