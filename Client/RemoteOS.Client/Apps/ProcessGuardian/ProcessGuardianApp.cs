@@ -43,7 +43,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
                 {
                     viewModel.CloseEditorAsync = () => { dialog.Close(true); return Task.CompletedTask; };
                     return CreateEditorView(viewModel, dialog);
-                }, new RemoteOS.Core.Primitives.Size(560, 520));
+                }, new RemoteOS.Core.Primitives.Size(640, 650));
         };
         viewModel.ShowLogsAsync = workload =>
         {
@@ -141,15 +141,19 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
 
     private static Control CreateEditorView(ProcessGuardianViewModel vm, RemoteOS.WindowManager.ModalDialog<bool> dialog)
     {
-        var panel = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(20), DataContext = vm };
-        panel.Children.Add(EditorField("guardian.create.name", nameof(vm.DefinitionName)));
-        panel.Children.Add(EditorField("guardian.create.executable", nameof(vm.ExecutablePath)));
-        panel.Children.Add(EditorField("guardian.create.working_directory", nameof(vm.WorkingDirectory)));
-        panel.Children.Add(EditorField("guardian.create.arguments", nameof(vm.ArgumentsText), true));
-        panel.Children.Add(EditorField("guardian.create.run_as", nameof(vm.RunAs)));
+        var panel = new StackPanel { Spacing = 14, Margin = new Avalonia.Thickness(20), DataContext = vm };
+        panel.Children.Add(new TextBlock { Text = LocalizedText.Get("guardian.editor.intro"), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#475569")) });
+        panel.Children.Add(EditorField("guardian.create.name", "guardian.create.name.help", "guardian.create.name.example", nameof(vm.DefinitionName)));
+        panel.Children.Add(EditorField("guardian.create.executable", "guardian.create.executable.help", "guardian.create.executable.example", nameof(vm.ExecutablePath)));
+        panel.Children.Add(EditorField("guardian.create.working_directory", "guardian.create.working_directory.help", "guardian.create.working_directory.example", nameof(vm.WorkingDirectory)));
+        panel.Children.Add(EditorField("guardian.create.arguments", "guardian.create.arguments.help", "guardian.create.arguments.example", nameof(vm.ArgumentsText), true));
+        panel.Children.Add(EditorField("guardian.create.run_as", "guardian.create.run_as.help", "guardian.create.run_as.example", nameof(vm.RunAs)));
+        var startup = new StackPanel { Spacing = 4 };
         var enabledOnBoot = new CheckBox { Content = LocalizedText.Get("guardian.create.enabled_on_boot") };
         enabledOnBoot.Bind(ToggleButton.IsCheckedProperty, new Avalonia.Data.Binding(nameof(vm.EnabledOnBoot)) { Mode = Avalonia.Data.BindingMode.TwoWay });
-        panel.Children.Add(enabledOnBoot);
+        startup.Children.Add(enabledOnBoot);
+        startup.Children.Add(EditorHelp("guardian.create.enabled_on_boot.help"));
+        panel.Children.Add(startup);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
         var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
         cancel.Click += (_, _) => dialog.Cancel();
@@ -171,14 +175,28 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         return root;
     }
 
-    private static TextBox EditorField(string labelKey, string property, bool acceptsReturn = false, bool isPassword = false) => new()
+    private static Control EditorField(string labelKey, string helpKey, string exampleKey, string property, bool acceptsReturn = false)
     {
-        PlaceholderText = LocalizedText.Get(labelKey),
-        AcceptsReturn = acceptsReturn,
-        MinHeight = acceptsReturn ? 96 : 0,
-        TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
-        PasswordChar = isPassword ? '•' : '\0',
-        [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay }
+        var field = new StackPanel { Spacing = 4 };
+        field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey), FontWeight = FontWeight.SemiBold });
+        field.Children.Add(EditorHelp(helpKey));
+        field.Children.Add(new TextBox
+        {
+            PlaceholderText = LocalizedText.Get(exampleKey),
+            AcceptsReturn = acceptsReturn,
+            MinHeight = acceptsReturn ? 88 : 0,
+            TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay }
+        });
+        return field;
+    }
+
+    private static TextBlock EditorHelp(string key) => new()
+    {
+        Text = LocalizedText.Get(key),
+        FontSize = 12,
+        TextWrapping = TextWrapping.Wrap,
+        Foreground = new SolidColorBrush(Color.Parse("#64748B"))
     };
 
     private static Task<RunAsAdministratorApproval?> RequestAdministratorApprovalAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner, IAuthSession session) =>
