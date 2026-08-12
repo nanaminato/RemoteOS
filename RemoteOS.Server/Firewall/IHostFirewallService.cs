@@ -13,5 +13,6 @@ public interface IHostFirewallService
     Task<FirewallOperationResult> SetEnabledAsync(bool enabled, CancellationToken cancellationToken);
     Task<FirewallOperationResult> SetDefaultsAsync(string incomingPolicy, string outgoingPolicy, CancellationToken cancellationToken);
     Task<FirewallOperationResult> CreateRuleAsync(CreateFirewallRuleRequest request, CancellationToken cancellationToken);
+    Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken);
     Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken);
 }

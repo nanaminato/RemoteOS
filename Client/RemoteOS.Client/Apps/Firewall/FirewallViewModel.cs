@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Net;
 using Client.Localization;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -149,6 +150,12 @@ public sealed partial class FirewallViewModel : ObservableObject
     private bool TryBuildRule(out CreateFirewallRuleRequest rule)
     {
         var port = Port.Trim();
+        if (!IsEndpoint(Source) || !IsEndpoint(Destination))
+        {
+            StatusText = LocalizedText.Get("firewall.validation.address_invalid");
+            rule = default!;
+            return false;
+        }
         if (!string.IsNullOrEmpty(port) && !IsPort(port))
         {
             StatusText = LocalizedText.Get("firewall.validation.port_invalid");
@@ -202,6 +209,15 @@ public sealed partial class FirewallViewModel : ObservableObject
         options.FirstOrDefault(option => string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))
         ?? options.First(option => option.Value == fallback);
     private static string NormalizeEndpoint(string value) => string.IsNullOrWhiteSpace(value) ? "any" : value.Trim();
+    private static bool IsEndpoint(string value)
+    {
+        var normalized = NormalizeEndpoint(value);
+        if (normalized.Equals("any", StringComparison.OrdinalIgnoreCase) || normalized.Equals("anywhere", StringComparison.OrdinalIgnoreCase)) return true;
+        var slash = normalized.IndexOf('/');
+        var address = slash < 0 ? normalized : normalized[..slash];
+        if (!IPAddress.TryParse(address, out var parsed)) return false;
+        return slash < 0 || int.TryParse(normalized[(slash + 1)..], out var prefix) && prefix >= 0 && prefix <= (parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32);
+    }
     private static bool IsPort(string value)
     {
         var parts = value.Split(':');

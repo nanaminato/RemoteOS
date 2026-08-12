@@ -9,5 +9,6 @@ public interface IRemoteFirewallClient
     Task<FirewallOperationResult> SetEnabledAsync(UpdateFirewallEnabledRequest request, CancellationToken cancellationToken = default);
     Task<FirewallOperationResult> SetDefaultsAsync(UpdateFirewallDefaultsRequest request, CancellationToken cancellationToken = default);
     Task<FirewallOperationResult> CreateRuleAsync(CreateFirewallRuleRequest request, CancellationToken cancellationToken = default);
+    Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken = default);
     Task<FirewallOperationResult> DeleteRuleAsync(int number, DeleteFirewallRuleRequest request, CancellationToken cancellationToken = default);
 }

@@ -31,6 +31,19 @@ public sealed record CreateFirewallRuleRequest(
     string Port,
     FirewallCredentialConfirmation? CredentialConfirmation);
 
+/// <summary>
+/// Replaces the numbered UFW rule in place. The rule itself remains structured so
+/// the API never becomes a pass-through for UFW command text.
+/// </summary>
+public sealed record UpdateFirewallRuleRequest(
+    string Action,
+    string Direction,
+    string Protocol,
+    string Source,
+    string Destination,
+    string Port,
+    FirewallCredentialConfirmation? CredentialConfirmation);
+
 public sealed record UpdateFirewallEnabledRequest(bool Enabled, FirewallCredentialConfirmation? CredentialConfirmation);
 
 public sealed record UpdateFirewallDefaultsRequest(

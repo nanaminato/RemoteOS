@@ -7,6 +7,7 @@ using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Protocol.Common;
+using RemoteOS.Protocol.Firewall;
 using Rect = RemoteOS.Core.Primitives.Rect;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
@@ -16,7 +17,7 @@ namespace Client.Apps.Firewall;
 public sealed class FirewallApp : RemoteApplicationBase
 {
     public override ApplicationManifest Manifest { get; } = new(
-        new AppId("remoteos.firewall"), "Firewall", "0.1.0", "🧱", "Manage Linux Server UFW firewall rules",
+        new AppId("remoteos.firewall"), "Firewall", "0.2.0", "🧱", "Manage Linux Server UFW firewall rules",
         [AppPermissions.ServerFirewallRead, AppPermissions.ServerFirewallManage],
         ServerRequirements: new ApplicationServerRequirements(Platforms: [ApplicationPlatformNames.Linux], Capabilities: [ServerCapabilities.Firewall]));
 
@@ -30,7 +31,7 @@ public sealed class FirewallApp : RemoteApplicationBase
             return;
         }
         var viewModel = new FirewallViewModel(client, session);
-        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(90, 65, 980, 700), Manifest.IconGlyph);
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(70, 55, 1160, 760), Manifest.IconGlyph);
         viewModel.RequestPasswordAsync = () => RequestPasswordAsync(context, window);
         _ = viewModel.StartAsync();
     }
@@ -43,43 +44,90 @@ public sealed class FirewallApp : RemoteApplicationBase
         var status = new TextBlock { Margin = new Avalonia.Thickness(0, 0, 0, 12), TextWrapping = Avalonia.Media.TextWrapping.Wrap };
         status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(vm.StatusText))); DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
 
-        var settings = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 12) };
+        var settings = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 14) };
         settings.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.warning"), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(new Button { Content = LocalizedText.Get("firewall.enable"), Command = vm.EnableCommand });
-        actions.Children.Add(new Button { Content = LocalizedText.Get("firewall.disable"), Command = vm.DisableCommand });
-        actions.Children.Add(Field(vm, nameof(vm.IncomingPolicy), "firewall.default_incoming", 120));
-        actions.Children.Add(Field(vm, nameof(vm.OutgoingPolicy), "firewall.default_outgoing", 120));
-        actions.Children.Add(new Button { Content = LocalizedText.Get("firewall.save_defaults"), Command = vm.SaveDefaultsCommand });
-        settings.Children.Add(actions);
+        var settingsRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Bottom };
+        settingsRow.Children.Add(new Button { Content = LocalizedText.Get("firewall.enable"), Command = vm.EnableCommand });
+        settingsRow.Children.Add(new Button { Content = LocalizedText.Get("firewall.disable"), Command = vm.DisableCommand });
+        settingsRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedIncomingPolicy), vm.Policies, "firewall.default_incoming", 150));
+        settingsRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedOutgoingPolicy), vm.Policies, "firewall.default_outgoing", 150));
+        settingsRow.Children.Add(new Button { Content = LocalizedText.Get("firewall.save_defaults"), Command = vm.SaveDefaultsCommand });
+        settings.Children.Add(settingsRow);
         DockPanel.SetDock(settings, Dock.Top); root.Children.Add(settings);
 
-        var rules = new DockPanel();
-        var editor = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 8) };
-        editor.Children.Add(Field(vm, nameof(vm.Action), "firewall.rule.action", 90));
-        editor.Children.Add(Field(vm, nameof(vm.Direction), "firewall.rule.direction", 70));
-        editor.Children.Add(Field(vm, nameof(vm.Protocol), "firewall.rule.protocol", 70));
-        editor.Children.Add(Field(vm, nameof(vm.Source), "firewall.rule.source", 140));
-        editor.Children.Add(Field(vm, nameof(vm.Destination), "firewall.rule.destination", 140));
-        editor.Children.Add(Field(vm, nameof(vm.Port), "firewall.rule.port", 90));
-        editor.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.add"), Command = vm.AddRuleCommand });
+        var rules = new DockPanel { DataContext = vm };
+        var editor = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 10) };
+        editor.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.rule.editor_title") });
+        editor.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.rule.help"), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        var editorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Bottom };
+        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedAction), vm.Actions, "firewall.rule.action", 120));
+        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedDirection), vm.Directions, "firewall.rule.direction", 110));
+        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedProtocol), vm.Protocols, "firewall.rule.protocol", 110));
+        editorRow.Children.Add(TextField(vm, nameof(vm.Source), "firewall.rule.source", "firewall.rule.source_hint", 180));
+        editorRow.Children.Add(TextField(vm, nameof(vm.Destination), "firewall.rule.destination", "firewall.rule.destination_hint", 180));
+        editorRow.Children.Add(TextField(vm, nameof(vm.Port), "firewall.rule.port", "firewall.rule.port_hint", 150));
+        editor.Children.Add(editorRow);
+        var editorActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.add"), Command = vm.AddRuleCommand });
+        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.update"), Command = vm.UpdateRuleCommand });
+        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.clear"), Command = vm.ClearEditorCommand });
+        editor.Children.Add(editorActions);
         DockPanel.SetDock(editor, Dock.Top); rules.Children.Add(editor);
-        var list = new ListBox { DisplayMemberBinding = new Avalonia.Data.Binding("Port") };
-        list.Bind(ItemsControl.ItemsSourceProperty, new Avalonia.Data.Binding(nameof(vm.Rules)));
-        list.Bind(SelectingItemsControl.SelectedItemProperty, new Avalonia.Data.Binding(nameof(vm.SelectedRule)) { Mode = Avalonia.Data.BindingMode.TwoWay });
-        rules.Children.Add(list);
+
         var delete = new Button { Content = LocalizedText.Get("firewall.rule.delete"), Command = vm.DeleteRuleCommand, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Avalonia.Thickness(0, 8, 0, 0) };
-        delete.Bind(Button.CommandParameterProperty, new Avalonia.Data.Binding(nameof(vm.SelectedRule)));
         DockPanel.SetDock(delete, Dock.Bottom); rules.Children.Add(delete);
+        rules.Children.Add(CreateRuleTable(vm));
         root.Children.Add(rules);
         return root;
     }
 
-    private static TextBox Field(FirewallViewModel vm, string property, string placeholder, double width) => new()
+    private static DataGrid CreateRuleTable(FirewallViewModel vm)
     {
-        Width = width, PlaceholderText = LocalizedText.Get(placeholder),
-        [!TextBox.TextProperty] = new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay },
+        var table = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            IsReadOnly = true,
+            CanUserReorderColumns = false,
+            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
+            SelectionMode = DataGridSelectionMode.Single,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            ItemsSource = vm.Rules
+        };
+        table.Columns.Add(Column("firewall.rule.number", nameof(FirewallRuleDto.Number), 70));
+        table.Columns.Add(Column("firewall.rule.action", nameof(FirewallRuleDto.Action), 100));
+        table.Columns.Add(Column("firewall.rule.direction", nameof(FirewallRuleDto.Direction), 100));
+        table.Columns.Add(Column("firewall.rule.protocol", nameof(FirewallRuleDto.Protocol), 100));
+        table.Columns.Add(Column("firewall.rule.source", nameof(FirewallRuleDto.Source), 210));
+        table.Columns.Add(Column("firewall.rule.destination", nameof(FirewallRuleDto.Destination), 210));
+        table.Columns.Add(Column("firewall.rule.port", nameof(FirewallRuleDto.Port), 140));
+        table.SelectionChanged += (_, _) => vm.SelectedRule = table.SelectedItem as FirewallRuleDto;
+        return table;
+    }
+
+    private static DataGridTextColumn Column(string headerKey, string property, double width) => new()
+    {
+        Header = LocalizedText.Get(headerKey), Binding = new Avalonia.Data.Binding(property), Width = new DataGridLength(width, DataGridLengthUnitType.Pixel)
     };
+
+    private static Control ChoiceField(FirewallViewModel vm, string property, IReadOnlyList<FirewallOption> choices, string labelKey, double width)
+    {
+        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm };
+        field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey) });
+        var box = new ComboBox { ItemsSource = choices, DisplayMemberBinding = new Avalonia.Data.Binding(nameof(FirewallOption.Label)) };
+        box.Bind(SelectingItemsControl.SelectedItemProperty, new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay });
+        field.Children.Add(box);
+        return field;
+    }
+
+    private static Control TextField(FirewallViewModel vm, string property, string labelKey, string hintKey, double width)
+    {
+        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm };
+        field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey) });
+        var box = new TextBox { PlaceholderText = LocalizedText.Get(hintKey) };
+        box.Bind(TextBox.TextProperty, new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay });
+        field.Children.Add(box);
+        return field;
+    }
 
     private static Task<string?> RequestPasswordAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner) =>
         context.ShowDialogAsync<string?>(owner, LocalizedText.Get("firewall.password_dialog.title"), dialog =>

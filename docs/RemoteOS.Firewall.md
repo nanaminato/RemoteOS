@@ -10,7 +10,7 @@ Firewall 是 RemoteOS 的内置 Linux Server 防火墙编辑器。它读取并�
 
 1. 登录后，Shell 根据 `server.firewall` 能力和 Linux Server 平台显示应用。
 2. 应用读取 UFW 状态和编号规则；UFW 未安装、命令不可用或缺少特权时显示稳定问题码。
-3. 用户可启用/禁用 UFW、修改默认策略、新增规则或删除编号规则。页面始终提示这些变更可能中断当前会话。
+3. 用户可启用/禁用 UFW、修改默认策略、新增、查看、修改或删除编号规则。启用和禁用按钮会随当前状态互斥；规则表显示编号、动作、方向、协议、来源、目标和端口。页面始终提示这些变更可能中断当前会话。
 4. root 用户的已认证会话可直接提交；其他用户每次提交都必须提供自己的 Linux 密码。密码只用于同一请求的 PAM 验证，提交后立即从 ViewModel 清空，绝不持久化、写入日志或传给 UFW。
 
 ## 架构边界
@@ -38,13 +38,14 @@ Linux 部署脚本会安装 root:root 的 `remoteos-firewall-helper`，并创建
 
 - API 需要 JWT；变更端点将 JWT 中的登录用户名与 PAM 验证绑定，不能验证其他用户或管理员密码。
 - root 无需再次输入密码；其它用户缺少密码返回 `firewall.password_required`，失败返回 `firewall.password_invalid`。
-- 不接受 shell 字符串。协议仅允许 `allow`/`deny`/`reject`/`limit`、`in`/`out`、`tcp`/`udp`/`any`、合法端口（或范围）和 IP/CIDR（或 `any`）。
+- 不接受 shell 字符串。协议仅允许 `allow`/`deny`/`reject`/`limit`、`in`/`out`、`tcp`/`udp`/`any`、合法端口（或范围）和 IP/CIDR（或 `any`）。来源、目标和端口留空时按 `any` 处理，界面会给出格式示例。
+- 修改规则使用受限的 `replace` helper 子命令：先删除该编号，再以相同编号插入经过验证的新规则，从而保留其他规则的相对顺序；它不接受任意 UFW 参数。
 - UFW 原始 stderr、密码及规则以外的敏感信息不回显给客户端；日志只记录退出状态。
 - 本版本不持久化配置副本；UFW 是唯一真源。刷新、断线重连后重新读取主机状态。
 
 ## 验收
 
-- Linux + root：状态、规则读取和全部变更不显示密码输入。
+- Linux + root：状态、规则读取和全部变更不显示密码输入；已启用时“启用”不可用，已禁用时“禁用”不可用。
 - Linux + 非 root：每项变更都要求并只接受该账号的 PAM 密码；请求完成后密码为空。
 - Linux + 无 UFW / 无特权：应用稳定显示不可用/需要特权代理，且不执行替代命令。
 - Windows Server：登录后的桌面与开始菜单均不显示 Firewall。

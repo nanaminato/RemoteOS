@@ -13,5 +13,6 @@ public sealed class UnavailableHostFirewallService : IHostFirewallService
     public Task<FirewallOperationResult> SetEnabledAsync(bool enabled, CancellationToken cancellationToken) => Task.FromResult(Unavailable);
     public Task<FirewallOperationResult> SetDefaultsAsync(string incomingPolicy, string outgoingPolicy, CancellationToken cancellationToken) => Task.FromResult(Unavailable);
     public Task<FirewallOperationResult> CreateRuleAsync(CreateFirewallRuleRequest request, CancellationToken cancellationToken) => Task.FromResult(Unavailable);
+    public Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken) => Task.FromResult(Unavailable);
     public Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken) => Task.FromResult(Unavailable);
 }

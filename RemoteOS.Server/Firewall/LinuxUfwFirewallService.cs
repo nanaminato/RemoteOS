@@ -9,7 +9,7 @@ namespace Server.Firewall;
 public sealed class LinuxUfwFirewallService : IHostFirewallService
 {
     private static readonly Regex NumberedRule = new(
-        @"^\[\s*(?<number>\d+)\]\s+(?<port>\S+)\s+(?<action>ALLOW|DENY|REJECT|LIMIT)\s+(?<direction>IN|OUT)\s+(?<source>.+?)(?:\s+#.*)?$",
+        @"^\[\s*(?<number>\d+)\]\s+(?<target>.+?)\s+(?<action>ALLOW|DENY|REJECT|LIMIT)\s+(?<direction>IN|OUT)\s+(?<source>.+?)(?:\s+#.*)?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private readonly ILogger<LinuxUfwFirewallService> _logger;
     private readonly FirewallPrivilegedHelperOptions _helper;
@@ -43,13 +43,10 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
         {
             var match = NumberedRule.Match(line);
             if (!match.Success || !int.TryParse(match.Groups["number"].Value, out var number)) continue;
-            var portAndProtocol = match.Groups["port"].Value;
-            var slash = portAndProtocol.IndexOf('/');
-            var port = slash > 0 ? portAndProtocol[..slash] : portAndProtocol;
-            var protocol = slash > 0 ? portAndProtocol[(slash + 1)..].ToLowerInvariant() : "any";
+            var (destination, port, protocol) = ParseTarget(match.Groups["target"].Value);
             rules.Add(new FirewallRuleDto(number, match.Groups["action"].Value.ToLowerInvariant(),
                 match.Groups["direction"].Value.ToLowerInvariant(), protocol,
-                match.Groups["source"].Value.Trim(), "any", port));
+                match.Groups["source"].Value.Trim(), destination, port));
         }
         return rules;
     }
@@ -68,8 +65,15 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
 
     public Task<FirewallOperationResult> CreateRuleAsync(CreateFirewallRuleRequest request, CancellationToken cancellationToken)
     {
-        if (!TryValidateRule(request, out var args, out var problem)) return Task.FromResult(new FirewallOperationResult(false, problem));
+        if (!TryValidateRule(request.Action, request.Direction, request.Protocol, request.Source, request.Destination, request.Port, out var args, out var problem)) return Task.FromResult(new FirewallOperationResult(false, problem));
         return RunOperationAsync(["rule", .. args], cancellationToken);
+    }
+
+    public Task<FirewallOperationResult> UpdateRuleAsync(int number, UpdateFirewallRuleRequest request, CancellationToken cancellationToken)
+    {
+        if (number is <= 0 or > 10_000) return Task.FromResult(new FirewallOperationResult(false, "firewall.invalid_rule_number"));
+        if (!TryValidateRule(request.Action, request.Direction, request.Protocol, request.Source, request.Destination, request.Port, out var args, out var problem)) return Task.FromResult(new FirewallOperationResult(false, problem));
+        return RunOperationAsync(["replace", number.ToString(System.Globalization.CultureInfo.InvariantCulture), .. args], cancellationToken);
     }
 
     public Task<FirewallOperationResult> DeleteRuleAsync(int number, CancellationToken cancellationToken) =>
@@ -134,19 +138,40 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
     private static string? ParseVersion(string text) => Regex.Match(text, @"ufw\s+(?<version>[\d.]+)", RegexOptions.IgnoreCase) is { Success: true } match
         ? match.Groups["version"].Value : null;
 
+    private static (string Destination, string Port, string Protocol) ParseTarget(string target)
+    {
+        // `ufw status numbered` has a column-like target field. It is usually
+        // `22/tcp`, but can also be `192.0.2.10 22/tcp` or `22/tcp (v6)`.
+        // Keeping the destination separate makes the table accurately reflect
+        // rules that constrain the local address as well as the port.
+        var normalized = target.Trim();
+        if (normalized.EndsWith(" (v6)", StringComparison.OrdinalIgnoreCase)) normalized = normalized[..^5].TrimEnd();
+        if (normalized.Equals("anywhere", StringComparison.OrdinalIgnoreCase)) return ("any", "any", "any");
+        if (TryNormalizeEndpoint(normalized, out var endpoint)) return (endpoint, "any", "any");
+
+        var parts = normalized.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var portAndProtocol = parts[^1];
+        var slash = portAndProtocol.IndexOf('/');
+        var port = slash > 0 ? portAndProtocol[..slash] : portAndProtocol;
+        var protocol = slash > 0 ? portAndProtocol[(slash + 1)..].ToLowerInvariant() : "any";
+        var destination = parts.Length > 1 ? string.Join(' ', parts[..^1]) : "any";
+        return (destination.Equals("anywhere", StringComparison.OrdinalIgnoreCase) ? "any" : destination, port, protocol);
+    }
+
     private static bool IsPolicy(string? value) => value?.Trim().ToLowerInvariant() is "allow" or "deny" or "reject";
     private static bool IsAction(string? value) => value?.Trim().ToLowerInvariant() is "allow" or "deny" or "reject" or "limit";
     private static bool IsDirection(string? value) => value?.Trim().ToLowerInvariant() is "in" or "out";
     private static bool IsProtocol(string? value) => value?.Trim().ToLowerInvariant() is "tcp" or "udp" or "any";
 
-    private static bool TryValidateRule(CreateFirewallRuleRequest request, out IReadOnlyList<string> args, out string problem)
+    private static bool TryValidateRule(string? action, string? direction, string? protocol, string? sourceValue, string? destinationValue, string? portValue,
+        out IReadOnlyList<string> args, out string problem)
     {
         args = []; problem = "firewall.invalid_rule";
-        if (!IsAction(request.Action) || !IsDirection(request.Direction) || !IsProtocol(request.Protocol)) return false;
-        if (!TryNormalizeEndpoint(request.Source, out var source) || !TryNormalizeEndpoint(request.Destination, out var destination)) return false;
-        if (!TryNormalizePort(request.Port, out var port)) return false;
-        args = [request.Action.Trim().ToLowerInvariant(), request.Direction.Trim().ToLowerInvariant(),
-            request.Protocol.Trim().ToLowerInvariant(), source, destination, port];
+        if (!IsAction(action) || !IsDirection(direction) || !IsProtocol(protocol)) return false;
+        if (!TryNormalizeEndpoint(sourceValue, out var source) || !TryNormalizeEndpoint(destinationValue, out var destination)) return false;
+        if (!TryNormalizePort(portValue, out var port)) return false;
+        args = [action!.Trim().ToLowerInvariant(), direction!.Trim().ToLowerInvariant(),
+            protocol!.Trim().ToLowerInvariant(), source, destination, port];
         problem = string.Empty;
         return true;
     }
