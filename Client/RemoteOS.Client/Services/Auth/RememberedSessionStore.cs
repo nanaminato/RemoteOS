@@ -13,8 +13,19 @@ namespace Client.Services.Auth;
 public interface IRememberedSessionStore
 {
     Task<IReadOnlyList<SavedLoginProfile>> LoadAsync(CancellationToken ct = default);
-    Task<bool> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default);
+    Task<RememberedProfileSaveResult> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default);
     Task ClearAsync(CancellationToken ct = default);
+}
+
+/// <summary>Outcome of saving a remembered connection. A failed credential-vault write must never fail a remote login.</summary>
+public enum RememberedProfileSaveResult
+{
+    Saved,
+    /// <summary>Linux metadata was saved, but the desktop Secret Service could not store the password.</summary>
+    SecureStorageUnavailable,
+    /// <summary>The platform credential vault was unavailable before any connection data could be persisted.</summary>
+    CredentialStoreUnavailable,
+    LocalStorageWriteFailed,
 }
 
 /// <summary>A saved server/user pair. Password, when opted into, only ever exists in encrypted OS credential storage.</summary>
@@ -91,7 +102,7 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
         }
     }
 
-    public async Task<bool> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default)
+    public async Task<RememberedProfileSaveResult> UpsertAsync(SavedLoginProfile profile, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
         var profiles = (await LoadAsync(ct)).ToList();
@@ -105,29 +116,33 @@ public sealed class RememberedSessionStore : IRememberedSessionStore
             if (OperatingSystem.IsWindows())
             {
                 await SaveWindowsAsync(payload, ct);
-                return true;
+                return RememberedProfileSaveResult.Saved;
             }
 
             if (OperatingSystem.IsMacOS())
-                return MacKeychain.TryWrite(payload);
+                return MacKeychain.TryWrite(payload)
+                    ? RememberedProfileSaveResult.Saved
+                    : RememberedProfileSaveResult.CredentialStoreUnavailable;
 
             if (OperatingSystem.IsLinux())
-                return await SaveLinuxAsync(profiles, payload, ct);
+                return await SaveLinuxAsync(profiles, payload, ct)
+                    ? RememberedProfileSaveResult.Saved
+                    : RememberedProfileSaveResult.SecureStorageUnavailable;
         }
         catch (CryptographicException)
         {
-            return false;
+            return RememberedProfileSaveResult.LocalStorageWriteFailed;
         }
         catch (IOException)
         {
-            return false;
+            return RememberedProfileSaveResult.LocalStorageWriteFailed;
         }
         catch (UnauthorizedAccessException)
         {
-            return false;
+            return RememberedProfileSaveResult.LocalStorageWriteFailed;
         }
 
-        return false;
+        return RememberedProfileSaveResult.CredentialStoreUnavailable;
     }
 
     public async Task ClearAsync(CancellationToken ct = default)

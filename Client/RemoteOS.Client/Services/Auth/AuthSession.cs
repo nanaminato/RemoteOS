@@ -49,16 +49,17 @@ public sealed class AuthSession : IAuthSession
             var response = await _client.LoginAsync(serverUrl, request, ct);
             Apply(response, serverUrl);
 
+            RememberedProfileSaveResult? saveResult = null;
             if (rememberServer)
             {
-                var saved = await _rememberedSessionStore.UpsertAsync(
+                saveResult = await _rememberedSessionStore.UpsertAsync(
                     new SavedLoginProfile(serverUrl, request.Username, rememberPassword ? request.Password : null, DateTimeOffset.UtcNow), ct);
-                // A failed secure-store write must not turn a successful remote login into an error.
-                _ = saved;
             }
 
             State = AuthSessionState.Authenticated;
-            RaiseStateChanged();
+            // Saving a local credential is best-effort: it must not turn a successful remote login into an error,
+            // but the UI needs the outcome so it can explain why the password will not be prefilled next time.
+            RaiseStateChanged(saveResult);
             return response;
         }
         catch
@@ -127,6 +128,6 @@ public sealed class AuthSession : IAuthSession
         RaiseStateChanged();
     }
 
-    private void RaiseStateChanged()
-        => StateChanged?.Invoke(this, new AuthSessionStateChangedEventArgs(State));
+    private void RaiseStateChanged(RememberedProfileSaveResult? rememberedProfileSaveResult = null)
+        => StateChanged?.Invoke(this, new AuthSessionStateChangedEventArgs(State, rememberedProfileSaveResult));
 }
