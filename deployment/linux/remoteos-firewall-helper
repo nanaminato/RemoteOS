@@ -6,6 +6,11 @@ set -euo pipefail
 # interface small: it is the complete privilege boundary for Firewall.
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 IFS=$' \t\n'
+# The Server parses UFW's machine-facing status text. Force it to be stable
+# regardless of the service account's or host's configured display language.
+export LANG=C
+export LANGUAGE=C
+export LC_ALL=C
 readonly UFW=/usr/sbin/ufw
 
 fail() {
