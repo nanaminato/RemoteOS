@@ -53,8 +53,10 @@ run_rule() {
 
   local -a arguments=("$action" "$direction")
   [[ $protocol == any ]] || arguments+=(proto "$protocol")
-  [[ $source == any ]] || arguments+=(from "$source")
-  [[ $destination == any ]] || arguments+=(to "$destination")
+  # Keep these clauses even when they are "any".  In UFW's full rule syntax a
+  # port belongs to the preceding from/to clause, so omitting both turns the
+  # usual "allow TCP port 443" request into an invalid command.
+  arguments+=(from "$source" to "$destination")
   [[ $port == any ]] || arguments+=(port "$port")
   exec "$UFW" "${arguments[@]}"
 }
@@ -69,8 +71,7 @@ replace_rule() {
 
   local -a arguments=(insert "$number" "$action" "$direction")
   [[ $protocol == any ]] || arguments+=(proto "$protocol")
-  [[ $source == any ]] || arguments+=(from "$source")
-  [[ $destination == any ]] || arguments+=(to "$destination")
+  arguments+=(from "$source" to "$destination")
   [[ $port == any ]] || arguments+=(port "$port")
   "$UFW" --force delete "$number"
   exec "$UFW" "${arguments[@]}"
