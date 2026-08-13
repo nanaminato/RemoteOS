@@ -140,7 +140,7 @@
                     <MenuItem Header="打开资源管理器" Command="{Binding OpenFileExplorerCommand}" />
                     <MenuItem Header="打开终端" Command="{Binding OpenTerminalCommand}" />
                     <Separator />
-                    <MenuItem Header="个性化" Command="{Binding OpenSettingsCommand}" />
+                    <MenuItem Header="个性化" Command="{Binding OpenPersonalizationCommand}" />
                 </ContextMenu>
             </Border.ContextMenu>
             </Border>

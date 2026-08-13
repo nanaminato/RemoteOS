@@ -5,6 +5,7 @@ using Client.Services;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Windows;
 using RemoteOS.Runtime;
@@ -138,6 +139,11 @@ public partial class DesktopShellViewModel : ObservableObject
 
     [RelayCommand]
     private void OpenSettings() => LaunchApplication("remoteos.settings");
+
+    /// <summary>Opens Settings directly on its Personalization page.</summary>
+    [RelayCommand]
+    private void OpenPersonalization() =>
+        _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.SettingsPersonalization));
 
     [RelayCommand]
     private void OpenTaskManager() => LaunchApplication("remoteos.taskmanager");

@@ -19,6 +19,7 @@ namespace Client.Services.AppPermissions;
 public sealed class ExternalAppContextFactory
 {
     private readonly IAppPermissionManager _permissions;
+    private readonly IAppPermissionRequestService _permissionRequests;
     private readonly ISystemLanguage _systemLanguage;
     private readonly ShellSettings _settings;
     private readonly ISettingsClient _settingsClient;
@@ -34,6 +35,7 @@ public sealed class ExternalAppContextFactory
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
+        IAppPermissionRequestService permissionRequests,
         ISystemLanguage systemLanguage,
         ShellSettings settings,
         ISettingsClient settingsClient,
@@ -48,6 +50,7 @@ public sealed class ExternalAppContextFactory
         IAppActivationService activations)
     {
         _permissions = permissions;
+        _permissionRequests = permissionRequests;
         _systemLanguage = systemLanguage;
         _settings = settings;
         _settingsClient = settingsClient;
@@ -64,7 +67,7 @@ public sealed class ExternalAppContextFactory
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
         appId,
-        new AppPermissionScope(appId, _permissions),
+        new AppPermissionScope(appId, _permissionRequests),
         new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
         new ServerMonitorCapability(appId, _permissions, _systemMonitor),
         new ServerFilesCapability(appId, _permissions, _files),
@@ -357,9 +360,17 @@ public sealed class ExternalAppContextFactory
         }
     }
 
-    private sealed class AppPermissionScope(AppId appId, IAppPermissionManager permissions) : IAppPermissionScope
+    private sealed class AppPermissionScope(
+        AppId appId,
+        IAppPermissionRequestService requests) : IAppPermissionScope
     {
-        public bool IsGranted(string permissionId) => permissions.IsGranted(appId, permissionId);
+        public AppPermissionStatus GetStatus(string permissionId) => requests.GetStatus(appId, permissionId);
+        public bool IsGranted(string permissionId) => GetStatus(permissionId) == AppPermissionStatus.Granted;
+
+        public Task<AppPermissionStatus> RequestAsync(string permissionId, CancellationToken cancellationToken = default) =>
+            requests.RequestAsync(appId, permissionId, cancellationToken);
+
+        public Task OpenSettingsAsync() => requests.OpenSettingsAsync(appId);
     }
 
     private sealed class DesktopAppearanceCapability(

@@ -99,6 +99,33 @@ Management permissions include only the minimal inspection needed to safely perf
 
 Grants are local to the desktop client. On Windows they are stored with current-user DPAPI protection; other platforms use the compatible local JSON fallback.
 
+## Runtime permission approval
+
+When an application opens, the Shell opens one app-owned prompt for every declared permission that
+is still undecided. The application is already running while these prompts are shown: choosing
+**Deny** does not close it, and choosing **Later** leaves that permission undecided while the
+remaining prompts continue. Granted and denied decisions are remembered; only undecided
+permissions are prompted automatically on a later launch.
+
+Both built-in `AppContext` and package `IExternalAppContext` expose the same scoped
+`Permissions` surface. It can only inspect or request the current application's declared IDs:
+
+```csharp
+var status = context.Permissions.GetStatus("server.metrics.read");
+if (status != AppPermissionStatus.Granted)
+    status = await context.Permissions.RequestAsync("server.metrics.read");
+
+if (status == AppPermissionStatus.Granted)
+    await LoadMetricsAsync();
+
+// Opens remoteos://settings/apps/{this-app}/permissions.
+await context.Permissions.OpenSettingsAsync();
+```
+
+`RequestAsync` deliberately shows the one-permission prompt again even after a previous denial;
+**Later** preserves the current decision. Applications must handle `Undecided` and `Denied` as
+not granted and keep their non-privileged functionality available.
+
 ## Navigate to application settings
 
 An external application can send the user to the host-owned Applications page without receiving any additional permission:

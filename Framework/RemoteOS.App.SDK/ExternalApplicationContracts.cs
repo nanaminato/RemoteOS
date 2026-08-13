@@ -43,12 +43,6 @@ public interface IExternalAppContext
     IExternalAppWindowService Windows { get; }
 }
 
-/// <summary>Read-only view of the grants the current application has received from the user.</summary>
-public interface IAppPermissionScope
-{
-    bool IsGranted(string permissionId);
-}
-
 /// <summary>Scope of an application's persisted configuration document.</summary>
 public enum ExternalAppSettingsScope
 {

@@ -33,6 +33,10 @@ public sealed class AppContext
     /// <summary>Activates a host-registered <c>remoteos://</c> route as this application.</summary>
     public IAppActivation Activations => new AppActivationScope(AppId, Services.GetService(typeof(IAppActivationService)) as IAppActivationService);
 
+    /// <summary>Permission status and approval requests scoped to this built-in application.</summary>
+    public IAppPermissionScope Permissions => new AppPermissionScope(
+        AppId, Services.GetService(typeof(IAppPermissionRequestService)) as IAppPermissionRequestService);
+
     /// <summary>Convenience: create and show a window owned by this application.</summary>
     public ManagedWindow ShowWindow(
         string title,
@@ -98,5 +102,19 @@ public sealed class AppContext
         public AppActivationResult Activate(Uri uri, bool userInitiated = true, string? correlationId = null) =>
             service?.Activate(new AppActivationRequest(uri, sourceAppId, userInitiated, correlationId))
             ?? new AppActivationResult(AppActivationStatus.Unavailable);
+    }
+
+    private sealed class AppPermissionScope(AppId appId, IAppPermissionRequestService? service) : IAppPermissionScope
+    {
+        public AppPermissionStatus GetStatus(string permissionId) =>
+            service?.GetStatus(appId, permissionId) ?? AppPermissionStatus.Undecided;
+
+        public bool IsGranted(string permissionId) => GetStatus(permissionId) == AppPermissionStatus.Granted;
+
+        public Task<AppPermissionStatus> RequestAsync(string permissionId, CancellationToken cancellationToken = default) =>
+            service?.RequestAsync(appId, permissionId, cancellationToken)
+            ?? Task.FromResult(AppPermissionStatus.Undecided);
+
+        public Task OpenSettingsAsync() => service?.OpenSettingsAsync(appId) ?? Task.CompletedTask;
     }
 }

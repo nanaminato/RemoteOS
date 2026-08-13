@@ -103,9 +103,11 @@ public sealed class ApplicationManager : IAppActivationService
             // single-window guarantee is safer than silently creating another instance.
             _windowManager.Restore(existing);
             _windowManager.Focus(existing);
+            RequestUndecidedPermissions(app.Manifest.Id);
             return true;
         }
         fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
+        RequestUndecidedPermissions(app.Manifest.Id);
         return true;
     }
 
@@ -127,6 +129,7 @@ public sealed class ApplicationManager : IAppActivationService
             return false;
 
         terminalOpener.OpenTerminal(new AppContext(terminal.Manifest.Id, _windowManager, _services), workingDirectory);
+        RequestUndecidedPermissions(terminal.Manifest.Id);
         return true;
     }
 
@@ -205,13 +208,32 @@ public sealed class ApplicationManager : IAppActivationService
                 handler.HandleActivation(context, request, existing);
             _windowManager.Restore(existing);
             _windowManager.Focus(existing);
+            RequestUndecidedPermissions(app.Manifest.Id);
             return true;
         }
 
         app.Activate(context);
+        RequestUndecidedPermissions(app.Manifest.Id);
         if (request is not null && app is IAppActivationHandler activationHandler)
             activationHandler.HandleActivation(context, request, FindExistingPrimaryWindow(app.Manifest.Id));
         return true;
+    }
+
+    private void RequestUndecidedPermissions(AppId appId)
+    {
+        var service = _services.GetService(typeof(IAppPermissionRequestService)) as IAppPermissionRequestService;
+        if (service is null)
+            return;
+
+        // Permission decisions are intentionally not part of application activation: the app
+        // is already open and remains usable if every request is rejected or deferred.
+        _ = RequestUndecidedPermissionsAsync(service, appId);
+    }
+
+    private static async Task RequestUndecidedPermissionsAsync(IAppPermissionRequestService service, AppId appId)
+    {
+        try { await service.RequestUndecidedAsync(appId); }
+        catch { /* A prompt failure must never turn a successful launch into a failed launch. */ }
     }
 
     private ManagedWindow? FindExistingPrimaryWindow(AppId appId) => _windowManager.Windows

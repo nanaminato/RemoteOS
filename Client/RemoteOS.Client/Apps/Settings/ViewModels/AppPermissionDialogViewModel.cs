@@ -4,6 +4,7 @@ using Client.Services.AppPermissions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
+using RemoteOS.AppSDK;
 
 namespace Client.Apps.Settings.ViewModels;
 
@@ -38,7 +39,7 @@ public sealed partial class AppPermissionDialogViewModel : ObservableObject, IDi
                 group.OrderBy(permission => PermissionText.DisplayName(permission), StringComparer.Ordinal)
                     .Select(permission => new AppPermissionChoiceViewModel(
                         permission,
-                        permissionManager.IsGranted(app.Id, permission.Id)))
+                        permissionManager.GetStatus(app.Id, permission.Id)))
                     .ToArray()))
             .ToArray();
 
@@ -53,7 +54,9 @@ public sealed partial class AppPermissionDialogViewModel : ObservableObject, IDi
     private void Save()
     {
         foreach (var permission in PermissionGroups.SelectMany(group => group.Permissions))
-            _permissionManager.SetGranted(_appId, permission.PermissionId, permission.IsGranted);
+            if (permission.HasChanged)
+                _permissionManager.SetStatus(_appId, permission.PermissionId,
+                    permission.IsGranted ? AppPermissionStatus.Granted : AppPermissionStatus.Denied);
         _complete(true);
     }
 
@@ -95,15 +98,18 @@ public sealed partial class AppPermissionChoiceViewModel : ObservableObject
 {
     private readonly AppPermissionDefinition _definition;
 
-    public AppPermissionChoiceViewModel(AppPermissionDefinition definition, bool isGranted)
+    public AppPermissionChoiceViewModel(AppPermissionDefinition definition, AppPermissionStatus status)
     {
         _definition = definition;
         PermissionId = definition.Id;
-        _isGranted = isGranted;
+        InitialStatus = status;
+        _isGranted = status == AppPermissionStatus.Granted;
         RefreshLocalizedText();
     }
 
     public string PermissionId { get; }
+    public AppPermissionStatus InitialStatus { get; }
+    public bool HasChanged => IsGranted != (InitialStatus == AppPermissionStatus.Granted);
     [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private string _description = string.Empty;
     [ObservableProperty] private bool _isGranted;

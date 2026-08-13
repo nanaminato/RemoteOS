@@ -102,6 +102,7 @@ public static class Bootstrapper
         services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
+        services.AddSingleton<IAppPermissionRequestService, AppPermissionRequestService>();
         services.AddSingleton<DeveloperModeService>();
         // The session must be resolved only when diagnostics are used. Resolving it while an
         // auth HttpClient handler is constructed would recursively construct that same client.

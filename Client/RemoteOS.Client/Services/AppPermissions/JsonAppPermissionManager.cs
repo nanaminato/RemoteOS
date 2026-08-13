@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Runtime.Versioning;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
+using RemoteOS.AppSDK;
 using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
 
 namespace Client.Services.AppPermissions;
@@ -20,7 +21,7 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
     private readonly string? _legacyPath;
     private readonly bool _useEncryption;
     private readonly object _gate = new();
-    private readonly Dictionary<string, HashSet<string>> _grants;
+    private readonly Dictionary<string, Dictionary<string, AppPermissionStatus>> _decisions;
 
 
     public JsonAppPermissionManager(ApplicationManager applications)
@@ -30,22 +31,31 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
         _useEncryption = OperatingSystem.IsWindows();
         _path = Path.Combine(root, _useEncryption ? "app-permissions.dat" : "app-permissions.json");
         _legacyPath = _useEncryption ? Path.Combine(root, "app-permissions.json") : null;
-        _grants = Load(_path, _legacyPath, _useEncryption);
+        _decisions = Load(_path, _legacyPath, _useEncryption);
 
         if (_useEncryption && !File.Exists(_path) && _legacyPath is not null && File.Exists(_legacyPath))
             MigrateLegacyFile(_legacyPath);
     }
 
     public bool IsGranted(AppId appId, string permissionId)
+        => GetStatus(appId, permissionId) == AppPermissionStatus.Granted;
+
+    public AppPermissionStatus GetStatus(AppId appId, string permissionId)
     {
         if (!CoreAppPermissions.IsKnown(permissionId))
-            return false;
+            return AppPermissionStatus.Undecided;
 
         lock (_gate)
-            return _grants.TryGetValue(appId.Value, out var appGrants) && appGrants.Contains(permissionId);
+            return _decisions.TryGetValue(appId.Value, out var appDecisions)
+                   && appDecisions.TryGetValue(permissionId, out var status)
+                ? status
+                : AppPermissionStatus.Undecided;
     }
 
     public void SetGranted(AppId appId, string permissionId, bool granted)
+        => SetStatus(appId, permissionId, granted ? AppPermissionStatus.Granted : AppPermissionStatus.Denied);
+
+    public void SetStatus(AppId appId, string permissionId, AppPermissionStatus status)
     {
         if (!CoreAppPermissions.IsKnown(permissionId))
             throw new ArgumentOutOfRangeException(nameof(permissionId), "Unknown RemoteOS application permission.");
@@ -56,43 +66,58 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
 
         lock (_gate)
         {
-            if (!_grants.TryGetValue(appId.Value, out var appGrants))
+            if (!_decisions.TryGetValue(appId.Value, out var appDecisions))
             {
-                appGrants = new HashSet<string>(StringComparer.Ordinal);
-                _grants[appId.Value] = appGrants;
+                appDecisions = new Dictionary<string, AppPermissionStatus>(StringComparer.Ordinal);
+                _decisions[appId.Value] = appDecisions;
             }
 
-            if (granted)
-                appGrants.Add(permissionId);
+            if (status == AppPermissionStatus.Undecided)
+                appDecisions.Remove(permissionId);
             else
-                appGrants.Remove(permissionId);
+                appDecisions[permissionId] = status;
 
-            if (appGrants.Count == 0)
-                _grants.Remove(appId.Value);
+            if (appDecisions.Count == 0)
+                _decisions.Remove(appId.Value);
 
-            Save(_path, _grants, _useEncryption);
+            Save(_path, _decisions, _useEncryption);
         }
     }
 
-    private static Dictionary<string, HashSet<string>> Load(string path, string? legacyPath, bool encrypted)
+    private static Dictionary<string, Dictionary<string, AppPermissionStatus>> Load(string path, string? legacyPath, bool encrypted)
     {
         var json = Read(path, encrypted) ?? (legacyPath is null ? null : Read(legacyPath, encrypted: false));
         if (json is null)
-            return new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            return new Dictionary<string, Dictionary<string, AppPermissionStatus>>(StringComparer.Ordinal);
 
         try
         {
-            var values = JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
-            return values?.ToDictionary(
-                pair => pair.Key,
-                pair => new HashSet<string>(pair.Value.Where(CoreAppPermissions.IsKnown), StringComparer.Ordinal),
-                StringComparer.Ordinal)
-                ?? new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            var values = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, AppPermissionStatus>>>(json);
+            if (values is not null)
+                return values.ToDictionary(
+                    app => app.Key,
+                    app => app.Value
+                        .Where(permission => CoreAppPermissions.IsKnown(permission.Key)
+                                             && permission.Value != AppPermissionStatus.Undecided)
+                        .ToDictionary(permission => permission.Key, permission => permission.Value, StringComparer.Ordinal),
+                    StringComparer.Ordinal);
         }
         catch (JsonException)
         {
-            return new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            // Versions before permission denials were persisted used an array of granted ids.
         }
+
+        try
+        {
+            var legacy = JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
+            return legacy?.ToDictionary(
+                app => app.Key,
+                app => app.Value.Where(CoreAppPermissions.IsKnown)
+                    .ToDictionary(permission => permission, _ => AppPermissionStatus.Granted, StringComparer.Ordinal),
+                StringComparer.Ordinal)
+                ?? new Dictionary<string, Dictionary<string, AppPermissionStatus>>(StringComparer.Ordinal);
+        }
+        catch (JsonException) { return new Dictionary<string, Dictionary<string, AppPermissionStatus>>(StringComparer.Ordinal); }
     }
 
     private static string? Read(string path, bool encrypted)
@@ -112,10 +137,14 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
         catch (UnauthorizedAccessException) { return null; }
     }
 
-    private static void Save(string path, Dictionary<string, HashSet<string>> grants, bool encrypted)
+    private static void Save(string path, Dictionary<string, Dictionary<string, AppPermissionStatus>> decisions, bool encrypted)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var snapshot = grants.ToDictionary(pair => pair.Key, pair => pair.Value.Order().ToArray(), StringComparer.Ordinal);
+        var snapshot = decisions.ToDictionary(
+            app => app.Key,
+            app => app.Value.OrderBy(permission => permission.Key, StringComparer.Ordinal)
+                .ToDictionary(permission => permission.Key, permission => permission.Value, StringComparer.Ordinal),
+            StringComparer.Ordinal);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true }));
         if (encrypted && OperatingSystem.IsWindows())
             bytes = ProtectForCurrentUser(bytes);
