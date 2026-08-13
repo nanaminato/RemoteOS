@@ -30,6 +30,9 @@ public sealed class AppContext
     /// </summary>
     public IServiceProvider Services { get; }
 
+    /// <summary>Activates a host-registered <c>remoteos://</c> route as this application.</summary>
+    public IAppActivation Activations => new AppActivationScope(AppId, Services.GetService(typeof(IAppActivationService)) as IAppActivationService);
+
     /// <summary>Convenience: create and show a window owned by this application.</summary>
     public ManagedWindow ShowWindow(
         string title,
@@ -89,4 +92,11 @@ public sealed class AppContext
         Func<ModalDialog<TResult>, Control> contentFactory,
         Size preferredSize)
         => WindowManager.ShowDialogAsync(owner, title, contentFactory, preferredSize);
+
+    private sealed class AppActivationScope(AppId sourceAppId, IAppActivationService? service) : IAppActivation
+    {
+        public AppActivationResult Activate(Uri uri, bool userInitiated = true, string? correlationId = null) =>
+            service?.Activate(new AppActivationRequest(uri, sourceAppId, userInitiated, correlationId))
+            ?? new AppActivationResult(AppActivationStatus.Unavailable);
+    }
 }

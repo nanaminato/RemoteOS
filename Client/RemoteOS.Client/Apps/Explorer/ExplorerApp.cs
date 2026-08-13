@@ -223,7 +223,10 @@ public sealed class ExplorerApp : RemoteApplicationBase
             var applicationId = defaultApplicationId is not null && applications?.SupportsFile(new AppId(defaultApplicationId), entry.Path) == true
                 ? defaultApplicationId
                 : applications?.FileOpenersForPath(entry.Path).FirstOrDefault()?.Id.Value;
-            if (applicationId is null || applications?.OpenFile(new AppId(applicationId), entry.Path) != true)
+            var result = applicationId is null
+                ? new AppActivationResult(AppActivationStatus.Unavailable)
+                : context.Activations.Activate(RemoteOsActivationUris.OpenFile(new AppId(applicationId), entry.Path));
+            if (!result.Succeeded)
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.no_file_opener")) ?? Task.CompletedTask);
         };
 
@@ -251,7 +254,7 @@ public sealed class ExplorerApp : RemoteApplicationBase
             if (choice.SetAsDefault && !string.IsNullOrWhiteSpace(extension))
                 await SaveDefaultAppAsync(context, defaults, extension, choice.ApplicationId);
 
-            if (!applications!.OpenFile(new AppId(choice.ApplicationId), entry.Path))
+            if (!context.Activations.Activate(RemoteOsActivationUris.OpenFile(new AppId(choice.ApplicationId), entry.Path)).Succeeded)
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.selected_app_unavailable")) ?? Task.CompletedTask);
         };
 

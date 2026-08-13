@@ -43,6 +43,7 @@ public static class Bootstrapper
         services.AddTransient<AcceptLanguageHandler>();
         services.AddSingleton<ApplicationManager>(sp =>
             new ApplicationManager(sp.GetRequiredService<IWindowManager>(), sp));
+        services.AddSingleton<IAppActivationService>(sp => sp.GetRequiredService<ApplicationManager>());
 
         // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
         services.AddHttpClient<IRemoteOsClient, RemoteOsClient>()

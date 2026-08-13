@@ -3,6 +3,7 @@
 > 本文档描述 RemoteOS 当前实现状态：Solution 结构、项目列表、代码地图、当前实现进度、开发状态。
 >
 > - 架构设计原则见 [`RemoteOS.Architecture.md`](./architecture/RemoteOS.Architecture.md)
+> - 应用启动 URI 与窗口实例策略见 [`RemoteOS.ApplicationActivation.md`](./architecture/RemoteOS.ApplicationActivation.md)
 > - 用户 Workspace 模型见 [`RemoteOS.Workspace.md`](./architecture/RemoteOS.Workspace.md)
 > - 登录与身份模型见 [`RemoteOS.Authentication.md`](./platform/RemoteOS.Authentication.md)
 > - 安全设计见 [`RemoteOS.Security.md`](./platform/RemoteOS.Security.md)
@@ -49,6 +50,8 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 ## 2. 当前开发阶段
 
 本地 RemoteOS Shell 已完成（Desktop、Window Manager、Application Runtime、Application SDK、内置应用 Welcome/Notebook/Code Editor/Image Viewer/Settings 等）。
+
+应用启动与跨应用导航已具备首个可运行基础：Shell 解析受控 `remoteos://` URI，Settings 支持直达个性化和指定应用权限页；RemoteExplorer 通过此入口打开文件。`ApplicationManifest.InstancePolicy` 可声明多窗口或单窗口，Settings/任务管理器/端口转发/防火墙/进程守护/Docker 为单窗口，Notebook 与 Code Editor 明确支持多窗口。详见 [`RemoteOS.ApplicationActivation.md`](./architecture/RemoteOS.ApplicationActivation.md)。
 
 桌面外壳已增强：宿主窗口控制（标题栏拖动 / 8 向 resize / 最小化·最大化·关闭 / 全屏）、mstsc 风格连接栏（全屏切换、固定与自动隐藏、连接信息、关闭连接 = 登出）、可复用模态对话框机制（`AppContext.ShowDialogAsync`，支持嵌套与任意结果类型）。详见 [`RemoteOS.Desktop.md`](./desktop/RemoteOS.Desktop.md)。
 

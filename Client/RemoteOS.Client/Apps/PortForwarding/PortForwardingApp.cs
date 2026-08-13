@@ -16,7 +16,8 @@ public sealed class PortForwardingApp : RemoteApplicationBase
         DisplayName: "Port Forwarding",
         Version: "1.0.0",
         IconGlyph: "↔",
-        Description: "Local SSH tunnels to server loopback services");
+        Description: "Local SSH tunnels to server loopback services",
+        InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {

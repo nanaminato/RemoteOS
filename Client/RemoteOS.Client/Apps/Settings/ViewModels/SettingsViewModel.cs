@@ -81,6 +81,19 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public void SelectApplicationsPage() =>
         SelectedPage = Pages.OfType<AppsPageViewModel>().FirstOrDefault() ?? SelectedPage;
 
+    /// <summary>Host activation entry point for <c>remoteos://settings/personalization</c>.</summary>
+    public void SelectPersonalizationPage() =>
+        SelectedPage = Pages.OfType<PersonalizationPageViewModel>().FirstOrDefault() ?? SelectedPage;
+
+    /// <summary>Host activation entry point for a specific application's permission editor.</summary>
+    public Task SelectApplicationPermissionsAsync(string appId)
+    {
+        var page = Pages.OfType<AppsPageViewModel>().FirstOrDefault();
+        if (page is null) return Task.CompletedTask;
+        SelectedPage = page;
+        return page.OpenPermissionsAsync(appId);
+    }
+
     /// <summary>窗口打开后调用：加载服务端偏好并应用到 ShellSettings + 默认程序映射。</summary>
     public async Task InitializeAsync()
     {

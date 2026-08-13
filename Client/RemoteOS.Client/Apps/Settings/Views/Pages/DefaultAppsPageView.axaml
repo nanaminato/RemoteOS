@@ -28,7 +28,7 @@
                                         <DataTemplate x:DataType="vm:AppOption"><TextBlock Text="{Binding DisplayName}" /></DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="{loc:Loc settings.remove_mapping}" />
+                                <Button Grid.Column="2" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Content="×" Command="{Binding RemoveCommand}" Width="36" Height="32" Padding="0" ToolTip.Tip="{loc:Loc settings.remove_mapping}" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

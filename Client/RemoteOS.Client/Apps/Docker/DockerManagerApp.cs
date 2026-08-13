@@ -14,7 +14,7 @@ namespace Client.Apps.Docker;
 /// <summary>Built-in client for the server-local Docker Manager.</summary>
 public sealed class DockerManagerApp : RemoteApplicationBase
 {
-    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.docker"), "Docker Manager", "0.1.0", "🐳", "Manage the local Docker Engine on the RemoteOS Server", [AppPermissions.ServerDockerRead, AppPermissions.ServerDockerManage]);
+    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.docker"), "Docker Manager", "0.1.0", "🐳", "Manage the local Docker Engine on the RemoteOS Server", [AppPermissions.ServerDockerRead, AppPermissions.ServerDockerManage], InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {

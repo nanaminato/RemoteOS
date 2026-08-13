@@ -27,14 +27,17 @@ namespace Client.Apps.Settings;
 /// 5 个分类：系统 / 个性化 / 时间和语言 / 网络 / 应用（含默认程序）。用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）
 /// 持久化到服务端 Workspace（<c>/workspaces/{id}/preferences</c>），多设备登录同一 Workspace 共享。
 /// 未登录时仍可打开（仅本地 ShellSettings，不持久化）。</summary>
-public sealed class SettingsApp : RemoteApplicationBase
+public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
 {
+    private SettingsViewModel? _viewModel;
+    private ManagedWindow? _window;
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.settings"),
         DisplayName: "Settings",
         Version: "1.0.0",
         IconGlyph: "⚙️",
-        Description: "个性化与系统设置");
+        Description: "个性化与系统设置",
+        InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {
@@ -50,7 +53,6 @@ public sealed class SettingsApp : RemoteApplicationBase
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
         var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
         var networkInspector = context.Services.GetRequiredService<NetworkInspectorWindowService>();
-        var settingsNavigation = context.Services.GetRequiredService<ISettingsNavigation>();
         var wallpapers = context.Services.GetRequiredService<WallpaperService>();
         var browserClient = context.Services.GetRequiredService<IBrowserClient>();
 
@@ -60,9 +62,8 @@ public sealed class SettingsApp : RemoteApplicationBase
         var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),
             iconGlyph: Manifest.IconGlyph);
-        if (settingsNavigation is SettingsNavigationService navigation)
-            navigation.Register(window, viewModel);
-
+        _viewModel = viewModel;
+        _window = window;
         var appsPage = viewModel.Pages.OfType<AppsPageViewModel>().Single();
         var personalizationPage = viewModel.Pages.OfType<PersonalizationPageViewModel>().Single();
         personalizationPage.RequestCustomWallpaperAsync = async () =>
@@ -118,8 +119,11 @@ public sealed class SettingsApp : RemoteApplicationBase
         {
             if (!ReferenceEquals(closedWindow, window)) return;
             context.WindowManager.WindowClosed -= closed;
-            if (settingsNavigation is SettingsNavigationService navigation)
-                navigation.Unregister(window);
+            if (ReferenceEquals(_window, window))
+            {
+                _window = null;
+                _viewModel = null;
+            }
             viewModel.Dispose();
         };
         context.WindowManager.WindowClosed += closed;
@@ -127,4 +131,37 @@ public sealed class SettingsApp : RemoteApplicationBase
         // 窗口打开后异步加载服务端偏好。
         _ = viewModel.InitializeAsync();
     }
+
+    public bool CanHandleActivation(Uri uri)
+    {
+        if (!uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase)
+            || !uri.Host.Equals("settings", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var segments = GetPathSegments(uri);
+        return (segments.Length == 1 && (segments[0].Equals("personalization", StringComparison.OrdinalIgnoreCase)
+                                       || segments[0].Equals("apps", StringComparison.OrdinalIgnoreCase)))
+               || (segments.Length == 3 && segments[0].Equals("apps", StringComparison.OrdinalIgnoreCase)
+                   && segments[2].Equals("permissions", StringComparison.OrdinalIgnoreCase)
+                   && !string.IsNullOrWhiteSpace(segments[1]));
+    }
+
+    public void HandleActivation(AppContext context, AppActivationRequest request, ManagedWindow? existingWindow)
+    {
+        var viewModel = _viewModel;
+        if (viewModel is null) return;
+        var segments = GetPathSegments(request.Uri);
+        if (segments.Length == 1 && segments[0].Equals("personalization", StringComparison.OrdinalIgnoreCase))
+            viewModel.SelectPersonalizationPage();
+        else if (segments.Length == 1 && segments[0].Equals("apps", StringComparison.OrdinalIgnoreCase))
+            viewModel.SelectApplicationsPage();
+        else if (segments.Length == 3 && segments[0].Equals("apps", StringComparison.OrdinalIgnoreCase)
+                 && segments[2].Equals("permissions", StringComparison.OrdinalIgnoreCase))
+            _ = viewModel.SelectApplicationPermissionsAsync(segments[1]);
+    }
+
+    private static string[] GetPathSegments(Uri uri) => uri.AbsolutePath
+        .Split('/', StringSplitOptions.RemoveEmptyEntries)
+        .Select(Uri.UnescapeDataString)
+        .ToArray();
 }

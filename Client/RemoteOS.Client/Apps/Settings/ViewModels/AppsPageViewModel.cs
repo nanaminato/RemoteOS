@@ -132,6 +132,16 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         RefreshApplications();
     }
 
+    /// <summary>Used only by the host activation route after it has selected this page.</summary>
+    public async Task OpenPermissionsAsync(string appId)
+    {
+        var app = RegisteredApps.FirstOrDefault(candidate =>
+            candidate.Id.Value.Equals(appId, StringComparison.OrdinalIgnoreCase));
+        if (app is null) return;
+        ShowAppDetails(app);
+        await EditSelectedPermissionsAsync();
+    }
+
     [RelayCommand(CanExecute = nameof(CanUninstallSelectedApp))]
     private async Task UninstallSelectedAppAsync()
     {

@@ -29,7 +29,8 @@ public sealed class TaskManagerApp : RemoteApplicationBase
         DisplayName: "任务管理器",
         Version: "1.0.0",
         IconGlyph: "📊",
-        Description: "查看 CPU/内存/磁盘/网络/GPU 占用与进程，可结束任务");
+        Description: "查看 CPU/内存/磁盘/网络/GPU 占用与进程，可结束任务",
+        InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {

@@ -19,7 +19,8 @@ public sealed class FirewallApp : RemoteApplicationBase
     public override ApplicationManifest Manifest { get; } = new(
         new AppId("remoteos.firewall"), "Firewall", "0.2.0", "🧱", "Manage Linux Server UFW firewall rules",
         [AppPermissions.ServerFirewallRead, AppPermissions.ServerFirewallManage],
-        ServerRequirements: new ApplicationServerRequirements(Platforms: [ApplicationPlatformNames.Linux], Capabilities: [ServerCapabilities.Firewall]));
+        ServerRequirements: new ApplicationServerRequirements(Platforms: [ApplicationPlatformNames.Linux], Capabilities: [ServerCapabilities.Firewall]),
+        InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {

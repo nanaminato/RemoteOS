@@ -19,7 +19,7 @@ namespace Client.Apps.ProcessGuardian;
 /// <summary>Built-in UI for workloads supervised by the separately installed Guardian Agent.</summary>
 public sealed class ProcessGuardianApp : RemoteApplicationBase
 {
-    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.processguardian"), "Process Guardian", "0.1.0", "🛡", "View RemoteOS Guardian Agent workloads", [AppPermissions.ServerGuardianRead, AppPermissions.ServerGuardianManage]);
+    public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.processguardian"), "Process Guardian", "0.1.0", "🛡", "View RemoteOS Guardian Agent workloads", [AppPermissions.ServerGuardianRead, AppPermissions.ServerGuardianManage], InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
     {

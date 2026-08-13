@@ -30,6 +30,7 @@ public sealed class ExternalAppContextFactory
     private readonly ISettingsNavigation _settingsNavigation;
     private readonly IAppCapabilityClient _capabilities;
     private readonly IAppSettingsClient _appSettings;
+    private readonly IAppActivationService _activations;
 
     public ExternalAppContextFactory(
         IAppPermissionManager permissions,
@@ -43,7 +44,8 @@ public sealed class ExternalAppContextFactory
         IExplorerClient files,
         ISettingsNavigation settingsNavigation,
         IAppCapabilityClient capabilities,
-        IAppSettingsClient appSettings)
+        IAppSettingsClient appSettings,
+        IAppActivationService activations)
     {
         _permissions = permissions;
         _systemLanguage = systemLanguage;
@@ -57,6 +59,7 @@ public sealed class ExternalAppContextFactory
         _settingsNavigation = settingsNavigation;
         _capabilities = capabilities;
         _appSettings = appSettings;
+        _activations = activations;
     }
 
     public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
@@ -69,6 +72,7 @@ public sealed class ExternalAppContextFactory
         new ExternalMediaService(appId, _permissions, _session, _capabilities),
         new ExternalAppSettings(appId, _appSettings),
         _systemLanguage,
+        new ExternalAppActivation(appId, _activations),
         _settingsNavigation,
         new ExternalAppWindowService(appId, _windowManager));
 
@@ -82,8 +86,15 @@ public sealed class ExternalAppContextFactory
         IExternalMediaService Media,
         IExternalAppSettings SettingsStore,
         ISystemLanguage SystemLanguage,
+        IAppActivation Activations,
         ISettingsNavigation Settings,
         IExternalAppWindowService Windows) : IExternalAppContext;
+
+    private sealed class ExternalAppActivation(AppId appId, IAppActivationService activations) : IAppActivation
+    {
+        public AppActivationResult Activate(Uri uri, bool userInitiated = true, string? correlationId = null) =>
+            activations.Activate(new AppActivationRequest(uri, appId, userInitiated, correlationId));
+    }
 
     private sealed class ExternalAppSettings(AppId appId, IAppSettingsClient client) : IExternalAppSettings
     {

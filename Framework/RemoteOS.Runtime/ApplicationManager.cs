@@ -9,7 +9,7 @@ namespace RemoteOS.Runtime;
 /// The RemoteOS application runtime: maintains the registry of installed applications and
 /// launches them on demand, wiring each launch to the shared <see cref="IWindowManager"/>.
 /// </summary>
-public sealed class ApplicationManager
+public sealed class ApplicationManager : IAppActivationService
 {
     private readonly Dictionary<AppId, IRemoteApplication> _apps = new();
     private readonly IWindowManager _windowManager;
@@ -83,11 +83,7 @@ public sealed class ApplicationManager
         if (!_apps.TryGetValue(id, out var app))
             return false;
 
-        var context = new AppContext(id, _windowManager, _services);
-        if (!EnsureCompatible(app.Manifest))
-            return false;
-        app.Activate(context);
-        return true;
+        return ActivateApplication(app, null);
     }
 
     /// <summary>Open a file in a registered file-opening application.</summary>
@@ -99,6 +95,16 @@ public sealed class ApplicationManager
 
         if (!EnsureCompatible(app.Manifest))
             return false;
+        var existing = FindExistingPrimaryWindow(id);
+        if (existing is not null && app.Manifest.InstancePolicy == ApplicationInstancePolicy.SingleWindow)
+        {
+            // A future single-window file application may additionally implement an activation
+            // handler and route its file reference into a tab. Until then, preserving the
+            // single-window guarantee is safer than silently creating another instance.
+            _windowManager.Restore(existing);
+            _windowManager.Focus(existing);
+            return true;
+        }
         fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
         return true;
     }
@@ -123,6 +129,93 @@ public sealed class ApplicationManager
         terminalOpener.OpenTerminal(new AppContext(terminal.Manifest.Id, _windowManager, _services), workingDirectory);
         return true;
     }
+
+    /// <summary>
+    /// Resolves a Shell-owned <c>remoteos://</c> URI. Only registered applications that
+    /// explicitly implement <see cref="IAppActivationHandler"/> can own a route.
+    /// </summary>
+    public AppActivationResult Activate(AppActivationRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Uri);
+        var uri = request.Uri;
+        if (!uri.IsAbsoluteUri || !uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo) || uri.Port != -1)
+            return new AppActivationResult(AppActivationStatus.InvalidUri);
+
+        if (uri.Host.Equals("file", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.Equals("/open", StringComparison.OrdinalIgnoreCase))
+            return ActivateFileOpen(request);
+
+        var matches = _apps.Values
+            .Where(app => app is IAppActivationHandler handler && handler.CanHandleActivation(uri))
+            .ToArray();
+        if (matches.Length != 1)
+            return new AppActivationResult(AppActivationStatus.RouteNotFound);
+
+        var application = matches[0];
+        return ActivateApplication(application, request)
+            ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
+            : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
+    }
+
+    private AppActivationResult ActivateFileOpen(AppActivationRequest request)
+    {
+        // Host paths are intentionally not an inter-package protocol. The Explorer is the only
+        // current first-party caller; package applications must use their file capability APIs.
+        if (request.SourceAppId is not { Value: "remoteos.explorer" })
+            return new AppActivationResult(AppActivationStatus.Unavailable);
+
+        var values = ParseQuery(request.Uri);
+        if (!values.TryGetValue("appId", out var appId) || !values.TryGetValue("path", out var path)
+            || string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(path))
+            return new AppActivationResult(AppActivationStatus.InvalidUri);
+
+        var target = new AppId(appId);
+        return OpenFile(target, path)
+            ? new AppActivationResult(AppActivationStatus.Activated, target)
+            : new AppActivationResult(AppActivationStatus.Unavailable, target);
+    }
+
+    private static IReadOnlyDictionary<string, string> ParseQuery(Uri uri)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var split = pair.IndexOf('=');
+            if (split < 1) continue;
+            var key = Uri.UnescapeDataString(pair[..split]);
+            var value = Uri.UnescapeDataString(pair[(split + 1)..]);
+            if (key.Length <= 32 && value.Length <= 4096)
+                values[key] = value;
+        }
+        return values;
+    }
+
+    private bool ActivateApplication(IRemoteApplication app, AppActivationRequest? request)
+    {
+        if (!EnsureCompatible(app.Manifest))
+            return false;
+
+        var context = new AppContext(app.Manifest.Id, _windowManager, _services);
+        var existing = FindExistingPrimaryWindow(app.Manifest.Id);
+        if (existing is not null && app.Manifest.InstancePolicy == ApplicationInstancePolicy.SingleWindow)
+        {
+            if (request is not null && app is IAppActivationHandler handler)
+                handler.HandleActivation(context, request, existing);
+            _windowManager.Restore(existing);
+            _windowManager.Focus(existing);
+            return true;
+        }
+
+        app.Activate(context);
+        if (request is not null && app is IAppActivationHandler activationHandler)
+            activationHandler.HandleActivation(context, request, FindExistingPrimaryWindow(app.Manifest.Id));
+        return true;
+    }
+
+    private ManagedWindow? FindExistingPrimaryWindow(AppId appId) => _windowManager.Windows
+        .LastOrDefault(window => window.Info.OwnerAppId == appId && !window.IsModalDialog);
 
     private bool EnsureCompatible(ApplicationManifest manifest)
     {

@@ -37,6 +37,8 @@ public interface IExternalAppContext
     IExternalAppSettings SettingsStore { get; }
     /// <summary>Read-only system language and language-change notifications.</summary>
     ISystemLanguage SystemLanguage { get; }
+    /// <summary>Host-validated navigation to a registered <c>remoteos://</c> route.</summary>
+    IAppActivation Activations { get; }
     ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }
 }

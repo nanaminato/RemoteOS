@@ -17,7 +17,8 @@ public sealed record ApplicationManifest(
     IReadOnlyList<string>? ClientPlatforms = null,
     ApplicationServerRequirements? ServerRequirements = null,
     IReadOnlyList<string>? SupportedFileNames = null,
-    bool SupportsExtensionlessFiles = false)
+    bool SupportsExtensionlessFiles = false,
+    ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow)
 {
     /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
     public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);
