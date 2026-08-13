@@ -12,6 +12,7 @@ using Client.Services.AppPermissions;
 using Client.Services.AppSettings;
 using Client.Services.AppPackages;
 using Client.Services.Developer;
+using Client.Services.DesktopRestore;
 using Client.Services.Diagnostics;
 using Client.Services.WindowLayout;
 using Client.ViewModels.Login;
@@ -135,7 +136,9 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, CodeEditorApp>();
         services.AddSingleton<IRemoteApplication, ImageViewerApp>();
         services.AddSingleton<IRemoteApplication, SettingsApp>();
-        services.AddSingleton<IRemoteApplication, TerminalApp>();
+        services.AddSingleton<TerminalApp>();
+        services.AddSingleton<IRemoteApplication>(sp => sp.GetRequiredService<TerminalApp>());
+        services.AddSingleton<IDesktopRestoreParticipant, TerminalDesktopRestoreParticipant>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.PortForwarding.PortForwardingApp>();
@@ -157,8 +160,12 @@ public static class Bootstrapper
                 if (app.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
                     desktop.Shutdown();
             };
-            return new DesktopShellViewModel(wm, apps, settings, localization, session, shutdown);
+            return new DesktopShellViewModel(
+                wm, apps, settings, localization, session, shutdown,
+                sp.GetRequiredService<DesktopRestoreOrchestrator>());
         });
+
+        services.AddSingleton<DesktopRestoreOrchestrator>();
 
         var provider = services.BuildServiceProvider();
 

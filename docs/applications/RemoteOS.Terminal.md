@@ -1,6 +1,6 @@
 # RemoteOS Terminal 模块设计
 
-> **当前 UI 行为（优先于下文早期工具条描述）**：一个服务端 PTY 对应一个桌面终端窗口；不提供会话切换、新建、断开、Restart 或 Clear 按钮。再次打开 Terminal 时，所有存活会话各自恢复为一个窗口。只有关闭某个终端窗口才会显式终止对应的服务端进程。字体、字号和配色为 Workspace 级设置，经 `GET`/`PUT /api/v1/workspaces/{id}/terminal-settings` 保存在服务器端。
+> **当前 UI 行为（优先于下文早期工具条描述）**：一个服务端 PTY 对应一个桌面终端窗口；不提供会话切换、新建、断开、Restart 或 Clear 按钮。进入已认证桌面时会自动恢复所有存活会话；再次手动打开 Terminal 时也会恢复存活会话，若不存在会话则新建一个。只有关闭某个终端窗口才会显式终止对应的服务端进程。字体、字号和配色为 Workspace 级设置，经 `GET`/`PUT /api/v1/workspaces/{id}/terminal-settings` 保存在服务器端。
 
 > 内置终端应用：基于 [RoyalTerminal](https://github.com/royalapplications/RoyalTerminal) NuGet 包引入终端能力，支持 **Remote Mode**（SignalR 远端 PTY）与 **Local Mode**（本地 PTY 回退）。
 >
@@ -204,7 +204,7 @@ app.MapHub<TerminalHub>("/hubs/terminals");
 
 ### 4.4 恢复与多实例
 
-- **恢复**：再次登录打开终端 → `TerminalViewModel.AttachAsync` 用一次性 Hub 连接调 `ListSessions` 拉取该用户会话 → 自动附加最近一个存活会话 → 服务端 `Start(Attach)` 回放 1MB 缓冲快照 → 客户端 `TerminalControl` 渲染历史输出，可继续输入。
+- **恢复**：桌面 Window host 就绪后，`DesktopRestoreOrchestrator` 依次运行恢复参与者。`TerminalDesktopRestoreParticipant` 仅拉取该用户的存活会话；有会话才为各会话创建窗口并通过 `Start(Attach)` 回放 1MB 缓冲快照，无会话或服务不可达时不创建新终端。客户端随后由 `TerminalControl` 渲染历史输出，可继续输入。
 - **多实例**：每用户可有多个终端会话（sessionId 索引）。进程内 `TerminalViewModel._openSessions`（静态 `ConcurrentDictionary`）记录本进程已开 sessionId，避免两个窗口附加同一会话。工具条 ComboBox 可切换、新建、断开。
 
 ---

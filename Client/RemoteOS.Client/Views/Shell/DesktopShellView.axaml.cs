@@ -9,11 +9,13 @@ public partial class DesktopShellView : UserControl
 {
     private Canvas? _host;
     private Canvas? _fullScreenHost;
+    private readonly CancellationTokenSource _desktopLifetime = new();
 
     public DesktopShellView()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += (_, _) => _desktopLifetime.Cancel();
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -35,6 +37,8 @@ public partial class DesktopShellView : UserControl
         UpdateHostBounds();
         UpdateFullScreenHostBounds();
         this.LayoutUpdated -= OnFirstLayout;
+        if (DataContext is DesktopShellViewModel vm)
+            _ = vm.RestoreDesktopStateAsync(_desktopLifetime.Token);
     }
 
     private void UpdateHostBounds()

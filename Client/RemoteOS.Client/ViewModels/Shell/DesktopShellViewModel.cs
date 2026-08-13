@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using Client.Services;
 using Client.Services.Auth;
+using Client.Services.DesktopRestore;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
@@ -25,6 +26,7 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly LocalizationService _localization;
     private readonly Action _shutdown;
     private readonly IAuthSession _session;
+    private readonly DesktopRestoreOrchestrator _desktopRestore;
 
     public DesktopShellViewModel(
         WindowManager windowManager,
@@ -32,7 +34,8 @@ public partial class DesktopShellViewModel : ObservableObject
         ShellSettings settings,
         LocalizationService localization,
         IAuthSession session,
-        Action shutdown)
+        Action shutdown,
+        DesktopRestoreOrchestrator desktopRestore)
     {
         _windowManager = windowManager;
         _applications = applications;
@@ -40,6 +43,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _localization = localization;
         _session = session;
         _shutdown = shutdown;
+        _desktopRestore = desktopRestore;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
@@ -62,6 +66,10 @@ public partial class DesktopShellViewModel : ObservableObject
     public string ConnectionServer => _session.ServerUrl ?? T("shell.connection.not_connected", "Not connected");
     public string ConnectionUser => _session.CurrentUser?.Username ?? T("shell.connection.unknown_user", "Unknown user");
     public string ConnectionWorkspace => _session.CurrentWorkspace?.Name ?? T("shell.connection.default_workspace", "Default workspace");
+
+    /// <summary>Called by the view after WindowManager has attached the desktop window host.</summary>
+    public Task RestoreDesktopStateAsync(CancellationToken cancellationToken = default) =>
+        _desktopRestore.RestoreAsync(cancellationToken);
 
     /// <summary>Live, application-grouped taskbar items.</summary>
     public ObservableCollection<TaskbarGroupViewModel> TaskbarGroups { get; } = new();

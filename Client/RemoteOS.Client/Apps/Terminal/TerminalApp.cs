@@ -16,7 +16,9 @@ namespace Client.Apps.Terminal;
 /// </summary>
 public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplication
 {
-    private static int _opening;
+    // Desktop restoration and an early manual launch may overlap. Serialize them instead of
+    // dropping the manual request while the restore-only list request is in flight.
+    private static readonly SemaphoreSlim Opening = new(1, 1);
 
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.terminal"),
@@ -27,9 +29,17 @@ public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplicatio
 
     public override void Activate(AppContext context)
     {
-        if (Interlocked.Exchange(ref _opening, 1) != 0)
-            return;
-        _ = OpenAsync(context);
+        _ = OpenAsync(context, restoreOnly: false, cancellationToken: CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Restores every live server PTY that is not already represented by a terminal window.
+    /// Unlike ordinary user activation, this never creates a fresh terminal when no PTY exists
+    /// or when the server cannot be reached.
+    /// </summary>
+    public async Task RestoreExistingSessionsAsync(AppContext context, CancellationToken cancellationToken)
+    {
+        await OpenAsync(context, restoreOnly: true, cancellationToken: cancellationToken);
     }
 
     /// <summary>Opens a fresh terminal at a caller-supplied remote-host directory.</summary>
@@ -41,8 +51,9 @@ public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplicatio
         OpenWindow(context, session, diagnostics, sessionId: null, workingDirectory: workingDirectory);
     }
 
-    private async Task OpenAsync(AppContext context)
+    private async Task OpenAsync(AppContext context, bool restoreOnly, CancellationToken cancellationToken)
     {
+        await Opening.WaitAsync(cancellationToken);
         try
         {
             var session = context.Services.GetService<IAuthSession>();
@@ -59,28 +70,52 @@ public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplicatio
                         tokenProvider: () => session.Tokens?.AccessToken,
                         accessToken: tokens.AccessToken,
                         diagnostics: diagnostics);
-                    sessionIds = (await TerminalHubConnection.ListSessionsAsync(options))
+                    sessionIds = (await TerminalHubConnection.ListSessionsAsync(options, cancellationToken))
                         .Where(x => !x.HasExited && !TerminalViewModel.IsSessionOpen(x.SessionId))
                         .OrderBy(x => x.CreatedAt)
                         .Select(x => x.SessionId)
                         .ToArray();
                 }
-                catch { /* an unavailable server falls back to a normal new terminal window */ }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch
+                {
+                    // Manual activation falls back to a new terminal. Desktop restoration is
+                    // intentionally restore-only and leaves the desktop unchanged on failure.
+                    if (restoreOnly)
+                        return;
+                }
             }
+
+            // The desktop might have been closed while the one-shot list request was in flight.
+            // Never turn a restore into a local fallback or a late window in that case.
+            if (restoreOnly && (cancellationToken.IsCancellationRequested
+                || session?.State != AuthSessionState.Authenticated))
+                return;
 
             // No restorable process means this activation starts one fresh terminal. If every
             // existing process is already represented by a window, this is also the explicit
             // way to open an additional terminal from the desktop.
             if (sessionIds.Length == 0)
-                OpenWindow(context, session, diagnostics, null);
+            {
+                if (!restoreOnly)
+                    OpenWindow(context, session, diagnostics, null);
+            }
             else
                 foreach (var sessionId in sessionIds)
+                {
+                    if (restoreOnly && cancellationToken.IsCancellationRequested)
+                        return;
+
                     if (TerminalViewModel.TryReserveSession(sessionId))
                         OpenWindow(context, session, diagnostics, sessionId);
+                }
         }
         finally
         {
-            Volatile.Write(ref _opening, 0);
+            Opening.Release();
         }
     }
 
