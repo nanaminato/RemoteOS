@@ -168,7 +168,7 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
     {
         try
         {
-            Save(_path, _grants, encrypted: true);
+            Save(_path, _decisions, encrypted: true);
             File.Delete(legacyPath);
         }
         catch (CryptographicException) { }

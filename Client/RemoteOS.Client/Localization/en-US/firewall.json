@@ -45,6 +45,8 @@
     "firewall.validation.address_invalid": "Source and destination must be any or a valid IP/CIDR, such as 192.0.2.10 or 2001:db8::/32.",
     "firewall.validation.port_invalid": "Enter a port from 1 to 65535, or a start:end range.",
     "firewall.operation.succeeded": "Firewall configuration updated.",
+    "firewall.permission.read_required": "Firewall access requires the Read firewall configuration permission.",
+    "firewall.permission.manage_required": "Changing the firewall requires the Manage firewall configuration permission.",
     "firewall.operation.failed": "Firewall change failed: {0}"
   }
 }

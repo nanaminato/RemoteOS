@@ -4,6 +4,8 @@ using Client.Localization;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Firewall;
 
 namespace Client.Apps.Firewall;
@@ -13,11 +15,13 @@ public sealed partial class FirewallViewModel : ObservableObject
 {
     private readonly IRemoteFirewallClient _client;
     private readonly IAuthSession _session;
+    private readonly IAppPermissionScope _permissions;
 
-    public FirewallViewModel(IRemoteFirewallClient client, IAuthSession session)
+    public FirewallViewModel(IRemoteFirewallClient client, IAuthSession session, IAppPermissionScope permissions)
     {
         _client = client;
         _session = session;
+        _permissions = permissions;
         Policies = [Option("allow", "firewall.choice.allow"), Option("deny", "firewall.choice.deny"), Option("reject", "firewall.choice.reject")];
         Actions = [.. Policies, Option("limit", "firewall.choice.limit")];
         Directions = [Option("in", "firewall.choice.in"), Option("out", "firewall.choice.out")];
@@ -62,6 +66,16 @@ public sealed partial class FirewallViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
     {
+        if (!HasReadPermission)
+        {
+            Rules.Clear();
+            SelectedRule = null;
+            IsAvailable = false;
+            IsEnabled = false;
+            StatusText = LocalizedText.Get("firewall.permission.read_required");
+            return;
+        }
+
         IsLoading = true;
         try
         {
@@ -170,6 +184,14 @@ public sealed partial class FirewallViewModel : ObservableObject
 
     private async Task<bool> ApplyAsync(Func<FirewallCredentialConfirmation?, Task<FirewallOperationResult>> operation)
     {
+        // CanExecute only controls the UI. Check again here so invoking a command directly
+        // can never turn a read-only firewall grant into a host configuration change.
+        if (!HasManagePermission)
+        {
+            StatusText = LocalizedText.Get("firewall.permission.manage_required");
+            return false;
+        }
+
         FirewallCredentialConfirmation? confirmation = null;
         if (!IsRoot)
         {
@@ -197,8 +219,10 @@ public sealed partial class FirewallViewModel : ObservableObject
         return success;
     }
 
-    private bool CanRefresh => !IsLoading;
-    private bool CanManage => IsAvailable && !IsLoading;
+    private bool HasReadPermission => _permissions.IsGranted(AppPermissions.ServerFirewallRead);
+    private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerFirewallManage);
+    private bool CanRefresh => HasReadPermission && !IsLoading;
+    private bool CanManage => HasManagePermission && IsAvailable && !IsLoading;
     private bool CanEnable => CanManage && !IsEnabled;
     private bool CanDisable => CanManage && IsEnabled;
     private bool CanUpdateRule => CanManage && SelectedRule is not null;

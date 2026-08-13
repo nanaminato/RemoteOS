@@ -45,6 +45,8 @@
     "firewall.validation.address_invalid": "送信元と送信先には、任意または有効な IP/CIDR（例: 192.0.2.10、2001:db8::/32）を入力してください。",
     "firewall.validation.port_invalid": "ポートは 1～65535、または 開始:終了 の範囲で入力してください。",
     "firewall.operation.succeeded": "ファイアウォールの設定を更新しました。",
+    "firewall.permission.read_required": "ファイアウォールにアクセスするには、「ファイアウォール設定を読み取る」アクセス許可が必要です。",
+    "firewall.permission.manage_required": "ファイアウォールを変更するには、「ファイアウォール設定を管理する」アクセス許可が必要です。",
     "firewall.operation.failed": "ファイアウォールの変更に失敗しました: {0}"
   }
 }

@@ -45,6 +45,8 @@
     "firewall.validation.address_invalid": "来源和目标应为“任意”或有效的 IP/CIDR，例如 192.0.2.10 或 2001:db8::/32。",
     "firewall.validation.port_invalid": "端口应为 1 到 65535，或使用“起始:结束”的范围。",
     "firewall.operation.succeeded": "防火墙配置已更新。",
+    "firewall.permission.read_required": "访问防火墙需要“读取防火墙配置”权限。",
+    "firewall.permission.manage_required": "更改防火墙需要“管理防火墙配置”权限。",
     "firewall.operation.failed": "防火墙更改失败：{0}"
   }
 }

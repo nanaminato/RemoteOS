@@ -8,6 +8,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
+using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
 
 namespace Client.Services.AppPermissions;
 
@@ -93,7 +94,7 @@ public sealed class AppPermissionRequestService : IAppPermissionRequestService
         AppId appId, string permissionId, CancellationToken cancellationToken)
     {
         var app = _applications.Registered.FirstOrDefault(candidate => candidate.Id == appId);
-        var permission = AppPermissions.Find(permissionId);
+        var permission = CoreAppPermissions.Find(permissionId);
         var owner = await WaitForOwnerAsync(appId, cancellationToken);
         if (app is null || permission is null || owner is null)
             return null;
@@ -138,7 +139,7 @@ public sealed class AppPermissionRequestService : IAppPermissionRequestService
         .LastOrDefault(window => window.Info.OwnerAppId == appId && !window.IsModalDialog);
 
     private bool IsDeclared(AppId appId, string permissionId) =>
-        AppPermissions.IsKnown(permissionId)
+        CoreAppPermissions.IsKnown(permissionId)
         && _applications.GetManifest(appId)?.Permissions.Contains(permissionId, StringComparer.Ordinal) == true;
 
     private static Task<T> OnUiThreadAsync<T>(Func<Task<T>> action)

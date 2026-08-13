@@ -31,7 +31,7 @@ public sealed class FirewallApp : RemoteApplicationBase
             context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), new TextBlock { Text = LocalizedText.Get("firewall.login_required"), Margin = new Avalonia.Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false);
             return;
         }
-        var viewModel = new FirewallViewModel(client, session);
+        var viewModel = new FirewallViewModel(client, session, context.Permissions);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(70, 55, 1160, 760), Manifest.IconGlyph);
         viewModel.RequestPasswordAsync = () => RequestPasswordAsync(context, window);
         _ = viewModel.StartAsync();
