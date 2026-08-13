@@ -40,6 +40,7 @@
         "settings.pairing_token": "ペアリング トークン",
         "settings.app_information": "アプリ情報",
         "settings.uninstall": "アンインストール",
+        "settings.clear_data": "データを消去",
         "settings.app_permissions": "アプリのアクセス許可",
         "settings.apps.no_permissions": "このアプリケーションは RemoteOS の権限を要求していません。",
         "settings.apps.permissions_requested": "このアプリケーションは {0} 件の RemoteOS 権限を要求しています。",
@@ -101,6 +102,19 @@
         "settings.network.test_failed": "失敗: {0}",
         "settings.apps.permissions_title": "{0} の権限",
         "settings.apps.uninstall_title": "{0} のアンインストール",
-        "settings.apps.uninstall_confirmation": "「{0}」をアンインストールしますか？アプリケーションのローカルにインストールされたファイルが削除されます。"
+        "settings.apps.uninstall_confirmation": "「{0}」をアンインストールしますか？アプリケーションのローカルにインストールされたファイルが削除されます。",
+        "settings.apps.clear_data_title": "{0} のデータを消去",
+        "settings.apps.clear_data_description": "追加で削除するデータを選択します。ローカル アプリ データは常に削除されます。",
+        "settings.apps.clear_data.local": "ローカル アプリ データ",
+        "settings.apps.clear_data.local_hint": "このデバイスから常に削除されます。アプリケーションのインストール ファイルは削除されません。",
+        "settings.apps.clear_data.permissions": "アクセス許可の決定",
+        "settings.apps.clear_data.permissions_hint": "このデバイスの許可と拒否の決定を削除します。次にアプリを開くと、再び確認されます。",
+        "settings.apps.clear_data.server": "サーバー アプリ データ",
+        "settings.apps.clear_data.server_hint": "現在の RemoteOS アカウント内にある、このアプリのすべての非公開設定を削除します。",
+        "settings.apps.clear_data.action": "データを消去",
+        "settings.apps.clear_data.complete_local": "ローカル アプリ データを消去しました。",
+        "settings.apps.clear_data.complete_permissions": "アプリ データと選択したアクセス許可の決定を消去しました。",
+        "settings.apps.clear_data.complete_server": "アプリ データと選択した追加データを消去しました。",
+        "settings.apps.clear_data.failed": "アプリ データを消去できませんでした: {0}"
     }
 }

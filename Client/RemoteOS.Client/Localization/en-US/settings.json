@@ -40,6 +40,7 @@
         "settings.pairing_token": "Pairing token",
         "settings.app_information": "Application information",
         "settings.uninstall": "Uninstall",
+        "settings.clear_data": "Clear data",
         "settings.app_permissions": "Application permissions",
         "settings.apps.no_permissions": "This application does not request RemoteOS permissions.",
         "settings.apps.permissions_requested": "This application requests {0} RemoteOS permissions.",
@@ -101,6 +102,19 @@
         "settings.network.test_failed": "Failed: {0}",
         "settings.apps.permissions_title": "{0} permissions",
         "settings.apps.uninstall_title": "Uninstall {0}",
-        "settings.apps.uninstall_confirmation": "Uninstall \"{0}\"? This deletes the application\u0027s locally installed files."
+        "settings.apps.uninstall_confirmation": "Uninstall \"{0}\"? This deletes the application\u0027s locally installed files.",
+        "settings.apps.clear_data_title": "Clear {0} data",
+        "settings.apps.clear_data_description": "Choose the optional data to remove. Local application data is always removed.",
+        "settings.apps.clear_data.local": "Local application data",
+        "settings.apps.clear_data.local_hint": "Always removed from this device. Application installation files are not removed.",
+        "settings.apps.clear_data.permissions": "Permission decisions",
+        "settings.apps.clear_data.permissions_hint": "Remove this device's allowed and denied decisions; the app will ask again when opened.",
+        "settings.apps.clear_data.server": "Server application data",
+        "settings.apps.clear_data.server_hint": "Remove all private settings for this application in your current RemoteOS account.",
+        "settings.apps.clear_data.action": "Clear data",
+        "settings.apps.clear_data.complete_local": "Local application data was cleared.",
+        "settings.apps.clear_data.complete_permissions": "Application data and selected permission decisions were cleared.",
+        "settings.apps.clear_data.complete_server": "Application data and the selected optional data were cleared.",
+        "settings.apps.clear_data.failed": "Could not clear application data: {0}"
     }
 }

@@ -18,6 +18,9 @@ public static class AppSettingsApiRoutes
 
     /// <summary>GET/PUT one configuration document. App id, scope, and key are path parameters.</summary>
     public const string Document = $"/{V1}/app-settings/{{appId}}/{{scope}}/{{key}}";
+
+    /// <summary>Deletes every private settings document for one app in the authenticated user's tenant.</summary>
+    public const string Application = $"/{V1}/app-settings/{{appId}}";
 }
 
 /// <summary>A versioned JSON configuration document owned by one application.</summary>

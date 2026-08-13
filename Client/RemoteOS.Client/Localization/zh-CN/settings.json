@@ -40,6 +40,7 @@
         "settings.pairing_token": "配对令牌",
         "settings.app_information": "应用信息",
         "settings.uninstall": "卸载",
+        "settings.clear_data": "清除数据",
         "settings.app_permissions": "应用权限",
         "settings.apps.no_permissions": "此应用程序未请求任何 RemoteOS 权限。",
         "settings.apps.permissions_requested": "此应用程序请求了 {0} 项 RemoteOS 权限。",
@@ -101,6 +102,19 @@
         "settings.network.test_failed": "失败：{0}",
         "settings.apps.permissions_title": "{0} 权限",
         "settings.apps.uninstall_title": "卸载 {0}",
-        "settings.apps.uninstall_confirmation": "卸载“{0}”？这将删除该应用程序在本地安装的文件。"
+        "settings.apps.uninstall_confirmation": "卸载“{0}”？这将删除该应用程序在本地安装的文件。",
+        "settings.apps.clear_data_title": "清除 {0} 的数据",
+        "settings.apps.clear_data_description": "选择要额外删除的数据。本地应用数据将始终被删除。",
+        "settings.apps.clear_data.local": "本地应用数据",
+        "settings.apps.clear_data.local_hint": "始终从此设备删除；不会删除应用安装文件。",
+        "settings.apps.clear_data.permissions": "权限审批决定",
+        "settings.apps.clear_data.permissions_hint": "删除此设备上的允许和拒绝决定；下次打开应用时会重新审批。",
+        "settings.apps.clear_data.server": "服务端应用数据",
+        "settings.apps.clear_data.server_hint": "删除此 RemoteOS 账户中该应用的全部私有设置。",
+        "settings.apps.clear_data.action": "清除数据",
+        "settings.apps.clear_data.complete_local": "已清除本地应用数据。",
+        "settings.apps.clear_data.complete_permissions": "已清除应用数据和所选的权限审批决定。",
+        "settings.apps.clear_data.complete_server": "已清除应用数据和所选的可选数据。",
+        "settings.apps.clear_data.failed": "无法清除应用数据：{0}"
     }
 }

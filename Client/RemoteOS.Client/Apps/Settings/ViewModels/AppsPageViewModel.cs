@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using Client.Apps.Browser;
 using Client.Services;
+using Client.Services.AppPermissions;
 using Client.Services.Developer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -48,11 +49,14 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     public Func<ApplicationInfo, Task>? RequestPermissionEditorAsync { get; set; }
     /// <summary>Provided by Settings so an uninstall always has an explicit confirmation step.</summary>
     public Func<ApplicationInfo, Task<bool>>? RequestUninstallConfirmationAsync { get; set; }
+    /// <summary>Provided by Settings to choose and clear one application's data categories.</summary>
+    public Func<ApplicationInfo, Task<AppDataClearResult?>>? RequestClearDataAsync { get; set; }
 
     [ObservableProperty] private AppsSubpage _subpage = AppsSubpage.InstalledApps;
     [ObservableProperty] private ApplicationInfo? _selectedApp;
     [ObservableProperty] private string _actionStatus = string.Empty;
     [ObservableProperty] private bool _isUninstalling;
+    [ObservableProperty] private bool _isClearingData;
     [ObservableProperty] private bool _isBrowserSettingsLoading;
     [ObservableProperty] private bool _isSavingBrowserSettings;
     [ObservableProperty] private string _browserSettingsStatus = string.Empty;
@@ -171,6 +175,32 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
     private bool CanOpenSelectedApp() => SelectedApp is not null;
 
     [RelayCommand]
+    private async Task ClearSelectedAppDataAsync()
+    {
+        if (SelectedApp is null || IsClearingData || RequestClearDataAsync is null)
+            return;
+
+        IsClearingData = true;
+        try
+        {
+            var result = await RequestClearDataAsync(SelectedApp);
+            if (result is null)
+                return;
+            ActionStatus = result.ServerDataCleared
+                ? T("settings.apps.clear_data.complete_server", "Application data and the selected optional data were cleared.")
+                : result.PermissionDecisionsCleared
+                    ? T("settings.apps.clear_data.complete_permissions", "Application data and selected permission decisions were cleared.")
+                    : T("settings.apps.clear_data.complete_local", "Local application data was cleared.");
+        }
+        catch (Exception exception)
+        {
+            ActionStatus = string.Format(CultureInfo.CurrentCulture,
+                T("settings.apps.clear_data.failed", "Could not clear application data: {0}"), exception.Message);
+        }
+        finally { IsClearingData = false; }
+    }
+
+    [RelayCommand]
     private async Task SaveBrowserLinkOpenTargetAsync()
     {
         if (!IsBrowserSettingsVisible || IsSavingBrowserSettings)
@@ -242,6 +272,8 @@ public sealed partial class AppsPageViewModel : SettingsPageViewModel, IDisposab
         OnPropertyChanged(nameof(UninstallAvailabilityText));
         UninstallSelectedAppCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsClearingDataChanged(bool value) => OnPropertyChanged(nameof(CanUninstallSelectedApp));
 
     partial void OnActionStatusChanged(string value) => OnPropertyChanged(nameof(HasActionStatus));
     partial void OnBrowserLinkOpenTargetChanged(BrowserLinkOpenTarget value)

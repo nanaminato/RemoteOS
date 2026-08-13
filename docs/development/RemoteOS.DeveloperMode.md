@@ -99,6 +99,20 @@ Management permissions include only the minimal inspection needed to safely perf
 
 Grants are local to the desktop client. On Windows they are stored with current-user DPAPI protection; other platforms use the compatible local JSON fallback.
 
+## Clearing application data
+
+**Settings → Applications → [application] → Clear data** always removes the application's
+standard local-data directory on the current device. It deliberately does not uninstall the
+package. The user may additionally choose either or both of the following:
+
+- **Permission decisions**: removes local `Granted`/`Denied` decisions for that app id. Its
+  declared permissions are therefore `Undecided` and will be requested again at a later launch.
+- **Server application data**: deletes every `IExternalAppContext.SettingsStore` document for
+  that app and current user, across its user, workspace, and device scopes.
+
+The second option is account-wide private configuration deletion, not merely a reset of the
+current device. A package must therefore tolerate missing settings documents after any launch.
+
 ## Runtime permission approval
 
 When an application opens, the Shell opens one app-owned prompt for every declared permission that

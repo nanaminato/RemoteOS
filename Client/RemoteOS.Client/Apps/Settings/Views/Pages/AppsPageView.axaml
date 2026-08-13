@@ -59,6 +59,7 @@
                     <Grid ColumnDefinitions="120,*"><TextBlock Text="{loc:Loc settings.version}" Opacity="0.65" /><TextBlock Grid.Column="1" Text="{Binding SelectedApp.Version}" /></Grid>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="primary" Content="{loc:Loc common.open}" Command="{Binding OpenSelectedAppCommand}" Padding="16,7" />
+                        <Button Content="{loc:Loc settings.clear_data}" Command="{Binding ClearSelectedAppDataCommand}" IsEnabled="{Binding !IsClearingData}" Padding="16,7" />
                         <Button Content="{loc:Loc settings.uninstall}" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
                     </StackPanel>
                     <TextBlock Text="{Binding UninstallAvailabilityText}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />

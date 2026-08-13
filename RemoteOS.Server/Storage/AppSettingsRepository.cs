@@ -8,6 +8,7 @@ public interface IAppSettingsRepository
 {
     AppSetting? Find(Guid userId, AppSettingsScope scope, Guid scopeId, string appId, string key);
     AppSettingsWriteResult Upsert(AppSetting setting, long? expectedRevision);
+    int DeleteForApp(Guid userId, string appId);
 }
 
 public sealed record AppSettingsWriteResult(AppSetting? Setting, bool IsConflict)
@@ -49,6 +50,18 @@ public sealed class InMemoryAppSettingsRepository : IAppSettingsRepository
             var saved = Copy(setting);
             _items[tuple] = saved;
             return new AppSettingsWriteResult(Copy(saved), false);
+        }
+    }
+
+    public int DeleteForApp(Guid userId, string appId)
+    {
+        lock (_gate)
+        {
+            var keys = _items.Keys.Where(key => key.UserId == userId
+                && key.AppId.Equals(appId, StringComparison.Ordinal)).ToArray();
+            foreach (var key in keys)
+                _items.TryRemove(key, out _);
+            return keys.Length;
         }
     }
 

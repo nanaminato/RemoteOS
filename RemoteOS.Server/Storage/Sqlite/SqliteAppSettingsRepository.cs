@@ -52,4 +52,8 @@ public sealed class SqliteAppSettingsRepository(RemoteOsDbContext db) : IAppSett
             return AppSettingsWriteResult.Conflict;
         }
     }
+
+    public int DeleteForApp(Guid userId, string appId) => db.AppSettings
+        .Where(setting => setting.UserId == userId && setting.AppId == appId)
+        .ExecuteDelete();
 }

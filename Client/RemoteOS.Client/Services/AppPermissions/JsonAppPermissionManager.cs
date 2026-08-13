@@ -84,6 +84,16 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager
         }
     }
 
+    public void Clear(AppId appId)
+    {
+        lock (_gate)
+        {
+            if (!_decisions.Remove(appId.Value))
+                return;
+            Save(_path, _decisions, _useEncryption);
+        }
+    }
+
     private static Dictionary<string, Dictionary<string, AppPermissionStatus>> Load(string path, string? legacyPath, bool encrypted)
     {
         var json = Read(path, encrypted) ?? (legacyPath is null ? null : Read(legacyPath, encrypted: false));

@@ -10,4 +10,5 @@ public interface IAppPermissionManager
     bool IsGranted(AppId appId, string permissionId);
     void SetStatus(AppId appId, string permissionId, AppPermissionStatus status);
     void SetGranted(AppId appId, string permissionId, bool granted);
+    void Clear(AppId appId);
 }

@@ -49,6 +49,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
         var system = context.Services.GetRequiredService<ITaskManagerClient>();
         var registry = context.Services.GetRequiredService<DefaultAppRegistry>();
         var permissions = context.Services.GetRequiredService<IAppPermissionManager>();
+        var appData = context.Services.GetRequiredService<IAppDataManager>();
         var localization = context.Services.GetRequiredService<LocalizationService>();
         var developerMode = context.Services.GetRequiredService<DeveloperModeService>();
         var packages = context.Services.GetRequiredService<DeveloperPackageManager>();
@@ -112,6 +113,15 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                     LocalizedText.Get("settings.uninstall")),
             });
             return confirmed;
+        };
+        appsPage.RequestClearDataAsync = async app =>
+        {
+            var options = await context.ShowDialogAsync<AppDataClearOptions?>(window,
+                LocalizedText.Format("settings.apps.clear_data_title", app.DisplayName), dialog => new AppDataClearDialogView
+                {
+                    DataContext = new AppDataClearDialogViewModel(app, dialog.Close),
+                }, new Size(520, 390));
+            return options is null ? null : await appData.ClearAsync(app.Id, options);
         };
 
         EventHandler<ManagedWindow>? closed = null;

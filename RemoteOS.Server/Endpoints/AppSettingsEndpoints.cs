@@ -63,6 +63,19 @@ public static partial class AppSettingsEndpoints
             return Results.Ok(ToDto(saved));
         }).RequireAuthorization().WithTags("Application settings");
 
+        app.MapDelete(AppSettingsApiRoutes.Application, (string appId, ClaimsPrincipal principal, IAppSettingsRepository settings) =>
+        {
+            if (!AppIdPattern().IsMatch(appId))
+                return Results.BadRequest(new { message = "Invalid application id." });
+            var subject = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(subject, out var userId))
+                return Results.Unauthorized();
+
+            var deleted = settings.DeleteForApp(userId, appId);
+            return Results.Ok(new { deleted });
+        }).RequireAuthorization().WithTags("Application settings");
+
         return app;
     }
 
