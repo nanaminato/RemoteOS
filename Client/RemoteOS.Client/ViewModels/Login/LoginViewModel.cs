@@ -183,8 +183,17 @@ public partial class LoginViewModel : ObservableObject
         {
             var profiles = await _session.GetSavedProfilesAsync(ct);
             SavedProfiles.Clear();
-            foreach (var profile in profiles)
-                SavedProfiles.Add(profile);
+            // Keep an empty, normal-height item in the editable server picker when there is no history.
+            // Without it Avalonia renders the drop-down as a nearly invisible separator.
+            if (profiles.Count == 0)
+            {
+                SavedProfiles.Add(new SavedLoginProfile(string.Empty, string.Empty, null, DateTimeOffset.MinValue));
+            }
+            else
+            {
+                foreach (var profile in profiles)
+                    SavedProfiles.Add(profile);
+            }
             HasSavedPasswordProfiles = profiles.Any(profile => profile.HasPassword);
             ShowOptions = !HasSavedPasswordProfiles;
 
