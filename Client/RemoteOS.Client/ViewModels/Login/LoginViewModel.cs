@@ -15,6 +15,11 @@ namespace Client.ViewModels.Login;
 /// 通过 IAuthSession 发起登录，状态/错误反馈到 UI。设备信息自动采集（本机名/平台/客户端版本）。</summary>
 public partial class LoginViewModel : ObservableObject
 {
+#if DEBUG
+    private const string DebugPasswordEnvironmentVariable = "password";
+    private readonly string? _debugPassword = Environment.GetEnvironmentVariable(DebugPasswordEnvironmentVariable);
+#endif
+
     private readonly IAuthSession _session;
     private readonly LoginLocalizationService _localization;
     private bool _loadingSavedProfiles;
@@ -24,6 +29,11 @@ public partial class LoginViewModel : ObservableObject
         _session = session;
         _localization = localization;
         SavedProfiles = new ObservableCollection<SavedLoginProfile>();
+#if DEBUG
+        // Development-only convenience for local integration testing. This is deliberately
+        // compiled out of Release builds, and the value is only kept in the login view model.
+        Password = _debugPassword ?? string.Empty;
+#endif
         _localization.LanguageChanged += (_, _) => OnPropertyChanged(string.Empty);
     }
 
@@ -215,7 +225,12 @@ public partial class LoginViewModel : ObservableObject
     {
         ServerUrl = profile.ServerUrl;
         Username = profile.Username;
+#if DEBUG
+        // Keep the debug credential authoritative even when a remembered profile has no password.
+        Password = _debugPassword ?? profile.Password ?? string.Empty;
+#else
         Password = profile.Password ?? string.Empty;
+#endif
         RememberServer = true;
         RememberPassword = profile.HasPassword;
     }
