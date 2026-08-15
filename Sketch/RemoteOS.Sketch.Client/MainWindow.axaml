@@ -1,14 +1,99 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RemoteOS.Sketch.Client.MainWindow" Width="1180" Height="760" MinWidth="900" MinHeight="600" Title="RemoteOS Sketch">
-  <Grid ColumnDefinitions="220,*" Background="#F7F8FA">
-    <Border Background="#172033" Padding="18"><StackPanel Spacing="8"><TextBlock Text="RemoteOS" FontSize="23" FontWeight="SemiBold" Foreground="White"/><TextBlock Text="Server management sketch" Opacity=".72" Foreground="White" Margin="0,0,0,20"/>
-      <Button Content="Overview" Click="ShowOverview"/><Button Content="🐳  Docker Manager" Click="ShowDocker"/><Button Content="🌐  Nginx Manager" Click="ShowNginx"/><Button Content="🔐  Certificate Manager" Click="ShowCertificates"/>
-      <Border Height="1" Background="#60708D" Margin="0,18"/><TextBlock Text="Mock login: design-user" Foreground="White" Opacity=".75" TextWrapping="Wrap"/>
-    </StackPanel></Border>
-    <ScrollViewer Grid.Column="1"><StackPanel Margin="34" Spacing="18">
-      <StackPanel x:Name="OverviewPage" Spacing="14"><TextBlock Text="Server Overview" FontSize="28" FontWeight="SemiBold"/><TextBlock x:Name="ConnectionStatus" Text="Mock Server · connecting with design-user…" Opacity=".7"/><WrapPanel ItemWidth="230" ItemHeight="110"><Border Background="White" Margin="0,0,14,14" Padding="16"><StackPanel><TextBlock Text="Docker" FontWeight="SemiBold"/><TextBlock Text="Installed · 3 containers running" Margin="0,8,0,0"/></StackPanel></Border><Border Background="White" Margin="0,0,14,14" Padding="16"><StackPanel><TextBlock Text="Nginx" FontWeight="SemiBold"/><TextBlock Text="Not installed" Margin="0,8,0,0"/></StackPanel></Border><Border Background="White" Margin="0,0,14,14" Padding="16"><StackPanel><TextBlock Text="Certificates" FontWeight="SemiBold"/><TextBlock Text="ACME client not ready" Margin="0,8,0,0"/></StackPanel></Border></WrapPanel></StackPanel>
-      <StackPanel x:Name="DockerPage" IsVisible="False" Spacing="12"><TextBlock Text="Docker Manager" FontSize="28" FontWeight="SemiBold"/><TextBlock Text="Docker Engine 27.1.1 · Installed" Foreground="#14804A"/><TextBlock Text="Containers" FontSize="18" FontWeight="SemiBold"/><Border Background="White" Padding="14"><TextBlock Text="remoteos-web     nginx:1.27              Running     80:80, 443:443&#x0a;remoteos-api      remoteos/server:sketch  Running     5000:8080&#x0a;postgres          postgres:16             Stopped     5432:5432" FontFamily="Consolas" LineHeight="26"/></Border></StackPanel>
-      <StackPanel x:Name="NginxPage" IsVisible="False" Spacing="12"><TextBlock Text="Nginx Manager" FontSize="28" FontWeight="SemiBold"/><Border Background="White" Padding="24"><StackPanel Spacing="10"><TextBlock Text="Nginx is not installed" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="Install Nginx before managing sites, reverse proxies, configuration versions, and logs." TextWrapping="Wrap"/><TextBlock Text="Getting started" FontWeight="SemiBold" Margin="0,10,0,0"/><TextBlock Text="1. Review your platform and the official Nginx installation guide.&#x0a;2. An administrator installs and starts Nginx.&#x0a;3. Refresh this page to verify service status." TextWrapping="Wrap" LineHeight="25"/><TextBlock Text="Production will use a reviewed install plan, never user-provided shell text." Opacity=".68" TextWrapping="Wrap"/></StackPanel></Border></StackPanel>
-      <StackPanel x:Name="CertificatesPage" IsVisible="False" Spacing="12"><TextBlock Text="Certificate Manager" FontSize="28" FontWeight="SemiBold"/><Border Background="White" Padding="24"><StackPanel Spacing="10"><TextBlock Text="Certificate service is not ready" FontSize="22" FontWeight="SemiBold"/><TextBlock Text="This page will issue and renew HTTPS certificates after an approved ACME client is available." TextWrapping="Wrap"/><TextBlock Text="Getting started" FontWeight="SemiBold" Margin="0,10,0,0"/><TextBlock Text="1. Install a supported ACME client.&#x0a;2. Prepare DNS or HTTP-01 validation.&#x0a;3. Verify the service before issuing a certificate." TextWrapping="Wrap" LineHeight="25"/><TextBlock Text="Private keys and DNS credentials stay in server-side secure storage." Opacity=".68" TextWrapping="Wrap"/></StackPanel></Border></StackPanel>
-    </StackPanel></ScrollViewer>
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemoteOS.Sketch.Client.MainWindow"
+        Width="1280" Height="800" MinWidth="960" MinHeight="620"
+        Title="RemoteOS Desktop"
+        Background="#0B1530">
+  <Grid RowDefinitions="*,72">
+    <Grid>
+      <Grid.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#142A59" Offset="0"/>
+          <GradientStop Color="#0B1530" Offset="0.55"/>
+          <GradientStop Color="#172F62" Offset="1"/>
+        </LinearGradientBrush>
+      </Grid.Background>
+
+      <Border Width="500" Height="500" CornerRadius="250" Background="#2A5DA8" Opacity=".15" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-230,-170,0"/>
+      <Border Width="430" Height="430" CornerRadius="215" Background="#55C1D5" Opacity=".08" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-180,0,0,-210"/>
+
+      <Grid Margin="42,34" RowDefinitions="Auto,*,Auto">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="3">
+            <TextBlock Text="RemoteOS" FontSize="25" FontWeight="SemiBold" Foreground="White"/>
+            <TextBlock Text="Infrastructure workspace" FontSize="13" Foreground="#B4C5E5"/>
+          </StackPanel>
+          <Border Grid.Column="1" Background="#1D3562" BorderBrush="#3D5B8D" BorderThickness="1" CornerRadius="18" Padding="12,6">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Ellipse Width="8" Height="8" Fill="#55D993" VerticalAlignment="Center"/>
+              <TextBlock x:Name="ConnectionStatus" Text="Connecting…" Foreground="#DCE8FF" FontSize="12"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="720" Spacing="25">
+          <StackPanel Spacing="7" HorizontalAlignment="Center">
+            <TextBlock Text="Good to see you" FontSize="16" Foreground="#C6D5F0" HorizontalAlignment="Center"/>
+            <TextBlock Text="Server Desktop" FontSize="40" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+            <TextBlock Text="Open a management app to work with your local services." FontSize="15" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+          </StackPanel>
+
+          <WrapPanel HorizontalAlignment="Center" ItemWidth="220" ItemHeight="230">
+            <Button Classes="app-tile" Click="OpenDocker" ToolTip.Tip="Open Docker Manager">
+              <StackPanel Spacing="15" HorizontalAlignment="Center">
+                <Border Width="76" Height="76" Background="#147CB8" CornerRadius="22">
+                  <TextBlock Text="🐳" FontSize="38" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Docker Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock Text="3 containers running" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </StackPanel>
+            </Button>
+            <Button Classes="app-tile" Click="OpenNginx" ToolTip.Tip="Open Nginx Manager">
+              <StackPanel Spacing="15" HorizontalAlignment="Center">
+                <Border Width="76" Height="76" Background="#159B77" CornerRadius="22">
+                  <TextBlock Text="N" FontSize="39" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Nginx Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock Text="1 site · service offline" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </StackPanel>
+            </Button>
+            <Button Classes="app-tile" Click="OpenCertificates" ToolTip.Tip="Open Certificate Manager">
+              <StackPanel Spacing="15" HorizontalAlignment="Center">
+                <Border Width="76" Height="76" Background="#8C55CB" CornerRadius="22">
+                  <TextBlock Text="⌁" FontSize="46" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Certificate Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock Text="No ACME client detected" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                </StackPanel>
+              </StackPanel>
+            </Button>
+          </WrapPanel>
+        </StackPanel>
+
+        <Border Grid.Row="2" HorizontalAlignment="Center" Background="#112348" BorderBrush="#314C7A" BorderThickness="1" CornerRadius="12" Padding="14,8">
+          <TextBlock Text="Design preview · Local mock service · design-user" Foreground="#B4C5E5" FontSize="12"/>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="1" Background="#0B1430" BorderBrush="#263D68" BorderThickness="0,1,0,0">
+      <Grid Margin="34,0" ColumnDefinitions="*,Auto,*">
+        <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+          <Border Width="11" Height="11" CornerRadius="6" Background="#55D993"/>
+          <TextBlock Text="All systems available" Foreground="#C5D5F2" FontSize="12" VerticalAlignment="Center"/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+          <Button Classes="taskbar-app" Click="OpenDocker" Content="🐳" ToolTip.Tip="Docker Manager"/>
+          <Button Classes="taskbar-app" Click="OpenNginx" Content="N" ToolTip.Tip="Nginx Manager"/>
+          <Button Classes="taskbar-app" Click="OpenCertificates" Content="⌁" ToolTip.Tip="Certificate Manager"/>
+        </StackPanel>
+        <TextBlock Grid.Column="2" x:Name="ClockText" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#C5D5F2" FontSize="12"/>
+      </Grid>
+    </Border>
   </Grid>
 </Window>

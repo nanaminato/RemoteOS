@@ -1,1 +1,45 @@
-<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RemoteOS.Sketch.Client.App"><Application.Styles><FluentTheme /></Application.Styles></Application>
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RemoteOS.Sketch.Client.App">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Button.app-tile">
+      <Setter Property="Background" Value="#1A315B"/>
+      <Setter Property="BorderBrush" Value="#3B5788"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Padding" Value="20"/>
+      <Setter Property="Margin" Value="8"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.app-tile:pointerover">
+      <Setter Property="Background" Value="#254577"/>
+      <Setter Property="BorderBrush" Value="#6A8FC8"/>
+    </Style>
+    <Style Selector="Button.taskbar-app">
+      <Setter Property="Width" Value="38"/>
+      <Setter Property="Height" Value="38"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Background" Value="#1C3765"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Button.primary-action">
+      <Setter Property="Background" Value="#2764BE"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="15,8"/>
+    </Style>
+    <Style Selector="Button.manager-nav">
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="Foreground" Value="#36506F"/>
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Button.manager-nav:pointerover">
+      <Setter Property="Background" Value="#DCE9FC"/>
+      <Setter Property="Foreground" Value="#174C97"/>
+    </Style>
+  </Application.Styles>
+</Application>

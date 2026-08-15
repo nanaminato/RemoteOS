@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RemoteOS.Sketch.Client.ManagerWindow"
+        Width="980" Height="640" MinWidth="780" MinHeight="510"
+        Background="#F4F7FB">
+  <Grid RowDefinitions="Auto,*">
+    <Border Background="#122344" Padding="28,22">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border x:Name="AppMark" Width="46" Height="46" CornerRadius="14" Background="#147CB8">
+          <TextBlock x:Name="AppMarkText" Text="🐳" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+        <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="2">
+          <TextBlock x:Name="TitleText" Text="Manager" FontSize="22" FontWeight="SemiBold" Foreground="White"/>
+          <TextBlock x:Name="SubtitleText" Text="Service management" FontSize="13" Foreground="#B8C9E6"/>
+        </StackPanel>
+        <Border Grid.Column="2" Background="#1C3765" CornerRadius="16" Padding="11,5" VerticalAlignment="Center">
+          <TextBlock x:Name="StatusPill" Text="Ready" Foreground="#C8F6DD" FontSize="12"/>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="190,*">
+      <Border Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0" Padding="14,22">
+        <StackPanel Spacing="6">
+          <TextBlock Text="WORKSPACE" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6"/>
+          <StackPanel x:Name="NavigationPanel" Spacing="3"/>
+        </StackPanel>
+      </Border>
+    <ScrollViewer Grid.Column="1">
+      <StackPanel Margin="30" Spacing="22">
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="18">
+          <Border Background="White" CornerRadius="14" Padding="20" BoxShadow="0 3 14 0 #100F2540">
+            <StackPanel Spacing="7">
+              <TextBlock Text="Service status" Foreground="#61708B" FontSize="12"/>
+              <TextBlock x:Name="ServiceStatusText" Text="Installed" FontSize="24" FontWeight="SemiBold" Foreground="#163059"/>
+              <TextBlock x:Name="ServiceDetailText" Text="All services are healthy." Foreground="#61708B" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Background="White" CornerRadius="14" Padding="20" BoxShadow="0 3 14 0 #100F2540">
+            <StackPanel Spacing="7">
+              <TextBlock x:Name="MetricLabel" Text="Version" Foreground="#61708B" FontSize="12"/>
+              <TextBlock x:Name="MetricValue" Text="—" FontSize="24" FontWeight="SemiBold" Foreground="#163059"/>
+              <TextBlock x:Name="MetricDescription" Text="Local design preview" Foreground="#61708B" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Border Background="White" CornerRadius="14" Padding="22" BoxShadow="0 3 14 0 #100F2540">
+          <StackPanel Spacing="16">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="3">
+                <TextBlock x:Name="SectionTitle" Text="Resources" FontSize="19" FontWeight="SemiBold" Foreground="#163059"/>
+                <TextBlock x:Name="SectionHint" Text="Available resources on this host." Foreground="#61708B" FontSize="13"/>
+              </StackPanel>
+              <Button x:Name="ActionButton" Grid.Column="1" Content="Refresh" Classes="primary-action" Click="Refresh" VerticalAlignment="Center"/>
+            </Grid>
+            <Border Height="1" Background="#E5EAF2"/>
+            <StackPanel x:Name="RowsPanel" Spacing="10"/>
+          </StackPanel>
+        </Border>
+
+        <Border x:Name="GuidanceCard" Background="#EDF4FF" BorderBrush="#CFE1FF" BorderThickness="1" CornerRadius="14" Padding="20">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Getting started" FontSize="16" FontWeight="SemiBold" Foreground="#183B71"/>
+            <TextBlock x:Name="GuidanceText" Foreground="#315582" TextWrapping="Wrap" LineHeight="23"/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    </Grid>
+  </Grid>
+</Window>

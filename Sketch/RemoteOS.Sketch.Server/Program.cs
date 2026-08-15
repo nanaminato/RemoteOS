@@ -1,26 +1,54 @@
 using RemoteOS.Sketch.Protocol;
+using RemoteOS.Sketch.Server;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://127.0.0.1:5088");
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("REMOTEOS_SKETCH_URL") ?? "http://127.0.0.1:5088");
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddSingleton<SketchMockStore>();
 var app = builder.Build();
 app.UseCors();
 
-app.MapPost("/api/mock/auth/login", (MockLoginRequest request) =>
-    Results.Ok(new MockLoginResponse("sketch-token", string.IsNullOrWhiteSpace(request.Username) ? "Design User" : request.Username.Trim())));
+app.MapGet("/api/sketch/health", () => Results.Ok(new { status = "ready", mode = "stateful-design-mock", timestamp = DateTimeOffset.UtcNow }));
+app.MapPost("/api/mock/auth/login", (MockLoginRequest request) => Results.Ok(new MockLoginResponse("sketch-token", string.IsNullOrWhiteSpace(request.Username) ? "Design User" : request.Username.Trim())));
+app.MapGet("/api/sketch/managers", (SketchMockStore store) => Results.Ok(new[]
+{
+    new ManagerStatus("Docker", true, "27.1.1", "Docker Engine is running.", []),
+    new ManagerStatus("Nginx", false, "1.27.0", "Configuration is available; service is offline.", ["Test configuration", "Install or start Nginx", "Reload after review"]),
+    new ManagerStatus("Certificates", true, "ACME v2", "One certificate is expiring soon.", ["Review expiry", "Run a renewal", "Verify validation"])
+}));
 
-app.MapGet("/api/sketch/managers", () => Results.Ok(new[]
-{
-    new ManagerStatus("Docker", true, "27.1.1", "3 containers are running.", []),
-    new ManagerStatus("Nginx", false, "—", "Nginx is not installed on this mock host.", ["Review the platform and the official Nginx installation instructions.", "An administrator installs and starts Nginx.", "Return here and refresh the status check."]),
-    new ManagerStatus("Certificates", false, "—", "No supported ACME client was detected.", ["Install an approved ACME client.", "Prepare DNS or HTTP-01 validation.", "Verify the service before issuing a certificate."]),
-}));
-app.MapGet("/api/sketch/docker/containers", () => Results.Ok(new[]
-{
-    new DockerSummary("remoteos-web", "nginx:1.27", "Running", "80:80, 443:443"),
-    new DockerSummary("remoteos-api", "remoteos/server:sketch", "Running", "5000:8080"),
-    new DockerSummary("postgres", "postgres:16", "Stopped", "5432:5432"),
-}));
-app.MapGet("/api/sketch/nginx/sites", () => Results.Ok(new[] { new SiteSummary("Example site", "example.com", "127.0.0.1:5000", "Design preview") }));
-app.MapGet("/api/sketch/certificates", () => Results.Ok(new[] { new CertificateSummary("example.com, www.example.com", "Let's Encrypt", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(78)), "Valid") }));
+var docker = app.MapGroup("/api/sketch/docker");
+docker.MapGet("/overview", (SketchMockStore store) => store.DockerOverview());
+docker.MapGet("/containers", (SketchMockStore store) => store.Containers());
+docker.MapGet("/containers/{id}", (string id, SketchMockStore store) => store.Container(id) is { } item ? Results.Ok(item) : Results.NotFound());
+docker.MapPost("/containers/{id}/actions", (string id, DockerContainerActionRequest request, SketchMockStore store) => Results.Ok(store.ContainerAction(id, request.Action, request.Confirmed)));
+docker.MapGet("/stacks", (SketchMockStore store) => store.Stacks());
+docker.MapPost("/stacks", (DockerStackUpsertRequest request, SketchMockStore store) => Results.Ok(store.SaveStack(request)));
+docker.MapPost("/stacks/{name}/actions/{action}", (string name, string action, bool? confirmed, SketchMockStore store) => Results.Ok(store.StackAction(name, action, confirmed ?? false)));
+docker.MapGet("/images", (SketchMockStore store) => store.Images());
+docker.MapGet("/images/prune-preview", (SketchMockStore store) => store.PrunePreview());
+docker.MapPost("/images/prune", (bool? confirmed, SketchMockStore store) => Results.Ok(store.Prune(confirmed ?? false)));
+docker.MapGet("/networks", (SketchMockStore store) => store.Networks());
+docker.MapGet("/volumes", (SketchMockStore store) => store.Volumes());
+
+var nginx = app.MapGroup("/api/sketch/nginx");
+nginx.MapGet("/overview", (SketchMockStore store) => store.NginxOverview());
+nginx.MapGet("/sites", (SketchMockStore store) => store.Sites());
+nginx.MapPost("/sites", (NginxSiteUpsertRequest request, SketchMockStore store) => Results.Ok(store.SaveSite(null, request)));
+nginx.MapPut("/sites/{id}", (string id, NginxSiteUpsertRequest request, SketchMockStore store) => Results.Ok(store.SaveSite(id, request)));
+nginx.MapDelete("/sites/{id}", (string id, bool? confirmed, SketchMockStore store) => Results.Ok(store.DeleteSite(id, confirmed ?? false)));
+nginx.MapPost("/configuration/test", (SketchMockStore store) => Results.Ok(store.TestNginx()));
+nginx.MapPost("/configuration/reload", (bool? confirmed, SketchMockStore store) => Results.Ok(store.ReloadNginx(confirmed ?? false)));
+nginx.MapGet("/configuration/versions", (SketchMockStore store) => store.Configs());
+nginx.MapGet("/logs", (SketchMockStore store) => store.NginxLogs());
+
+var certificates = app.MapGroup("/api/sketch/certificates");
+certificates.MapGet("/overview", (SketchMockStore store) => store.CertificateOverview());
+certificates.MapGet("/items", (SketchMockStore store) => store.Certificates());
+certificates.MapPost("/items", (CertificateIssueRequest request, SketchMockStore store) => Results.Ok(store.IssueCertificate(request)));
+certificates.MapPost("/items/{id}/actions/{action}", (string id, string action, bool? force, SketchMockStore store) => Results.Ok(store.CertificateAction(id, action, force ?? false)));
+certificates.MapGet("/acme-accounts", (SketchMockStore store) => store.AcmeAccounts());
+certificates.MapGet("/dns-providers", (SketchMockStore store) => store.DnsProviders());
+certificates.MapGet("/renewal-policy", (SketchMockStore store) => store.RenewalPolicy());
+
 app.Run();
