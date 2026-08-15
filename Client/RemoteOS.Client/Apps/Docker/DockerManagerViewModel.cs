@@ -166,20 +166,29 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             });
     }
 
-    [RelayCommand] private async Task PullImageAsync()
+    [RelayCommand] private Task PullImageAsync() => TryPullImageAsync();
+
+    /// <summary>Pulls an image and reports whether the dialog can close.</summary>
+    public async Task<bool> TryPullImageAsync()
     {
-        if (string.IsNullOrWhiteSpace(ImageReference)) { StatusText = LocalizedText.Get("docker.image.required"); return; }
+        if (IsLoading) return false;
+        if (string.IsNullOrWhiteSpace(ImageReference)) { StatusText = LocalizedText.Get("docker.image.required"); return false; }
         var imageReference = ImageReference.Trim();
-        await RunOperationAsync(
+        return await RunOperationAsync(
             () => client.PullImageAsync(new DockerImageOperationRequest(imageReference)),
-            result => result.Success ? LocalizedText.Format("docker.image.pull_succeeded", imageReference) : LocalizedText.Format("docker.image.pull_failed", result.ProblemCode));
+            result => result.Success ? LocalizedText.Format("docker.image.pull_succeeded", imageReference) : LocalizedText.Format("docker.image.pull_failed", result.ProblemCode),
+            onSuccess: () => ImageReference = string.Empty);
     }
 
-    [RelayCommand] private async Task CreateContainerAsync()
+    [RelayCommand] private Task CreateContainerAsync() => TryCreateContainerAsync();
+
+    /// <summary>Creates a container and reports whether the dialog can close.</summary>
+    public async Task<bool> TryCreateContainerAsync()
     {
-        if (string.IsNullOrWhiteSpace(ContainerName) || string.IsNullOrWhiteSpace(ContainerImage)) { StatusText = LocalizedText.Get("docker.container.required"); return; }
+        if (IsLoading) return false;
+        if (string.IsNullOrWhiteSpace(ContainerName) || string.IsNullOrWhiteSpace(ContainerImage)) { StatusText = LocalizedText.Get("docker.container.required"); return false; }
         var name = ContainerName.Trim();
-        await RunOperationAsync(
+        return await RunOperationAsync(
             () => client.CreateContainerAsync(new DockerContainerCreateRequest(
                 name, ContainerImage.Trim(), Lines(ContainerArguments), Lines(ContainerPorts), Lines(ContainerEnvironment), Lines(ContainerMounts), ContainerNetwork, ContainerRestartPolicy)),
             result => result.Success ? LocalizedText.Format("docker.container.created", name) : LocalizedText.Format("docker.container.create_failed", result.ProblemCode),
@@ -201,11 +210,15 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     partial void OnSelectedImageChanged(DockerImageDto? value) => DeleteImageCommand.NotifyCanExecuteChanged();
     partial void OnConfirmImageDeletionChanged(bool value) => DeleteImageCommand.NotifyCanExecuteChanged();
 
-    [RelayCommand] private async Task CreateNetworkAsync()
+    [RelayCommand] private Task CreateNetworkAsync() => TryCreateNetworkAsync();
+
+    /// <summary>Creates a network and reports whether the dialog can close.</summary>
+    public async Task<bool> TryCreateNetworkAsync()
     {
-        if (string.IsNullOrWhiteSpace(NetworkName)) { StatusText = LocalizedText.Get("docker.network.required"); return; }
+        if (IsLoading) return false;
+        if (string.IsNullOrWhiteSpace(NetworkName)) { StatusText = LocalizedText.Get("docker.network.required"); return false; }
         var name = NetworkName.Trim();
-        await RunOperationAsync(
+        return await RunOperationAsync(
             () => client.CreateNetworkAsync(new DockerNetworkCreateRequest(name, SelectedNetworkDriver)),
             result => result.Success ? LocalizedText.Format("docker.network.created", name) : LocalizedText.Format("docker.network.create_failed", result.ProblemCode),
             onSuccess: () => NetworkName = string.Empty);
@@ -221,11 +234,15 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     partial void OnSelectedNetworkChanged(DockerNetworkDto? value) => DeleteNetworkCommand.NotifyCanExecuteChanged();
     partial void OnConfirmNetworkDeletionChanged(bool value) => DeleteNetworkCommand.NotifyCanExecuteChanged();
 
-    [RelayCommand] private async Task CreateVolumeAsync()
+    [RelayCommand] private Task CreateVolumeAsync() => TryCreateVolumeAsync();
+
+    /// <summary>Creates a volume and reports whether the dialog can close.</summary>
+    public async Task<bool> TryCreateVolumeAsync()
     {
-        if (string.IsNullOrWhiteSpace(VolumeName)) { StatusText = LocalizedText.Get("docker.volume.required"); return; }
+        if (IsLoading) return false;
+        if (string.IsNullOrWhiteSpace(VolumeName)) { StatusText = LocalizedText.Get("docker.volume.required"); return false; }
         var name = VolumeName.Trim();
-        await RunOperationAsync(
+        return await RunOperationAsync(
             () => client.CreateVolumeAsync(new DockerVolumeCreateRequest(name, SelectedVolumeDriver)),
             result => result.Success ? LocalizedText.Format("docker.volume.created", name) : LocalizedText.Format("docker.volume.create_failed", result.ProblemCode),
             onSuccess: () => VolumeName = string.Empty);
@@ -241,18 +258,21 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     partial void OnSelectedVolumeChanged(DockerVolumeDto? value) => DeleteVolumeCommand.NotifyCanExecuteChanged();
     partial void OnConfirmVolumeDeletionChanged(bool value) => DeleteVolumeCommand.NotifyCanExecuteChanged();
 
-    private async Task RunOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess = null)
+    private async Task<bool> RunOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess = null)
     {
+        var succeeded = false;
         IsLoading = true;
         try
         {
             var result = await operation();
+            succeeded = result.Success;
             StatusText = status(result);
             if (result.Success) onSuccess?.Invoke();
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
         finally { IsLoading = false; }
         await RefreshAsync();
+        return succeeded;
     }
     private async Task RunOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status)
     {
