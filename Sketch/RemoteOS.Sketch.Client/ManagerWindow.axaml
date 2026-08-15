@@ -52,7 +52,10 @@
                 <TextBlock x:Name="SectionTitle" Text="Resources" FontSize="19" FontWeight="SemiBold" Foreground="#163059"/>
                 <TextBlock x:Name="SectionHint" Text="Available resources on this host." Foreground="#61708B" FontSize="13"/>
               </StackPanel>
-              <Button x:Name="ActionButton" Grid.Column="1" Content="Refresh" Classes="primary-action" Click="Refresh" VerticalAlignment="Center"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Button x:Name="InstallationButton" Content="Simulate not installed" Classes="secondary-action" Click="ToggleInstallation"/>
+                <Button x:Name="ActionButton" Content="Refresh" Classes="primary-action" Click="Refresh"/>
+              </StackPanel>
             </Grid>
             <Border Height="1" Background="#E5EAF2"/>
             <StackPanel x:Name="RowsPanel" Spacing="10"/>

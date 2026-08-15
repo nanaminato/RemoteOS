@@ -3,6 +3,7 @@ namespace RemoteOS.Sketch.Protocol;
 public sealed record MockLoginRequest(string Username, string Password);
 public sealed record MockLoginResponse(string Token, string DisplayName);
 public sealed record ManagerStatus(string Name, bool IsInstalled, string Version, string Message, IReadOnlyList<string> InstallSteps);
+public sealed record ManagerInstallationRequest(bool IsInstalled);
 
 // Shared shell contracts used by all product-style manager surfaces.
 public sealed record ManagerOverview(string Manager, string Health, string Headline, string Detail, IReadOnlyList<MetricCard> Metrics, IReadOnlyList<ActivityItem> RecentActivity);

@@ -10,12 +10,8 @@ app.UseCors();
 
 app.MapGet("/api/sketch/health", () => Results.Ok(new { status = "ready", mode = "stateful-design-mock", timestamp = DateTimeOffset.UtcNow }));
 app.MapPost("/api/mock/auth/login", (MockLoginRequest request) => Results.Ok(new MockLoginResponse("sketch-token", string.IsNullOrWhiteSpace(request.Username) ? "Design User" : request.Username.Trim())));
-app.MapGet("/api/sketch/managers", (SketchMockStore store) => Results.Ok(new[]
-{
-    new ManagerStatus("Docker", true, "27.1.1", "Docker Engine is running.", []),
-    new ManagerStatus("Nginx", false, "1.27.0", "Configuration is available; service is offline.", ["Test configuration", "Install or start Nginx", "Reload after review"]),
-    new ManagerStatus("Certificates", true, "ACME v2", "One certificate is expiring soon.", ["Review expiry", "Run a renewal", "Verify validation"])
-}));
+app.MapGet("/api/sketch/managers", (SketchMockStore store) => Results.Ok(store.Managers()));
+app.MapPost("/api/sketch/managers/{manager}/installation", (string manager, ManagerInstallationRequest request, SketchMockStore store) => Results.Ok(store.SetInstalled(manager, request.IsInstalled)));
 
 var docker = app.MapGroup("/api/sketch/docker");
 docker.MapGet("/overview", (SketchMockStore store) => store.DockerOverview());

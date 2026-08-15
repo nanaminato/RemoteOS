@@ -9,6 +9,12 @@ namespace RemoteOS.Sketch.Server;
 public sealed class SketchMockStore
 {
     private readonly object _gate = new();
+    private readonly Dictionary<string, bool> _installed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Docker"] = true,
+        ["Nginx"] = false,
+        ["Certificates"] = false
+    };
     private readonly List<DockerContainerSummary> _containers =
     [
         new("c1b37c11a811", "remoteos-web", "nginx:1.27", "running", "Up 2 days", "80:80, 443:443", 1.7, "46.2 MiB / 512 MiB"),
@@ -48,14 +54,40 @@ public sealed class SketchMockStore
         AddActivity(_certificateActivity, "Renewal scheduled", "remoteos.local", "Queued");
     }
 
+    public IReadOnlyList<ManagerStatus> Managers()
+    {
+        lock (_gate)
+        {
+            return
+            [
+                Status("Docker", "27.1.1", "Docker Engine is running.", ["Install Docker Engine", "Start the Docker service", "Refresh this preview"]),
+                Status("Nginx", "1.27.0", "Configuration is available; service is offline.", ["Install or start Nginx", "Test configuration", "Reload after review"]),
+                Status("Certificates", "ACME v2", "No supported ACME client was detected.", ["Install an ACME client", "Configure validation", "Issue a test certificate"])
+            ];
+        }
+    }
+
+    public MockOperationResult SetInstalled(string manager, bool isInstalled)
+    {
+        lock (_gate)
+        {
+            if (!_installed.ContainsKey(manager)) return Fail("Unknown manager.");
+            _installed[manager] = isInstalled;
+            return Ok($"{manager} is now simulated as {(isInstalled ? "installed" : "not installed")}.");
+        }
+    }
+
     public ManagerOverview DockerOverview()
     {
         lock (_gate)
+        {
+            if (!_installed["Docker"]) return NotInstalledOverview("Docker", "Docker is not installed", "Install Docker Engine to create and manage local workloads.");
             return new("Docker", "healthy", "Docker Engine is running", "Engine 27.1.1 · API 1.46 · local Unix socket", [
                 new("Running containers", _containers.Count(c => c.State == "running").ToString(), "1 stopped container", "success"),
                 new("Stacks", _stacks.Count.ToString(), $"{_stacks.Count(s => s.Status == "running")} deployed", "neutral"),
                 new("Images", _images.Count.ToString(), "950 MB in use", "neutral"),
                 new("Reclaimable", "220 MB", "Safe cleanup preview available", "warning")], _dockerActivity.Take(6).ToArray());
+        }
     }
 
     public PagedResult<DockerContainerSummary> Containers()
@@ -131,8 +163,12 @@ public sealed class SketchMockStore
 
     public ManagerOverview NginxOverview()
     {
-        lock (_gate) return new("Nginx", "attention", "Nginx needs a service check", "Configuration is available; the mock host simulates a stopped service.", [
+        lock (_gate)
+        {
+            if (!_installed["Nginx"]) return NotInstalledOverview("Nginx", "Nginx is not installed", "Install Nginx to create sites and manage live configuration.");
+            return new("Nginx", "attention", "Nginx needs a service check", "Configuration is available; the mock host simulates a stopped service.", [
             new("Enabled sites", _sites.Count(s => s.Enabled).ToString(), "1 disabled site", "neutral"), new("Certificates linked", _sites.Count(s => !string.IsNullOrWhiteSpace(s.Certificate)).ToString(), "HTTPS bindings", "success"), new("Config versions", "4", "Last changed 42 minutes ago", "neutral"), new("Service", "Offline", "Start after a successful config test", "warning")], _nginxActivity.Take(6).ToArray());
+        }
     }
     public IReadOnlyList<NginxSiteSummary> Sites() { lock (_gate) return _sites.ToArray(); }
     public MockOperationResult SaveSite(string? id, NginxSiteUpsertRequest request)
@@ -161,7 +197,11 @@ public sealed class SketchMockStore
 
     public ManagerOverview CertificateOverview()
     {
-        lock (_gate) return new("Certificates", "attention", "One certificate needs attention", "Certificate issuance and renewal are mocked; private keys never enter this service.", [new("Valid", _certificates.Count(c => c.Status == "Valid").ToString(), "Automatically renewing", "success"), new("Expiring soon", _certificates.Count(c => c.Status == "Expiring soon").ToString(), "Renew within 12 days", "warning"), new("ACME accounts", "1", "Let's Encrypt production", "neutral"), new("DNS providers", "1", "Credential reference configured", "neutral")], _certificateActivity.Take(6).ToArray());
+        lock (_gate)
+        {
+            if (!_installed["Certificates"]) return NotInstalledOverview("Certificates", "Certificate service is not installed", "Install an ACME client to issue and manage certificates.");
+            return new("Certificates", "attention", "One certificate needs attention", "Certificate issuance and renewal are mocked; private keys never enter this service.", [new("Valid", _certificates.Count(c => c.Status == "Valid").ToString(), "Automatically renewing", "success"), new("Expiring soon", _certificates.Count(c => c.Status == "Expiring soon").ToString(), "Renew within 12 days", "warning"), new("ACME accounts", "1", "Let's Encrypt production", "neutral"), new("DNS providers", "1", "Credential reference configured", "neutral")], _certificateActivity.Take(6).ToArray());
+        }
     }
     public IReadOnlyList<CertificateSummary> Certificates() { lock (_gate) return _certificates.ToArray(); }
     public MockOperationResult IssueCertificate(CertificateIssueRequest request)
@@ -190,6 +230,8 @@ public sealed class SketchMockStore
     public IReadOnlyList<DnsProviderSummary> DnsProviders() => [new("dns_01", "Cloudflare", "secret://remoteos/dns/cloudflare", true)];
     public CertificateRenewalPolicy RenewalPolicy() => new(30, true, "02:00–04:00 UTC");
 
+    private ManagerStatus Status(string name, string version, string message, IReadOnlyList<string> steps) => new(name, _installed[name], version, message, steps);
+    private static ManagerOverview NotInstalledOverview(string manager, string headline, string detail) => new(manager, "unavailable", headline, detail, [new("Installation", "Not installed", "Use the simulation control to preview the installed state.", "warning")], []);
     private static MockOperationResult Ok(string message) => new(true, message, DateTimeOffset.UtcNow, $"op_{Guid.NewGuid():N}"[..11]);
     private static MockOperationResult Fail(string message) => new(false, message, DateTimeOffset.UtcNow);
     private static void AddActivity(List<ActivityItem> activities, string action, string target, string result) => activities.Insert(0, new(DateTimeOffset.UtcNow, action, target, result));

@@ -14,6 +14,7 @@ public partial class ManagerWindow : Window
     private readonly ManagerKind _kind;
     private readonly HttpClient _server = new() { BaseAddress = new Uri("http://127.0.0.1:5088") };
     private string _section = "Overview";
+    private bool _isInstalled;
 
     public ManagerWindow() : this(ManagerKind.Docker) { }
 
@@ -133,7 +134,15 @@ public partial class ManagerWindow : Window
             "Renewal policy" => "Renewal threshold and safe maintenance window.",
             _ => "Resources in this workspace."
         });
-        ActionButton.Content = T(_section == "Test & Reload" ? "Run configuration test" : "Refresh");
+        ActionButton.Content = T(_section switch
+        {
+            "Stacks" => "New stack",
+            "Sites" => "New site",
+            "Certificates" => "Issue certificate",
+            "Test & Reload" => "Run configuration test",
+            _ => "Refresh"
+        });
+        ActionButton.IsEnabled = _isInstalled;
     }
 
     private async Task LoadFromServerAsync()
@@ -141,12 +150,16 @@ public partial class ManagerWindow : Window
         try
         {
             var prefix = _kind switch { ManagerKind.Docker => "docker", ManagerKind.Nginx => "nginx", _ => "certificates" };
+            var managers = await _server.GetFromJsonAsync<IReadOnlyList<ManagerStatus>>("/api/sketch/managers");
+            var manager = managers?.SingleOrDefault(item => item.Name.Equals(_kind.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (manager is not null) ApplyInstallationState(manager);
             var overview = await _server.GetFromJsonAsync<ManagerOverview>($"/api/sketch/{prefix}/overview");
             if (overview is not null) ApplyOverview(overview);
             RowsPanel.Children.Clear();
             if (_section == "Overview" && overview is not null)
                 foreach (var item in overview.RecentActivity) AddRow(item.Action, item.Target, item.OccurredAt.LocalDateTime.ToString("MMM dd, HH:mm"), item.Result, item.Result is "Succeeded" or "Passed" or "Queued");
-            else await LoadSectionRowsAsync();
+            else if (_isInstalled) await LoadSectionRowsAsync();
+            else AddRow("Service unavailable", "Simulate it as installed to unlock creation and management.", "", "Not installed", false);
             DescribeSection();
         }
         catch (HttpRequestException)
@@ -155,6 +168,15 @@ public partial class ManagerWindow : Window
             AddRow("Mock Server offline", "Start RemoteOS.Sketch.Server", "127.0.0.1:5088", "Offline", false);
             ActionButton.Content = T("Retry connection");
         }
+    }
+
+    private void ApplyInstallationState(ManagerStatus manager)
+    {
+        _isInstalled = manager.IsInstalled;
+        InstallationButton.Content = T(_isInstalled ? "Simulate not installed" : "Simulate installed");
+        GuidanceCard.IsVisible = true;
+        if (!_isInstalled)
+            GuidanceText.Text = string.Join("\n", manager.InstallSteps.Select((step, index) => $"{index + 1}. {T(step)}"));
     }
 
     private async Task LoadSectionRowsAsync()
@@ -283,6 +305,11 @@ public partial class ManagerWindow : Window
 
     private async void Refresh(object? sender, RoutedEventArgs e)
     {
+        if (_isInstalled && _section is "Stacks" or "Sites" or "Certificates")
+        {
+            await CreateResourceAsync();
+            return;
+        }
         if (_kind == ManagerKind.Nginx && _section == "Test & Reload")
         {
             ActionButton.Content = T("Testing…");
@@ -299,6 +326,88 @@ public partial class ManagerWindow : Window
         }
         ActionButton.Content = T("Refreshing…");
         await LoadFromServerAsync();
+    }
+
+    private async void ToggleInstallation(object? sender, RoutedEventArgs e)
+    {
+        InstallationButton.IsEnabled = false;
+        try
+        {
+            var response = await _server.PostAsJsonAsync($"/api/sketch/managers/{_kind}/installation", new ManagerInstallationRequest(!_isInstalled));
+            var result = await response.Content.ReadFromJsonAsync<MockOperationResult>();
+            await LoadFromServerAsync();
+            if (result?.Succeeded == true) SectionHint.Text = T("Installation simulation updated.");
+        }
+        catch (HttpRequestException)
+        {
+            await LoadFromServerAsync();
+        }
+        finally
+        {
+            InstallationButton.IsEnabled = true;
+        }
+    }
+
+    private async Task CreateResourceAsync()
+    {
+        string[]? values;
+        switch (_kind)
+        {
+            case ManagerKind.Docker:
+                values = await ShowCreateDialogAsync(T("Create stack"), (T("Name"), "new-stack", false), (T("Source"), "Compose editor", false), (T("Compose"), "services:\n  app:\n    image: nginx:1.27", true));
+                if (values is not null) await SubmitCreationAsync("/api/sketch/docker/stacks", new DockerStackUpsertRequest(values[0], values[1], values[2]));
+                break;
+            case ManagerKind.Nginx:
+                values = await ShowCreateDialogAsync(T("Create site"), (T("Name"), "New site", false), (T("Domains"), "preview.example.local", false), (T("Upstream"), "http://remoteos-web:80", false));
+                if (values is not null) await SubmitCreationAsync("/api/sketch/nginx/sites", new NginxSiteUpsertRequest(values[0], values[1], values[2], true));
+                break;
+            default:
+                values = await ShowCreateDialogAsync(T("Issue certificate"), (T("Primary domain"), "preview.example.local", false), (T("Alternative domains (comma-separated)"), "", false));
+                if (values is not null) await SubmitCreationAsync("/api/sketch/certificates/items", new CertificateIssueRequest(values[0], values[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), "HTTP-01", null, true));
+                break;
+        }
+    }
+
+    private async Task SubmitCreationAsync(string endpoint, object request)
+    {
+        var response = await _server.PostAsJsonAsync(endpoint, request);
+        var result = await response.Content.ReadFromJsonAsync<MockOperationResult>();
+        if (result?.Succeeded == true)
+        {
+            await LoadFromServerAsync();
+            SectionHint.Text = T("Created successfully. The new item is now shown in this list.");
+        }
+        else if (result is not null) SectionHint.Text = T(result.Message);
+    }
+
+    private async Task<string[]?> ShowCreateDialogAsync(string title, params (string Label, string Value, bool Multiline)[] fields)
+    {
+        var values = fields.Select(field => new TextBox
+        {
+            Text = field.Value,
+            AcceptsReturn = field.Multiline,
+            TextWrapping = field.Multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            MinHeight = field.Multiline ? 110 : 0
+        }).ToArray();
+        var form = new StackPanel { Margin = new Thickness(24), Spacing = 8 };
+        form.Children.Add(new TextBlock { Text = title, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Brush.Parse("#163059") });
+        foreach (var (field, input) in fields.Zip(values))
+        {
+            form.Children.Add(new TextBlock { Text = field.Label, Margin = new Thickness(0, 8, 0, 0), Foreground = Brush.Parse("#36506F") });
+            form.Children.Add(input);
+        }
+        var dialog = new Window { Title = title, Width = 520, Height = 430, MinWidth = 400, MinHeight = 300, CanResize = true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brush.Parse("#F4F7FB") };
+        var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+        var cancel = new Button { Content = T("Cancel") };
+        var create = new Button { Content = T("Create") };
+        create.Classes.Add("primary-action");
+        cancel.Click += (_, _) => dialog.Close((string[]?)null);
+        create.Click += (_, _) => dialog.Close(values.Select(input => input.Text?.Trim() ?? string.Empty).ToArray());
+        buttons.Children.Add(cancel);
+        buttons.Children.Add(create);
+        form.Children.Add(buttons);
+        dialog.Content = new ScrollViewer { Content = form };
+        return await dialog.ShowDialog<string[]?>(this);
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
