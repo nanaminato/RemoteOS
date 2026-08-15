@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:docker="clr-namespace:Client.Apps.Docker"
+             x:Class="Client.Apps.Docker.Views.DockerVolumeDialogView"
+             x:DataType="docker:DockerManagerViewModel">
+    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
+        <StackPanel Spacing="12" HorizontalAlignment="Left">
+            <StackPanel Width="420" Spacing="4"><TextBlock Text="{loc:Loc common.name}" Foreground="#36506F" /><TextBox Text="{Binding VolumeName, Mode=TwoWay}" /></StackPanel>
+            <StackPanel Width="420" Spacing="4"><TextBlock Text="{loc:Loc docker.volume.driver}" Foreground="#36506F" /><ComboBox ItemsSource="{Binding VolumeDrivers}" SelectedItem="{Binding SelectedVolumeDriver, Mode=TwoWay}" /></StackPanel>
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" HorizontalContentAlignment="Center" />
+            <Button Classes="primary" Content="{loc:Loc common.create}" Click="Create_Click" HorizontalContentAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</UserControl>

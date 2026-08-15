@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using Client.Apps.Docker.Views;
 using Client.Localization;
 using Client.Services.Auth;
@@ -22,7 +21,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         if (session is null || client is null || session.State != AuthSessionState.Authenticated)
         {
             context.ShowWindow(LocalizedText.Get("application.remoteos.docker.display_name"),
-                new TextBlock { Text = LocalizedText.Get("docker.login_required"), Margin = new Avalonia.Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                new DockerLoginRequiredView(),
                 new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false);
             return;
         }

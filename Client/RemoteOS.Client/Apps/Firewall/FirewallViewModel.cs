@@ -150,15 +150,15 @@ public sealed partial class FirewallViewModel : ObservableObject
         Port = string.Empty;
     }
 
-    partial void OnSelectedRuleChanged(FirewallRuleDto? rule)
+    partial void OnSelectedRuleChanged(FirewallRuleDto? value)
     {
-        if (rule is null) return;
-        SelectedAction = Find(Actions, rule.Action, "allow");
-        SelectedDirection = Find(Directions, rule.Direction, "in");
-        SelectedProtocol = Find(Protocols, rule.Protocol, "any");
-        Source = rule.Source == "any" ? string.Empty : rule.Source;
-        Destination = rule.Destination == "any" ? string.Empty : rule.Destination;
-        Port = rule.Port == "any" ? string.Empty : rule.Port;
+        if (value is null) return;
+        SelectedAction = Find(Actions, value.Action, "allow");
+        SelectedDirection = Find(Directions, value.Direction, "in");
+        SelectedProtocol = Find(Protocols, value.Protocol, "any");
+        Source = value.Source == "any" ? string.Empty : value.Source;
+        Destination = value.Destination == "any" ? string.Empty : value.Destination;
+        Port = value.Port == "any" ? string.Empty : value.Port;
     }
 
     private bool TryBuildRule(out CreateFirewallRuleRequest rule)

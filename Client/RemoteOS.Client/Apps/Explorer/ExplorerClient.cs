@@ -139,12 +139,12 @@ public sealed class ExplorerClient : IExplorerClient
         }
 
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
-            => CopyToAsync(stream, CancellationToken.None);
+            => CopyContentToAsync(stream, CancellationToken.None);
 
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
-            => CopyToAsync(stream, cancellationToken);
+            => CopyContentToAsync(stream, cancellationToken);
 
-        private async Task CopyToAsync(Stream destination, CancellationToken cancellationToken)
+        private async Task CopyContentToAsync(Stream destination, CancellationToken cancellationToken)
         {
             var buffer = new byte[81_920];
             long sent = 0;

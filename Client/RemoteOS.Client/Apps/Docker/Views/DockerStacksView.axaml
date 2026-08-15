@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:docker="clr-namespace:Client.Apps.Docker"
+             x:Class="Client.Apps.Docker.Views.DockerStacksView"
+             x:DataType="docker:DockerManagerViewModel">
+    <Border Background="White" CornerRadius="14" Padding="20">
+        <StackPanel Spacing="12">
+            <TextBlock Text="{loc:Loc docker.stacks}" FontSize="19" FontWeight="SemiBold" Foreground="#163059" />
+            <TextBlock Text="{loc:Loc docker.stacks_hint}" Foreground="#61708B" TextWrapping="Wrap" />
+            <Button Content="{loc:Loc docker.stack.deploy}" Click="DeployStack_Click" HorizontalAlignment="Left" />
+            <Border Height="1" Background="#E5EAF2" Margin="0,2" />
+            <DataGrid ItemsSource="{Binding Stacks}" AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" Height="230">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="{loc:Loc docker.table.name}" Binding="{ReflectionBinding Name}" Width="220" />
+                    <DataGridTextColumn Header="{loc:Loc docker.table.status}" Binding="{ReflectionBinding Status}" Width="300" />
+                    <DataGridTextColumn Header="{loc:Loc docker.table.config_files}" Binding="{ReflectionBinding ConfigFiles}" Width="420" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </Border>
+</UserControl>
