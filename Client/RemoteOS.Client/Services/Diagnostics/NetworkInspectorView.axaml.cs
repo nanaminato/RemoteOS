@@ -16,10 +16,9 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private readonly ObservableCollection<NetworkInspectorRow> _rows = new();
     private IReadOnlyList<NetworkDiagnosticEntry> _visible = Array.Empty<NetworkDiagnosticEntry>();
     private bool _detailsVisible;
-    private bool _recalculateDetailsWidthOnNextOpen;
-    // On first expansion, give the details pane roughly 70% of the available content width.
-    // A later splitter resize is retained as a pixel width for the rest of this view's lifetime.
-    private GridLength _detailsWidth = new GridLength(7, GridUnitType.Star);
+    // Keep the user's splitter choice relative to the inspector width so it remains useful after resizing.
+    private double _detailsWidthRatio = 0.7;
+    private const double MaximumDetailsWidthRatio = 0.9;
 
     public NetworkInspectorView(NetworkDiagnosticsService diagnostics, LocalizationService localization)
     {
@@ -31,6 +30,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         _diagnostics.StateChanged += OnStateChanged;
         _localization.LanguageChanged += OnLanguageChanged;
         SizeChanged += OnSizeChanged;
+        DetailsSplitter.PointerReleased += DetailsSplitter_PointerReleased;
         Refresh();
     }
 
@@ -40,6 +40,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         _diagnostics.StateChanged -= OnStateChanged;
         _localization.LanguageChanged -= OnLanguageChanged;
         SizeChanged -= OnSizeChanged;
+        DetailsSplitter.PointerReleased -= DetailsSplitter_PointerReleased;
     }
 
     private async void Record_Click(object? sender, RoutedEventArgs args)
@@ -143,17 +144,10 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
 
         if (isVisible)
         {
-            if (_recalculateDetailsWidthOnNextOpen)
-            {
-                _detailsWidth = new GridLength(7, GridUnitType.Star);
-                _recalculateDetailsWidthOnNextOpen = false;
-            }
-
             if (ContentGrid.ColumnDefinitions.Count == 3)
             {
-                ContentGrid.ColumnDefinitions[0].Width = new GridLength(3, GridUnitType.Star);
                 ContentGrid.ColumnDefinitions[1].Width = new GridLength(5);
-                ContentGrid.ColumnDefinitions[2].Width = _detailsWidth;
+                ApplyDetailsWidth();
             }
 
             DetailsSplitter.IsVisible = true;
@@ -163,9 +157,7 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
         {
             if (ContentGrid.ColumnDefinitions.Count == 3)
             {
-                var currentDetailsWidth = ContentGrid.ColumnDefinitions[2].Width;
-                if (currentDetailsWidth.Value > 0)
-                    _detailsWidth = currentDetailsWidth;
+                RememberDetailsWidth();
 
                 ContentGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
                 ContentGrid.ColumnDefinitions[1].Width = new GridLength(0);
@@ -227,8 +219,34 @@ internal sealed partial class NetworkInspectorView : UserControl, IDisposable
     private void OnLanguageChanged(object? sender, EventArgs args) => Dispatcher.UIThread.Post(Refresh);
     private void OnSizeChanged(object? sender, SizeChangedEventArgs args)
     {
-        if (!_detailsVisible)
-            _recalculateDetailsWidthOnNextOpen = true;
+        if (_detailsVisible)
+            Dispatcher.UIThread.Post(ApplyDetailsWidth);
+    }
+
+    private void DetailsSplitter_PointerReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs args)
+        => Dispatcher.UIThread.Post(RememberDetailsWidth);
+
+    private void RememberDetailsWidth()
+    {
+        var totalWidth = ContentGrid.Bounds.Width;
+        var detailsWidth = DetailsPanel.Bounds.Width;
+        if (totalWidth > 0 && detailsWidth > 0)
+            _detailsWidthRatio = Math.Clamp(detailsWidth / totalWidth, 0, MaximumDetailsWidthRatio);
+    }
+
+    private void ApplyDetailsWidth()
+    {
+        if (!_detailsVisible || ContentGrid.ColumnDefinitions.Count != 3)
+            return;
+
+        var totalWidth = ContentGrid.Bounds.Width;
+        if (totalWidth <= 0)
+            return;
+
+        ContentGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+        ContentGrid.ColumnDefinitions[2].MaxWidth = totalWidth * MaximumDetailsWidthRatio;
+        ContentGrid.ColumnDefinitions[2].Width = new GridLength(
+            Math.Min(totalWidth * _detailsWidthRatio, totalWidth * MaximumDetailsWidthRatio));
     }
     private string T(string key, string fallback) => _localization.Get(key, fallback);
 

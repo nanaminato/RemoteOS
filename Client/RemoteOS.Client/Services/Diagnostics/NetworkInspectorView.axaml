@@ -38,7 +38,9 @@
                                         VerticalContentAlignment="Center"
                                         Click="RequestName_Click">
                                     <TextBlock Text="{Binding Name}"
-                                               TextWrapping="Wrap"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxLines="1"
                                                VerticalAlignment="Center" />
                                 </Button>
                             </DataTemplate>
