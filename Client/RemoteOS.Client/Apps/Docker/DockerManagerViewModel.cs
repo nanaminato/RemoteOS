@@ -148,16 +148,21 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     }
 
     [RelayCommand] private Task ValidateStackAsync() => ApplyStackAsync("validate");
-    [RelayCommand] private Task DeployStackAsync() => ApplyStackAsync("deploy");
+    [RelayCommand] private Task DeployStackAsync() => TryDeployStackAsync();
     [RelayCommand] private Task DownStackAsync() => ApplyStackAsync("down");
-    private async Task ApplyStackAsync(string operation)
+
+    /// <summary>Deploys a Compose stack and reports whether its dialog can close.</summary>
+    public Task<bool> TryDeployStackAsync() => ApplyStackAsync("deploy");
+
+    private async Task<bool> ApplyStackAsync(string operation)
     {
-        if (string.IsNullOrWhiteSpace(StackName) || string.IsNullOrWhiteSpace(ComposeYaml)) { StatusText = LocalizedText.Get("docker.stack.required"); return; }
-        await RunStackOperationAsync(operation);
+        if (IsLoading) return false;
+        if (string.IsNullOrWhiteSpace(StackName) || string.IsNullOrWhiteSpace(ComposeYaml)) { StatusText = LocalizedText.Get("docker.stack.required"); return false; }
+        return await RunStackOperationAsync(operation);
     }
-    private async Task RunStackOperationAsync(string operation)
+    private async Task<bool> RunStackOperationAsync(string operation)
     {
-        await RunOperationAsync(
+        return await RunOperationAsync(
             () => client.ApplyStackOperationAsync(operation, new DockerStackDefinitionDto(StackName.Trim(), ComposeYaml)),
             result =>
             {
@@ -274,13 +279,15 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         await RefreshAsync();
         return succeeded;
     }
-    private async Task RunOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status)
+    private async Task<bool> RunOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status)
     {
+        var succeeded = false;
         IsLoading = true;
-        try { var result = await operation(); StatusText = status(result); }
+        try { var result = await operation(); succeeded = result.Success; StatusText = status(result); }
         catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
         finally { IsLoading = false; }
         await RefreshAsync();
+        return succeeded;
     }
     private async Task RunReadAsync(Func<Task> operation)
     {

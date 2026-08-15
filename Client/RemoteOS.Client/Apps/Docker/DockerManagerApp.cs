@@ -34,6 +34,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         ManagedWindow? window = null;
         var view = CreateView(viewModel,
             () => window is null ? Task.CompletedTask : ShowCreateContainerDialogAsync(context, window, viewModel),
+            () => window is null ? Task.CompletedTask : ShowDeployStackDialogAsync(context, window, viewModel),
             () => window is null ? Task.CompletedTask : ShowPullImageDialogAsync(context, window, viewModel),
             () => window is null ? Task.CompletedTask : ShowCreateNetworkDialogAsync(context, window, viewModel),
             () => window is null ? Task.CompletedTask : ShowCreateVolumeDialogAsync(context, window, viewModel));
@@ -46,6 +47,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
     private static Control CreateView(
         DockerManagerViewModel vm,
         Func<Task> showCreateContainer,
+        Func<Task> showDeployStack,
         Func<Task> showPullImage,
         Func<Task> showCreateNetwork,
         Func<Task> showCreateVolume)
@@ -71,7 +73,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
             {
                 "overview" => Overview(vm),
                 "containers" => Containers(vm, showCreateContainer),
-                "stacks" => Stacks(vm),
+                "stacks" => Stacks(vm, showDeployStack),
                 "images" => Images(vm, showPullImage),
                 "networks" => Networks(vm, showCreateNetwork),
                 "volumes" => Volumes(vm, showCreateVolume),
@@ -136,7 +138,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         content.Children.Add(CreateDialogButton("docker.container.create", showCreateDialog));
         content.Children.Add(Separator());
         content.Children.Add(ContainerTable(vm));
-        var actions = new WrapPanel { Margin = new Thickness(0, 10, 0, 0), ItemHeight = 34 };
+        var actions = new WrapPanel { Margin = new Thickness(0, 10, 0, 0), ItemHeight = 34, HorizontalAlignment = HorizontalAlignment.Left };
         actions.Children.Add(new Button { Content = LocalizedText.Get("docker.action.start"), Command = vm.StartContainerCommand });
         actions.Children.Add(new Button { Content = LocalizedText.Get("docker.action.stop"), Command = vm.StopContainerCommand });
         actions.Children.Add(new Button { Content = LocalizedText.Get("docker.action.restart"), Command = vm.RestartContainerCommand });
@@ -147,22 +149,18 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         actions.Children.Add(new CheckBox { Content = LocalizedText.Get("docker.container.delete_confirm"), VerticalAlignment = VerticalAlignment.Center });
         ((CheckBox)actions.Children[^1]).Bind(ToggleButton.IsCheckedProperty, new Binding(nameof(vm.ConfirmContainerDeletion)) { Mode = BindingMode.TwoWay });
         actions.Children.Add(new Button { Content = LocalizedText.Get("common.delete"), Command = vm.DeleteContainerCommand, Foreground = Brush.Parse("#B42318") });
+        foreach (var action in actions.Children) action.Margin = new Thickness(0, 0, 8, 8);
         content.Children.Add(actions);
         content.Children.Add(ReadOnlyBox(vm, nameof(vm.ContainerStats), 32));
         content.Children.Add(ReadOnlyBox(vm, nameof(vm.ContainerLogs), 140));
         return card;
     }
 
-    private static Control Stacks(DockerManagerViewModel vm)
+    private static Control Stacks(DockerManagerViewModel vm, Func<Task> showDeployDialog)
     {
         var card = Card(LocalizedText.Get("docker.stacks"), LocalizedText.Get("docker.stacks_hint")); var content = (StackPanel)card.Child!;
-        content.Children.Add(TextField(vm, nameof(vm.StackName), "docker.stack.name", "my-stack", 350));
-        content.Children.Add(TextField(vm, nameof(vm.ComposeYaml), "docker.stack.compose", "services:\n  web:\n    image: nginx:latest", 720, true, 270));
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(new Button { Content = LocalizedText.Get("docker.stack.validate"), Command = vm.ValidateStackCommand });
-        actions.Children.Add(new Button { Content = LocalizedText.Get("docker.stack.deploy"), Command = vm.DeployStackCommand });
-        actions.Children.Add(new Button { Content = LocalizedText.Get("docker.stack.down"), Command = vm.DownStackCommand, Foreground = Brush.Parse("#B42318") });
-        content.Children.Add(actions); return card;
+        content.Children.Add(CreateDialogButton("docker.stack.deploy", showDeployDialog));
+        return card;
     }
 
     private static Control Images(DockerManagerViewModel vm, Func<Task> showPullDialog)
@@ -197,6 +195,9 @@ public sealed class DockerManagerApp : RemoteApplicationBase
     private static Task ShowCreateContainerDialogAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
         context.ShowDialogAsync<bool>(owner, LocalizedText.Get("docker.container.create"), dialog => CreateContainerDialog(vm, dialog), new RemoteOS.Core.Primitives.Size(720, 650));
 
+    private static Task ShowDeployStackDialogAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
+        context.ShowDialogAsync<bool>(owner, LocalizedText.Get("docker.stack.deploy"), dialog => CreateStackDialog(vm, dialog), new RemoteOS.Core.Primitives.Size(760, 590));
+
     private static Task ShowPullImageDialogAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
         context.ShowDialogAsync<bool>(owner, LocalizedText.Get("docker.image.pull"), dialog => CreatePullImageDialog(vm, dialog), new RemoteOS.Core.Primitives.Size(470, 230));
 
@@ -208,9 +209,9 @@ public sealed class DockerManagerApp : RemoteApplicationBase
 
     private static Control CreateContainerDialog(DockerManagerViewModel vm, ModalDialog<bool> dialog)
     {
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm };
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
         content.Children.Add(new TextBlock { Text = LocalizedText.Get("docker.containers_hint"), TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#61708B") });
-        var form = new WrapPanel { ItemWidth = 220, ItemHeight = 68, Orientation = Orientation.Horizontal };
+        var form = new WrapPanel { ItemWidth = 220, ItemHeight = 68, Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
         form.Children.Add(TextField(vm, nameof(vm.ContainerName), "docker.container.name", "", 210));
         form.Children.Add(TextField(vm, nameof(vm.ContainerImage), "docker.container.image", "nginx:latest", 210));
         form.Children.Add(ChoiceField(vm, nameof(vm.ContainerNetwork), vm.AvailableNetworks, "docker.container.network", 210));
@@ -224,9 +225,19 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         return new ScrollViewer { Content = content };
     }
 
+    private static Control CreateStackDialog(DockerManagerViewModel vm, ModalDialog<bool> dialog)
+    {
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
+        content.Children.Add(new TextBlock { Text = LocalizedText.Get("docker.stacks_hint"), TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#61708B"), Width = 700 });
+        content.Children.Add(TextField(vm, nameof(vm.StackName), "docker.stack.name", "my-stack", 350));
+        content.Children.Add(TextField(vm, nameof(vm.ComposeYaml), "docker.stack.compose", "services:\n  web:\n    image: nginx:latest", 700, true, 270));
+        content.Children.Add(StackDialogActions(vm, dialog));
+        return new ScrollViewer { Content = content };
+    }
+
     private static Control CreatePullImageDialog(DockerManagerViewModel vm, ModalDialog<bool> dialog)
     {
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm };
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
         content.Children.Add(TextField(vm, nameof(vm.ImageReference), "docker.image.reference", "nginx:latest", 420));
         content.Children.Add(DialogActions(dialog, "docker.image.pull", vm.TryPullImageAsync));
         return content;
@@ -234,7 +245,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
 
     private static Control CreateNetworkDialog(DockerManagerViewModel vm, ModalDialog<bool> dialog)
     {
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm };
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
         content.Children.Add(TextField(vm, nameof(vm.NetworkName), "common.name", "", 420));
         content.Children.Add(ChoiceField(vm, nameof(vm.SelectedNetworkDriver), vm.NetworkDrivers, "docker.network.driver", 220));
         content.Children.Add(DialogActions(dialog, "common.create", vm.TryCreateNetworkAsync));
@@ -243,7 +254,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
 
     private static Control CreateVolumeDialog(DockerManagerViewModel vm, ModalDialog<bool> dialog)
     {
-        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm };
+        var content = new StackPanel { Spacing = 12, Margin = new Thickness(20), DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
         content.Children.Add(TextField(vm, nameof(vm.VolumeName), "common.name", "", 420));
         content.Children.Add(ChoiceField(vm, nameof(vm.SelectedVolumeDriver), vm.VolumeDrivers, "docker.volume.driver", 220));
         content.Children.Add(DialogActions(dialog, "common.create", vm.TryCreateVolumeAsync));
@@ -259,12 +270,26 @@ public sealed class DockerManagerApp : RemoteApplicationBase
 
     private static Control DialogActions(ModalDialog<bool> dialog, string confirmTextKey, Func<Task<bool>> submit)
     {
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
         var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
         cancel.Click += (_, _) => dialog.Cancel();
         var confirm = new Button { Content = LocalizedText.Get(confirmTextKey), Classes = { "primary" } };
         confirm.Click += async (_, _) => { if (await submit()) dialog.Close(true); };
         actions.Children.Add(cancel); actions.Children.Add(confirm);
+        return actions;
+    }
+
+    private static Control StackDialogActions(DockerManagerViewModel vm, ModalDialog<bool> dialog)
+    {
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        actions.Children.Add(new Button { Content = LocalizedText.Get("docker.stack.validate"), Command = vm.ValidateStackCommand });
+        var deploy = new Button { Content = LocalizedText.Get("docker.stack.deploy"), Classes = { "primary" } };
+        deploy.Click += async (_, _) => { if (await vm.TryDeployStackAsync()) dialog.Close(true); };
+        actions.Children.Add(deploy);
+        actions.Children.Add(new Button { Content = LocalizedText.Get("docker.stack.down"), Command = vm.DownStackCommand, Foreground = Brush.Parse("#B42318") });
+        var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+        cancel.Click += (_, _) => dialog.Cancel();
+        actions.Children.Add(cancel);
         return actions;
     }
 
@@ -292,13 +317,13 @@ public sealed class DockerManagerApp : RemoteApplicationBase
     private static Control Separator() => new Border { Height = 1, Background = Brush.Parse("#E5EAF2"), Margin = new Thickness(0, 2) };
     private static Control TextField(DockerManagerViewModel vm, string property, string labelKey, string placeholder, double width, bool multiline = false, double minHeight = 0)
     {
-        var field = new StackPanel { Spacing = 4, Width = width, Margin = new Thickness(0, 0, 10, 4) }; field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey), Foreground = Brush.Parse("#36506F") });
+        var field = new StackPanel { Spacing = 4, Width = width, Margin = new Thickness(0, 0, 10, 4), HorizontalAlignment = HorizontalAlignment.Left }; field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey), Foreground = Brush.Parse("#36506F") });
         var box = new TextBox { PlaceholderText = placeholder, AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap, MinHeight = minHeight };
         box.Bind(TextBox.TextProperty, new Binding(property) { Mode = BindingMode.TwoWay }); field.Children.Add(box); return field;
     }
     private static Control ChoiceField(DockerManagerViewModel vm, string property, IEnumerable<string> options, string labelKey, double width)
     {
-        var field = new StackPanel { Spacing = 4, Width = width, Margin = new Thickness(0, 0, 10, 4) }; field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey), Foreground = Brush.Parse("#36506F") });
+        var field = new StackPanel { Spacing = 4, Width = width, Margin = new Thickness(0, 0, 10, 4), HorizontalAlignment = HorizontalAlignment.Left }; field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey), Foreground = Brush.Parse("#36506F") });
         var box = new ComboBox { ItemsSource = options }; box.Bind(SelectingItemsControl.SelectedItemProperty, new Binding(property) { Mode = BindingMode.TwoWay }); field.Children.Add(box); return field;
     }
     private static Control ReadOnlyBox(DockerManagerViewModel vm, string property, double height)
