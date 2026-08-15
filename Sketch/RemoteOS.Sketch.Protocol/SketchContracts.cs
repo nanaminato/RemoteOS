@@ -14,11 +14,43 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total);
 
 // Docker
 public sealed record DockerContainerSummary(string Id, string Name, string Image, string State, string Status, string Ports, double CpuPercent, string Memory);
-public sealed record DockerContainerDetail(string Id, string Name, string Image, string State, string Status, string Ports, IReadOnlyDictionary<string, string> Environment, IReadOnlyList<string> Mounts, IReadOnlyList<string> Networks, IReadOnlyList<string> Logs);
+public sealed record DockerContainerDetail(
+    string Id,
+    string Name,
+    string Image,
+    string State,
+    string Status,
+    string Ports,
+    string Command,
+    string Environment,
+    string Mounts,
+    string Network,
+    string RestartPolicy);
 public sealed record DockerContainerActionRequest(string Action, bool Confirmed = false);
+public sealed record DockerContainerCreateRequest(
+    string Name,
+    string Image,
+    string Ports = "",
+    string Command = "",
+    string Environment = "",
+    string Mounts = "",
+    string Network = "bridge",
+    string RestartPolicy = "unless-stopped",
+    bool StartImmediately = true);
+public sealed record DockerContainerUpdateRequest(
+    string Name,
+    string Ports = "",
+    string Command = "",
+    string Environment = "",
+    string Mounts = "",
+    string Network = "bridge",
+    string RestartPolicy = "unless-stopped");
 public sealed record DockerStackSummary(string Name, string Source, string Status, int Services, DateTimeOffset UpdatedAt, string Compose);
 public sealed record DockerStackUpsertRequest(string Name, string Source, string Compose, bool Confirmed = false);
 public sealed record DockerImageSummary(string Id, string Repository, string Tag, string Size, string Created, bool InUse);
+public sealed record DockerImagePullRequest(string ImageReference);
+public sealed record DockerNetworkCreateRequest(string Name, string Driver = "bridge");
+public sealed record DockerVolumeCreateRequest(string Name, string Driver = "local");
 public sealed record DockerNetworkSummary(string Id, string Name, string Driver, int Containers);
 public sealed record DockerVolumeSummary(string Name, string Driver, string MountPoint, int Consumers);
 public sealed record DockerPrunePreview(int Containers, int Images, int Volumes, string ReclaimableSize);

@@ -54,7 +54,7 @@ public partial class ManagerWindow : Window
                 MetricLabel.Text = T("Running containers");
                 MetricValue.Text = "3";
                 MetricDescription.Text = T("1 stopped container is available");
-                SetNavigation("Overview", "Containers", "Stacks", "Images", "Networks", "Volumes");
+                SetNavigation("Overview", "Containers", "Images", "Networks", "Volumes");
                 GuidanceCard.IsVisible = false;
                 break;
 
@@ -116,6 +116,28 @@ public partial class ManagerWindow : Window
     private void DescribeSection()
     {
         SectionTitle.Text = T(_section);
+        if (_kind == ManagerKind.Docker)
+        {
+            SectionHint.Text = T(_section switch
+            {
+                "Overview" => "A simple, safe Docker workflow for local workloads.",
+                "Containers" => "Run public images and manage container status and parameters.",
+                "Images" => "Pull a public image, then run it as a container.",
+                "Networks" => "Create isolated container networks when needed.",
+                "Volumes" => "Create named local volumes for persistent application data.",
+                _ => "Resources in this workspace."
+            });
+            ActionButton.Content = T(_section switch
+            {
+                "Containers" => "Create container",
+                "Images" => "Pull image",
+                "Networks" => "Create network",
+                "Volumes" => "Create volume",
+                _ => "Refresh"
+            });
+            ActionButton.IsEnabled = _isInstalled;
+            return;
+        }
         SectionHint.Text = T(_section switch
         {
             "Overview" => "Health, key metrics and recent operations.",
@@ -187,27 +209,22 @@ public partial class ManagerWindow : Window
                 if (_section == "Containers")
                 {
                     var data = await _server.GetFromJsonAsync<PagedResult<DockerContainerSummary>>("/api/sketch/docker/containers");
-                    if (data is not null) foreach (var item in data.Items) AddRow(item.Name, item.Image, item.Status, item.Ports, item.State == "running");
-                }
-                else if (_section == "Stacks")
-                {
-                    var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerStackSummary>>("/api/sketch/docker/stacks");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Source, SketchLocalizer.Current.Format("{0} services", item.Services), item.Status, item.Status == "running");
+                    if (data is not null) RenderContainers(data.Items);
                 }
                 else if (_section == "Images")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerImageSummary>>("/api/sketch/docker/images");
-                    if (data is not null) foreach (var item in data) AddRow($"{item.Repository}:{item.Tag}", item.Size, item.Created, item.InUse ? "In use" : "Unused", item.InUse);
+                    if (data is not null) RenderImages(data);
                 }
                 else if (_section == "Networks")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerNetworkSummary>>("/api/sketch/docker/networks");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, SketchLocalizer.Current.Format("{0} containers", item.Containers), "Available", true);
+                    if (data is not null) RenderNetworks(data);
                 }
                 else if (_section == "Volumes")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerVolumeSummary>>("/api/sketch/docker/volumes");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, SketchLocalizer.Current.Format("{0} consumers", item.Consumers), "Mounted", item.Consumers > 0);
+                    if (data is not null) RenderVolumes(data);
                 }
                 break;
             case ManagerKind.Nginx:
@@ -272,6 +289,179 @@ public partial class ManagerWindow : Window
         }
     }
 
+    private void RenderContainers(IReadOnlyList<DockerContainerSummary> containers)
+    {
+        AddTableHeader(T("Name"), T("Image"), T("Status"), T("Ports"), T("Actions"));
+        if (containers.Count == 0) { AddRow(T("No containers yet"), T("Pull a public image and run it here."), "", "", false); return; }
+        foreach (var item in containers)
+        {
+            var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
+            if (item.State != "running") actions.Children.Add(RowAction(T("Start"), async () => await RunContainerActionAsync(item, "start", false)));
+            if (item.State == "running") actions.Children.Add(RowAction(T("Stop"), async () => await RunContainerActionAsync(item, "stop", true)));
+            actions.Children.Add(RowAction(T("Restart"), async () => await RunContainerActionAsync(item, "restart", false)));
+            actions.Children.Add(RowAction(T("Edit"), async () => await EditContainerAsync(item)));
+            actions.Children.Add(RowAction(T("Delete"), async () => await RunContainerActionAsync(item, "delete", true), true));
+            AddDockerTableRow(item.Name, item.Image, item.State == "running" ? T("Running") : T("Stopped"), string.IsNullOrWhiteSpace(item.Ports) ? "—" : item.Ports, item.State == "running", actions);
+        }
+    }
+
+    private void RenderImages(IReadOnlyList<DockerImageSummary> images)
+    {
+        AddTableHeader(T("Image"), T("Size"), T("Created"), T("Status"), T("Actions"));
+        foreach (var item in images)
+        {
+            var image = $"{item.Repository}:{item.Tag}";
+            var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
+            actions.Children.Add(RowAction(T("Run"), async () => await CreateDockerContainerAsync(image)));
+            AddDockerTableRow(image, item.Size, item.Created, item.InUse ? T("In use") : T("Available"), item.InUse, actions);
+        }
+    }
+
+    private void RenderNetworks(IReadOnlyList<DockerNetworkSummary> networks)
+    {
+        AddTableHeader(T("Name"), T("Driver"), "", T("Status"), T("Actions"));
+        foreach (var item in networks)
+        {
+            var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
+            if (item.Name is not ("bridge" or "host" or "none")) actions.Children.Add(RowAction(T("Delete"), async () => await DeleteNetworkAsync(item), true));
+            AddDockerTableRow(item.Name, item.Driver, "", T("Available"), true, actions);
+        }
+    }
+
+    private void RenderVolumes(IReadOnlyList<DockerVolumeSummary> volumes)
+    {
+        AddTableHeader(T("Name"), T("Driver"), "", T("Status"), T("Actions"));
+        foreach (var item in volumes)
+        {
+            var actions = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 6 };
+            actions.Children.Add(RowAction(T("Delete"), async () => await DeleteVolumeAsync(item), true));
+            AddDockerTableRow(item.Name, item.Driver, "", T("Available"), true, actions);
+        }
+    }
+
+    private void AddTableHeader(params string[] headings)
+    {
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("1.4*,1.4*,1*,1.25*,Auto"), Margin = new Thickness(14, 0, 14, 2) };
+        for (var index = 0; index < headings.Length; index++) grid.Children.Add(Label(headings[index], "#72819A", FontWeight.SemiBold, index));
+        RowsPanel.Children.Add(grid);
+    }
+
+    private void AddDockerTableRow(string first, string second, string third, string fourth, bool healthy, Control actions)
+    {
+        var row = new Border { Background = Brush.Parse("#F8FAFD"), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 11), Child = new Grid { ColumnDefinitions = new ColumnDefinitions("1.4*,1.4*,1*,1.25*,Auto") } };
+        var grid = (Grid)row.Child;
+        grid.Children.Add(Label(first, "#203657", FontWeight.SemiBold));
+        grid.Children.Add(Label(second, "#62718A", FontWeight.Normal, 1));
+        grid.Children.Add(Label(third, healthy ? "#168451" : "#A65A25", FontWeight.SemiBold, 2));
+        grid.Children.Add(Label(fourth, "#62718A", FontWeight.Normal, 3));
+        Grid.SetColumn(actions, 4);
+        grid.Children.Add(actions);
+        RowsPanel.Children.Add(row);
+    }
+
+    private Button RowAction(string text, Func<Task> operation, bool danger = false)
+    {
+        var button = new Button { Content = text, FontSize = 12, Padding = new Thickness(8, 4), Foreground = Brush.Parse(danger ? "#B42318" : "#1769D9") };
+        button.Click += async (_, _) => await operation();
+        return button;
+    }
+
+    private async Task CreateDockerContainerAsync(string? preferredImage = null)
+    {
+        var values = await ShowCreateDialogAsync(T("Create container"),
+            (T("Name"), "my-container", false),
+            (T("Image"), preferredImage ?? "nginx:1.27", false),
+            (T("Ports"), "8080:80", false),
+            (T("Command"), "", false),
+            (T("Environment"), "KEY=value", true),
+            (T("Mounts"), "volume-name:/data", false),
+            (T("Network"), "bridge", false),
+            (T("Restart policy"), "unless-stopped", false));
+        if (values is null) return;
+        await SubmitDockerAsync("/api/sketch/docker/containers", new DockerContainerCreateRequest(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7]));
+    }
+
+    private async Task EditContainerAsync(DockerContainerSummary summary)
+    {
+        var details = await _server.GetFromJsonAsync<DockerContainerDetail>($"/api/sketch/docker/containers/{Uri.EscapeDataString(summary.Id)}");
+        if (details is null) { await LoadFromServerAsync(); return; }
+        var values = await ShowFormDialogAsync(T("Edit container"), T("Save"),
+            (T("Name"), details.Name, false),
+            (T("Ports"), details.Ports, false),
+            (T("Command"), details.Command, false),
+            (T("Environment"), details.Environment, true),
+            (T("Mounts"), details.Mounts, false),
+            (T("Network"), details.Network, false),
+            (T("Restart policy"), details.RestartPolicy, false));
+        if (values is null) return;
+        var response = await _server.PutAsJsonAsync($"/api/sketch/docker/containers/{Uri.EscapeDataString(summary.Id)}", new DockerContainerUpdateRequest(values[0], values[1], values[2], values[3], values[4], values[5], values[6]));
+        await ApplyDockerResponseAsync(response);
+    }
+
+    private async Task PullPublicImageAsync()
+    {
+        var values = await ShowCreateDialogAsync(T("Pull public image"), (T("Image"), "redis:7", false));
+        if (values is not null) await SubmitDockerAsync("/api/sketch/docker/images/pull", new DockerImagePullRequest(values[0]));
+    }
+
+    private async Task CreateNetworkAsync()
+    {
+        var values = await ShowCreateDialogAsync(T("Create network"), (T("Name"), "app-network", false), (T("Driver"), "bridge", false));
+        if (values is not null) await SubmitDockerAsync("/api/sketch/docker/networks", new DockerNetworkCreateRequest(values[0], values[1]));
+    }
+
+    private async Task CreateVolumeAsync()
+    {
+        var values = await ShowCreateDialogAsync(T("Create volume"), (T("Name"), "app-data", false), (T("Driver"), "local", false));
+        if (values is not null) await SubmitDockerAsync("/api/sketch/docker/volumes", new DockerVolumeCreateRequest(values[0], values[1]));
+    }
+
+    private async Task RunContainerActionAsync(DockerContainerSummary container, string action, bool confirmationRequired)
+    {
+        if (confirmationRequired && !await ShowConfirmationDialogAsync(T($"{action} container"), SketchLocalizer.Current.Format("{0} {1}?", action, container.Name))) return;
+        await SubmitDockerAsync($"/api/sketch/docker/containers/{Uri.EscapeDataString(container.Id)}/actions", new DockerContainerActionRequest(action, confirmationRequired));
+    }
+
+    private async Task DeleteNetworkAsync(DockerNetworkSummary network)
+    {
+        if (!await ShowConfirmationDialogAsync(T("Delete network"), SketchLocalizer.Current.Format("Delete network {0}?", network.Name))) return;
+        var response = await _server.DeleteAsync($"/api/sketch/docker/networks/{Uri.EscapeDataString(network.Id)}?confirmed=true");
+        await ApplyDockerResponseAsync(response);
+    }
+
+    private async Task DeleteVolumeAsync(DockerVolumeSummary volume)
+    {
+        if (!await ShowConfirmationDialogAsync(T("Delete volume"), SketchLocalizer.Current.Format("Delete volume {0}?", volume.Name))) return;
+        var response = await _server.DeleteAsync($"/api/sketch/docker/volumes/{Uri.EscapeDataString(volume.Name)}?confirmed=true");
+        await ApplyDockerResponseAsync(response);
+    }
+
+    private async Task SubmitDockerAsync(string endpoint, object request) => await ApplyDockerResponseAsync(await _server.PostAsJsonAsync(endpoint, request));
+
+    private async Task ApplyDockerResponseAsync(HttpResponseMessage response)
+    {
+        var result = await response.Content.ReadFromJsonAsync<MockOperationResult>();
+        await LoadFromServerAsync();
+        SectionHint.Text = result?.Message ?? T("The request could not be completed.");
+    }
+
+    private async Task<bool> ShowConfirmationDialogAsync(string title, string message)
+    {
+        var dialog = new Window { Title = title, Width = 410, Height = 210, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brush.Parse("#F4F7FB") };
+        var content = new StackPanel { Margin = new Thickness(24), Spacing = 16 };
+        content.Children.Add(new TextBlock { Text = title, FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Brush.Parse("#163059") });
+        content.Children.Add(new TextBlock { Text = message, Foreground = Brush.Parse("#4D617D"), TextWrapping = TextWrapping.Wrap });
+        var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Spacing = 10 };
+        var cancel = new Button { Content = T("Cancel") };
+        var confirm = new Button { Content = T("Confirm") };
+        confirm.Classes.Add("primary-action");
+        cancel.Click += (_, _) => dialog.Close(false);
+        confirm.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancel); buttons.Children.Add(confirm); content.Children.Add(buttons);
+        dialog.Content = content;
+        return await dialog.ShowDialog<bool>(this);
+    }
+
     private void AddRow(string title, string detail, string value, string status, bool healthy)
     {
         var row = new Border
@@ -305,6 +495,16 @@ public partial class ManagerWindow : Window
 
     private async void Refresh(object? sender, RoutedEventArgs e)
     {
+        if (_kind == ManagerKind.Docker && _isInstalled)
+        {
+            switch (_section)
+            {
+                case "Containers": await CreateDockerContainerAsync(); return;
+                case "Images": await PullPublicImageAsync(); return;
+                case "Networks": await CreateNetworkAsync(); return;
+                case "Volumes": await CreateVolumeAsync(); return;
+            }
+        }
         if (_isInstalled && _section is "Stacks" or "Sites" or "Certificates")
         {
             await CreateResourceAsync();
@@ -354,8 +554,7 @@ public partial class ManagerWindow : Window
         switch (_kind)
         {
             case ManagerKind.Docker:
-                values = await ShowCreateDialogAsync(T("Create stack"), (T("Name"), "new-stack", false), (T("Source"), "Compose editor", false), (T("Compose"), "services:\n  app:\n    image: nginx:1.27", true));
-                if (values is not null) await SubmitCreationAsync("/api/sketch/docker/stacks", new DockerStackUpsertRequest(values[0], values[1], values[2]));
+                await CreateDockerContainerAsync();
                 break;
             case ManagerKind.Nginx:
                 values = await ShowCreateDialogAsync(T("Create site"), (T("Name"), "New site", false), (T("Domains"), "preview.example.local", false), (T("Upstream"), "http://remoteos-web:80", false));
@@ -380,7 +579,9 @@ public partial class ManagerWindow : Window
         else if (result is not null) SectionHint.Text = T(result.Message);
     }
 
-    private async Task<string[]?> ShowCreateDialogAsync(string title, params (string Label, string Value, bool Multiline)[] fields)
+    private Task<string[]?> ShowCreateDialogAsync(string title, params (string Label, string Value, bool Multiline)[] fields) => ShowFormDialogAsync(title, T("Create"), fields);
+
+    private async Task<string[]?> ShowFormDialogAsync(string title, string submitLabel, params (string Label, string Value, bool Multiline)[] fields)
     {
         var values = fields.Select(field => new TextBox
         {
@@ -399,7 +600,7 @@ public partial class ManagerWindow : Window
         var dialog = new Window { Title = title, Width = 520, Height = 430, MinWidth = 400, MinHeight = 300, CanResize = true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brush.Parse("#F4F7FB") };
         var buttons = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         var cancel = new Button { Content = T("Cancel") };
-        var create = new Button { Content = T("Create") };
+        var create = new Button { Content = submitLabel };
         create.Classes.Add("primary-action");
         cancel.Click += (_, _) => dialog.Close((string[]?)null);
         create.Click += (_, _) => dialog.Close(values.Select(input => input.Text?.Trim() ?? string.Empty).ToArray());
