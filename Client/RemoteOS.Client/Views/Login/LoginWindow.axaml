@@ -4,9 +4,9 @@
         x:Class="Client.Views.Login.LoginWindow"
         Icon="/Assets/RemoteOS-client-icon.ico"
         Title="Remote Desktop Connection"
-        Width="680" Height="570"
+        Width="680" Height="700"
         WindowStartupLocation="CenterScreen"
-        CanResize="False"
+        CanResize="True"
         ShowInTaskbar="True"
         Background="{StaticResource BackgroundBrush}"
         FontFamily="{StaticResource ContentFont}">
