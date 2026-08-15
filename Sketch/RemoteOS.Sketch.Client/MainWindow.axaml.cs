@@ -3,7 +3,7 @@ using Avalonia.Interactivity;
 using RemoteOS.Sketch.Protocol;
 using System.Net.Http.Json;
 
-namespace RemoteOS.Sketch.Desktop;
+namespace RemoteOS.Sketch.Client;
 public partial class MainWindow : Window
 {
     private readonly HttpClient _server = new() { BaseAddress = new Uri("http://127.0.0.1:5088") };

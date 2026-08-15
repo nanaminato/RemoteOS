@@ -1,6 +1,8 @@
 # RemoteOS Sketch
 
-独立的 UI 设计沙盒。它不依赖主 RemoteOS Client、Server、权限系统或本地化资源；Mock Server 只提供固定的登录和管理器状态，用于验证窗口结构、空状态和安装引导。
+独立的 UI 设计沙盒。项目结构沿用主项目的 Avalonia 模板分层：`Desktop` 只负责平台入口，`Client` 负责 App、窗口与页面，`Protocol` 存放契约，`Server` 提供 Mock API。它不依赖主 RemoteOS 的应用运行时、权限系统或本地化资源。
+
+请直接打开 `RemoteOS.Sketch.sln`。在 IDE 中将 `RemoteOS.Sketch.Server` 和 `RemoteOS.Sketch.Desktop` 配为多启动项目，先启动 Server。
 
 ```bash
 dotnet run --project Sketch/RemoteOS.Sketch.Server

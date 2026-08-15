@@ -1,1 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup><ItemGroup><PackageReference Include="Avalonia" /><PackageReference Include="Avalonia.Desktop" /><PackageReference Include="Avalonia.Themes.Fluent" /><PackageReference Include="Avalonia.Fonts.Inter" /><ProjectReference Include="../RemoteOS.Sketch.Protocol/RemoteOS.Sketch.Protocol.csproj" /></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RemoteOS.Sketch.Desktop</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../RemoteOS.Sketch.Client/RemoteOS.Sketch.Client.csproj" />
+  </ItemGroup>
+</Project>

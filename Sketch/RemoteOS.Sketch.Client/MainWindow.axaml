@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RemoteOS.Sketch.Desktop.MainWindow" Width="1180" Height="760" MinWidth="900" MinHeight="600" Title="RemoteOS Sketch">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RemoteOS.Sketch.Client.MainWindow" Width="1180" Height="760" MinWidth="900" MinHeight="600" Title="RemoteOS Sketch">
   <Grid ColumnDefinitions="220,*" Background="#F7F8FA">
     <Border Background="#172033" Padding="18"><StackPanel Spacing="8"><TextBlock Text="RemoteOS" FontSize="23" FontWeight="SemiBold" Foreground="White"/><TextBlock Text="Server management sketch" Opacity=".72" Foreground="White" Margin="0,0,0,20"/>
       <Button Content="Overview" Click="ShowOverview"/><Button Content="🐳  Docker Manager" Click="ShowDocker"/><Button Content="🌐  Nginx Manager" Click="ShowNginx"/><Button Content="🔐  Certificate Manager" Click="ShowCertificates"/>
