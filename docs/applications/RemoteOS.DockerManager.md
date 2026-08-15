@@ -2,7 +2,7 @@
 
 > 内置 Docker 管理器。它管理 **RemoteOS.Server 所在宿主机** 的本地 Docker Engine；客户端只负责本地 UI 渲染，不直连 Docker socket、不保存 Docker 凭据，也不将守护进程 API 暴露到网络。
 >
-> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose 的校验、`up` 和 `down` 主路径。安装、创建与删除、镜像构建/拉取、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
+> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose Stack 的列表、校验和 `up` 部署。Stack 停止必须从已选定的 Stack 上下文发起，当前不在新建部署窗口提供。安装、创建与删除、镜像构建/拉取、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
 >
 > - 架构与内置应用边界：[`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
 > - 协议契约规则：[`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)

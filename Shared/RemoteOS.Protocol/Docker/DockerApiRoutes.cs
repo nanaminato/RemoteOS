@@ -24,6 +24,6 @@ public static class DockerApiRoutes
     public const string ImageExport = $"/{V1}/docker/images/{{id}}/export";
     public const string ImageImport = $"/{V1}/docker/images/import";
     public const string StackValidate = $"/{V1}/docker/stacks/validate";
+    public const string Stacks = $"/{V1}/docker/stacks";
     public const string StackDeploy = $"/{V1}/docker/stacks/deploy";
-    public const string StackDown = $"/{V1}/docker/stacks/down";
 }

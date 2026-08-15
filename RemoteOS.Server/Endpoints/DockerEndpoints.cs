@@ -31,9 +31,9 @@ public static class DockerEndpoints
         group.MapPost("/images/build", (DockerBuildRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.BuildImageAsync(request, ct));
         group.MapGet("/images/{id}/export", async (string id, Server.Docker.IDockerEngineService service, CancellationToken ct) => await service.ExportImageAsync(id, ct) is { } archive ? Results.Ok(archive) : Results.NotFound());
         group.MapPost("/images/import", (DockerImageArchiveDto archive, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ImportImageAsync(archive, ct));
+        group.MapGet("/stacks", (Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ListAsync(ct));
         group.MapPost("/stacks/validate", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ValidateAsync(definition, ct));
         group.MapPost("/stacks/deploy", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.DeployAsync(definition, ct));
-        group.MapPost("/stacks/down", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.DownAsync(definition, ct));
         return app;
     }
 }

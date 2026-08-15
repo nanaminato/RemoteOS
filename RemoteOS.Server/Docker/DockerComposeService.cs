@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.Json;
 using RemoteOS.Protocol.Docker;
 
 namespace Server.Docker;
@@ -13,8 +14,22 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
         => ExecuteAsync(definition, ["config", "--quiet"], cancellationToken);
     public Task<DockerStackOperationResult> DeployAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
         => ExecuteAsync(definition, ["up", "--detach", "--remove-orphans"], cancellationToken);
-    public Task<DockerStackOperationResult> DownAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
-        => ExecuteAsync(definition, ["down"], cancellationToken);
+    public async Task<IReadOnlyList<DockerStackDto>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(["compose", "ls", "--format", "json"], cancellationToken);
+        if (!result.Success) return [];
+        try
+        {
+            using var document = JsonDocument.Parse(result.Output);
+            if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
+            return document.RootElement.EnumerateArray()
+                .Select(item => new DockerStackDto(Read(item, "Name"), Read(item, "Status"), Read(item, "ConfigFiles")))
+                .Where(stack => !string.IsNullOrWhiteSpace(stack.Name))
+                .OrderBy(stack => stack.Name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (JsonException) { return []; }
+    }
 
     private async Task<DockerStackOperationResult> ExecuteAsync(DockerStackDefinitionDto definition, IReadOnlyList<string> composeCommand, CancellationToken cancellationToken)
     {
@@ -62,6 +77,7 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     }
 
     private static IReadOnlyList<string> ToLines(string message) => message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(line => line.Length <= 512 ? line : line[..512]).Take(20).ToArray();
+    private static string Read(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     private static string ToProblemCode(string error) => error.Contains("not_found", StringComparison.OrdinalIgnoreCase) ? "docker.not_installed" : error.Contains("permission denied", StringComparison.OrdinalIgnoreCase) ? "docker.permission_denied" : "docker.compose_failed";
     private sealed record CommandResult(bool Success, string Output, string Error);
 }

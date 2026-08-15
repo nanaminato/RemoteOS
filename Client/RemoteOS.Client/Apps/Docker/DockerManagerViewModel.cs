@@ -13,6 +13,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     public ObservableCollection<DockerImageDto> Images { get; } = [];
     public ObservableCollection<DockerNetworkDto> Networks { get; } = [];
     public ObservableCollection<DockerVolumeDto> Volumes { get; } = [];
+    public ObservableCollection<DockerStackDto> Stacks { get; } = [];
     public ObservableCollection<string> AvailableNetworks { get; } = ["bridge"];
 
     // Docker's built-in drivers that can create a user-defined network. Host and none are
@@ -52,6 +53,10 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private DockerVolumeDto? _selectedVolume;
     [ObservableProperty] private bool _confirmVolumeDeletion;
 
+    /// <summary>Assigned by the app shell so operations can surface an unavailable Engine immediately.</summary>
+    public Func<Task>? ShowDockerUnavailableAsync { get; set; }
+    private bool _isUnavailableDialogShowing;
+
     public int RunningContainerCount => Containers.Count(container => container.State.Equals("running", StringComparison.OrdinalIgnoreCase));
 
     public async Task StartAsync() => await RefreshAsync();
@@ -68,7 +73,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             var imagesTask = client.ListImagesAsync();
             var networksTask = client.ListNetworksAsync();
             var volumesTask = client.ListVolumesAsync();
-            await Task.WhenAll(statusTask, containersTask, imagesTask, networksTask, volumesTask);
+            var stacksTask = client.ListStacksAsync();
+            await Task.WhenAll(statusTask, containersTask, imagesTask, networksTask, volumesTask, stacksTask);
             var status = await statusTask;
             IsDockerAvailable = status.IsAvailable;
             EngineVersion = status.ServerVersion ?? "—";
@@ -80,6 +86,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             Replace(Containers, await containersTask); Replace(Images, await imagesTask);
             var networks = await networksTask;
             Replace(Networks, networks); Replace(Volumes, await volumesTask);
+            Replace(Stacks, await stacksTask);
             Replace(AvailableNetworks, networks.Select(network => network.Name).Prepend("bridge").Distinct(StringComparer.Ordinal));
             if (!AvailableNetworks.Contains(ContainerNetwork, StringComparer.Ordinal)) ContainerNetwork = "bridge";
             OnPropertyChanged(nameof(RunningContainerCount));
@@ -106,7 +113,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         {
             var logs = await client.GetContainerLogsAsync(container.Id);
             ContainerLogs = logs is null ? string.Empty : string.Join(Environment.NewLine, logs.Lines);
-            StatusText = logs is null ? LocalizedText.Format("docker.action.failed", "logs", "docker.not_found") : LocalizedText.Format("docker.action.succeeded", "logs", container.Names);
+            StatusText = logs is null ? LocalizedText.Format("docker.action.failed", OperationText("logs"), "docker.not_found") : LocalizedText.Format("docker.action.succeeded", OperationText("logs"), container.Names);
         });
     }
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private async Task LoadContainerStatsAsync()
@@ -115,8 +122,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         await RunReadAsync(async () =>
         {
             var stats = await client.GetContainerStatsAsync(container.Id);
-            ContainerStats = stats is null ? string.Empty : $"CPU {stats.CpuPercent}  •  Memory {stats.MemoryUsage}  •  Network {stats.NetworkIo}  •  Block I/O {stats.BlockIo}";
-            StatusText = stats is null ? LocalizedText.Format("docker.action.failed", "stats", "docker.not_found") : LocalizedText.Format("docker.action.succeeded", "stats", container.Names);
+            ContainerStats = stats is null ? string.Empty : LocalizedText.Format("docker.stats.summary", stats.CpuPercent, stats.MemoryUsage, stats.NetworkIo, stats.BlockIo);
+            StatusText = stats is null ? LocalizedText.Format("docker.action.failed", OperationText("stats"), "docker.not_found") : LocalizedText.Format("docker.action.succeeded", OperationText("stats"), container.Names);
         });
     }
 
@@ -144,12 +151,11 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         var container = SelectedContainer; if (container is null) return;
         await RunOperationAsync(
             () => client.ApplyContainerActionAsync(container.Id, action, new DockerContainerActionRequest(Confirmed: confirmed)),
-            result => result.Success ? LocalizedText.Format("docker.action.succeeded", action, container.Names) : LocalizedText.Format("docker.action.failed", action, result.ProblemCode));
+            result => result.Success ? LocalizedText.Format("docker.action.succeeded", OperationText(action), container.Names) : LocalizedText.Format("docker.action.failed", OperationText(action), result.ProblemCode));
     }
 
     [RelayCommand] private Task ValidateStackAsync() => ApplyStackAsync("validate");
     [RelayCommand] private Task DeployStackAsync() => TryDeployStackAsync();
-    [RelayCommand] private Task DownStackAsync() => ApplyStackAsync("down");
 
     /// <summary>Deploys a Compose stack and reports whether its dialog can close.</summary>
     public Task<bool> TryDeployStackAsync() => ApplyStackAsync("deploy");
@@ -167,7 +173,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             result =>
             {
                 var detail = result.Messages.FirstOrDefault() ?? result.ProblemCode;
-                return result.Success ? LocalizedText.Format("docker.stack.succeeded", operation, StackName) : LocalizedText.Format("docker.stack.failed", operation, detail);
+                return result.Success ? LocalizedText.Format("docker.stack.succeeded", OperationText(operation), StackName) : LocalizedText.Format("docker.stack.failed", OperationText(operation), detail);
             });
     }
 
@@ -265,6 +271,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     private async Task<bool> RunOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess = null)
     {
+        if (!await EnsureDockerAvailableAsync()) return false;
         var succeeded = false;
         IsLoading = true;
         try
@@ -273,28 +280,92 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             succeeded = result.Success;
             StatusText = status(result);
             if (result.Success) onSuccess?.Invoke();
+            else await ShowUnavailableForProblemAsync(result.ProblemCode);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
+        catch (Exception exception)
+        {
+            StatusText = LocalizedText.Format("docker.status.failed", exception.Message);
+            await ShowUnavailableForExceptionAsync();
+        }
         finally { IsLoading = false; }
         await RefreshAsync();
         return succeeded;
     }
     private async Task<bool> RunOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status)
     {
+        if (!await EnsureDockerAvailableAsync()) return false;
         var succeeded = false;
         IsLoading = true;
-        try { var result = await operation(); succeeded = result.Success; StatusText = status(result); }
-        catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
+        try
+        {
+            var result = await operation(); succeeded = result.Success; StatusText = status(result);
+            if (!result.Success) await ShowUnavailableForProblemAsync(result.ProblemCode);
+        }
+        catch (Exception exception)
+        {
+            StatusText = LocalizedText.Format("docker.status.failed", exception.Message);
+            await ShowUnavailableForExceptionAsync();
+        }
         finally { IsLoading = false; }
         await RefreshAsync();
         return succeeded;
     }
     private async Task RunReadAsync(Func<Task> operation)
     {
+        if (!await EnsureDockerAvailableAsync()) return;
         IsLoading = true;
         try { await operation(); }
-        catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
+        catch (Exception exception)
+        {
+            StatusText = LocalizedText.Format("docker.status.failed", exception.Message);
+            await ShowUnavailableForExceptionAsync();
+        }
         finally { IsLoading = false; }
     }
+    private async Task<bool> EnsureDockerAvailableAsync()
+    {
+        if (IsDockerAvailable) return true;
+        StatusText = LocalizedText.Get("docker.status.unavailable_operation");
+        await ShowDockerUnavailableDialogAsync();
+        return false;
+    }
+    private async Task ShowUnavailableForProblemAsync(string problemCode)
+    {
+        if (problemCode is not ("docker.unavailable" or "docker.not_installed" or "docker.api_incompatible")) return;
+        IsDockerAvailable = false;
+        StatusText = LocalizedText.Format("docker.status.unavailable", problemCode);
+        await ShowDockerUnavailableDialogAsync();
+    }
+    private async Task ShowUnavailableForExceptionAsync()
+    {
+        try
+        {
+            var status = await client.GetStatusAsync();
+            if (status.IsAvailable) return;
+            IsDockerAvailable = false;
+            StatusText = LocalizedText.Format("docker.status.unavailable", status.ProblemCode);
+        }
+        catch
+        {
+            IsDockerAvailable = false;
+            StatusText = LocalizedText.Get("docker.status.unavailable_operation");
+        }
+        await ShowDockerUnavailableDialogAsync();
+    }
+    private async Task ShowDockerUnavailableDialogAsync()
+    {
+        if (_isUnavailableDialogShowing || ShowDockerUnavailableAsync is null) return;
+        _isUnavailableDialogShowing = true;
+        try { await ShowDockerUnavailableAsync(); }
+        finally { _isUnavailableDialogShowing = false; }
+    }
+    private static string OperationText(string operation) => operation switch
+    {
+        "validate" => LocalizedText.Get("docker.stack.validate"),
+        "deploy" => LocalizedText.Get("docker.stack.deploy"),
+        "logs" => LocalizedText.Get("docker.container.logs"),
+        "stats" => LocalizedText.Get("docker.container.stats"),
+        _ => LocalizedText.Get($"docker.action.{operation}"),
+    };
     private static IReadOnlyList<string> Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
