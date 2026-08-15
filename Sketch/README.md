@@ -4,6 +4,8 @@
 
 启动后会显示一个 RemoteOS 桌面，其中包含 Docker、Nginx 和证书管理器。点击桌面图标或底部任务栏图标会打开相应的独立窗口，而非在桌面窗口内切换页面。
 
+桌面右上角提供 `中文` / `English` 切换。选择会保存在本机，已打开的管理窗口会随语言切换立即更新；服务名称、域名、镜像名等用户或服务端数据保持原样。
+
 请直接打开 `RemoteOS.Sketch.sln`。在 IDE 中将 `RemoteOS.Sketch.Server` 和 `RemoteOS.Sketch.Desktop` 配为多启动项目，先启动 Server。
 
 ```bash

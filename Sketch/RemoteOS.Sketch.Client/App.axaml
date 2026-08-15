@@ -24,6 +24,16 @@
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
+    <Style Selector="Button.language-toggle">
+      <Setter Property="Background" Value="#1D3562"/>
+      <Setter Property="BorderBrush" Value="#3D5B8D"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Foreground" Value="#DCE8FF"/>
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="Margin" Value="0,0,10,0"/>
+      <Setter Property="FontSize" Value="12"/>
+    </Style>
     <Style Selector="Button.primary-action">
       <Setter Property="Background" Value="#2764BE"/>
       <Setter Property="Foreground" Value="White"/>

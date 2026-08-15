@@ -1,0 +1,193 @@
+using System.Globalization;
+
+namespace RemoteOS.Sketch.Client;
+
+/// <summary>Small, self-contained localization layer for the Sketch design sandbox.</summary>
+public sealed class SketchLocalizer
+{
+    private const string English = "en-US";
+    private const string Chinese = "zh-CN";
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteOS.Sketch", "language.txt");
+
+    private static readonly IReadOnlyDictionary<string, string> ChineseTexts = new Dictionary<string, string>
+    {
+        ["Language"] = "语言",
+        ["SwitchToChinese"] = "中文",
+        ["SwitchToEnglish"] = "English",
+        ["Infrastructure workspace"] = "基础设施工作区",
+        ["Connecting…"] = "正在连接…",
+        ["Local preview"] = "本地预览",
+        ["Offline design preview"] = "离线设计预览",
+        ["Connected as {0}"] = "已连接：{0}",
+        ["Good to see you"] = "很高兴见到你",
+        ["Server Desktop"] = "服务器桌面",
+        ["Open a management app to work with your local services."] = "打开管理应用，管理本地服务。",
+        ["Docker Manager"] = "Docker 管理器",
+        ["Nginx Manager"] = "Nginx 管理器",
+        ["Certificate Manager"] = "证书管理器",
+        ["3 containers running"] = "3 个容器正在运行",
+        ["1 site · service offline"] = "1 个站点 · 服务离线",
+        ["No ACME client detected"] = "未检测到 ACME 客户端",
+        ["Design preview · Local mock service · design-user"] = "设计预览 · 本地模拟服务 · design-user",
+        ["All systems available"] = "所有系统可用",
+        ["Manager"] = "管理器",
+        ["Service management"] = "服务管理",
+        ["Ready"] = "就绪",
+        ["WORKSPACE"] = "工作区",
+        ["Service status"] = "服务状态",
+        ["Installed"] = "已安装",
+        ["All services are healthy."] = "所有服务运行正常。",
+        ["Version"] = "版本",
+        ["Local design preview"] = "本地设计预览",
+        ["Resources"] = "资源",
+        ["Available resources on this host."] = "此主机上的可用资源。",
+        ["Refresh"] = "刷新",
+        ["Refreshing…"] = "正在刷新…",
+        ["Retry connection"] = "重试连接",
+        ["Getting started"] = "快速开始",
+        ["Overview"] = "概览",
+        ["Containers"] = "容器",
+        ["Stacks"] = "应用栈",
+        ["Images"] = "镜像",
+        ["Networks"] = "网络",
+        ["Volumes"] = "卷",
+        ["Sites"] = "站点",
+        ["Configuration"] = "配置",
+        ["Test & Reload"] = "测试并重载",
+        ["Logs"] = "日志",
+        ["Certificates"] = "证书",
+        ["ACME accounts"] = "ACME 账户",
+        ["DNS providers"] = "DNS 提供商",
+        ["Renewal policy"] = "续期策略",
+        ["Health, key metrics and recent operations."] = "健康状态、关键指标和最近操作。",
+        ["Manage workload lifecycle and inspect current state."] = "管理工作负载生命周期并检查当前状态。",
+        ["Compose definitions, deployment state and source."] = "Compose 定义、部署状态和来源。",
+        ["Local images, storage use and safe cleanup previews."] = "本地镜像、存储用量和安全清理预览。",
+        ["Container networks and attached workloads."] = "容器网络和已连接的工作负载。",
+        ["Persistent storage and current consumers."] = "持久化存储及当前使用方。",
+        ["Domains, upstreams, HTTPS bindings and publish state."] = "域名、上游、HTTPS 绑定和发布状态。",
+        ["Versioned, reviewable server configuration snapshots."] = "可版本化、可审查的服务器配置快照。",
+        ["Test syntax before applying a controlled reload."] = "在受控重载前测试语法。",
+        ["Recent access, error and configuration events."] = "最近的访问、错误和配置事件。",
+        ["Issued certificates, validity and automated renewal."] = "已签发证书、有效期和自动续期。",
+        ["Account metadata and production directory status."] = "账户元数据和生产目录状态。",
+        ["Configured DNS validation providers; secrets stay masked."] = "已配置的 DNS 验证提供商；密钥保持隐藏。",
+        ["Renewal threshold and safe maintenance window."] = "续期阈值和安全维护窗口。",
+        ["Resources in this workspace."] = "此工作区中的资源。",
+        ["Run configuration test"] = "运行配置测试",
+        ["Testing…"] = "正在测试…",
+        ["Docker Engine is running"] = "Docker 引擎正在运行",
+        ["Containers, images and local workloads"] = "容器、镜像和本地工作负载",
+        ["●  Engine running"] = "●  引擎正在运行",
+        ["Version 27.1.1 · 3 containers detected"] = "版本 27.1.1 · 检测到 3 个容器",
+        ["Running containers"] = "运行中的容器",
+        ["1 stopped container is available"] = "有 1 个已停止的容器",
+        ["Sites, reverse proxies and server configuration"] = "站点、反向代理和服务器配置",
+        ["●  Service offline"] = "●  服务离线",
+        ["Nginx is not installed"] = "未安装 Nginx",
+        ["Install and start Nginx before managing live sites."] = "请先安装并启动 Nginx，再管理线上站点。",
+        ["Configured sites"] = "已配置站点",
+        ["One design-preview configuration"] = "一个设计预览配置",
+        ["HTTPS certificates, renewal and domain validation"] = "HTTPS 证书、续期和域名验证",
+        ["●  Setup needed"] = "●  需要设置",
+        ["Certificate service is not ready"] = "证书服务尚未就绪",
+        ["No supported ACME client was detected on this host."] = "此主机未检测到受支持的 ACME 客户端。",
+        ["Tracked certificates"] = "已跟踪证书",
+        ["One design-preview certificate"] = "一个设计预览证书",
+        ["●  Healthy"] = "●  正常",
+        ["●  Attention"] = "●  需关注",
+        ["●  Unavailable"] = "●  不可用",
+        ["Latest activity · {0:HH:mm}\n{1}: {2} — {3}"] = "最近活动 · {0:HH:mm}\n{1}：{2} — {3}",
+        ["Mock Server offline"] = "模拟服务器离线",
+        ["Start RemoteOS.Sketch.Server"] = "启动 RemoteOS.Sketch.Server",
+        ["Offline"] = "离线",
+        ["No test run yet"] = "尚未运行测试",
+        ["Run the configuration test before reloading"] = "请在重载前运行配置测试",
+        ["Pending"] = "等待中",
+        ["nginx -t"] = "nginx -t",
+        ["Passed"] = "通过",
+        ["Failed"] = "失败",
+        ["In use"] = "使用中",
+        ["Unused"] = "未使用",
+        ["Available"] = "可用",
+        ["Mounted"] = "已挂载",
+        ["Enabled"] = "已启用",
+        ["Disabled"] = "已禁用",
+        ["Valid"] = "有效",
+        ["Expiring soon"] = "即将到期",
+        ["Active"] = "已启用",
+        ["Configured"] = "已配置",
+        ["Missing"] = "缺失",
+        ["Credentials masked"] = "凭据已隐藏",
+        ["Automatic renewal"] = "自动续期",
+        ["Expires {0:yyyy-MM-dd}"] = "到期日 {0:yyyy-MM-dd}",
+        ["{0} services"] = "{0} 个服务",
+        ["{0} containers"] = "{0} 个容器",
+        ["{0} consumers"] = "{0} 个使用方",
+        ["{0} days before expiry"] = "到期前 {0} 天",
+        ["Engine 27.1.1 · API 1.46 · local Unix socket"] = "引擎 27.1.1 · API 1.46 · 本地 Unix 套接字",
+        ["1 stopped container"] = "1 个已停止容器",
+        ["950 MB in use"] = "已使用 950 MB",
+        ["Safe cleanup preview available"] = "可安全预览清理",
+        ["Nginx needs a service check"] = "Nginx 需要服务检查",
+        ["Configuration is available; the mock host simulates a stopped service."] = "配置已可用；模拟主机当前模拟服务停止。",
+        ["1 disabled site"] = "1 个已禁用站点",
+        ["HTTPS bindings"] = "HTTPS 绑定",
+        ["Start after a successful config test"] = "配置测试通过后启动",
+        ["One certificate needs attention"] = "有一个证书需要关注",
+        ["Certificate issuance and renewal are mocked; private keys never enter this service."] = "证书签发和续期均为模拟；私钥不会进入此服务。",
+        ["Automatically renewing"] = "自动续期中",
+        ["Renew within 12 days"] = "请在 12 天内续期",
+        ["Credential reference configured"] = "凭据引用已配置",
+        ["Stack deployed"] = "应用栈已部署",
+        ["Configuration test"] = "配置测试",
+        ["Renewal scheduled"] = "已安排续期",
+        ["Succeeded"] = "成功",
+        ["Queued"] = "已排队",
+        ["running"] = "运行中",
+        ["stopped"] = "已停止",
+        ["Up 2 days"] = "已运行 2 天",
+        ["Exited (0) 4 hours ago"] = "4 小时前已退出 (0)",
+        ["Compose editor"] = "Compose 编辑器",
+        ["Template: Prometheus"] = "模板：Prometheus",
+        ["RemoteOS portal"] = "RemoteOS 门户",
+        ["Example API"] = "示例 API",
+        ["Proxy settings updated"] = "代理设置已更新",
+        ["Certificate binding updated"] = "证书绑定已更新",
+        ["upstream connection refused"] = "上游连接被拒绝",
+        ["configuration test successful"] = "配置测试成功",
+        ["syntax is ok"] = "语法正确",
+        ["test is successful"] = "测试成功",
+        ["2 server blocks discovered"] = "发现 2 个 server 块",
+        ["Let's Encrypt production"] = "Let's Encrypt 生产环境",
+        ["1. Review your platform and the official Nginx installation guide.\n2. An administrator installs and starts Nginx.\n3. Return here and refresh the service status."] = "1. 查看你的平台和 Nginx 官方安装指南。\n2. 由管理员安装并启动 Nginx。\n3. 返回此处刷新服务状态。",
+        ["1. Install an approved ACME client.\n2. Prepare DNS or HTTP-01 validation.\n3. Verify the service before issuing a certificate.\n\nPrivate keys and DNS credentials remain in server-side secure storage."] = "1. 安装受支持的 ACME 客户端。\n2. 准备 DNS 或 HTTP-01 验证。\n3. 签发证书前验证服务。\n\n私钥和 DNS 凭据始终存放在服务端安全存储中。"
+    };
+
+    public static SketchLocalizer Current { get; } = new();
+    public event EventHandler? LanguageChanged;
+    public string Language { get; private set; }
+    public bool IsChinese => Language == Chinese;
+    public CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
+
+    private SketchLocalizer()
+    {
+        try { Language = File.Exists(SettingsPath) && File.ReadAllText(SettingsPath).Trim() == Chinese ? Chinese : English; }
+        catch { Language = English; }
+    }
+
+    public string Text(string englishText) => IsChinese && ChineseTexts.TryGetValue(englishText, out var chinese) ? chinese : englishText;
+    public string Format(string englishFormat, params object[] args) => string.Format(Culture, Text(englishFormat), args);
+    public void ToggleLanguage() => SetLanguage(IsChinese ? English : Chinese);
+
+    public void SetLanguage(string language)
+    {
+        var next = language == Chinese ? Chinese : English;
+        if (Language == next) return;
+        Language = next;
+        try { Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!); File.WriteAllText(SettingsPath, Language); }
+        catch { /* The preview still works if this computer does not allow local settings. */ }
+        LanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+}

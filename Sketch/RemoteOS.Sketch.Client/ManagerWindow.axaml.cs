@@ -21,7 +21,14 @@ public partial class ManagerWindow : Window
     {
         _kind = kind;
         InitializeComponent();
+        SketchLocalizer.Current.LanguageChanged += OnLanguageChanged;
         Configure();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        SketchLocalizer.Current.LanguageChanged -= OnLanguageChanged;
+        base.OnClosed(e);
     }
 
     protected override async void OnOpened(EventArgs e)
@@ -35,51 +42,51 @@ public partial class ManagerWindow : Window
         switch (_kind)
         {
             case ManagerKind.Docker:
-                Title = "Docker Manager · RemoteOS";
+                Title = $"{T("Docker Manager")} · RemoteOS";
                 AppMark.Background = Brush.Parse("#147CB8");
                 AppMarkText.Text = "🐳";
-                TitleText.Text = "Docker Manager";
-                SubtitleText.Text = "Containers, images and local workloads";
-                StatusPill.Text = "●  Engine running";
-                ServiceStatusText.Text = "Docker Engine is running";
-                ServiceDetailText.Text = "Version 27.1.1 · 3 containers detected";
-                MetricLabel.Text = "Running containers";
+                TitleText.Text = T("Docker Manager");
+                SubtitleText.Text = T("Containers, images and local workloads");
+                StatusPill.Text = T("●  Engine running");
+                ServiceStatusText.Text = T("Docker Engine is running");
+                ServiceDetailText.Text = T("Version 27.1.1 · 3 containers detected");
+                MetricLabel.Text = T("Running containers");
                 MetricValue.Text = "3";
-                MetricDescription.Text = "1 stopped container is available";
+                MetricDescription.Text = T("1 stopped container is available");
                 SetNavigation("Overview", "Containers", "Stacks", "Images", "Networks", "Volumes");
                 GuidanceCard.IsVisible = false;
                 break;
 
             case ManagerKind.Nginx:
-                Title = "Nginx Manager · RemoteOS";
+                Title = $"{T("Nginx Manager")} · RemoteOS";
                 AppMark.Background = Brush.Parse("#159B77");
                 AppMarkText.Text = "N";
-                TitleText.Text = "Nginx Manager";
-                SubtitleText.Text = "Sites, reverse proxies and server configuration";
-                StatusPill.Text = "●  Service offline";
-                ServiceStatusText.Text = "Nginx is not installed";
-                ServiceDetailText.Text = "Install and start Nginx before managing live sites.";
-                MetricLabel.Text = "Configured sites";
+                TitleText.Text = T("Nginx Manager");
+                SubtitleText.Text = T("Sites, reverse proxies and server configuration");
+                StatusPill.Text = T("●  Service offline");
+                ServiceStatusText.Text = T("Nginx is not installed");
+                ServiceDetailText.Text = T("Install and start Nginx before managing live sites.");
+                MetricLabel.Text = T("Configured sites");
                 MetricValue.Text = "1";
-                MetricDescription.Text = "One design-preview configuration";
+                MetricDescription.Text = T("One design-preview configuration");
                 SetNavigation("Overview", "Sites", "Configuration", "Test & Reload", "Logs");
-                GuidanceText.Text = "1. Review your platform and the official Nginx installation guide.\n2. An administrator installs and starts Nginx.\n3. Return here and refresh the service status.";
+                GuidanceText.Text = T("1. Review your platform and the official Nginx installation guide.\n2. An administrator installs and starts Nginx.\n3. Return here and refresh the service status.");
                 break;
 
             default:
-                Title = "Certificate Manager · RemoteOS";
+                Title = $"{T("Certificate Manager")} · RemoteOS";
                 AppMark.Background = Brush.Parse("#8C55CB");
                 AppMarkText.Text = "⌁";
-                TitleText.Text = "Certificate Manager";
-                SubtitleText.Text = "HTTPS certificates, renewal and domain validation";
-                StatusPill.Text = "●  Setup needed";
-                ServiceStatusText.Text = "Certificate service is not ready";
-                ServiceDetailText.Text = "No supported ACME client was detected on this host.";
-                MetricLabel.Text = "Tracked certificates";
+                TitleText.Text = T("Certificate Manager");
+                SubtitleText.Text = T("HTTPS certificates, renewal and domain validation");
+                StatusPill.Text = T("●  Setup needed");
+                ServiceStatusText.Text = T("Certificate service is not ready");
+                ServiceDetailText.Text = T("No supported ACME client was detected on this host.");
+                MetricLabel.Text = T("Tracked certificates");
                 MetricValue.Text = "1";
-                MetricDescription.Text = "One design-preview certificate";
+                MetricDescription.Text = T("One design-preview certificate");
                 SetNavigation("Overview", "Certificates", "ACME accounts", "DNS providers", "Renewal policy");
-                GuidanceText.Text = "1. Install an approved ACME client.\n2. Prepare DNS or HTTP-01 validation.\n3. Verify the service before issuing a certificate.\n\nPrivate keys and DNS credentials remain in server-side secure storage.";
+                GuidanceText.Text = T("1. Install an approved ACME client.\n2. Prepare DNS or HTTP-01 validation.\n3. Verify the service before issuing a certificate.\n\nPrivate keys and DNS credentials remain in server-side secure storage.");
                 break;
         }
         DescribeSection();
@@ -90,7 +97,7 @@ public partial class ManagerWindow : Window
         NavigationPanel.Children.Clear();
         foreach (var section in sections)
         {
-            var button = new Button { Content = section, Tag = section };
+            var button = new Button { Content = T(section), Tag = section };
             button.Classes.Add("manager-nav");
             button.Click += SelectSection;
             NavigationPanel.Children.Add(button);
@@ -107,8 +114,8 @@ public partial class ManagerWindow : Window
 
     private void DescribeSection()
     {
-        SectionTitle.Text = _section;
-        SectionHint.Text = _section switch
+        SectionTitle.Text = T(_section);
+        SectionHint.Text = T(_section switch
         {
             "Overview" => "Health, key metrics and recent operations.",
             "Containers" => "Manage workload lifecycle and inspect current state.",
@@ -125,8 +132,8 @@ public partial class ManagerWindow : Window
             "DNS providers" => "Configured DNS validation providers; secrets stay masked.",
             "Renewal policy" => "Renewal threshold and safe maintenance window.",
             _ => "Resources in this workspace."
-        };
-        ActionButton.Content = _section == "Test & Reload" ? "Run configuration test" : "Refresh";
+        });
+        ActionButton.Content = T(_section == "Test & Reload" ? "Run configuration test" : "Refresh");
     }
 
     private async Task LoadFromServerAsync()
@@ -146,7 +153,7 @@ public partial class ManagerWindow : Window
         {
             RowsPanel.Children.Clear();
             AddRow("Mock Server offline", "Start RemoteOS.Sketch.Server", "127.0.0.1:5088", "Offline", false);
-            ActionButton.Content = "Retry connection";
+            ActionButton.Content = T("Retry connection");
         }
     }
 
@@ -163,7 +170,7 @@ public partial class ManagerWindow : Window
                 else if (_section == "Stacks")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerStackSummary>>("/api/sketch/docker/stacks");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Source, $"{item.Services} services", item.Status, item.Status == "running");
+                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Source, SketchLocalizer.Current.Format("{0} services", item.Services), item.Status, item.Status == "running");
                 }
                 else if (_section == "Images")
                 {
@@ -173,12 +180,12 @@ public partial class ManagerWindow : Window
                 else if (_section == "Networks")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerNetworkSummary>>("/api/sketch/docker/networks");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, $"{item.Containers} containers", "Available", true);
+                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, SketchLocalizer.Current.Format("{0} containers", item.Containers), "Available", true);
                 }
                 else if (_section == "Volumes")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<DockerVolumeSummary>>("/api/sketch/docker/volumes");
-                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, $"{item.Consumers} consumers", "Mounted", item.Consumers > 0);
+                    if (data is not null) foreach (var item in data) AddRow(item.Name, item.Driver, SketchLocalizer.Current.Format("{0} consumers", item.Consumers), "Mounted", item.Consumers > 0);
                 }
                 break;
             case ManagerKind.Nginx:
@@ -203,7 +210,7 @@ public partial class ManagerWindow : Window
                 if (_section == "Certificates")
                 {
                     var data = await _server.GetFromJsonAsync<IReadOnlyList<CertificateSummary>>("/api/sketch/certificates/items");
-                    if (data is not null) foreach (var item in data) AddRow(item.Domains, item.Issuer, $"Expires {item.ExpiresOn:yyyy-MM-dd}", item.Status, item.Status == "Valid");
+                    if (data is not null) foreach (var item in data) AddRow(item.Domains, item.Issuer, SketchLocalizer.Current.Format("Expires {0:yyyy-MM-dd}", item.ExpiresOn), item.Status, item.Status == "Valid");
                 }
                 else if (_section == "ACME accounts")
                 {
@@ -218,7 +225,7 @@ public partial class ManagerWindow : Window
                 else if (_section == "Renewal policy")
                 {
                     var item = await _server.GetFromJsonAsync<CertificateRenewalPolicy>("/api/sketch/certificates/renewal-policy");
-                    if (item is not null) AddRow("Automatic renewal", $"{item.DaysBeforeExpiry} days before expiry", item.PreferredWindow, item.Enabled ? "Enabled" : "Disabled", item.Enabled);
+                    if (item is not null) AddRow("Automatic renewal", SketchLocalizer.Current.Format("{0} days before expiry", item.DaysBeforeExpiry), item.PreferredWindow, item.Enabled ? "Enabled" : "Disabled", item.Enabled);
                 }
                 break;
         }
@@ -226,20 +233,20 @@ public partial class ManagerWindow : Window
 
     private void ApplyOverview(ManagerOverview overview)
     {
-        ServiceStatusText.Text = overview.Headline;
-        ServiceDetailText.Text = overview.Detail;
-        StatusPill.Text = overview.Health switch { "healthy" => "●  Healthy", "attention" => "●  Attention", _ => "●  Unavailable" };
+        ServiceStatusText.Text = T(overview.Headline);
+        ServiceDetailText.Text = T(overview.Detail);
+        StatusPill.Text = T(overview.Health switch { "healthy" => "●  Healthy", "attention" => "●  Attention", _ => "●  Unavailable" });
         if (overview.Metrics.Count > 0)
         {
-            MetricLabel.Text = overview.Metrics[0].Label;
+            MetricLabel.Text = T(overview.Metrics[0].Label);
             MetricValue.Text = overview.Metrics[0].Value;
-            MetricDescription.Text = overview.Metrics[0].Detail;
+            MetricDescription.Text = T(overview.Metrics[0].Detail);
         }
         if (overview.RecentActivity.Count > 0)
         {
             var activity = overview.RecentActivity[0];
             GuidanceCard.IsVisible = true;
-            GuidanceText.Text = $"Latest activity · {activity.OccurredAt.LocalDateTime:HH:mm}\n{activity.Action}: {activity.Target} — {activity.Result}";
+            GuidanceText.Text = SketchLocalizer.Current.Format("Latest activity · {0:HH:mm}\n{1}: {2} — {3}", activity.OccurredAt.LocalDateTime, T(activity.Action), activity.Target, T(activity.Result));
         }
     }
 
@@ -253,10 +260,10 @@ public partial class ManagerWindow : Window
             Child = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,1.35*,1.15*,Auto") }
         };
         var grid = (Grid)row.Child;
-        grid.Children.Add(Label(title, "#203657", FontWeight.SemiBold));
-        grid.Children.Add(Label(detail, "#62718A", FontWeight.Normal, 1));
-        grid.Children.Add(Label(value, "#62718A", FontWeight.Normal, 2));
-        grid.Children.Add(Label(status, healthy ? "#168451" : "#A65A25", FontWeight.SemiBold, 3));
+        grid.Children.Add(Label(T(title), "#203657", FontWeight.SemiBold));
+        grid.Children.Add(Label(T(detail), "#62718A", FontWeight.Normal, 1));
+        grid.Children.Add(Label(T(value), "#62718A", FontWeight.Normal, 2));
+        grid.Children.Add(Label(T(status), healthy ? "#168451" : "#A65A25", FontWeight.SemiBold, 3));
         RowsPanel.Children.Add(row);
     }
 
@@ -278,7 +285,7 @@ public partial class ManagerWindow : Window
     {
         if (_kind == ManagerKind.Nginx && _section == "Test & Reload")
         {
-            ActionButton.Content = "Testing…";
+            ActionButton.Content = T("Testing…");
             try
             {
                 var response = await _server.PostAsync("/api/sketch/nginx/configuration/test", null);
@@ -290,7 +297,18 @@ public partial class ManagerWindow : Window
             finally { DescribeSection(); }
             return;
         }
-        ActionButton.Content = "Refreshing…";
+        ActionButton.Content = T("Refreshing…");
         await LoadFromServerAsync();
     }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        WorkspaceLabel.Text = T("WORKSPACE");
+        ServiceStatusLabel.Text = T("Service status");
+        GuidanceTitle.Text = T("Getting started");
+        Configure();
+        _ = LoadFromServerAsync();
+    }
+
+    private static string T(string englishText) => SketchLocalizer.Current.Text(englishText);
 }

@@ -22,7 +22,7 @@
     <Grid Grid.Row="1" ColumnDefinitions="190,*">
       <Border Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0" Padding="14,22">
         <StackPanel Spacing="6">
-          <TextBlock Text="WORKSPACE" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6"/>
+          <TextBlock x:Name="WorkspaceLabel" Text="WORKSPACE" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6"/>
           <StackPanel x:Name="NavigationPanel" Spacing="3"/>
         </StackPanel>
       </Border>
@@ -31,7 +31,7 @@
         <Grid ColumnDefinitions="*,*" ColumnSpacing="18">
           <Border Background="White" CornerRadius="14" Padding="20" BoxShadow="0 3 14 0 #100F2540">
             <StackPanel Spacing="7">
-              <TextBlock Text="Service status" Foreground="#61708B" FontSize="12"/>
+              <TextBlock x:Name="ServiceStatusLabel" Text="Service status" Foreground="#61708B" FontSize="12"/>
               <TextBlock x:Name="ServiceStatusText" Text="Installed" FontSize="24" FontWeight="SemiBold" Foreground="#163059"/>
               <TextBlock x:Name="ServiceDetailText" Text="All services are healthy." Foreground="#61708B" TextWrapping="Wrap"/>
             </StackPanel>
@@ -61,7 +61,7 @@
 
         <Border x:Name="GuidanceCard" Background="#EDF4FF" BorderBrush="#CFE1FF" BorderThickness="1" CornerRadius="14" Padding="20">
           <StackPanel Spacing="8">
-            <TextBlock Text="Getting started" FontSize="16" FontWeight="SemiBold" Foreground="#183B71"/>
+            <TextBlock x:Name="GuidanceTitle" Text="Getting started" FontSize="16" FontWeight="SemiBold" Foreground="#183B71"/>
             <TextBlock x:Name="GuidanceText" Foreground="#315582" TextWrapping="Wrap" LineHeight="23"/>
           </StackPanel>
         </Border>

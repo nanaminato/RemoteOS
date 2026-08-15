@@ -18,12 +18,13 @@
       <Border Width="430" Height="430" CornerRadius="215" Background="#55C1D5" Opacity=".08" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-180,0,0,-210"/>
 
       <Grid Margin="42,34" RowDefinitions="Auto,*,Auto">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto">
           <StackPanel Spacing="3">
             <TextBlock Text="RemoteOS" FontSize="25" FontWeight="SemiBold" Foreground="White"/>
-            <TextBlock Text="Infrastructure workspace" FontSize="13" Foreground="#B4C5E5"/>
+            <TextBlock x:Name="WorkspaceSubtitle" Text="Infrastructure workspace" FontSize="13" Foreground="#B4C5E5"/>
           </StackPanel>
-          <Border Grid.Column="1" Background="#1D3562" BorderBrush="#3D5B8D" BorderThickness="1" CornerRadius="18" Padding="12,6">
+          <Button x:Name="LanguageButton" Grid.Column="1" Classes="language-toggle" Click="ToggleLanguage" VerticalAlignment="Center"/>
+          <Border Grid.Column="2" Background="#1D3562" BorderBrush="#3D5B8D" BorderThickness="1" CornerRadius="18" Padding="12,6">
             <StackPanel Orientation="Horizontal" Spacing="7">
               <Ellipse Width="8" Height="8" Fill="#55D993" VerticalAlignment="Center"/>
               <TextBlock x:Name="ConnectionStatus" Text="Connecting…" Foreground="#DCE8FF" FontSize="12"/>
@@ -33,42 +34,42 @@
 
         <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="720" Spacing="25">
           <StackPanel Spacing="7" HorizontalAlignment="Center">
-            <TextBlock Text="Good to see you" FontSize="16" Foreground="#C6D5F0" HorizontalAlignment="Center"/>
-            <TextBlock Text="Server Desktop" FontSize="40" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
-            <TextBlock Text="Open a management app to work with your local services." FontSize="15" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="WelcomeText" Text="Good to see you" FontSize="16" Foreground="#C6D5F0" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="DesktopTitle" Text="Server Desktop" FontSize="40" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="DesktopHint" Text="Open a management app to work with your local services." FontSize="15" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
           </StackPanel>
 
           <WrapPanel HorizontalAlignment="Center" ItemWidth="220" ItemHeight="230">
-            <Button Classes="app-tile" Click="OpenDocker" ToolTip.Tip="Open Docker Manager">
+            <Button x:Name="DockerButton" Classes="app-tile" Click="OpenDocker">
               <StackPanel Spacing="15" HorizontalAlignment="Center">
                 <Border Width="76" Height="76" Background="#147CB8" CornerRadius="22">
                   <TextBlock Text="🐳" FontSize="38" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel Spacing="4">
-                  <TextBlock Text="Docker Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
-                  <TextBlock Text="3 containers running" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="DockerTitle" Text="Docker Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="DockerHint" Text="3 containers running" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
                 </StackPanel>
               </StackPanel>
             </Button>
-            <Button Classes="app-tile" Click="OpenNginx" ToolTip.Tip="Open Nginx Manager">
+            <Button x:Name="NginxButton" Classes="app-tile" Click="OpenNginx">
               <StackPanel Spacing="15" HorizontalAlignment="Center">
                 <Border Width="76" Height="76" Background="#159B77" CornerRadius="22">
                   <TextBlock Text="N" FontSize="39" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel Spacing="4">
-                  <TextBlock Text="Nginx Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
-                  <TextBlock Text="1 site · service offline" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="NginxTitle" Text="Nginx Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="NginxHint" Text="1 site · service offline" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
                 </StackPanel>
               </StackPanel>
             </Button>
-            <Button Classes="app-tile" Click="OpenCertificates" ToolTip.Tip="Open Certificate Manager">
+            <Button x:Name="CertificatesButton" Classes="app-tile" Click="OpenCertificates">
               <StackPanel Spacing="15" HorizontalAlignment="Center">
                 <Border Width="76" Height="76" Background="#8C55CB" CornerRadius="22">
                   <TextBlock Text="⌁" FontSize="46" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel Spacing="4">
-                  <TextBlock Text="Certificate Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
-                  <TextBlock Text="No ACME client detected" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="CertificatesTitle" Text="Certificate Manager" FontSize="17" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center"/>
+                  <TextBlock x:Name="CertificatesHint" Text="No ACME client detected" FontSize="12" Foreground="#B4C5E5" HorizontalAlignment="Center"/>
                 </StackPanel>
               </StackPanel>
             </Button>
@@ -76,7 +77,7 @@
         </StackPanel>
 
         <Border Grid.Row="2" HorizontalAlignment="Center" Background="#112348" BorderBrush="#314C7A" BorderThickness="1" CornerRadius="12" Padding="14,8">
-          <TextBlock Text="Design preview · Local mock service · design-user" Foreground="#B4C5E5" FontSize="12"/>
+          <TextBlock x:Name="PreviewText" Text="Design preview · Local mock service · design-user" Foreground="#B4C5E5" FontSize="12"/>
         </Border>
       </Grid>
     </Grid>
@@ -85,12 +86,12 @@
       <Grid Margin="34,0" ColumnDefinitions="*,Auto,*">
         <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
           <Border Width="11" Height="11" CornerRadius="6" Background="#55D993"/>
-          <TextBlock Text="All systems available" Foreground="#C5D5F2" FontSize="12" VerticalAlignment="Center"/>
+          <TextBlock x:Name="SystemsText" Text="All systems available" Foreground="#C5D5F2" FontSize="12" VerticalAlignment="Center"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-          <Button Classes="taskbar-app" Click="OpenDocker" Content="🐳" ToolTip.Tip="Docker Manager"/>
-          <Button Classes="taskbar-app" Click="OpenNginx" Content="N" ToolTip.Tip="Nginx Manager"/>
-          <Button Classes="taskbar-app" Click="OpenCertificates" Content="⌁" ToolTip.Tip="Certificate Manager"/>
+          <Button x:Name="DockerTaskbarButton" Classes="taskbar-app" Click="OpenDocker" Content="🐳"/>
+          <Button x:Name="NginxTaskbarButton" Classes="taskbar-app" Click="OpenNginx" Content="N"/>
+          <Button x:Name="CertificatesTaskbarButton" Classes="taskbar-app" Click="OpenCertificates" Content="⌁"/>
         </StackPanel>
         <TextBlock Grid.Column="2" x:Name="ClockText" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#C5D5F2" FontSize="12"/>
       </Grid>
