@@ -4,41 +4,45 @@
              xmlns:docker="clr-namespace:Client.Apps.Docker"
              x:Class="Client.Apps.Docker.Views.DockerContainerDialogView"
              x:DataType="docker:DockerManagerViewModel">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="20" Spacing="12" HorizontalAlignment="Left">
+    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
             <TextBlock Text="{loc:Loc docker.containers_hint}" TextWrapping="Wrap" Foreground="#61708B" />
-            <StackPanel Spacing="7">
-                <TextBlock Text="{loc:Loc docker.container.section.identity}" FontWeight="SemiBold" Foreground="#36506F" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.name}" Foreground="#36506F" /><TextBox Text="{Binding ContainerName, Mode=TwoWay}" /></StackPanel>
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.image}" Foreground="#36506F" /><TextBox Text="{Binding ContainerImage, Mode=TwoWay}" PlaceholderText="nginx:latest" /></StackPanel>
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Spacing="7">
-                <TextBlock Text="{loc:Loc docker.container.section.runtime}" FontWeight="SemiBold" Foreground="#36506F" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.network}" Foreground="#36506F" /><ComboBox ItemsSource="{Binding AvailableNetworks}" SelectedItem="{Binding ContainerNetwork, Mode=TwoWay}" /></StackPanel>
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.restart}" Foreground="#36506F" /><ComboBox ItemsSource="{Binding RestartPolicies}" SelectedItem="{Binding ContainerRestartPolicy, Mode=TwoWay}" /></StackPanel>
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Spacing="7">
-                <TextBlock Text="{loc:Loc docker.container.section.connectivity}" FontWeight="SemiBold" Foreground="#36506F" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.ports}" Foreground="#36506F" /><TextBox Text="{Binding ContainerPorts, Mode=TwoWay}" PlaceholderText="8080:80" /></StackPanel>
-                    <StackPanel Width="320" Spacing="4"><TextBlock Text="{loc:Loc docker.container.mounts}" Foreground="#36506F" /><TextBox Text="{Binding ContainerMounts, Mode=TwoWay}" PlaceholderText="volume:/data" /></StackPanel>
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Spacing="7">
-                <TextBlock Text="{loc:Loc docker.container.section.configuration}" FontWeight="SemiBold" Foreground="#36506F" />
-                <StackPanel Spacing="8">
-                    <StackPanel Width="650" Spacing="4"><TextBlock Text="{loc:Loc docker.container.environment}" Foreground="#36506F" /><TextBox Text="{Binding ContainerEnvironment, Mode=TwoWay}" PlaceholderText="KEY=value" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="66" /></StackPanel>
-                    <StackPanel Width="650" Spacing="4"><TextBlock Text="{loc:Loc docker.container.arguments}" Foreground="#36506F" /><TextBox Text="{Binding ContainerArguments, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="66" /></StackPanel>
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,10,0,0">
-                <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" HorizontalContentAlignment="Center" />
-                <Button Classes="primary" Content="{loc:Loc docker.container.create}" Click="Create_Click" HorizontalContentAlignment="Center" />
-            </StackPanel>
+
+            <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*" RowSpacing="4" ColumnSpacing="10">
+                <TextBlock Grid.ColumnSpan="2" Text="{loc:Loc docker.container.section.identity}" FontWeight="SemiBold" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Text="{loc:Loc docker.container.name}" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{loc:Loc docker.container.image}" Foreground="#36506F" />
+                <TextBox Grid.Row="2" Text="{Binding ContainerName, Mode=TwoWay}" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ContainerImage, Mode=TwoWay}" PlaceholderText="nginx:latest" />
+            </Grid>
+
+            <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*" RowSpacing="4" ColumnSpacing="10">
+                <TextBlock Grid.ColumnSpan="2" Text="{loc:Loc docker.container.section.runtime}" FontWeight="SemiBold" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Text="{loc:Loc docker.container.network}" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{loc:Loc docker.container.restart}" Foreground="#36506F" />
+                <ComboBox Grid.Row="2" ItemsSource="{Binding AvailableNetworks}" SelectedItem="{Binding ContainerNetwork, Mode=TwoWay}" />
+                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding RestartPolicies}" SelectedItem="{Binding ContainerRestartPolicy, Mode=TwoWay}" />
+            </Grid>
+
+            <Grid Grid.Row="3" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,*" ColumnDefinitions="*,*" RowSpacing="4" ColumnSpacing="10">
+                <TextBlock Grid.ColumnSpan="2" Text="{loc:Loc docker.container.section.connectivity}" FontWeight="SemiBold" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Text="{loc:Loc docker.container.ports}" Foreground="#36506F" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{loc:Loc docker.container.mounts}" Foreground="#36506F" />
+                <TextBox Grid.Row="2" Text="{Binding ContainerPorts, Mode=TwoWay}" PlaceholderText="8080:80" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ContainerMounts, Mode=TwoWay}" PlaceholderText="volume:/data" />
+                <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="{loc:Loc docker.container.section.configuration}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,8,0,0" />
+                <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Text="{loc:Loc docker.container.environment}" Foreground="#36506F" />
+                <TextBox Grid.Row="5" Grid.ColumnSpan="2" Text="{Binding ContainerEnvironment, Mode=TwoWay}" PlaceholderText="KEY=value"
+                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="66" VerticalAlignment="Stretch" />
+                <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Text="{loc:Loc docker.container.arguments}" Foreground="#36506F" Margin="0,8,0,0" />
+                <TextBox Grid.Row="7" Grid.ColumnSpan="2" Text="{Binding ContainerArguments, Mode=TwoWay}"
+                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="66" VerticalAlignment="Stretch" />
+            </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" HorizontalContentAlignment="Center" />
+            <Button Classes="primary" Content="{loc:Loc docker.container.create}" Click="Create_Click" HorizontalContentAlignment="Center" />
         </StackPanel>
-    </ScrollViewer>
+    </Grid>
 </UserControl>

@@ -5,7 +5,10 @@
              x:Class="Client.Apps.Docker.Views.DockerPullImageDialogView"
              x:DataType="docker:DockerManagerViewModel">
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
-        <StackPanel Width="420" Spacing="4" HorizontalAlignment="Left"><TextBlock Text="{loc:Loc docker.image.reference}" Foreground="#36506F" /><TextBox Text="{Binding ImageReference, Mode=TwoWay}" PlaceholderText="nginx:latest" /></StackPanel>
+        <Grid RowDefinitions="Auto,Auto" RowSpacing="4" VerticalAlignment="Top">
+            <TextBlock Text="{loc:Loc docker.image.reference}" Foreground="#36506F" />
+            <TextBox Grid.Row="1" Text="{Binding ImageReference, Mode=TwoWay}" PlaceholderText="nginx:latest" />
+        </Grid>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" HorizontalContentAlignment="Center" />
             <Button Classes="primary" Content="{loc:Loc docker.image.pull}" Click="Pull_Click" HorizontalContentAlignment="Center" />
