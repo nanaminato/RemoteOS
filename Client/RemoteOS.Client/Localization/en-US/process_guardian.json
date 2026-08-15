@@ -7,6 +7,7 @@
     "guardian.status.unavailable": "RemoteOS Guardian Agent is unavailable: {0}.",
     "guardian.status.install_required": "Guardian Agent is not installed or configured on this host. An administrator must run the RemoteOS host installer.",
     "guardian.status.failed": "Guardian status request failed: {0}",
+    "guardian.definition_load_failed": "Could not load the workload definition. The editor was not opened; retry the operation.",
     "guardian.action.start": "Start",
     "guardian.action.stop": "Stop",
     "guardian.action.restart": "Restart",

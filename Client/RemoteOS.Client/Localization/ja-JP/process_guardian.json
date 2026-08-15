@@ -7,6 +7,7 @@
     "guardian.status.unavailable": "RemoteOS Guardian Agent は利用できません: {0}。",
     "guardian.status.install_required": "このホストには Guardian Agent がインストールまたは構成されていません。管理者が RemoteOS ホスト インストーラーを実行する必要があります。",
     "guardian.status.failed": "ガーディアン状態の取得に失敗しました: {0}",
+    "guardian.definition_load_failed": "ワークロード定義を読み込めなかったため、エディターは開きませんでした。操作を再試行してください。",
     "guardian.action.start": "開始",
     "guardian.action.stop": "停止",
     "guardian.action.restart": "再起動",

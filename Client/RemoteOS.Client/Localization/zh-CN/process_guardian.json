@@ -7,6 +7,7 @@
     "guardian.status.unavailable": "RemoteOS Guardian Agent 不可用：{0}。",
     "guardian.status.install_required": "此宿主机尚未安装或配置 Guardian Agent。请由管理员运行 RemoteOS 宿主机安装程序。",
     "guardian.status.failed": "守护程序状态请求失败：{0}",
+    "guardian.definition_load_failed": "无法读取工作负载定义，未打开编辑框；请重试该操作。",
     "guardian.action.start": "启动",
     "guardian.action.stop": "停止",
     "guardian.action.restart": "重启",

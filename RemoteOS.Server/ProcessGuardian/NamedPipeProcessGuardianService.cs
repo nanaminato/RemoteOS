@@ -8,6 +8,10 @@ namespace Server.ProcessGuardian;
 /// <summary>Server-to-Agent local IPC adapter. The server never launches or owns child processes.</summary>
 public sealed class NamedPipeProcessGuardianService(GuardianAgentOptions options) : IProcessGuardianService
 {
+    // The agent intentionally exposes a single pipe instance. This service is a singleton
+    // shared by endpoints and the log broadcaster, so its IPC requests must be queued.
+    private readonly SemaphoreSlim _pipeGate = new(1, 1);
+
     public async Task<GuardianStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         var response = await SendAsync(new GuardianAgentRequest(options.SharedSecret, "status"), cancellationToken);
@@ -41,6 +45,7 @@ public sealed class NamedPipeProcessGuardianService(GuardianAgentOptions options
     private async Task<GuardianAgentResponse?> SendAsync(GuardianAgentRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(options.SharedSecret)) return new GuardianAgentResponse(false, "guardian.agent_not_configured");
+        await _pipeGate.WaitAsync(cancellationToken);
         try
         {
             await using var pipe = new NamedPipeClientStream(".", options.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
@@ -56,5 +61,6 @@ public sealed class NamedPipeProcessGuardianService(GuardianAgentOptions options
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new GuardianAgentResponse(false, "guardian.agent_timeout"); }
         catch (IOException) { return new GuardianAgentResponse(false, "guardian.agent_unavailable"); }
         catch (JsonException) { return new GuardianAgentResponse(false, "guardian.agent_invalid_response"); }
+        finally { _pipeGate.Release(); }
     }
 }
