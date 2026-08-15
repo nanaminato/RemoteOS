@@ -83,9 +83,23 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
 
     public async Task<DockerOperationResult> CreateContainerAsync(DockerContainerCreateRequest request, CancellationToken cancellationToken = default)
     {
-        if (!IsContainerId(request.Name) || !IsImageReference(request.Image) || request.Arguments.Count > 64 || request.Arguments.Any(argument => argument.Length > 4096 || argument.Contains('\0')))
+        var ports = request.Ports ?? [];
+        var environment = request.Environment ?? [];
+        var mounts = request.Mounts ?? [];
+        if (!IsContainerId(request.Name) || !IsImageReference(request.Image) || request.Arguments.Count > 64 || request.Arguments.Any(argument => !IsOptionValue(argument)) ||
+            ports.Count > 32 || environment.Count > 64 || mounts.Count > 32 ||
+            ports.Any(port => !IsOptionValue(port)) || environment.Any(variable => !IsOptionValue(variable)) || mounts.Any(mount => !IsOptionValue(mount)) ||
+            request.Network is { Length: > 0 } network && !IsContainerId(network) ||
+            request.RestartPolicy is { Length: > 0 } restartPolicy && !AllowedRestartPolicies.Contains(restartPolicy))
             return new DockerOperationResult(false, "docker.validation_failed");
-        var arguments = new List<string> { "create", "--name", request.Name, request.Image };
+
+        var arguments = new List<string> { "create", "--name", request.Name };
+        foreach (var port in ports) { arguments.Add("--publish"); arguments.Add(port); }
+        foreach (var variable in environment) { arguments.Add("--env"); arguments.Add(variable); }
+        foreach (var mount in mounts) { arguments.Add("--volume"); arguments.Add(mount); }
+        if (!string.IsNullOrWhiteSpace(request.Network)) { arguments.Add("--network"); arguments.Add(request.Network); }
+        if (!string.IsNullOrWhiteSpace(request.RestartPolicy)) { arguments.Add("--restart"); arguments.Add(request.RestartPolicy); }
+        arguments.Add(request.Image);
         arguments.AddRange(request.Arguments);
         var result = await RunAsync(arguments, cancellationToken);
         return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
@@ -221,6 +235,10 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
     {
         ["start"] = "start", ["stop"] = "stop", ["restart"] = "restart", ["pause"] = "pause", ["unpause"] = "unpause", ["delete"] = "rm",
     };
+    private static readonly HashSet<string> AllowedRestartPolicies = new(StringComparer.Ordinal)
+    {
+        "no", "always", "unless-stopped", "on-failure"
+    };
 
     private async Task<IReadOnlyList<string[]>> RunTableAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
@@ -252,6 +270,7 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
     private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
     private static bool IsContainerId(string value) => value.Length is >= 3 and <= 128 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.');
     private static bool IsImageReference(string value) => value.Length is >= 1 and <= 255 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '/' or ':' or '.' or '_' or '-');
+    private static bool IsOptionValue(string value) => value.Length is >= 1 and <= 4096 && !value.Contains('\0') && !value.Any(char.IsControl);
     private bool IsBuildPathAllowed(string path, out string fullPath)
     {
         fullPath = string.Empty;

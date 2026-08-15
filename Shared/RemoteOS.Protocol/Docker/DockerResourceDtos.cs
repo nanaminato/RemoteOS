@@ -13,7 +13,20 @@ public sealed record DockerContainerActionRequest(bool Force = false, bool Confi
 /// <summary>Stable result that does not expose Docker daemon error text to clients.</summary>
 public sealed record DockerOperationResult(bool Success, string ProblemCode);
 public sealed record DockerImageOperationRequest(string ImageReference, bool Confirmed = false);
-public sealed record DockerContainerCreateRequest(string Name, string Image, IReadOnlyList<string> Arguments);
+/// <summary>
+/// Structured container creation input. Options are kept separate from the command arguments so
+/// the server can compose a safe <c>docker create</c> invocation without the client building CLI
+/// strings.
+/// </summary>
+public sealed record DockerContainerCreateRequest(
+    string Name,
+    string Image,
+    IReadOnlyList<string> Arguments,
+    IReadOnlyList<string>? Ports = null,
+    IReadOnlyList<string>? Environment = null,
+    IReadOnlyList<string>? Mounts = null,
+    string? Network = null,
+    string? RestartPolicy = null);
 public sealed record DockerNetworkCreateRequest(string Name, string Driver = "bridge", bool Confirmed = false);
 public sealed record DockerVolumeCreateRequest(string Name, string Driver = "local", bool Confirmed = false);
 public sealed record DockerContainerLogsDto(IReadOnlyList<string> Lines, bool Truncated);
