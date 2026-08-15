@@ -81,7 +81,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
 
     private static Control CreateHeader(DockerManagerViewModel vm)
     {
-        var header = new Grid { Background = Brush.Parse("#122344"), ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Padding = new Thickness(28, 18) };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         header.Children.Add(new Border { Width = 46, Height = 46, Background = Brush.Parse("#147CB8"), CornerRadius = new CornerRadius(14), Child = new TextBlock { Text = "🐳", FontSize = 25, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } });
         var title = new StackPanel { Spacing = 2, Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         title.Children.Add(new TextBlock { Text = LocalizedText.Get("application.remoteos.docker.display_name"), FontSize = 22, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White });
@@ -91,7 +91,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         status.Bind(TextBlock.TextProperty, new Binding(nameof(vm.StatusText)));
         var pill = new Border { Background = Brush.Parse("#1C3765"), CornerRadius = new CornerRadius(16), Padding = new Thickness(11, 5), VerticalAlignment = VerticalAlignment.Center, Child = status };
         Grid.SetColumn(pill, 2); header.Children.Add(pill);
-        return header;
+        return new Border { Background = Brush.Parse("#122344"), Padding = new Thickness(28, 18), Child = header };
     }
 
     private static Control Overview(DockerManagerViewModel vm)
