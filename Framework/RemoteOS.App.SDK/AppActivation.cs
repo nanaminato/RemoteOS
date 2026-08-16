@@ -66,6 +66,12 @@ public interface IUriSchemeRoutingUi
     Task NotifyNoHandlerAsync(Uri uri);
 }
 
+/// <summary>Optional host-owned sink for privacy-safe application activation diagnostics.</summary>
+public interface IAppActivationDiagnostics
+{
+    void Record(string message);
+}
+
 /// <summary>
 /// Optional built-in application extension for registered <c>remoteos://</c> routes. The handler is also
 /// invoked for an already-open single-window application, before that window is focused.

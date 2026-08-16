@@ -141,14 +141,21 @@ public sealed class ApplicationManager : IAppActivationService
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Uri);
         var uri = request.Uri;
-        if (!uri.IsAbsoluteUri || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrEmpty(uri.UserInfo) || uri.Port != -1)
+        Log($"Activation requested: uri={FormatUri(uri)}, source={request.SourceAppId?.Value ?? "<shell>"}, userInitiated={request.UserInitiated}, correlation={request.CorrelationId ?? "<none>"}.");
+        if (!uri.IsAbsoluteUri || string.IsNullOrWhiteSpace(uri.Scheme) || !string.IsNullOrEmpty(uri.UserInfo) || uri.Port != -1)
+        {
+            Log($"Activation rejected: absolute={uri.IsAbsoluteUri}, hasScheme={!string.IsNullOrWhiteSpace(uri.Scheme)}, hasUserInfo={!string.IsNullOrEmpty(uri.UserInfo)}, port={uri.Port}.");
             return new AppActivationResult(AppActivationStatus.InvalidUri);
+        }
 
         if (!uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase))
             return ActivateExternalUri(request);
 
         if (string.IsNullOrWhiteSpace(uri.Host))
+        {
+            Log("Shell route rejected: URI host is empty.");
             return new AppActivationResult(AppActivationStatus.InvalidUri);
+        }
 
         if (uri.Host.Equals("file", StringComparison.OrdinalIgnoreCase)
             && uri.AbsolutePath.Equals("/open", StringComparison.OrdinalIgnoreCase))
@@ -158,10 +165,15 @@ public sealed class ApplicationManager : IAppActivationService
             .Where(app => app is IAppActivationHandler handler && handler.CanHandleActivation(uri))
             .ToArray();
         if (matches.Length != 1)
+        {
+            Log($"Shell route not found: matches={matches.Length}.");
             return new AppActivationResult(AppActivationStatus.RouteNotFound);
+        }
 
         var application = matches[0];
-        return ActivateApplication(application, request)
+        var activated = ActivateApplication(application, request);
+        Log($"Shell route target={application.Manifest.Id.Value}, activated={activated}.");
+        return activated
             ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
             : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
     }
@@ -170,7 +182,10 @@ public sealed class ApplicationManager : IAppActivationService
     {
         var uri = request.Uri;
         if (uri.Scheme.Length > 32 || string.IsNullOrWhiteSpace(uri.Host) || uri.Query.Length > 4097)
+        {
+            Log("External route rejected: scheme, host, or query validation failed.");
             return new AppActivationResult(AppActivationStatus.InvalidUri);
+        }
 
         var matches = _apps.Values
             .Where(app => app.Manifest.UriSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
@@ -179,18 +194,27 @@ public sealed class ApplicationManager : IAppActivationService
 
         var preferredId = (_services.GetService(typeof(IUriSchemeDefaultResolver)) as IUriSchemeDefaultResolver)
             ?.ResolveDefaultApplication(uri.Scheme);
+        Log($"External route candidates: scheme={uri.Scheme}, count={matches.Length}, ids=[{string.Join(',', matches.Select(app => app.Manifest.Id.Value))}], default={preferredId?.Value ?? "<none>"}.");
         var application = preferredId is { } preferred
             ? matches.SingleOrDefault(app => app.Manifest.Id == preferred)
             : null;
+        if (preferredId is not null && application is null)
+            Log($"Configured default is not an eligible handler for this URI: target={preferredId.Value}.");
         if (application is not null)
-            return ActivateApplication(application, request)
+        {
+            var activated = ActivateApplication(application, request);
+            Log($"External route chose default target={application.Manifest.Id.Value}, activated={activated}.");
+            return activated
                 ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
                 : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
+        }
 
         if (matches.Length == 1)
         {
             application = matches[0];
-            return ActivateApplication(application, request)
+            var activated = ActivateApplication(application, request);
+            Log($"External route chose sole target={application.Manifest.Id.Value}, activated={activated}.");
+            return activated
                 ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
                 : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
         }
@@ -199,16 +223,23 @@ public sealed class ApplicationManager : IAppActivationService
         if (matches.Length == 0)
         {
             if (request.UserInitiated && routingUi is not null)
+            {
+                Log("External route has no handler: scheduling missing-handler prompt.");
                 _ = NotifyNoHandlerAsync(routingUi, uri);
+            }
+            else
+                Log("External route has no handler and no prompt can be shown.");
             return new AppActivationResult(AppActivationStatus.NoHandler);
         }
 
         if (request.UserInitiated && routingUi is not null)
         {
+            Log("External route is ambiguous: scheduling handler picker.");
             _ = ChooseExternalHandlerAsync(routingUi, request, matches);
             return new AppActivationResult(AppActivationStatus.HandlerSelectionRequired);
         }
 
+        Log("External route is ambiguous and no user picker is available.");
         return new AppActivationResult(AppActivationStatus.RouteNotFound);
     }
 
@@ -217,33 +248,53 @@ public sealed class ApplicationManager : IAppActivationService
     {
         try
         {
+            Log($"Handler picker opened: uri={FormatUri(request.Uri)}, candidates={candidates.Count}.");
             var choice = await routingUi.ChooseHandlerAsync(request.Uri,
                 candidates.Select(candidate => candidate.Manifest.ToInfo()).ToArray());
             if (choice is null)
+            {
+                Log("Handler picker dismissed without a selection.");
                 return;
+            }
 
             var application = candidates.SingleOrDefault(candidate => candidate.Manifest.Id == choice.ApplicationId);
             if (application is null)
+            {
+                Log($"Handler picker selection is no longer registered: target={choice.ApplicationId.Value}.");
                 return; // The package registry changed while the dialog was open.
+            }
+
+            Log($"Handler picker selected target={application.Manifest.Id.Value}, setDefault={choice.SetAsDefault}.");
 
             if (choice.SetAsDefault)
             {
-                try { await routingUi.SaveDefaultHandlerAsync(request.Uri.Scheme, application.Manifest.Id); }
-                catch { /* Persisting a preference must not prevent the selected app from opening. */ }
+                try
+                {
+                    await routingUi.SaveDefaultHandlerAsync(request.Uri.Scheme, application.Manifest.Id);
+                    Log($"Default handler saved: scheme={request.Uri.Scheme}, target={application.Manifest.Id.Value}.");
+                }
+                catch (Exception exception)
+                {
+                    Log($"Default handler save failed: {exception.GetType().Name}: {exception.Message}");
+                }
             }
 
-            ActivateApplication(application, request);
+            var activated = ActivateApplication(application, request);
+            Log($"Handler picker target activation completed: target={application.Manifest.Id.Value}, activated={activated}.");
         }
-        catch
+        catch (Exception exception)
         {
-            // A routing prompt must never crash the Shell or the source application.
+            Log($"Handler picker failed: {exception.GetType().Name}: {exception.Message}");
         }
     }
 
-    private static async Task NotifyNoHandlerAsync(IUriSchemeRoutingUi routingUi, Uri uri)
+    private async Task NotifyNoHandlerAsync(IUriSchemeRoutingUi routingUi, Uri uri)
     {
         try { await routingUi.NotifyNoHandlerAsync(uri); }
-        catch { /* A missing routing UI must not alter the stable activation result. */ }
+        catch (Exception exception)
+        {
+            Log($"Missing-handler prompt failed: {exception.GetType().Name}: {exception.Message}");
+        }
     }
 
     private AppActivationResult ActivateFileOpen(AppActivationRequest request)
@@ -322,6 +373,13 @@ public sealed class ApplicationManager : IAppActivationService
 
     private ManagedWindow? FindExistingPrimaryWindow(AppId appId) => _windowManager.Windows
         .LastOrDefault(window => window.Info.OwnerAppId == appId && !window.IsModalDialog);
+
+    private void Log(string message) =>
+        (_services.GetService(typeof(IAppActivationDiagnostics)) as IAppActivationDiagnostics)?.Record(message);
+
+    private static string FormatUri(Uri uri) => !uri.IsAbsoluteUri
+        ? "<relative-uri>"
+        : $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}";
 
     private bool EnsureCompatible(ApplicationManifest manifest)
     {

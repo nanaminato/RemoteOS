@@ -102,6 +102,7 @@ public static class Bootstrapper
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IUriSchemeDefaultResolver>(sp => sp.GetRequiredService<DefaultAppRegistry>());
         services.AddSingleton<IUriSchemeRoutingUi, UriSchemeRoutingUi>();
+        services.AddSingleton<IAppActivationDiagnostics, UriSchemeRoutingDiagnostics>();
         services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();

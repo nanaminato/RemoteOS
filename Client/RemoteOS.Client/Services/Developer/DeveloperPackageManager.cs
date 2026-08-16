@@ -22,6 +22,7 @@ public sealed class DeveloperPackageManager
     private readonly ApplicationManager _applications;
     private readonly ExternalAppContextFactory _contextFactory;
     private readonly IWindowManager _windowManager;
+    private readonly IAppActivationDiagnostics _activationDiagnostics;
     private readonly string _root;
     private readonly string _catalogPath;
     private readonly Dictionary<string, DeveloperAppRecord> _catalog;
@@ -30,11 +31,13 @@ public sealed class DeveloperPackageManager
     public DeveloperPackageManager(
         ApplicationManager applications,
         ExternalAppContextFactory contextFactory,
-        IWindowManager windowManager)
+        IWindowManager windowManager,
+        IAppActivationDiagnostics activationDiagnostics)
     {
         _applications = applications;
         _contextFactory = contextFactory;
         _windowManager = windowManager;
+        _activationDiagnostics = activationDiagnostics;
         _root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteOS", "developer-apps");
         _catalogPath = Path.Combine(_root, "catalog.json");
         _catalog = LoadCatalog(_catalogPath);
@@ -73,7 +76,10 @@ public sealed class DeveloperPackageManager
             // Register manifest metadata only. In particular, do not load a package's native
             // dependencies before the compatibility gate has approved its first launch.
             try { Register(record); }
-            catch { /* A developer can replace the broken package through the Dev Bridge. */ }
+            catch (Exception exception)
+            {
+                RecordActivationDiagnostic($"Package registration failed: app={record.Id}, error={exception.GetType().Name}: {exception.Message}");
+            }
         }
     }
 
@@ -194,6 +200,8 @@ public sealed class DeveloperPackageManager
         _loaded[record.Id] = loaded;
         return loaded;
     }
+
+    internal void RecordActivationDiagnostic(string message) => _activationDiagnostics.Record(message);
 
     private static ApplicationManifest ToApplicationManifest(DeveloperAppRecord record) => new(
         new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
@@ -371,6 +379,7 @@ public sealed class DeveloperPackageManager
             }
             catch (Exception exception)
             {
+                Owner.RecordActivationDiagnostic($"External app launch failed: app={Manifest.Id.Value}, error={exception.GetType().Name}: {exception.Message}");
                 ShowFailure(context, exception);
             }
         }
@@ -389,8 +398,9 @@ public sealed class DeveloperPackageManager
                 return Owner.GetOrLoad(Record).Application is IExternalAppActivationHandler handler
                     && handler.CanHandleActivation(uri);
             }
-            catch
+            catch (Exception exception)
             {
+                Owner.RecordActivationDiagnostic($"External handler eligibility check failed: app={Manifest.Id.Value}, uri={FormatUri(uri)}, error={exception.GetType().Name}: {exception.Message}");
                 return false;
             }
         }
@@ -407,9 +417,12 @@ public sealed class DeveloperPackageManager
             }
             catch (Exception exception)
             {
+                Owner.RecordActivationDiagnostic($"External app activation failed: app={Manifest.Id.Value}, uri={FormatUri(request.Uri)}, error={exception.GetType().Name}: {exception.Message}");
                 ShowFailure(context, exception);
             }
         }
+
+        private static string FormatUri(Uri uri) => $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}";
     }
 
     private sealed class ExternalFileApplicationAdapter(DeveloperAppRecord record, DeveloperPackageManager owner, ExternalAppContextFactory contextFactory)

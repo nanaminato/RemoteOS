@@ -1,5 +1,6 @@
 using Client.Apps.Docker.Views;
 using Client.Localization;
+using Client.Services;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -39,7 +40,12 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         vm.OpenDockerInstallGuideAsync = () =>
         {
             var language = (context.Services.GetService(typeof(ISystemLanguage)) as ISystemLanguage)?.CurrentLanguage ?? "en-US";
-            var activation = context.Activations.Activate(new Uri($"help://guide/docker/install?lang={Uri.EscapeDataString(language)}"));
+            var uri = new Uri($"help://guide/docker/install?lang={Uri.EscapeDataString(language)}");
+            (context.Services.GetService(typeof(IAppActivationDiagnostics)) as IAppActivationDiagnostics)
+                ?.Record($"Docker Manager requested installation guide: uri={uri.Scheme}://{uri.Host}{uri.AbsolutePath}, language={language}.");
+            var activation = context.Activations.Activate(uri);
+            (context.Services.GetService(typeof(IAppActivationDiagnostics)) as IAppActivationDiagnostics)
+                ?.Record($"Docker Manager installation guide activation result: status={activation.Status}, target={activation.TargetAppId?.Value ?? "<none>"}.");
             if (!activation.Succeeded && !activation.IsPendingUserChoice)
                 vm.StatusText = LocalizedText.Get("docker.status.install_guide_unavailable");
             return Task.CompletedTask;

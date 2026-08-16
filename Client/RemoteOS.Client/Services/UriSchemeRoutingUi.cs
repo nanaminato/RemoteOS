@@ -21,14 +21,19 @@ public sealed class UriSchemeRoutingUi(
     DefaultAppRegistry defaults,
     IAuthSession session,
     ShellSettings settings,
-    ISettingsClient settingsClient) : IUriSchemeRoutingUi
+    ISettingsClient settingsClient,
+    IAppActivationDiagnostics diagnostics) : IUriSchemeRoutingUi
 {
     public async Task<UriSchemeHandlerChoice?> ChooseHandlerAsync(Uri uri, IReadOnlyList<ApplicationInfo> candidates)
     {
         var owner = FindOwner();
         if (owner is null || candidates.Count == 0)
+        {
+            Record($"Handler picker cannot be displayed: owner={(owner is null ? "<none>" : "available")}, candidates={candidates.Count}.");
             return null;
+        }
 
+        Record($"Showing handler picker: scheme={uri.Scheme}, candidates=[{string.Join(',', candidates.Select(candidate => candidate.Id.Value))}].");
         return await windowManager.ShowDialogAsync<UriSchemeHandlerChoice>(owner,
             LocalizedText.Get("activation.choose_handler.title"), dialog => CreateChoiceView(uri, candidates, dialog),
             new RemoteSize(480, 300));
@@ -36,6 +41,7 @@ public sealed class UriSchemeRoutingUi(
 
     public async Task SaveDefaultHandlerAsync(string scheme, AppId applicationId)
     {
+        Record($"Saving default handler locally: scheme={scheme}, target={applicationId.Value}.");
         var mappings = defaults.Snapshot
             .Where(mapping => !mapping.Scheme.Equals(scheme, StringComparison.OrdinalIgnoreCase))
             .Append(new DefaultAppMappingDto(scheme, applicationId.Value))
@@ -43,17 +49,25 @@ public sealed class UriSchemeRoutingUi(
         defaults.SetMappings(mappings);
 
         if (session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } workspace })
+        {
+            Record("Default handler saved locally; workspace preference sync skipped because no authenticated workspace is available.");
             return;
+        }
 
         await settingsClient.SaveAsync(url, tokens.AccessToken, workspace.Id, settings.ToPreferences(mappings));
+        Record("Default handler workspace preference sync completed.");
     }
 
     public async Task NotifyNoHandlerAsync(Uri uri)
     {
         var owner = FindOwner();
         if (owner is null)
+        {
+            Record($"Missing-handler prompt cannot be displayed: scheme={uri.Scheme}, owner=<none>.");
             return;
+        }
 
+        Record($"Showing missing-handler prompt: scheme={uri.Scheme}, host={uri.Host}, path={uri.AbsolutePath}.");
         await windowManager.ShowDialogAsync<bool>(owner, LocalizedText.Get("activation.no_handler.title"), dialog =>
         {
             var messageKey = uri.Scheme.Equals("help", StringComparison.OrdinalIgnoreCase)
@@ -126,4 +140,6 @@ public sealed class UriSchemeRoutingUi(
 
     private ManagedWindow? FindOwner() => windowManager.ActiveWindow
         ?? windowManager.Windows.LastOrDefault(window => !window.IsModalDialog);
+
+    private void Record(string message) => diagnostics.Record(message);
 }
