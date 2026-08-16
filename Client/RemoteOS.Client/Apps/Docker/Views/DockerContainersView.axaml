@@ -6,9 +6,12 @@
              x:DataType="docker:DockerManagerViewModel">
     <Border Background="White" CornerRadius="14" Padding="20">
         <StackPanel Spacing="12">
-            <TextBlock Text="{loc:Loc docker.containers}" FontSize="19" FontWeight="SemiBold" Foreground="#163059" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{loc:Loc docker.containers}" FontSize="19" FontWeight="SemiBold" Foreground="#163059" />
+                <Button Grid.Column="1" Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+            </Grid>
             <TextBlock Text="{loc:Loc docker.containers_hint}" Foreground="#61708B" TextWrapping="Wrap" />
-            <Button Content="{loc:Loc docker.container.create}" Click="CreateContainer_Click" HorizontalAlignment="Left" />
+            <Button Classes="primary" Content="{loc:Loc docker.container.create}" Click="CreateContainer_Click" HorizontalAlignment="Left" />
             <Border Height="1" Background="#E5EAF2" Margin="0,2" />
             <DataGrid ItemsSource="{Binding Containers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" Height="230">
                 <DataGrid.Columns>

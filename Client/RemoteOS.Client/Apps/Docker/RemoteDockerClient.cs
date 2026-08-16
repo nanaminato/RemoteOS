@@ -15,12 +15,15 @@ public sealed class RemoteDockerClient(HttpClient http, IAuthSession session) : 
     public Task<IReadOnlyList<DockerNetworkDto>> ListNetworksAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<DockerNetworkDto>>(DockerApiRoutes.Networks, cancellationToken);
     public Task<IReadOnlyList<DockerVolumeDto>> ListVolumesAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<DockerVolumeDto>>(DockerApiRoutes.Volumes, cancellationToken);
     public Task<IReadOnlyList<DockerStackDto>> ListStacksAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<DockerStackDto>>(DockerApiRoutes.Stacks, cancellationToken);
+    public Task<IReadOnlyList<DockerStackServiceDto>> ListStackServicesAsync(string name, CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<DockerStackServiceDto>>(DockerApiRoutes.StackServices.Replace("{name}", Uri.EscapeDataString(name)), cancellationToken);
     public Task<DockerOperationResult> ApplyContainerActionAsync(string id, string action, DockerContainerActionRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.ContainerAction.Replace("{id}", Uri.EscapeDataString(id)).Replace("{action}", action), request, cancellationToken);
     public Task<DockerStackOperationResult> ApplyStackOperationAsync(string operation, DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
     {
         var route = operation switch { "validate" => DockerApiRoutes.StackValidate, "deploy" => DockerApiRoutes.StackDeploy, _ => throw new ArgumentOutOfRangeException(nameof(operation)) };
         return SendAsync<DockerStackOperationResult>(HttpMethod.Post, route, definition, cancellationToken);
     }
+    public Task<DockerStackOperationResult> ApplyStackActionAsync(string name, string action, CancellationToken cancellationToken = default) =>
+        SendAsync<DockerStackOperationResult>(HttpMethod.Post, DockerApiRoutes.StackAction.Replace("{name}", Uri.EscapeDataString(name)).Replace("{action}", action), null, cancellationToken);
     public Task<DockerOperationResult> PullImageAsync(DockerImageOperationRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.ImagePull, request, cancellationToken);
     public Task<DockerOperationResult> DeleteImageAsync(string id, DockerImageOperationRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Delete, DockerApiRoutes.ImageDelete.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
     public Task<DockerOperationResult> CreateContainerAsync(DockerContainerCreateRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.Containers, request, cancellationToken);

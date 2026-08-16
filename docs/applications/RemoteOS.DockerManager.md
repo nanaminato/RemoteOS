@@ -2,7 +2,7 @@
 
 > 内置 Docker 管理器。它管理 **RemoteOS.Server 所在宿主机** 的本地 Docker Engine；客户端只负责本地 UI 渲染，不直连 Docker socket、不保存 Docker 凭据，也不将守护进程 API 暴露到网络。
 >
-> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose Stack 的列表、校验和 `up` 部署。Stack 停止必须从已选定的 Stack 上下文发起，当前不在新建部署窗口提供。安装、创建与删除、镜像构建/拉取、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
+> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose 编排项目的列表、校验、`up` 部署、服务查看和项目级启动/停止/重启。编排列表不展示 Compose 文件来源或宿主机路径。安装、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
 >
 > - 架构与内置应用边界：[`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
 > - 协议契约规则：[`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)
@@ -122,7 +122,7 @@ IDockerEngineService ── IDockerRuntimeInstaller ── IDockerComposeService
 | GET/POST | `/api/v1/docker/containers` | read/manage | 列表、创建 |
 | POST/DELETE | `/api/v1/docker/containers/{id}/{action}` | manage | 生命周期、删除、复制、exec |
 | GET | `/api/v1/docker/containers/{id}/logs` | read | 带游标/时间范围；follow 用 SignalR |
-| GET/POST | `/api/v1/docker/stacks` | read/manage | Compose 定义与部署 |
+| GET/POST | `/api/v1/docker/stacks` | read/manage | Compose 项目列表、定义校验与部署；可读取项目服务并执行启动/停止/重启 |
 | GET/POST/DELETE | `/api/v1/docker/images|networks|volumes` | read/manage | 资源管理，删除前依赖检查 |
 | GET | `/api/v1/docker/events` | `server.docker.read` | 过滤后的事件和审计只读流 |
 

@@ -42,6 +42,8 @@ public static class DockerEndpoints
         group.MapGet("/stacks", (Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ListAsync(ct));
         group.MapPost("/stacks/validate", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ValidateAsync(definition, ct));
         group.MapPost("/stacks/deploy", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.DeployAsync(definition, ct));
+        group.MapGet("/stacks/{name}/services", (string name, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ListServicesAsync(name, ct));
+        group.MapPost("/stacks/{name}/{action}", (string name, string action, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ApplyActionAsync(name, action, ct));
         return app;
     }
 }

@@ -26,4 +26,6 @@ public static class DockerApiRoutes
     public const string StackValidate = $"/{V1}/docker/stacks/validate";
     public const string Stacks = $"/{V1}/docker/stacks";
     public const string StackDeploy = $"/{V1}/docker/stacks/deploy";
+    public const string StackServices = $"/{V1}/docker/stacks/{{name}}/services";
+    public const string StackAction = $"/{V1}/docker/stacks/{{name}}/{{action}}";
 }

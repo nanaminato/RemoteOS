@@ -14,6 +14,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     public ObservableCollection<DockerNetworkDto> Networks { get; } = [];
     public ObservableCollection<DockerVolumeDto> Volumes { get; } = [];
     public ObservableCollection<DockerStackDto> Stacks { get; } = [];
+    public ObservableCollection<DockerStackServiceDto> StackServices { get; } = [];
     public ObservableCollection<string> AvailableNetworks { get; } = ["bridge"];
 
     // Docker's built-in drivers that can create a user-defined network. Host and none are
@@ -35,6 +36,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _containerLogs = string.Empty;
     [ObservableProperty] private string _containerStats = string.Empty;
     [ObservableProperty] private bool _confirmContainerDeletion;
+    [ObservableProperty] private DockerStackDto? _selectedStack;
     [ObservableProperty] private string _stackName = string.Empty;
     [ObservableProperty] private string _composeYaml = string.Empty;
     [ObservableProperty] private string _imageReference = string.Empty;
@@ -151,6 +153,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     partial void OnIsLoadingChanged(bool value)
     {
         NotifyContainerCommands();
+        NotifyStackCommands();
         DeleteImageCommand.NotifyCanExecuteChanged(); DeleteNetworkCommand.NotifyCanExecuteChanged(); DeleteVolumeCommand.NotifyCanExecuteChanged();
     }
     partial void OnIsDockerInstallRequiredChanged(bool value) => OpenInstallGuideCommand.NotifyCanExecuteChanged();
@@ -199,6 +202,46 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
                 var detail = result.Messages.FirstOrDefault() ?? result.ProblemCode;
                 return result.Success ? LocalizedText.Format("docker.stack.succeeded", OperationText(operation), StackName) : LocalizedText.Format("docker.stack.failed", OperationText(operation), detail);
             }, LocalizedText.Format("docker.operation.stack", OperationText(operation), StackName));
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedStack))]
+    private async Task LoadStackServicesAsync()
+    {
+        var stack = SelectedStack;
+        if (stack is null) return;
+        await RunReadAsync(async () =>
+        {
+            Replace(StackServices, await client.ListStackServicesAsync(stack.Name));
+            StatusText = LocalizedText.Format("docker.stack.services_loaded", stack.Name, StackServices.Count);
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StartStackAsync() => ApplySelectedStackActionAsync("start");
+    [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StopStackAsync() => ApplySelectedStackActionAsync("stop");
+    [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task RestartStackAsync() => ApplySelectedStackActionAsync("restart");
+
+    private bool HasSelectedStack => SelectedStack is not null && !IsLoading;
+    partial void OnSelectedStackChanged(DockerStackDto? value)
+    {
+        Replace(StackServices, []);
+        NotifyStackCommands();
+        if (value is not null) _ = LoadStackServicesAsync();
+    }
+    private void NotifyStackCommands()
+    {
+        LoadStackServicesCommand.NotifyCanExecuteChanged();
+        StartStackCommand.NotifyCanExecuteChanged(); StopStackCommand.NotifyCanExecuteChanged(); RestartStackCommand.NotifyCanExecuteChanged();
+    }
+    private async Task ApplySelectedStackActionAsync(string action)
+    {
+        var stack = SelectedStack;
+        if (stack is null) return;
+        await RunOperationAsync(
+            () => client.ApplyStackActionAsync(stack.Name, action),
+            result => result.Success
+                ? LocalizedText.Format("docker.stack.succeeded", OperationText(action), stack.Name)
+                : LocalizedText.Format("docker.stack.failed", OperationText(action), ProblemText(result.ProblemCode)),
+            LocalizedText.Format("docker.operation.stack", OperationText(action), stack.Name));
     }
 
     [RelayCommand] private Task PullImageAsync() => TryPullImageAsync();
@@ -442,6 +485,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     {
         "docker.operation_timeout" => LocalizedText.Get("docker.problem.timeout"),
         "docker.operation_failed" => LocalizedText.Get("docker.problem.failed"),
+        "docker.stack_no_services" => LocalizedText.Get("docker.problem.stack_no_services"),
         _ => problemCode
     };
     private static IReadOnlyList<string> Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

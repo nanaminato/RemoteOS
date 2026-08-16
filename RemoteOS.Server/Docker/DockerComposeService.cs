@@ -14,6 +14,41 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
         => ExecuteAsync(definition, ["config", "--quiet"], cancellationToken);
     public Task<DockerStackOperationResult> DeployAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
         => ExecuteAsync(definition, ["up", "--detach", "--remove-orphans"], cancellationToken);
+
+    /// <summary>
+    /// Reads the containers Docker labels as belonging to a Compose project. This deliberately
+    /// avoids exposing a host Compose-file path to the client and also works for projects that
+    /// were started outside RemoteOS.
+    /// </summary>
+    public async Task<IReadOnlyList<DockerStackServiceDto>> ListServicesAsync(string name, CancellationToken cancellationToken = default)
+    {
+        if (!IsProjectName(name)) return [];
+        var result = await RunAsync(["ps", "--all", "--filter", $"label=com.docker.compose.project={name}", "--format", "{{.Label \\\"com.docker.compose.service\\\"}}\\t{{.Names}}\\t{{.Image}}\\t{{.State}}\\t{{.Status}}"], cancellationToken);
+        if (!result.Success) return [];
+        return result.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Split('\t'))
+            .Select(row => new DockerStackServiceDto(Value(row, 0), Value(row, 1), Value(row, 2), Value(row, 3), Value(row, 4)))
+            .OrderBy(service => service.Service, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(service => service.Container, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    /// <summary>Applies a safe lifecycle action to every container labelled for the project.</summary>
+    public async Task<DockerStackOperationResult> ApplyActionAsync(string name, string action, CancellationToken cancellationToken = default)
+    {
+        if (!IsProjectName(name) || action is not ("start" or "stop" or "restart"))
+            return new DockerStackOperationResult(false, "docker.validation_failed", []);
+
+        var containers = await RunAsync(["ps", "--all", "--quiet", "--filter", $"label=com.docker.compose.project={name}"], cancellationToken);
+        if (!containers.Success) return new DockerStackOperationResult(false, ToProblemCode(containers.Error), []);
+        var ids = containers.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ids.Length == 0) return new DockerStackOperationResult(false, "docker.stack_no_services", []);
+
+        var arguments = new List<string> { action };
+        arguments.AddRange(ids);
+        var result = await RunAsync(arguments, cancellationToken);
+        return new DockerStackOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result.Error), result.Success ? ToLines(result.Output) : []);
+    }
     public async Task<IReadOnlyList<DockerStackDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         var result = await RunAsync(["compose", "ls", "--format", "json"], cancellationToken);
@@ -55,7 +90,7 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
 
     private static bool Validate(DockerStackDefinitionDto definition, out string problem)
     {
-        if (string.IsNullOrWhiteSpace(definition.Name) || definition.Name.Length > 63 || !definition.Name.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_')) { problem = "docker.stack_invalid_name"; return false; }
+        if (!IsProjectName(definition.Name)) { problem = "docker.stack_invalid_name"; return false; }
         if (string.IsNullOrWhiteSpace(definition.ComposeYaml) || System.Text.Encoding.UTF8.GetByteCount(definition.ComposeYaml) > MaximumComposeBytes) { problem = "docker.stack_invalid_compose"; return false; }
         problem = string.Empty; return true;
     }
@@ -77,6 +112,8 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     }
 
     private static IReadOnlyList<string> ToLines(string message) => message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(line => line.Length <= 512 ? line : line[..512]).Take(20).ToArray();
+    private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
+    private static bool IsProjectName(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 63 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
     private static string Read(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     private static string ToProblemCode(string error) => error.Contains("not_found", StringComparison.OrdinalIgnoreCase) ? "docker.not_installed" : error.Contains("permission denied", StringComparison.OrdinalIgnoreCase) ? "docker.permission_denied" : "docker.compose_failed";
     private sealed record CommandResult(bool Success, string Output, string Error);
