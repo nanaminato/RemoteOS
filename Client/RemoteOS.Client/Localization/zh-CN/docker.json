@@ -5,6 +5,7 @@
     "docker.status.loading": "正在检查服务器本机 Docker Engine…",
     "docker.status.available": "Docker Engine {0} 可用（{1}）。",
     "docker.status.unavailable": "Docker Engine 不可用：{0}。",
+    "docker.status.open_install_guide": "打开 Docker 安装指南",
     "docker.status.failed": "Docker 状态请求失败：{0}",
     "docker.status.unavailable_operation": "Docker 当前不可用，未执行此操作。",
     "docker.unavailable_dialog.title": "Docker 不可用",

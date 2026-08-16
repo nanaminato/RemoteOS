@@ -71,9 +71,23 @@ public sealed class HelpContentCatalog
         return reader.ReadToEnd();
     }
 
-    private static Stream OpenResource(Assembly assembly, string suffix) =>
-        assembly.GetManifestResourceStream($"{assembly.GetName().Name}.{suffix}")
-        ?? throw new InvalidOperationException($"Missing embedded help resource {suffix}.");
+    private static Stream OpenResource(Assembly assembly, string suffix)
+    {
+        var prefix = $"{assembly.GetName().Name}.";
+        var resourceName = $"{prefix}{suffix}";
+
+        // MSBuild converts the hyphen in culture-like directory names (for example,
+        // zh-CN) to an underscore in the manifest resource name. Resolve both forms so
+        // the content layout can continue to use standard BCP-47 language tags.
+        var normalizedResourceName = $"{prefix}{suffix.Replace('-', '_')}";
+        var resolvedName = assembly.GetManifestResourceNames().FirstOrDefault(name =>
+            name.Equals(resourceName, StringComparison.Ordinal)
+            || name.Equals(normalizedResourceName, StringComparison.Ordinal));
+
+        return resolvedName is not null
+            ? assembly.GetManifestResourceStream(resolvedName)!
+            : throw new InvalidOperationException($"Missing embedded help resource {suffix}.");
+    }
 
     private sealed record HelpIndex(string DisplayName, IReadOnlyList<HelpIndexNode> Nodes);
     private sealed record HelpIndexNode(string Title, string? Id = null, string? Route = null, string? File = null,

@@ -12,7 +12,7 @@ help://guide/docker/uninstall?lang=zh-CN
 Build and install it from the repository root:
 
 ```bash
-export REMOTEOS_DEV_TOKEN="<token from Settings > Applications > Developer Mode>"
+export REMOTEOS_DEV_TOKEN="33CqN1nDrp0xP2bBLd7sZfw9APHrnbiIAg_gzYQwo-w"
 dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/HelpCenter --configuration Debug --install
 ```
 

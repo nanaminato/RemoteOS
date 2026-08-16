@@ -16,7 +16,12 @@
                     <TextBlock Text="{loc:Loc docker.subtitle}" FontSize="13" Foreground="#B8C9E6" />
                 </StackPanel>
                 <Border Grid.Column="2" Background="#1C3765" CornerRadius="16" Padding="11,5" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#C8F6DD" />
+                    <Button Content="{Binding StatusText}"
+                            Command="{Binding OpenInstallGuideCommand}"
+                            IsEnabled="{Binding IsDockerInstallRequired}"
+                            ToolTip.Tip="{loc:Loc docker.status.open_install_guide}"
+                            Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Padding="0"
+                            FontSize="12" Foreground="#C8F6DD" />
                 </Border>
             </Grid>
         </Border>

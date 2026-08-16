@@ -36,6 +36,12 @@ public sealed class DockerManagerApp : RemoteApplicationBase
             () => DockerManagerDialogs.ShowCreateVolumeAsync(context, window!, vm));
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.docker.display_name"), view, new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
         vm.ShowDockerUnavailableAsync = () => DockerManagerDialogs.ShowDockerUnavailableAsync(context, window, vm);
+        vm.OpenDockerInstallGuideAsync = () =>
+        {
+            var language = (context.Services.GetService(typeof(ISystemLanguage)) as ISystemLanguage)?.CurrentLanguage ?? "en-US";
+            context.Activations.Activate(new Uri($"help://guide/docker/install?lang={Uri.EscapeDataString(language)}"));
+            return Task.CompletedTask;
+        };
         _ = vm.StartAsync();
     }
 }

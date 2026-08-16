@@ -25,6 +25,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _statusText = LocalizedText.Get("docker.status.loading");
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private bool _isDockerAvailable;
+    [ObservableProperty] private bool _isDockerInstallRequired;
     [ObservableProperty] private string _engineVersion = "—";
     [ObservableProperty] private string _enginePlatform = "—";
     [ObservableProperty] private DockerContainerDto? _selectedContainer;
@@ -55,6 +56,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     /// <summary>Assigned by the app shell so operations can surface an unavailable Engine immediately.</summary>
     public Func<Task>? ShowDockerUnavailableAsync { get; set; }
+    /// <summary>Assigned by the app shell to open the localized Docker installation guide.</summary>
+    public Func<Task>? OpenDockerInstallGuideAsync { get; set; }
     private bool _isUnavailableDialogShowing;
 
     public int RunningContainerCount => Containers.Count(container => container.State.Equals("running", StringComparison.OrdinalIgnoreCase));
@@ -77,6 +80,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             await Task.WhenAll(statusTask, containersTask, imagesTask, networksTask, volumesTask, stacksTask);
             var status = await statusTask;
             IsDockerAvailable = status.IsAvailable;
+            IsDockerInstallRequired = IsInstallRequired(status.IsAvailable, status.ProblemCode);
             EngineVersion = status.ServerVersion ?? "—";
             EnginePlatform = string.Join(" / ", new[] { status.OperatingSystem, status.Architecture }.Where(value => !string.IsNullOrWhiteSpace(value)));
             if (string.IsNullOrWhiteSpace(EnginePlatform)) EnginePlatform = "—";
@@ -91,7 +95,11 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             if (!AvailableNetworks.Contains(ContainerNetwork, StringComparer.Ordinal)) ContainerNetwork = "bridge";
             OnPropertyChanged(nameof(RunningContainerCount));
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("docker.status.failed", exception.Message); }
+        catch (Exception exception)
+        {
+            IsDockerInstallRequired = false;
+            StatusText = LocalizedText.Format("docker.status.failed", exception.Message);
+        }
         finally { IsLoading = false; }
     }
 
@@ -139,6 +147,16 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     {
         NotifyContainerCommands();
         DeleteImageCommand.NotifyCanExecuteChanged(); DeleteNetworkCommand.NotifyCanExecuteChanged(); DeleteVolumeCommand.NotifyCanExecuteChanged();
+    }
+    partial void OnIsDockerInstallRequiredChanged(bool value) => OpenInstallGuideCommand.NotifyCanExecuteChanged();
+
+    private bool CanOpenInstallGuide => IsDockerInstallRequired && OpenDockerInstallGuideAsync is not null;
+
+    [RelayCommand(CanExecute = nameof(CanOpenInstallGuide))]
+    private async Task OpenInstallGuideAsync()
+    {
+        if (OpenDockerInstallGuideAsync is not null)
+            await OpenDockerInstallGuideAsync();
     }
     private void NotifyContainerCommands()
     {
@@ -333,6 +351,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     {
         if (problemCode is not ("docker.unavailable" or "docker.not_installed" or "docker.api_incompatible")) return;
         IsDockerAvailable = false;
+        IsDockerInstallRequired = IsInstallRequired(false, problemCode);
         StatusText = LocalizedText.Format("docker.status.unavailable", problemCode);
         await ShowDockerUnavailableDialogAsync();
     }
@@ -343,11 +362,13 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             var status = await client.GetStatusAsync();
             if (status.IsAvailable) return;
             IsDockerAvailable = false;
+            IsDockerInstallRequired = IsInstallRequired(false, status.ProblemCode);
             StatusText = LocalizedText.Format("docker.status.unavailable", status.ProblemCode);
         }
         catch
         {
             IsDockerAvailable = false;
+            IsDockerInstallRequired = false;
             StatusText = LocalizedText.Get("docker.status.unavailable_operation");
         }
         await ShowDockerUnavailableDialogAsync();
@@ -359,6 +380,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         try { await ShowDockerUnavailableAsync(); }
         finally { _isUnavailableDialogShowing = false; }
     }
+    private static bool IsInstallRequired(bool isAvailable, string? problemCode) =>
+        !isAvailable && string.Equals(problemCode, "docker.not_installed", StringComparison.OrdinalIgnoreCase);
     private static string OperationText(string operation) => operation switch
     {
         "validate" => LocalizedText.Get("docker.stack.validate"),

@@ -1,24 +1,44 @@
 # Install Docker
 
-This guide installs Docker Engine on a Linux server. Use the official Docker packages for your distribution whenever they are available.
+This guide installs Docker on a Windows or Linux host running RemoteOS Server. Prefer Docker's official installer or package repository, and follow your organization's image-registry and proxy policies.
 
 ## Before you begin
 
-- Confirm that you have administrator access to the server.
-- Check that the server can reach Docker's package repository.
-- Remove or account for older Docker packages before installing a newer engine.
+- Confirm that you have administrator access and the host meets Docker's system requirements.
+- Check that the host can reach Docker's package repository, or that an approved mirror is configured.
+- Account for older Docker packages or Docker Desktop installations before installing a newer version.
+- For production, reserve adequate disk space for images, container logs, and volumes.
 
-## Install
+## Windows
 
-1. Follow the Docker Engine installation instructions for the server's Linux distribution.
-2. Start and enable the Docker service.
-3. Verify that the daemon is running.
+1. Install the Docker Desktop or Docker Engine edition appropriate for Windows 10/11 or Windows Server.
+2. Docker Desktop normally requires WSL 2 or Hyper-V; follow the installer prompts to enable them and restart if requested.
+3. Start Docker Desktop (or the Docker service) and verify that it reports as running.
+
+If RemoteOS Server runs inside WSL, a virtual machine, or a container, make sure that environment can reach the Docker daemon or socket.
+
+## Linux
+
+1. Follow Docker's official instructions for your distribution to add its repository and install Docker Engine, the CLI, and the Compose plugin.
+2. Start Docker and enable it at boot. For a systemd host:
+
+```bash
+sudo systemctl enable --now docker
+```
+
+3. To allow a non-root user to run Docker, add that user to the `docker` group and sign in again. This grants privileges close to root on the host.
+
+## Verify the installation
+
+Run these commands on either Windows or Linux:
 
 ```bash
 docker --version
 docker info
 ```
 
+They should display both client and server information. If the server cannot be reached, first check that Docker Desktop or the Docker service is running.
+
 ## Verify in RemoteOS
 
-Open Docker Manager and wait for the status card to show that the engine is available. If it remains unavailable, inspect the service log and confirm that the current user is allowed to access the Docker socket.
+Open Docker Manager and wait for the status card to show that the engine is available. If it remains unavailable, inspect the Docker service logs and confirm that the account running RemoteOS Server can access the Docker socket (Linux) or Docker Desktop/Engine (Windows).
