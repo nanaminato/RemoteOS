@@ -242,25 +242,20 @@ dotnet run
 
 RemoteOSでは、`DevCli`ツール経由でRemoteOS Shellにインストールできるカスタムアプリケーションパッケージ（`.roapp`）の構築がサポートされています。
 
-### サンプルアプリのビルド
-
-```bash
-cd examples/VideoPlayer
-./build-package.ps1
-```
-
-### アプリパッケージのインストール
+### サンプルアプリのビルド、インストール、監視
 
 ```bash
 # 開発トークンを設定（パラメータで渡すことも可能）
 export REMOTEOS_DEV_TOKEN="<pairing-token>"
 
-# アプリをインストール
-dotnet run --project Tools/RemoteOS.DevCli -- install ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# アプリごとの PowerShell スクリプトを使わずにパッケージ化してインストール
+dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/VideoPlayer --runtime win-x64 --configuration Release --install
 
-# 変更を監視して自動更新
-dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# ソース変更を監視し、自動的に再パッケージ化して更新
+dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer --runtime win-x64 --configuration Debug
 ```
+
+`pack` はアプリケーションの `artifacts/` ディレクトリに `.roapp` を生成します。純粋なマネージドアプリケーションでは `--runtime` を省略できます。サードパーティ向けのパッケージコマンドは [Developer Mode](./docs/development/RemoteOS.DeveloperMode.md) を参照してください。
 
 ### アプリ開発モデル
 

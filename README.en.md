@@ -242,25 +242,20 @@ The client will open a login dialog. Enter your host system username and passwor
 
 RemoteOS supports building custom application packages (`.roapp`) that can be installed into the RemoteOS Shell via the `DevCli` tool.
 
-### Build an Example App
-
-```bash
-cd examples/VideoPlayer
-./build-package.ps1
-```
-
-### Install an App Package
+### Build, Install, and Watch an Example App
 
 ```bash
 # Set the development token (or pass it as a parameter)
 export REMOTEOS_DEV_TOKEN="<pairing-token>"
 
-# Install an app
-dotnet run --project Tools/RemoteOS.DevCli -- install ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# Package and install an app without per-application PowerShell scripts
+dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/VideoPlayer --runtime win-x64 --configuration Release --install
 
-# Watch for changes and auto-update
-dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# Watch source changes, package, and update automatically
+dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer --runtime win-x64 --configuration Debug
 ```
+
+`pack` creates the `.roapp` in the application's `artifacts/` directory; pure managed applications can omit `--runtime`. See [Developer Mode](./docs/development/RemoteOS.DeveloperMode.md) for the third-party packaging command reference.
 
 ### App Development Model
 

@@ -4,8 +4,8 @@ This is a Windows `win-x64` development package that uses `LibVLCSharp.Avalonia`
 
 Build and package it:
 
-```powershell
-.\examples\VideoPlayer\build-package.ps1
+```bash
+dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/VideoPlayer --runtime win-x64 --configuration Release
 ```
 
 Install it using the Developer Mode CLI, then open a video from RemoteExplorer with **Open with → Video Player**. Grant **读取服务器文件** in Settings → Applications → Video Player before opening remote media.

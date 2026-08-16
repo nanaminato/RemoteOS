@@ -6,15 +6,49 @@ Developer Mode provides a localhost-only bridge for installing and refreshing de
 
 Open **Settings → Applications → Developer Mode**, enable it, and copy the pairing token. The bridge listens only on `http://127.0.0.1:45321/api/developer/v1/` and requires the token in every `X-RemoteOS-Dev-Token` request header.
 
-Use the included CLI:
+Use the included CLI from the repository root. `pack` needs only the .NET SDK; a token is needed only when a command installs, updates, watches, or otherwise communicates with the running Shell:
 
 ```powershell
+# Build a package. The default output is <project>/artifacts/<entry-assembly>.roapp.
+dotnet run --project Tools/RemoteOS.DevCli -- pack .\MyApp --configuration Release
+
+# Build, package, install, and launch in one command.
 $env:REMOTEOS_DEV_TOKEN = "<token from Settings>"
-dotnet run --project Tools/RemoteOS.DevCli -- install .\bin\Debug\my-app.roapp
-dotnet run --project Tools/RemoteOS.DevCli -- watch .\bin\Debug\my-app.roapp
+dotnet run --project Tools/RemoteOS.DevCli -- pack .\MyApp --configuration Debug --install
+
+# Rebuild, package, and reinstall when the project source changes.
+dotnet run --project Tools/RemoteOS.DevCli -- watch .\MyApp --configuration Debug
 ```
 
-`watch` reinstalls and relaunches the package when the archive changes. Updating an app closes its windows, unloads its collectible assembly load context, registers the new version, and launches it again.
+The same commands work in PowerShell, bash, zsh, and cmd; only the environment-variable syntax differs. `watch <project>` rebuilds from source, creates a new package, then reinstalls and relaunches it. `watch <package.roapp>` remains available for an externally produced archive. Updating an app closes its windows, unloads its collectible assembly load context, registers the new version, and launches it again.
+
+## Package a third-party application
+
+Place a `manifest.json` beside the application's `.csproj`, then use the following shell command:
+
+```bash
+dotnet run --project /path/to/RemoteOS/Tools/RemoteOS.DevCli -- pack ./MyApp/MyApp.csproj --configuration Release
+```
+
+For a reusable shell command, build the included .NET tool once and install it from its local package directory:
+
+```bash
+dotnet pack /path/to/RemoteOS/Tools/RemoteOS.DevCli --output /tmp/remoteos-dev-tool
+dotnet tool install --global --add-source /tmp/remoteos-dev-tool RemoteOS.DevCli
+remoteos-dev pack ./MyApp/MyApp.csproj --configuration Release
+```
+
+When RemoteOS publishes the tool to a package feed, replace `--add-source` with that feed. The `remoteos-dev` command accepts the same arguments as `dotnet run --project … --`.
+
+The CLI runs `dotnet publish` and writes a ZIP-format `.roapp` to `artifacts/<entry-assembly>.roapp`. It copies the complete publish output below the `lib/<TFM>/` directory declared by `entryAssembly`; private managed dependencies, `.deps.json`, and native runtime assets are therefore packaged consistently without application-specific scripts.
+
+For a project that needs native platform assets, add the target runtime explicitly:
+
+```bash
+dotnet run --project /path/to/RemoteOS/Tools/RemoteOS.DevCli -- pack ./MyApp --runtime win-x64 --configuration Release
+```
+
+Use one package per runtime identifier for native applications, for example `--runtime win-x64` and `--runtime linux-x64`, and declare the compatible client platforms in the manifest. Pure managed applications generally omit `--runtime` and produce one cross-platform package. Use `--manifest <path>` when the manifest is not beside the project, `--output <file.roapp>` to override the artifact location, and `--no-install` with `watch` to rebuild packages without contacting a Shell.
 
 ## Development package format
 
@@ -72,12 +106,11 @@ same window rather than opening duplicates.
 
 `IExternalAppContext.ServerMonitor` provides a stable, read-only aggregate server metrics API. It requires the `server.metrics.read` manifest permission and user approval under **Application permissions**. `GetSnapshotAsync` returns one capability result; `WatchAsync` returns a host-polled sequence (minimum one-second interval) for live dashboards. It deliberately does not expose process enumeration, process termination, raw server credentials, or the task-manager client.
 
-The complete sample is in [`examples/ServerMonitor`](../../examples/ServerMonitor). Build and package it with:
+The complete sample is in [`examples/ServerMonitor`](../../examples/ServerMonitor). Build, package, and install it with:
 
 ```powershell
-.\examples\ServerMonitor\build-package.ps1
 $env:REMOTEOS_DEV_TOKEN = "<token from Settings>"
-dotnet run --project Tools/RemoteOS.DevCli -- install .\examples\ServerMonitor\bin\Debug\net10.0\RemoteOS.Example.ServerMonitor.roapp
+dotnet run --project Tools/RemoteOS.DevCli -- pack .\examples\ServerMonitor --configuration Debug --install
 ```
 
 After installation, grant **读取服务器性能指标** to **Server Monitor** in Settings, then launch the desktop icon.

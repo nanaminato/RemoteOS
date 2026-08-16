@@ -245,25 +245,20 @@ dotnet run
 
 RemoteOS 支持开发者构建自定义应用包（`.roapp`），通过 `DevCli` 工具安装到 RemoteOS Shell 中。
 
-### 构建示例应用
-
-```bash
-cd examples/VideoPlayer
-./build-package.ps1
-```
-
-### 安装应用包
+### 构建、安装与监视示例应用
 
 ```bash
 # 设置开发令牌（或通过参数传递）
 export REMOTEOS_DEV_TOKEN="<pairing-token>"
 
-# 安装应用
-dotnet run --project Tools/RemoteOS.DevCli -- install ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# 打包并安装应用；无需为每个应用维护 PowerShell 脚本
+dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/VideoPlayer --runtime win-x64 --configuration Release --install
 
-# 实时监听并自动更新
-dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer/bin/Release/net10.0/RemoteOS.Example.VideoPlayer.roapp
+# 监听源码，自动重新打包并更新
+dotnet run --project Tools/RemoteOS.DevCli -- watch ./examples/VideoPlayer --runtime win-x64 --configuration Debug
 ```
+
+`pack` 在应用目录的 `artifacts/` 下生成 `.roapp`；纯托管应用可省略 `--runtime`。完整的第三方应用打包命令请参阅 [Developer Mode](./docs/development/RemoteOS.DeveloperMode.md)。
 
 ### 应用开发模型
 

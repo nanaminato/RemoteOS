@@ -11,10 +11,9 @@ help://guide/docker/uninstall?lang=zh-CN
 
 Build and install it from the repository root:
 
-```powershell
-.\examples\HelpCenter\build-package.ps1
-$env:REMOTEOS_DEV_TOKEN = "<token from Settings > Applications > Developer Mode>"
-dotnet run --project Tools/RemoteOS.DevCli -- install .\examples\HelpCenter\bin\Debug\net10.0\RemoteOS.Example.HelpCenter.roapp
+```bash
+export REMOTEOS_DEV_TOKEN="<token from Settings > Applications > Developer Mode>"
+dotnet run --project Tools/RemoteOS.DevCli -- pack ./examples/HelpCenter --configuration Debug --install
 ```
 
 Once installed, choose **Help Center** as the default program for `help` in Settings → Default apps. With no competing `help` handler installed, the Shell selects it automatically.
