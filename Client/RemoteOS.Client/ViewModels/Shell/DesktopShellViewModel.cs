@@ -104,7 +104,6 @@ public partial class DesktopShellViewModel : ObservableObject
 
     // The shell supplies these UI callbacks. Keeping prompts and picker controls out of this
     // view-model lets the actual filesystem operations be shared by desktop context-menu items.
-    public Func<string, string, string, string, Task<string?>>? RequestDesktopTextInputAsync { get; set; }
     public Func<string, string, string, Task<bool>>? RequestDesktopConfirmAsync { get; set; }
     public Func<IReadOnlyList<ApplicationInfo>, string, Task<OpenWithChoice?>>? RequestDesktopOpenWithAsync { get; set; }
     public Func<FilePropertiesDto, Task>? ShowDesktopPropertiesAsync { get; set; }
@@ -209,12 +208,16 @@ public partial class DesktopShellViewModel : ObservableObject
     [RelayCommand]
     private void OpenDesktopEntry(DesktopFileEntryViewModel? item)
     {
-        if (item is null) return;
+        if (item is null)
+        {
+            RecordDesktopFileMenuDiagnostic("open command ignored: entry was null.");
+            return;
+        }
 
         if (item.IsDirectory)
         {
             var folderResult = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(item.Entry.Path)));
-            _activationDiagnostics.Record($"Desktop folder open: name={item.DisplayName}, result={folderResult.Status}, target={folderResult.TargetAppId?.Value ?? "<none>"}.");
+            RecordDesktopFileMenuDiagnostic($"folder open result: entry={item.DisplayName}, result={folderResult.Status}, target={folderResult.TargetAppId?.Value ?? "<none>"}.");
             return;
         }
 
@@ -223,19 +226,26 @@ public partial class DesktopShellViewModel : ObservableObject
         var opener = defaultAppId is not null && _applications.SupportsFile(new AppId(defaultAppId), item.Entry.Path)
             ? new AppId(defaultAppId)
             : _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault()?.Id;
-        _activationDiagnostics.Record(
-            $"Desktop file open requested: name={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}.");
-        if (opener is null) return;
+        RecordDesktopFileMenuDiagnostic(
+            $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}.");
+        if (opener is null)
+        {
+            RecordDesktopFileMenuDiagnostic("file open stopped: no compatible file opener was registered.");
+            return;
+        }
 
         var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
-        _activationDiagnostics.Record($"Desktop file open result: name={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
+        RecordDesktopFileMenuDiagnostic($"file open result: entry={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
     }
 
     [RelayCommand]
     private async Task OpenDesktopEntryWithAsync(DesktopFileEntryViewModel? item)
     {
         if (item is null)
+        {
+            RecordDesktopFileMenuDiagnostic("open-with command ignored: entry was null.");
             return;
+        }
         if (item.IsDirectory)
         {
             OpenDesktopEntry(item);
@@ -243,12 +253,19 @@ public partial class DesktopShellViewModel : ObservableObject
         }
 
         var openers = _applications.FileOpenersForPath(item.Entry.Path);
+        RecordDesktopFileMenuDiagnostic($"open-with requested: entry={item.DisplayName}, candidates={openers.Count}, dialogAvailable={RequestDesktopOpenWithAsync is not null}.");
         if (openers.Count == 0 || RequestDesktopOpenWithAsync is null)
+        {
+            RecordDesktopFileMenuDiagnostic("open-with stopped: no compatible opener or no dialog callback.");
             return;
+        }
 
         var choice = await RequestDesktopOpenWithAsync(openers, Path.GetExtension(item.Entry.Name));
         if (choice is null)
+        {
+            RecordDesktopFileMenuDiagnostic("open-with cancelled.");
             return;
+        }
 
         var selectedApplication = choice.ApplicationId;
         var extension = Path.GetExtension(item.Entry.Name);
@@ -257,17 +274,7 @@ public partial class DesktopShellViewModel : ObservableObject
 
         var result = _applications.Activate(new AppActivationRequest(
             RemoteOsActivationUris.OpenFile(new AppId(selectedApplication), item.Entry.Path)));
-        _activationDiagnostics.Record($"Desktop open-with result: name={item.DisplayName}, app={selectedApplication}, result={result.Status}.");
-    }
-
-    [RelayCommand]
-    private void OpenDesktopEntryTerminal(DesktopFileEntryViewModel? item)
-    {
-        var workingDirectory = item is { IsDirectory: true }
-            ? item.Entry.Path
-            : _desktopPath;
-        if (!string.IsNullOrWhiteSpace(workingDirectory))
-            _applications.OpenTerminal(workingDirectory);
+        RecordDesktopFileMenuDiagnostic($"open-with result: entry={item.DisplayName}, app={selectedApplication}, result={result.Status}.");
     }
 
     [RelayCommand]
@@ -276,6 +283,7 @@ public partial class DesktopShellViewModel : ObservableObject
         if (item is null) return;
         _desktopClipboard = [item.Entry];
         _desktopClipboardOperation = DesktopClipboardOperation.Copy;
+        RecordDesktopFileMenuDiagnostic($"copy stored in desktop clipboard: entry={item.DisplayName}.");
     }
 
     [RelayCommand]
@@ -284,14 +292,22 @@ public partial class DesktopShellViewModel : ObservableObject
         if (item is null) return;
         _desktopClipboard = [item.Entry];
         _desktopClipboardOperation = DesktopClipboardOperation.Cut;
+        RecordDesktopFileMenuDiagnostic($"cut stored in desktop clipboard: entry={item.DisplayName}.");
     }
 
     [RelayCommand]
+    private Task PasteDesktopAsync() => PasteDesktopEntryAsync(null);
+
     private async Task PasteDesktopEntryAsync(DesktopFileEntryViewModel? item)
     {
         var targetDirectory = item is { IsDirectory: true } ? item.Entry.Path : _desktopPath;
         if (string.IsNullOrWhiteSpace(targetDirectory) || _desktopClipboard.Count == 0)
+        {
+            RecordDesktopFileMenuDiagnostic($"desktop paste stopped: targetAvailable={!string.IsNullOrWhiteSpace(targetDirectory)}, clipboardItems={_desktopClipboard.Count}.");
             return;
+        }
+
+        RecordDesktopFileMenuDiagnostic($"desktop paste started: clipboardItems={_desktopClipboard.Count}, operation={_desktopClipboardOperation}.");
 
         try
         {
@@ -315,69 +331,72 @@ public partial class DesktopShellViewModel : ObservableObject
             if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
                 _desktopClipboard = Array.Empty<FileSystemEntryDto>();
             RefreshDesktop();
+            RecordDesktopFileMenuDiagnostic("desktop paste completed and refresh requested.");
         }
         catch (Exception ex)
         {
-            _activationDiagnostics.Record($"Desktop paste failed: {ex.Message}");
-        }
-    }
-
-    [RelayCommand]
-    private async Task RenameDesktopEntryAsync(DesktopFileEntryViewModel? item)
-    {
-        if (item is null || RequestDesktopTextInputAsync is null) return;
-        var newName = await RequestDesktopTextInputAsync(
-            T("common.rename", "Rename"), T("explorer.rename_prompt", "Enter a new name:"),
-            item.Entry.Name, T("common.rename", "Rename"));
-        if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Entry.Name, StringComparison.Ordinal)) return;
-
-        try
-        {
-            await _files.RenameAsync(item.Entry.Path, newName);
-            RefreshDesktop();
-        }
-        catch (Exception ex)
-        {
-            _activationDiagnostics.Record($"Desktop rename failed: name={item.DisplayName}, error={ex.Message}");
+            RecordDesktopFileMenuDiagnostic($"desktop paste failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
     [RelayCommand]
     private async Task DeleteDesktopEntryAsync(DesktopFileEntryViewModel? item)
     {
-        if (item is null || RequestDesktopConfirmAsync is null) return;
+        if (item is null || RequestDesktopConfirmAsync is null)
+        {
+            RecordDesktopFileMenuDiagnostic($"delete stopped: entryAvailable={item is not null}, dialogAvailable={RequestDesktopConfirmAsync is not null}.");
+            return;
+        }
         var confirmed = await RequestDesktopConfirmAsync(
             T("common.delete", "Delete"),
             LocalizedText.Format("explorer.delete_confirmation", item.Entry.Name),
             T("common.delete", "Delete"));
-        if (!confirmed) return;
+        if (!confirmed)
+        {
+            RecordDesktopFileMenuDiagnostic($"delete cancelled: entry={item.DisplayName}.");
+            return;
+        }
 
         try
         {
             await _files.DeleteAsync(item.Entry.Path);
             RefreshDesktop();
+            RecordDesktopFileMenuDiagnostic($"delete completed: entry={item.DisplayName}; refresh requested.");
         }
         catch (Exception ex)
         {
-            _activationDiagnostics.Record($"Desktop delete failed: name={item.DisplayName}, error={ex.Message}");
+            RecordDesktopFileMenuDiagnostic($"delete failed: entry={item.DisplayName}, error={ex.GetType().Name}: {ex.Message}");
         }
     }
 
     [RelayCommand]
     private async Task ShowDesktopEntryPropertiesAsync(DesktopFileEntryViewModel? item)
     {
-        if (item is null || ShowDesktopPropertiesAsync is null) return;
+        if (item is null || ShowDesktopPropertiesAsync is null)
+        {
+            RecordDesktopFileMenuDiagnostic($"properties stopped: entryAvailable={item is not null}, dialogAvailable={ShowDesktopPropertiesAsync is not null}.");
+            return;
+        }
+        RecordDesktopFileMenuDiagnostic($"properties requested: entry={item.DisplayName}.");
         try
         {
             var properties = await _files.GetPropertiesAsync(item.Entry.Path);
             if (properties is not null)
+            {
+                RecordDesktopFileMenuDiagnostic("properties loaded; showing dialog.");
                 await ShowDesktopPropertiesAsync(properties);
+            }
+            else
+                RecordDesktopFileMenuDiagnostic("properties stopped: entry no longer exists.");
         }
         catch (Exception ex)
         {
-            _activationDiagnostics.Record($"Desktop properties failed: name={item.DisplayName}, error={ex.Message}");
+            RecordDesktopFileMenuDiagnostic($"properties failed: entry={item.DisplayName}, error={ex.GetType().Name}: {ex.Message}");
         }
     }
+
+    public void RecordDesktopFileMenuDiagnostic(string message) =>
+        _activationDiagnostics.Record($"Desktop file context: {message}");
 
     /// <summary>Used by the desktop-owned properties window to persist POSIX permission edits.</summary>
     public Task<FilePropertiesDto> SetDesktopUnixPermissionsAsync(string path, int unixMode) =>

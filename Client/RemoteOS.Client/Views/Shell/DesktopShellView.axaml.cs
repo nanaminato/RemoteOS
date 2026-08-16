@@ -90,6 +90,11 @@ public partial class DesktopShellView : UserControl
 
         // Match Windows: the context-menu target is selected before the menu is displayed.
         SelectDesktopItem(item);
+        if (item is DesktopFileEntryViewModel file)
+        {
+            _contextFile = file;
+            LogDesktopFileMenu($"right-click target captured: entry={file.DisplayName}, type={file.Entry.Type}.");
+        }
     }
 
     private void DesktopFileIcon_OnDoubleTapped(object? sender, RoutedEventArgs e)
@@ -110,8 +115,14 @@ public partial class DesktopShellView : UserControl
 
     private void DesktopFileContextMenu_OnOpened(object? sender, RoutedEventArgs e)
     {
-        if (sender is not ContextMenu { PlacementTarget.DataContext: DesktopFileEntryViewModel file } menu) return;
+        if (sender is not ContextMenu { PlacementTarget.DataContext: DesktopFileEntryViewModel file } menu)
+        {
+            var placementType = (sender as ContextMenu)?.PlacementTarget?.DataContext?.GetType().Name ?? "<none>";
+            LogDesktopFileMenu($"context menu opened without a desktop-file placement target: dataContextType={placementType}; using last captured target={_contextFile?.DisplayName ?? "<none>"}.");
+            return;
+        }
         _contextFile = file;
+        LogDesktopFileMenu($"context menu opened: entry={file.DisplayName}, type={file.Entry.Type}, menuItems={menu.Items.Count}");
         SelectDesktopItem(file);
         SetMenuEntry(menu, file);
     }
@@ -131,38 +142,50 @@ public partial class DesktopShellView : UserControl
     private void DesktopFileOpenMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
         if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
+        {
+            shell.RecordDesktopFileMenuDiagnostic($"open click dispatched: entry={file.DisplayName}, tagPresent={(sender as MenuItem)?.Tag is DesktopFileEntryViewModel}.");
             shell.OpenDesktopEntryCommand.Execute(file);
+        }
+        else
+            LogDesktopFileMenu("open click ignored: no resolved desktop file or shell data context.");
     }
 
     private void DesktopFileOpenWithMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.OpenDesktopEntryWithCommand);
-
-    private void DesktopFileOpenTerminalMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.OpenDesktopEntryTerminalCommand);
+        ExecuteDesktopFileCommand(sender, "open-with", shell => shell.OpenDesktopEntryWithCommand);
 
     private void DesktopFileCopyMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.CopyDesktopEntryCommand);
+        ExecuteDesktopFileCommand(sender, "copy", shell => shell.CopyDesktopEntryCommand);
 
     private void DesktopFileCutMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.CutDesktopEntryCommand);
-
-    private void DesktopFilePasteMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.PasteDesktopEntryCommand);
-
-    private void DesktopFileRenameMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.RenameDesktopEntryCommand);
+        ExecuteDesktopFileCommand(sender, "cut", shell => shell.CutDesktopEntryCommand);
 
     private void DesktopFileDeleteMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.DeleteDesktopEntryCommand);
+        ExecuteDesktopFileCommand(sender, "delete", shell => shell.DeleteDesktopEntryCommand);
 
     private void DesktopFileOpenInExplorerMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
         if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
+        {
+            shell.RecordDesktopFileMenuDiagnostic($"show-in-explorer click dispatched: entry={file.DisplayName}.");
             shell.ShowDesktopEntryInExplorerCommand.Execute(file);
+        }
+        else
+            LogDesktopFileMenu("show-in-explorer click ignored: no resolved desktop file or shell data context.");
     }
 
     private void DesktopFilePropertiesMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
-        ExecuteDesktopFileCommand(sender, shell => shell.ShowDesktopEntryPropertiesCommand);
+        ExecuteDesktopFileCommand(sender, "properties", shell => shell.ShowDesktopEntryPropertiesCommand);
+
+    private void DesktopPasteMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopShellViewModel shell)
+        {
+            shell.RecordDesktopFileMenuDiagnostic("desktop background paste click dispatched.");
+            shell.PasteDesktopCommand.Execute(null);
+        }
+        else
+            LogDesktopFileMenu("desktop background paste click ignored: no shell data context.");
+    }
 
     private void DesktopRefreshMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
@@ -185,24 +208,30 @@ public partial class DesktopShellView : UserControl
     private DesktopFileEntryViewModel? GetContextFile(object? sender) =>
         (sender as MenuItem)?.Tag as DesktopFileEntryViewModel ?? _contextFile;
 
-    private void ExecuteDesktopFileCommand(object? sender,
+    private void ExecuteDesktopFileCommand(object? sender, string action,
         Func<DesktopShellViewModel, System.Windows.Input.ICommand> command)
     {
         if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
+        {
+            shell.RecordDesktopFileMenuDiagnostic($"{action} click dispatched: entry={file.DisplayName}, tagPresent={(sender as MenuItem)?.Tag is DesktopFileEntryViewModel}.");
             command(shell).Execute(file);
+        }
+        else
+            LogDesktopFileMenu($"{action} click ignored: no resolved desktop file or shell data context.");
+    }
+
+    private void LogDesktopFileMenu(string message)
+    {
+        if (DataContext is DesktopShellViewModel shell)
+            shell.RecordDesktopFileMenuDiagnostic(message);
     }
 
     private void ConfigureDesktopFileActions(DesktopShellViewModel shell)
     {
-        shell.RequestDesktopTextInputAsync = (title, prompt, value, confirmLabel) =>
-            ShowDesktopDialogAsync<string>(shell, title, new Size(460, 220), complete => new TextInputDialogView
-            {
-                DataContext = new TextInputDialogViewModel(prompt, value, complete, confirmLabel),
-            });
         shell.RequestDesktopConfirmAsync = (title, message, confirmLabel) =>
             ShowDesktopDialogAsync<bool>(shell, title, new Size(460, 220), complete => new ConfirmDialogView
             {
-                DataContext = new ConfirmDialogViewModel(message, confirmed => complete(confirmed), confirmLabel),
+                DataContext = new ConfirmDialogViewModel(message, complete, confirmLabel),
             }).ContinueWith(task => task.Result == true);
         shell.RequestDesktopOpenWithAsync = (applications, extension) =>
             ShowDesktopDialogAsync<OpenWithChoice>(shell, LocalizedText.Get("explorer.open_with"), new Size(500, 360), complete => new OpenWithDialogView
