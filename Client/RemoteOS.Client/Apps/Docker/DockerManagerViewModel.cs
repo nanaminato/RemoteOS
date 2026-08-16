@@ -181,7 +181,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand] private Task ValidateStackAsync() => ApplyStackAsync("validate");
     [RelayCommand] private Task DeployStackAsync() => TryDeployStackAsync();
 
-    /// <summary>Deploys a Compose stack and reports whether its dialog can close.</summary>
+    /// <summary>Queues a Compose deployment and reports whether its dialog can close immediately.</summary>
     public Task<bool> TryDeployStackAsync() => ApplyStackAsync("deploy");
 
     private async Task<bool> ApplyStackAsync(string operation)
@@ -203,7 +203,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     [RelayCommand] private Task PullImageAsync() => TryPullImageAsync();
 
-    /// <summary>Pulls an image and reports whether the dialog can close.</summary>
+    /// <summary>Queues an image pull and reports whether the dialog can close immediately.</summary>
     public async Task<bool> TryPullImageAsync()
     {
         if (IsLoading) return false;
@@ -218,7 +218,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     [RelayCommand] private Task CreateContainerAsync() => TryCreateContainerAsync();
 
-    /// <summary>Creates a container and reports whether the dialog can close.</summary>
+    /// <summary>Queues container creation and reports whether the dialog can close immediately.</summary>
     public async Task<bool> TryCreateContainerAsync()
     {
         if (IsLoading) return false;
@@ -250,7 +250,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     [RelayCommand] private Task CreateNetworkAsync() => TryCreateNetworkAsync();
 
-    /// <summary>Creates a network and reports whether the dialog can close.</summary>
+    /// <summary>Queues network creation and reports whether the dialog can close immediately.</summary>
     public async Task<bool> TryCreateNetworkAsync()
     {
         if (IsLoading) return false;
@@ -276,7 +276,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     [RelayCommand] private Task CreateVolumeAsync() => TryCreateVolumeAsync();
 
-    /// <summary>Creates a volume and reports whether the dialog can close.</summary>
+    /// <summary>Queues volume creation and reports whether the dialog can close immediately.</summary>
     public async Task<bool> TryCreateVolumeAsync()
     {
         if (IsLoading) return false;
@@ -302,14 +302,17 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
 
     private async Task<bool> RunOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess = null, string? operationName = null)
     {
-        if (!await EnsureDockerAvailableAsync()) return false;
-        var succeeded = false;
+        if (IsLoading || !await EnsureDockerAvailableAsync()) return false;
         IsLoading = true;
         BeginOperation(operationName);
+        _ = CompleteOperationAsync(operation, status, onSuccess);
+        return true;
+    }
+    private async Task CompleteOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess)
+    {
         try
         {
             var result = await operation();
-            succeeded = result.Success;
             StatusText = status(result);
             AppendOperationLog(result.LogLines);
             CompleteOperation(StatusText);
@@ -325,17 +328,20 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         }
         finally { IsOperationRunning = false; IsLoading = false; }
         await RefreshAsync();
-        return succeeded;
     }
     private async Task<bool> RunOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status, string? operationName = null)
     {
-        if (!await EnsureDockerAvailableAsync()) return false;
-        var succeeded = false;
+        if (IsLoading || !await EnsureDockerAvailableAsync()) return false;
         IsLoading = true;
         BeginOperation(operationName);
+        _ = CompleteStackOperationAsync(operation, status);
+        return true;
+    }
+    private async Task CompleteStackOperationAsync(Func<Task<DockerStackOperationResult>> operation, Func<DockerStackOperationResult, string> status)
+    {
         try
         {
-            var result = await operation(); succeeded = result.Success; StatusText = status(result);
+            var result = await operation(); StatusText = status(result);
             AppendOperationLog(result.Messages);
             CompleteOperation(StatusText);
             if (!result.Success) await ShowUnavailableForProblemAsync(result.ProblemCode);
@@ -349,7 +355,6 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         }
         finally { IsOperationRunning = false; IsLoading = false; }
         await RefreshAsync();
-        return succeeded;
     }
     private async Task RunReadAsync(Func<Task> operation)
     {
