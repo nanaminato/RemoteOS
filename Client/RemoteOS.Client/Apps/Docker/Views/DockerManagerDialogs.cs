@@ -13,6 +13,9 @@ internal static class DockerManagerDialogs
     public static Task ShowEditContainerAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
         context.ShowDialogAsync<bool>(owner, Client.Localization.LocalizedText.Get("docker.container.edit"), dialog => new DockerContainerEditDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(520, 250));
 
+    public static Task ShowContainerDetailsAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
+        context.ShowDialogAsync<bool>(owner, Client.Localization.LocalizedText.Get("docker.container.details"), dialog => new DockerContainerDetailsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(720, 620));
+
     public static Task ShowDeployStackAsync(AppContext context, ManagedWindow owner, DockerManagerViewModel vm) =>
         context.ShowDialogAsync<bool>(owner, Client.Localization.LocalizedText.Get("docker.stack.deploy"), dialog => new DockerStackDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(760, 550));
 

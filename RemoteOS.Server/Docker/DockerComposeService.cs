@@ -33,10 +33,19 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     }
 
     /// <summary>Applies a safe lifecycle action to every container labelled for the project.</summary>
-    public async Task<DockerStackOperationResult> ApplyActionAsync(string name, string action, CancellationToken cancellationToken = default)
+    public async Task<DockerStackOperationResult> ApplyActionAsync(string name, string action, DockerStackActionRequest request, CancellationToken cancellationToken = default)
     {
-        if (!IsProjectName(name) || action is not ("start" or "stop" or "restart"))
+        if (!IsProjectName(name) || action is not ("start" or "stop" or "restart" or "delete"))
             return new DockerStackOperationResult(false, "docker.validation_failed", []);
+        if (action == "delete")
+        {
+            if (!request.Confirmed) return new DockerStackOperationResult(false, "docker.confirmation_required", []);
+            var stack = (await ListAsync(cancellationToken)).FirstOrDefault(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            var composePath = FirstConfigFile(stack?.ConfigFiles);
+            if (composePath is null || !File.Exists(composePath)) return new DockerStackOperationResult(false, "docker.stack_source_unavailable", []);
+            var down = await RunAsync(["compose", "--project-name", stack!.Name, "--file", composePath, "down", "--remove-orphans"], cancellationToken);
+            return new DockerStackOperationResult(down.Success, down.Success ? string.Empty : ToProblemCode(down.Error), down.Success ? ToLines(down.Output) : []);
+        }
 
         var containers = await RunAsync(["ps", "--all", "--quiet", "--filter", $"label=com.docker.compose.project={name}"], cancellationToken);
         if (!containers.Success) return new DockerStackOperationResult(false, ToProblemCode(containers.Error), []);

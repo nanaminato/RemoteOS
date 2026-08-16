@@ -2,6 +2,8 @@ namespace RemoteOS.Protocol.Docker;
 
 /// <summary>Compose input kept structured at the API boundary; it is never treated as shell input.</summary>
 public sealed record DockerStackDefinitionDto(string Name, string ComposeYaml);
+/// <summary>Confirmation is required before taking down a Compose project.</summary>
+public sealed record DockerStackActionRequest(bool Confirmed = false);
 
 /// <summary>
 /// Compose project reported by the local Docker CLI.  The source location is deliberately

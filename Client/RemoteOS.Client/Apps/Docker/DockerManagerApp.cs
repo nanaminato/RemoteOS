@@ -39,6 +39,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         vm.ShowDockerUnavailableAsync = () => DockerManagerDialogs.ShowDockerUnavailableAsync(context, window, vm);
         vm.ShowEditContainerAsync = () => DockerManagerDialogs.ShowEditContainerAsync(context, window!, vm);
         vm.ShowEditStackAsync = () => DockerManagerDialogs.ShowEditStackAsync(context, window!, vm);
+        vm.ShowContainerDetailsAsync = () => DockerManagerDialogs.ShowContainerDetailsAsync(context, window!, vm);
         vm.OpenFileBrowserAtPathAsync = path =>
         {
             var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));

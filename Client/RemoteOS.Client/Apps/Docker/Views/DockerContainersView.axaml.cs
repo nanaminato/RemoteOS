@@ -14,4 +14,9 @@ internal partial class DockerContainersView : UserControl
     }
 
     private async void CreateContainer_Click(object? sender, RoutedEventArgs e) => await _showCreateDialog();
+    private async void ContainersGrid_DoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is DockerManagerViewModel viewModel)
+            await viewModel.LoadSelectedContainerDetailsAsync();
+    }
 }

@@ -48,6 +48,38 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options, ILogg
         => (await RunTableAsync(["volume", "ls", "--format", "{{.Name}}\t{{.Driver}}\t{{.Mountpoint}}"], cancellationToken))
             .Select(row => new DockerVolumeDto(Value(row, 0), Value(row, 1), Value(row, 2))).ToArray();
 
+    public async Task<DockerContainerDetailsDto?> GetContainerAsync(string id, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(id)) return null;
+        var result = await RunAsync(["container", "inspect", id, "--format", "{{json .}}"], cancellationToken);
+        if (!result.Success) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(result.Output);
+            var root = document.RootElement;
+            var config = Object(root, "Config");
+            var state = Object(root, "State");
+            var hostConfig = Object(root, "HostConfig");
+            var networkSettings = Object(root, "NetworkSettings");
+            var restart = Object(hostConfig, "RestartPolicy");
+            var ports = networkSettings.ValueKind == JsonValueKind.Object && networkSettings.TryGetProperty("Ports", out var portMap) && portMap.ValueKind == JsonValueKind.Object
+                ? portMap.EnumerateObject().Select(port => $"{port.Name} → {PortBindings(port.Value)}").ToArray() : [];
+            var mounts = root.TryGetProperty("Mounts", out var mountList) && mountList.ValueKind == JsonValueKind.Array
+                ? mountList.EnumerateArray().Select(mount => $"{Read(mount, "Source")} → {Read(mount, "Destination")}{(ReadBoolean(mount, "RW") ? string.Empty : " (ro)")}").ToArray() : [];
+            var networks = networkSettings.ValueKind == JsonValueKind.Object && networkSettings.TryGetProperty("Networks", out var networkMap) && networkMap.ValueKind == JsonValueKind.Object
+                ? networkMap.EnumerateObject().Select(network => network.Name).ToArray() : [];
+            var environment = config.ValueKind == JsonValueKind.Object && config.TryGetProperty("Env", out var environmentValues) && environmentValues.ValueKind == JsonValueKind.Array
+                ? environmentValues.EnumerateArray().Select(value => value.GetString() ?? string.Empty).ToArray() : [];
+            var labels = config.ValueKind == JsonValueKind.Object && config.TryGetProperty("Labels", out var labelValues) && labelValues.ValueKind == JsonValueKind.Object
+                ? labelValues.EnumerateObject().ToDictionary(label => label.Name, label => label.Value.GetString() ?? string.Empty, StringComparer.Ordinal) : new Dictionary<string, string>(StringComparer.Ordinal);
+            return new DockerContainerDetailsDto(
+                Read(root, "Id"), Read(root, "Name").TrimStart('/'), Read(config, "Image"), Read(root, "Created"),
+                Read(state, "Status"), Read(state, "Status"), Join(root, "Path", "Args"), Read(config, "WorkingDir"), Read(restart, "Name"),
+                ports, mounts, networks, environment, labels);
+        }
+        catch (JsonException) { return null; }
+    }
+
     public async Task<DockerOperationResult> ApplyContainerActionAsync(string containerId, string action, DockerContainerActionRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsContainerId(containerId) || !AllowedActions.TryGetValue(action, out var command))
@@ -306,7 +338,21 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options, ILogg
     private static string CommandName(IReadOnlyList<string> arguments) => string.Join(' ', arguments.Take(2));
     private static string Diagnostic(string value) => value.Length <= 4096 ? value : $"{value[..4093]}...";
 
-    private static string Read(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    private static string Read(JsonElement element, string property) => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
+    private static JsonElement Object(JsonElement element, string property) => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Object ? value : default;
+    private static bool ReadBoolean(JsonElement element, string property) => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) && value.ValueKind is JsonValueKind.True;
+    private static string Join(JsonElement config, string pathProperty, string argsProperty)
+    {
+        var values = new List<string>();
+        var path = Read(config, pathProperty);
+        if (!string.IsNullOrWhiteSpace(path)) values.Add(path);
+        if (config.ValueKind == JsonValueKind.Object && config.TryGetProperty(argsProperty, out var args) && args.ValueKind == JsonValueKind.Array)
+            values.AddRange(args.EnumerateArray().Select(argument => argument.GetString() ?? string.Empty).Where(argument => !string.IsNullOrWhiteSpace(argument)));
+        return string.Join(' ', values);
+    }
+    private static string PortBindings(JsonElement bindings) => bindings.ValueKind == JsonValueKind.Array
+        ? string.Join(", ", bindings.EnumerateArray().Select(binding => $"{Read(binding, "HostIp")}:{Read(binding, "HostPort")}"))
+        : string.Empty;
     private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
     private static bool IsContainerId(string value) => value.Length is >= 3 and <= 128 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.');
     private static bool IsImageReference(string value) => value.Length is >= 1 and <= 255 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '/' or ':' or '.' or '_' or '-');

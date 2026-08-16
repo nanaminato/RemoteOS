@@ -33,10 +33,12 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _engineVersion = "—";
     [ObservableProperty] private string _enginePlatform = "—";
     [ObservableProperty] private DockerContainerDto? _selectedContainer;
+    [ObservableProperty] private DockerContainerDetailsDto? _containerDetails;
     [ObservableProperty] private string _containerLogs = string.Empty;
     [ObservableProperty] private string _containerStats = string.Empty;
     [ObservableProperty] private bool _confirmContainerDeletion;
     [ObservableProperty] private DockerStackDto? _selectedStack;
+    [ObservableProperty] private bool _confirmStackDeletion;
     [ObservableProperty] private string _stackName = string.Empty;
     [ObservableProperty] private string _composeYaml = string.Empty;
     [ObservableProperty] private string _imageReference = string.Empty;
@@ -66,6 +68,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     /// <summary>Assigned by the app shell to display edit dialogs without coupling the VM to views.</summary>
     public Func<Task>? ShowEditContainerAsync { get; set; }
     public Func<Task>? ShowEditStackAsync { get; set; }
+    public Func<Task>? ShowContainerDetailsAsync { get; set; }
     /// <summary>Routes a known server-side Compose directory into RemoteExplorer.</summary>
     public Func<string, Task>? OpenFileBrowserAtPathAsync { get; set; }
     private bool _isUnavailableDialogShowing;
@@ -124,6 +127,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private Task RestartContainerAsync() => ApplyContainerActionAsync("restart");
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private Task PauseContainerAsync() => ApplyContainerActionAsync("pause");
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private Task UnpauseContainerAsync() => ApplyContainerActionAsync("unpause");
+    [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private Task LoadContainerDetailsAsync() => LoadSelectedContainerDetailsAsync();
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))]
     private async Task EditContainerAsync()
     {
@@ -159,6 +163,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     partial void OnSelectedContainerChanged(DockerContainerDto? value)
     {
         ContainerLogs = ContainerStats = string.Empty;
+        ContainerDetails = null;
         NotifyContainerCommands();
     }
     partial void OnConfirmContainerDeletionChanged(bool value) => DeleteContainerCommand.NotifyCanExecuteChanged();
@@ -182,7 +187,23 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     {
         StartContainerCommand.NotifyCanExecuteChanged(); StopContainerCommand.NotifyCanExecuteChanged(); RestartContainerCommand.NotifyCanExecuteChanged();
         PauseContainerCommand.NotifyCanExecuteChanged(); UnpauseContainerCommand.NotifyCanExecuteChanged(); DeleteContainerCommand.NotifyCanExecuteChanged();
-        EditContainerCommand.NotifyCanExecuteChanged(); LoadContainerLogsCommand.NotifyCanExecuteChanged(); LoadContainerStatsCommand.NotifyCanExecuteChanged();
+        EditContainerCommand.NotifyCanExecuteChanged(); LoadContainerDetailsCommand.NotifyCanExecuteChanged(); LoadContainerLogsCommand.NotifyCanExecuteChanged(); LoadContainerStatsCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Loads the selected container's inspectable runtime details and opens the details window.</summary>
+    public async Task LoadSelectedContainerDetailsAsync()
+    {
+        var container = SelectedContainer;
+        if (container is null) return;
+        await RunReadAsync(async () =>
+        {
+            ContainerDetails = await client.GetContainerAsync(container.Id);
+            StatusText = ContainerDetails is null
+                ? LocalizedText.Format("docker.action.failed", LocalizedText.Get("docker.container.details"), "docker.not_found")
+                : LocalizedText.Format("docker.container.details_loaded", container.Names);
+        });
+        if (ContainerDetails is not null && ShowContainerDetailsAsync is not null)
+            await ShowContainerDetailsAsync();
     }
     private async Task ApplyContainerActionAsync(string action, bool confirmed = false)
     {
@@ -244,6 +265,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StartStackAsync() => ApplySelectedStackActionAsync("start");
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StopStackAsync() => ApplySelectedStackActionAsync("stop");
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task RestartStackAsync() => ApplySelectedStackActionAsync("restart");
+    [RelayCommand(CanExecute = nameof(CanDeleteStack))] private Task DeleteStackAsync() => ApplySelectedStackActionAsync("delete", confirmed: true);
     [RelayCommand(CanExecute = nameof(HasSelectedStack))]
     private async Task EditStackAsync()
     {
@@ -271,24 +293,27 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     }
 
     private bool HasSelectedStack => SelectedStack is not null && !IsLoading;
+    private bool CanDeleteStack => HasSelectedStack && ConfirmStackDeletion;
     partial void OnSelectedStackChanged(DockerStackDto? value)
     {
         Replace(StackServices, []);
         NotifyStackCommands();
         if (value is not null) _ = LoadStackServicesAsync();
     }
+    partial void OnConfirmStackDeletionChanged(bool value) => DeleteStackCommand.NotifyCanExecuteChanged();
     private void NotifyStackCommands()
     {
         LoadStackServicesCommand.NotifyCanExecuteChanged();
         StartStackCommand.NotifyCanExecuteChanged(); StopStackCommand.NotifyCanExecuteChanged(); RestartStackCommand.NotifyCanExecuteChanged();
         EditStackCommand.NotifyCanExecuteChanged(); OpenSelectedStackSourceCommand.NotifyCanExecuteChanged();
+        DeleteStackCommand.NotifyCanExecuteChanged();
     }
-    private async Task ApplySelectedStackActionAsync(string action)
+    private async Task ApplySelectedStackActionAsync(string action, bool confirmed = false)
     {
         var stack = SelectedStack;
         if (stack is null) return;
         await RunOperationAsync(
-            () => client.ApplyStackActionAsync(stack.Name, action),
+            () => client.ApplyStackActionAsync(stack.Name, action, new DockerStackActionRequest(confirmed)),
             result => result.Success
                 ? LocalizedText.Format("docker.stack.succeeded", OperationText(action), stack.Name)
                 : LocalizedText.Format("docker.stack.failed", OperationText(action), ProblemText(result.ProblemCode)),
@@ -513,6 +538,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         "deploy" => LocalizedText.Get("docker.stack.deploy"),
         "logs" => LocalizedText.Get("docker.container.logs"),
         "stats" => LocalizedText.Get("docker.container.stats"),
+        "delete" => LocalizedText.Get("common.delete"),
         _ => LocalizedText.Get($"docker.action.{operation}"),
     };
     private void BeginOperation(string? operationName)
@@ -537,6 +563,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         "docker.operation_timeout" => LocalizedText.Get("docker.problem.timeout"),
         "docker.operation_failed" => LocalizedText.Get("docker.problem.failed"),
         "docker.stack_no_services" => LocalizedText.Get("docker.problem.stack_no_services"),
+        "docker.stack_source_unavailable" => LocalizedText.Get("docker.stack.source_unavailable"),
         _ => problemCode
     };
     private static IReadOnlyList<string> Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

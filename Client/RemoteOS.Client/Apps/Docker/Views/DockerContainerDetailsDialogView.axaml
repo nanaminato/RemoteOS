@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:docker="clr-namespace:Client.Apps.Docker"
+             x:Class="Client.Apps.Docker.Views.DockerContainerDetailsDialogView"
+             x:DataType="docker:DockerManagerViewModel">
+    <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="14">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="12">
+                    <TextBlock Text="{loc:Loc docker.container.name}" Foreground="#36506F" />
+                    <TextBlock Grid.Column="1" Text="{Binding ContainerDetails.Name}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="1" Text="{loc:Loc docker.container.image}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ContainerDetails.Image}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="2" Text="{loc:Loc docker.table.state}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ContainerDetails.State}" />
+                    <TextBlock Grid.Row="3" Text="{loc:Loc docker.table.status}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ContainerDetails.Status}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="4" Text="{loc:Loc docker.container.created_at}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding ContainerDetails.Created}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="5" Text="{loc:Loc docker.container.restart}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ContainerDetails.RestartPolicy}" />
+                    <TextBlock Grid.Row="6" Text="{loc:Loc docker.container.working_directory}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ContainerDetails.WorkingDirectory}" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="7" Text="{loc:Loc docker.container.command}" Foreground="#36506F" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding ContainerDetails.Command}" TextWrapping="Wrap" />
+                </Grid>
+                <TextBlock Text="{loc:Loc docker.container.ports}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,6,0,0" />
+                <ItemsControl ItemsSource="{Binding ContainerDetails.Ports}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Text="{loc:Loc docker.container.mounts}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,6,0,0" />
+                <ItemsControl ItemsSource="{Binding ContainerDetails.Mounts}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Text="{loc:Loc docker.container.networks}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,6,0,0" />
+                <ItemsControl ItemsSource="{Binding ContainerDetails.Networks}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Text="{loc:Loc docker.container.environment}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,6,0,0" />
+                <ItemsControl ItemsSource="{Binding ContainerDetails.Environment}"><ItemsControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <TextBlock Text="{loc:Loc docker.container.labels}" FontWeight="SemiBold" Foreground="#36506F" Margin="0,6,0,0" />
+                <ItemsControl ItemsSource="{Binding ContainerDetails.Labels}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Key}" FontWeight="SemiBold" /><TextBlock Text=": " /><TextBlock Text="{Binding Value}" TextWrapping="Wrap" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+        <Button Grid.Row="1" Content="{loc:Loc common.close}" HorizontalAlignment="Right" Click="Close_Click" />
+    </Grid>
+</UserControl>

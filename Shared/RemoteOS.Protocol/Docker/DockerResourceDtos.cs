@@ -1,6 +1,22 @@
 namespace RemoteOS.Protocol.Docker;
 
 public sealed record DockerContainerDto(string Id, string Names, string Image, string State, string Status);
+/// <summary>Safe, bounded container inspection data shown in the Docker Manager details window.</summary>
+public sealed record DockerContainerDetailsDto(
+    string Id,
+    string Name,
+    string Image,
+    string Created,
+    string State,
+    string Status,
+    string Command,
+    string WorkingDirectory,
+    string RestartPolicy,
+    IReadOnlyList<string> Ports,
+    IReadOnlyList<string> Mounts,
+    IReadOnlyList<string> Networks,
+    IReadOnlyList<string> Environment,
+    IReadOnlyDictionary<string, string> Labels);
 public sealed record DockerImageDto(string Id, string Repository, string Tag, string Size, string CreatedSince);
 public sealed record DockerNetworkDto(string Id, string Name, string Driver, string Scope);
 public sealed record DockerVolumeDto(string Name, string Driver, string Mountpoint);

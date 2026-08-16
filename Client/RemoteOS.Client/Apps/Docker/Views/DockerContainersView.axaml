@@ -14,7 +14,7 @@
             <Button Classes="primary" Content="{loc:Loc docker.container.create}" Click="CreateContainer_Click" HorizontalAlignment="Left" />
             <Border Height="1" Background="#E5EAF2" Margin="0,2" />
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <DataGrid ItemsSource="{Binding Containers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Disabled" MinWidth="900" Height="230">
+                <DataGrid HorizontalAlignment="Left" ItemsSource="{Binding Containers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" DoubleTapped="ContainersGrid_DoubleTapped" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Disabled" MinWidth="900" Height="230">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="{loc:Loc docker.table.name}" Binding="{ReflectionBinding Names}" Width="180" />
                         <DataGridTextColumn Header="{loc:Loc docker.table.image}" Binding="{ReflectionBinding Image}" Width="210" />
