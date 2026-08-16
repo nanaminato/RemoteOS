@@ -719,7 +719,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (SelectedEntry is not { } entry) return;
         var confirmed = await (RequestConfirmAsync?.Invoke(LocalizedText.Get("common.delete"),
-            LocalizedText.Format("explorer.delete_confirmation", entry.Name),
+            LocalizedText.Format(IsFolder(entry)
+                ? "explorer.delete_confirmation"
+                : "explorer.delete_file_confirmation", entry.Name),
             LocalizedText.Get("common.delete")) ?? Task.FromResult(false));
         if (!confirmed) return;
         try

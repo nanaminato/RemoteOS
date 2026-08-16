@@ -353,7 +353,9 @@ public partial class DesktopShellViewModel : ObservableObject
         }
         var confirmed = await RequestDesktopConfirmAsync(
             T("common.delete", "Delete"),
-            LocalizedText.Format("explorer.delete_confirmation", item.Entry.Name),
+            LocalizedText.Format(item.IsDirectory
+                ? "explorer.delete_confirmation"
+                : "explorer.delete_file_confirmation", item.Entry.Name),
             T("common.delete", "Delete"));
         if (!confirmed)
         {
