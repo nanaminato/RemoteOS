@@ -105,7 +105,7 @@ IDockerEngineService ── IDockerRuntimeInstaller ── IDockerComposeService
 ### 3.1 服务端边界
 
 - `IDockerEngineService` 是唯一可访问 Docker 的业务边界，封装 API 版本协商、列举、生命周期操作、stream 和错误映射。
-- `IDockerComposeService` 只接受结构化 `StackDefinition`，在服务器受控工作目录写入临时 Compose/`.env` 文件，调用经过白名单构造的 `docker compose` 子命令；不得拼接用户 shell 字符串。
+- `IDockerComposeService` 只接受结构化 `StackDefinition`，在服务器受控工作目录写入临时 Compose/`.env` 文件，调用经过白名单构造的 `docker compose` 子命令；不得拼接用户 shell 字符串。已部署的 Compose 源默认放在 Linux `/var/lib/remoteos/docker-compose`、Windows `C:\\ProgramData\\RemoteOS\\docker-compose`，绝不写入安装目录或项目源码；管理员可通过绝对路径配置 `DockerCompose:DataDirectory` 覆盖。开发环境默认使用当前用户的 LocalApplicationData 目录。
 - `IDockerRuntimeInstaller` 返回 `InstallationPlan`，再由独立的受提权宿主操作执行器运行。安装器永远不能自行提升权限。
 - Linux socket、Windows named pipe、CLI 路径和平台判断全部封装在 Provider 内；Endpoint、Client 和 ViewModel 不出现平台分支或 Docker CLI 命令。
 - Docker 原始错误转为稳定问题码，例如 `docker.not_installed`、`docker.permission_denied`、`docker.api_incompatible`、`docker.conflict`，细节仅写入管理员审计。

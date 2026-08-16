@@ -146,6 +146,7 @@ builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.
 builder.Services.AddScoped<Server.ImageMirrors.IDockerImageMirrorResolver, Server.ImageMirrors.DockerImageMirrorResolver>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("DockerRuntimeInstaller").Get<Server.Docker.DockerRuntimeInstallerOptions>() ?? new Server.Docker.DockerRuntimeInstallerOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
+builder.Services.Configure<Server.Docker.DockerComposeOptions>(builder.Configuration.GetSection("DockerCompose"));
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
 var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Server.ProcessGuardian.GuardianAgentOptions>() ?? new Server.ProcessGuardian.GuardianAgentOptions();
 builder.Services.AddSingleton(guardianOptions);

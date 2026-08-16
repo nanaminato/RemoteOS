@@ -25,9 +25,11 @@ if (-not (Test-Path -LiteralPath $ServerExecutable -PathType Leaf) -or -not (Tes
 if ($ServerPort -lt 1 -or $ServerPort -gt 65535) { throw 'ServerPort must be between 1 and 65535.' }
 
 $guardianData = Join-Path $env:ProgramData 'RemoteOS\guardian'
+$composeData = Join-Path $env:ProgramData 'RemoteOS\docker-compose'
 $guardianConfig = Join-Path $guardianData 'guardian.json'
 $serverHostConfig = Join-Path (Split-Path -Parent $ServerExecutable) 'appsettings.host.json'
 New-Item -ItemType Directory -Force -Path $guardianData | Out-Null
+New-Item -ItemType Directory -Force -Path $composeData | Out-Null
 $secretBytes = New-Object byte[] 48
 [Security.Cryptography.RandomNumberGenerator]::Fill($secretBytes)
 $sharedSecret = [Convert]::ToBase64String($secretBytes)
@@ -49,6 +51,9 @@ $serverSettings = [ordered]@{
         PipeName = 'remoteos-guardian'
         SharedSecret = $sharedSecret
     }
+    DockerCompose = [ordered]@{
+        DataDirectory = $composeData
+    }
 }
 [IO.File]::WriteAllText($guardianConfig, ($agentSettings | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText($serverHostConfig, ($serverSettings | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
@@ -56,6 +61,7 @@ $serverSettings = [ordered]@{
 # The Agent is privileged only to restart the one installer-declared Server service.
 # Keep secret-bearing files readable by SYSTEM and Administrators only.
 & icacls $guardianData /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' | Out-Null
+& icacls $composeData /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' | Out-Null
 & icacls $serverHostConfig /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' | Out-Null
 
 function Install-OrUpdateService([string] $Name, [string] $BinaryPath) {

@@ -1,14 +1,21 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.Extensions.Options;
 using RemoteOS.Protocol.Docker;
 
 namespace Server.Docker;
 
 /// <summary>Runs only a small allow-list of Docker Compose operations from server-owned files.</summary>
-public sealed class DockerComposeService(IHostEnvironment environment) : IDockerComposeService
+public sealed class DockerComposeService : IDockerComposeService
 {
     private const int MaximumComposeBytes = 1024 * 1024;
+    private readonly string _dataDirectory;
+
+    public DockerComposeService(IHostEnvironment environment, IOptions<DockerComposeOptions> options)
+    {
+        _dataDirectory = ResolveDataDirectory(environment, options.Value.DataDirectory);
+    }
 
     public Task<DockerStackOperationResult> ValidateAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
         => ExecuteAsync(definition, ["config", "--quiet"], persistSource: false, cancellationToken: cancellationToken);
@@ -148,8 +155,8 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     {
         if (!Validate(definition, out var problemCode)) return new DockerStackOperationResult(false, problemCode, []);
         var directory = persistSource
-            ? Path.Combine(environment.ContentRootPath, "data", "docker-compose", definition.Name)
-            : Path.Combine(environment.ContentRootPath, "data", "docker-compose", "validation", Guid.NewGuid().ToString("N"));
+            ? Path.Combine(_dataDirectory, definition.Name)
+            : Path.Combine(_dataDirectory, "validation", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var composePath = Path.Combine(directory, "compose.yaml");
         try
@@ -174,6 +181,31 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
         if (!IsProjectName(definition.Name)) { problem = "docker.stack_invalid_name"; return false; }
         if (string.IsNullOrWhiteSpace(definition.ComposeYaml) || System.Text.Encoding.UTF8.GetByteCount(definition.ComposeYaml) > MaximumComposeBytes) { problem = "docker.stack_invalid_compose"; return false; }
         problem = string.Empty; return true;
+    }
+
+    private static string ResolveDataDirectory(IHostEnvironment environment, string? configured)
+    {
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            if (!Path.IsPathFullyQualified(configured))
+                throw new InvalidOperationException("DockerCompose:DataDirectory must be an absolute path.");
+            return Path.GetFullPath(configured);
+        }
+
+        // Development must be usable from a checkout without creating generated files in it.
+        if (environment.IsDevelopment())
+        {
+            var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localData))
+                return Path.Combine(localData, "RemoteOS", "docker-compose");
+        }
+
+        if (OperatingSystem.IsWindows())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RemoteOS", "docker-compose");
+        if (OperatingSystem.IsLinux())
+            return "/var/lib/remoteos/docker-compose";
+
+        throw new PlatformNotSupportedException("RemoteOS Docker Compose storage supports Windows and Linux hosts only.");
     }
 
     private static async Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)

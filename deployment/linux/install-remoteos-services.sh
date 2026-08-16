@@ -33,6 +33,7 @@ fi
 SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
 
 install -d -m 0700 /etc/remoteos /var/lib/remoteos/guardian
+install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 /var/lib/remoteos/docker-compose
 install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "$INSTALL_ROOT/data"
 SECRET="$(openssl rand -base64 48)"
 
@@ -47,6 +48,7 @@ cat >/etc/remoteos/server.env <<EOF
 GuardianAgent__SharedSecret=$SECRET
 GuardianAgent__PipeName=remoteos-guardian
 Storage__DatabasePath=$INSTALL_ROOT/data/remoteos.db
+DockerCompose__DataDirectory=/var/lib/remoteos/docker-compose
 Firewall__HelperPath=$FIREWALL_HELPER
 Firewall__SudoPath=$(command -v sudo)
 EOF
