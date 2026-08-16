@@ -29,27 +29,34 @@ public sealed class LocalFileService : IFileService
         return list;
     }
 
-    public IReadOnlyList<SpecialLocationDto> GetSpecialLocations()
+    public IReadOnlyList<SpecialLocationDto> GetSpecialLocations(string? userHomeDirectory = null)
     {
-        // 跨平台获取家目录：Environment.SpecialFolder.UserProfile 在 Linux 上由 .NET 运行时映射到 $HOME，
-        // 但 headless/服务进程可能未设置 → 回退读 HOME 环境变量。
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        // The request handler resolves the signed-in user's home directory. Falling back keeps
+        // the service usable for callers that do not have an authenticated user context.
+        var home = userHomeDirectory;
+        if (string.IsNullOrWhiteSpace(home))
+            home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrEmpty(home))
             home = Environment.GetEnvironmentVariable("HOME") ?? string.Empty;
         if (string.IsNullOrEmpty(home))
             return Array.Empty<SpecialLocationDto>();
 
+        // Linux users may localize these folders (for example ~/桌面 rather than ~/Desktop).
+        // xdg-user-dirs records the user's exact choices in ~/.config/user-dirs.dirs.
+        var xdgDirectories = IsLinux ? ReadXdgUserDirectories(home) : new Dictionary<string, string>();
+        string userDirectory(string xdgName, string fallback) =>
+            xdgDirectories.TryGetValue(xdgName, out var configured) ? configured : Path.Combine(home, fallback);
+
         // 候选列表：(协议枚举, 显示名, 路径)。
-        // Downloads 不在 SpecialFolder 枚举中，手动拼接 $HOME/Downloads（Linux 也可读 $XDG_DOWNLOAD_DIR，但 $HOME/Downloads 是合理默认）。
         var candidates = new[]
         {
             (SpecialFolderKind.Home,      "主目录", home),
-            (SpecialFolderKind.Desktop,   "桌面",   Environment.GetFolderPath(Environment.SpecialFolder.Desktop)),
-            (SpecialFolderKind.Documents, "文档",   Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
-            (SpecialFolderKind.Downloads, "下载",   System.IO.Path.Combine(home, "Downloads")),
-            (SpecialFolderKind.Pictures,  "图片",   Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)),
-            (SpecialFolderKind.Music,      "音乐",   Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)),
-            (SpecialFolderKind.Videos,     "视频",   Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)),
+            (SpecialFolderKind.Desktop,   "桌面",   userDirectory("XDG_DESKTOP_DIR", "Desktop")),
+            (SpecialFolderKind.Documents, "文档",   userDirectory("XDG_DOCUMENTS_DIR", "Documents")),
+            (SpecialFolderKind.Downloads, "下载",   userDirectory("XDG_DOWNLOAD_DIR", "Downloads")),
+            (SpecialFolderKind.Pictures,  "图片",   userDirectory("XDG_PICTURES_DIR", "Pictures")),
+            (SpecialFolderKind.Music,      "音乐",   userDirectory("XDG_MUSIC_DIR", "Music")),
+            (SpecialFolderKind.Videos,     "视频",   userDirectory("XDG_VIDEOS_DIR", "Videos")),
         };
 
         var list = new List<SpecialLocationDto>();
@@ -60,6 +67,44 @@ public sealed class LocalFileService : IFileService
                 list.Add(new SpecialLocationDto(kind, name, path));
         }
         return list;
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadXdgUserDirectories(string home)
+    {
+        var configPath = Path.Combine(home, ".config", "user-dirs.dirs");
+        if (!File.Exists(configPath)) return new Dictionary<string, string>();
+
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var line in File.ReadLines(configPath))
+            {
+                var separator = line.IndexOf('=');
+                if (separator <= 0) continue;
+
+                var key = line[..separator].Trim();
+                if (!key.StartsWith("XDG_", StringComparison.Ordinal) || !key.EndsWith("_DIR", StringComparison.Ordinal))
+                    continue;
+
+                var rawValue = line[(separator + 1)..].Trim();
+                if (rawValue.Length < 2 || rawValue[0] != '"' || rawValue[^1] != '"')
+                    continue;
+
+                var value = rawValue[1..^1];
+                string? path = value switch
+                {
+                    "$HOME" => home,
+                    _ when value.StartsWith("$HOME/", StringComparison.Ordinal) => Path.Combine(home, value[6..]),
+                    _ when Path.IsPathRooted(value) => value,
+                    _ => null,
+                };
+                if (!string.IsNullOrWhiteSpace(path)) result[key] = path;
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        return result;
     }
 
     public DirectoryDto GetDirectory(string? path)

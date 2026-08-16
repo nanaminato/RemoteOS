@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
+using Microsoft.Win32;
 
 namespace Server.Identity;
 
@@ -61,7 +62,8 @@ public sealed class WindowsLogonProvider : IIdentityProvider
         domain ??= Environment.MachineName;
         var identity = $"{domain}\\{user}";
         EnsureAccountExists(identity);
-        return new PlatformUserInfo(Uid: identity, DisplayName: identity, HomeDirectory: null);
+        return new PlatformUserInfo(Uid: identity, DisplayName: identity,
+            HomeDirectory: GetProfileDirectory(identity));
     }
 
     private static void EnsureAccountExists(string identity)
@@ -79,6 +81,35 @@ public sealed class WindowsLogonProvider : IIdentityProvider
             var domain = new StringBuilder((int)domainLength);
             if (!LookupAccountName(null, identity, sid, ref sidLength, domain, ref domainLength, out _))
                 throw new KeyNotFoundException($"Windows account '{identity}' does not exist.");
+        }
+        finally { Marshal.FreeHGlobal(sid); }
+    }
+
+    /// <summary>
+    /// Resolves the actual Windows profile location from the account SID. This avoids using the
+    /// RemoteOS service process's profile (for example <c>LocalSystem</c>) for a signed-in user's
+    /// Desktop. ProfileImagePath also honours relocated profile roots.
+    /// </summary>
+    private static string? GetProfileDirectory(string identity)
+    {
+        uint sidLength = 0;
+        uint domainLength = 0;
+        LookupAccountName(null, identity, IntPtr.Zero, ref sidLength, null, ref domainLength, out _);
+        if (Marshal.GetLastWin32Error() != ERROR_INSUFFICIENT_BUFFER || sidLength == 0)
+            return null;
+
+        var sid = Marshal.AllocHGlobal((int)sidLength);
+        try
+        {
+            var domain = new StringBuilder((int)domainLength);
+            if (!LookupAccountName(null, identity, sid, ref sidLength, domain, ref domainLength, out _))
+                return null;
+
+            var sidText = new System.Security.Principal.SecurityIdentifier(sid).Value;
+            using var profile = Registry.LocalMachine.OpenSubKey(
+                $@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\{sidText}");
+            var rawPath = profile?.GetValue("ProfileImagePath") as string;
+            return string.IsNullOrWhiteSpace(rawPath) ? null : Environment.ExpandEnvironmentVariables(rawPath);
         }
         finally { Marshal.FreeHGlobal(sid); }
     }

@@ -65,6 +65,21 @@ public partial class DesktopShellView : UserControl
             vm.CloseStartCommand.Execute(null);
     }
 
+    private void DesktopAppIcon_OnDoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: AppEntryViewModel app })
+            app.LaunchCommand.Execute(null);
+    }
+
+    private void DesktopFileIcon_OnDoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: DesktopFileEntryViewModel file }
+            || DataContext is not DesktopShellViewModel shell)
+            return;
+
+        shell.OpenDesktopEntryCommand.Execute(file);
+    }
+
     private void TaskbarPreviewBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
     {
         if (DataContext is DesktopShellViewModel vm)

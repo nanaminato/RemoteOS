@@ -1,4 +1,8 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using RemoteOS.Protocol.Files;
+using Server.Identity;
+using Server.Storage;
 using Server.Files;
 
 namespace Server.Endpoints;
@@ -19,8 +23,16 @@ public static class FileEndpoints
            .WithTags("Files");
 
         // GET special — 跨平台枚举家目录/桌面/文档/下载/图片/音乐/视频（已 Directory.Exists 过滤）
-        app.MapGet(FileApiRoutes.Special, (IFileService fs) =>
-            Results.Ok(fs.GetSpecialLocations()))
+        app.MapGet(FileApiRoutes.Special, (HttpContext http, IFileService fs, IUserRepository users, IIdentityProvider identity) =>
+        {
+            var subject = http.User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(subject, out var userId) || users.FindById(userId) is not { } user)
+                return Results.Unauthorized();
+
+            var homeDirectory = identity.GetUserInfo(user.Username).HomeDirectory;
+            return Results.Ok(fs.GetSpecialLocations(homeDirectory));
+        })
            .RequireAuthorization(FileAuthorizationPolicies.List)
            .WithTags("Files");
 

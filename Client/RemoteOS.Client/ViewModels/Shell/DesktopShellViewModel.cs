@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Threading;
+using Client.Apps.Explorer;
 using Client.Services;
 using Client.Services.Auth;
 using Client.Services.DesktopRestore;
@@ -11,6 +12,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Windows;
 using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
+using RemoteOS.Protocol.Files;
 
 namespace Client.ViewModels.Shell;
 
@@ -27,6 +29,8 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly Action _shutdown;
     private readonly IAuthSession _session;
     private readonly DesktopRestoreOrchestrator _desktopRestore;
+    private readonly IExplorerClient _files;
+    private int _desktopFileLoadGeneration;
 
     public DesktopShellViewModel(
         WindowManager windowManager,
@@ -35,7 +39,8 @@ public partial class DesktopShellViewModel : ObservableObject
         LocalizationService localization,
         IAuthSession session,
         Action shutdown,
-        DesktopRestoreOrchestrator desktopRestore)
+        DesktopRestoreOrchestrator desktopRestore,
+        IExplorerClient files)
     {
         _windowManager = windowManager;
         _applications = applications;
@@ -44,6 +49,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _session = session;
         _shutdown = shutdown;
         _desktopRestore = desktopRestore;
+        _files = files;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
@@ -75,6 +81,10 @@ public partial class DesktopShellViewModel : ObservableObject
     public ObservableCollection<TaskbarGroupViewModel> TaskbarGroups { get; } = new();
 
     public ObservableCollection<AppEntryViewModel> DesktopIcons { get; } = new();
+    /// <summary>Entries from the authenticated user's remote Desktop special folder.</summary>
+    public ObservableCollection<DesktopFileEntryViewModel> DesktopFiles { get; } = new();
+    /// <summary>Application launchers and remote desktop files in the shared icon grid.</summary>
+    public ObservableCollection<object> DesktopItems { get; } = new();
     public ObservableCollection<AppEntryViewModel> StartApps { get; } = new();
 
     [ObservableProperty] private bool _isStartOpen;
@@ -104,7 +114,9 @@ public partial class DesktopShellViewModel : ObservableObject
             StartApps.Add(entry);
         }
 
+        RefreshDesktopItems();
         RefreshTaskbarGroups();
+        _ = LoadDesktopFilesAsync();
     }
 
     private ApplicationInfo Localize(ApplicationInfo app)
@@ -135,9 +147,41 @@ public partial class DesktopShellViewModel : ObservableObject
     [RelayCommand]
     private void Shutdown() => _shutdown.Invoke();
 
-    /// <summary>Restores the desktop launcher list from the current application registry.</summary>
+    /// <summary>Refreshes application launchers and the authenticated user's desktop files.</summary>
     [RelayCommand]
     private void RefreshDesktop() => PopulateDesktop();
+
+    [RelayCommand]
+    private void OpenDesktopFolder()
+    {
+        if (!string.IsNullOrWhiteSpace(_desktopPath))
+            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(_desktopPath)));
+    }
+
+    [RelayCommand]
+    private void OpenDesktopEntry(DesktopFileEntryViewModel? item)
+    {
+        if (item is null) return;
+
+        if (item.IsDirectory)
+        {
+            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(item.Entry.Path)));
+            return;
+        }
+
+        var opener = _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault();
+        if (opener is not null)
+            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Id, item.Entry.Path)));
+    }
+
+    [RelayCommand]
+    private void ShowDesktopEntryInExplorer(DesktopFileEntryViewModel? item)
+    {
+        if (item is null) return;
+        var path = item.IsDirectory ? item.Entry.Path : Path.GetDirectoryName(item.Entry.Path);
+        if (!string.IsNullOrWhiteSpace(path))
+            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(path)));
+    }
 
     [RelayCommand]
     private void OpenFileExplorer() => LaunchApplication("remoteos.explorer");
@@ -219,6 +263,70 @@ public partial class DesktopShellViewModel : ObservableObject
         _applications.Launch(new AppId(id));
         IsStartOpen = false;
         OpenTaskbarGroup = null;
+    }
+
+    private string? _desktopPath;
+
+    private async Task LoadDesktopFilesAsync()
+    {
+        var generation = ++_desktopFileLoadGeneration;
+        if (_session.State != AuthSessionState.Authenticated)
+        {
+            _desktopPath = null;
+            DesktopFiles.Clear();
+            RefreshDesktopItems();
+            return;
+        }
+
+        try
+        {
+            var locations = await _files.GetSpecialLocationsAsync();
+            var desktop = locations.FirstOrDefault(location => location.Kind == SpecialFolderKind.Desktop);
+            if (generation != _desktopFileLoadGeneration) return;
+
+            _desktopPath = desktop?.Path;
+            if (desktop is null)
+            {
+                DesktopFiles.Clear();
+                RefreshDesktopItems();
+                return;
+            }
+
+            var directory = await _files.GetDirectoryAsync(desktop.Path);
+            if (generation != _desktopFileLoadGeneration) return;
+
+            var entries = directory.Directories
+                .Concat(directory.Files.Select(file => new FileSystemEntryDto(
+                    file.Path, file.Name, file.Size, FileSystemEntryType.File, file.Created, file.Modified,
+                    file.Accessed, file.IsHidden, file.IsSystem)))
+                .Where(entry => !entry.IsHidden)
+                .OrderByDescending(entry => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive)
+                .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(entry => new DesktopFileEntryViewModel(entry))
+                .ToList();
+
+            DesktopFiles.Clear();
+            foreach (var entry in entries) DesktopFiles.Add(entry);
+            RefreshDesktopItems();
+        }
+        catch
+        {
+            // The app launcher remains usable if a server has no Desktop directory or does not
+            // permit it. A later refresh retries the request without surfacing a shell-level error.
+            if (generation == _desktopFileLoadGeneration)
+            {
+                _desktopPath = null;
+                DesktopFiles.Clear();
+                RefreshDesktopItems();
+            }
+        }
+    }
+
+    private void RefreshDesktopItems()
+    {
+        DesktopItems.Clear();
+        foreach (var app in DesktopIcons) DesktopItems.Add(app);
+        foreach (var file in DesktopFiles) DesktopItems.Add(file);
     }
 
     private void RefreshTaskbarGroups()

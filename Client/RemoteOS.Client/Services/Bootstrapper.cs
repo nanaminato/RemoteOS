@@ -168,7 +168,8 @@ public static class Bootstrapper
             };
             return new DesktopShellViewModel(
                 wm, apps, settings, localization, session, shutdown,
-                sp.GetRequiredService<DesktopRestoreOrchestrator>());
+                sp.GetRequiredService<DesktopRestoreOrchestrator>(),
+                sp.GetRequiredService<Client.Apps.Explorer.IExplorerClient>());
         });
 
         services.AddSingleton<DesktopRestoreOrchestrator>();
