@@ -18,7 +18,8 @@ public sealed record ApplicationManifest(
     ApplicationServerRequirements? ServerRequirements = null,
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
-    ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow)
+    ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
+    IReadOnlyList<string>? SupportedUriSchemes = null)
 {
     /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
     public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);
@@ -71,6 +72,16 @@ public sealed record ApplicationManifest(
     /// <summary>Whether this application explicitly accepts the supplied remote file path.</summary>
     public bool SupportsFile(string path) => GetFileMatchPriority(path) > 0;
 
+    /// <summary>Normalized non-host URI schemes this application declares it can open.</summary>
+    public IReadOnlyList<string> UriSchemes => SupportedUriSchemes?
+        .Where(scheme => !string.IsNullOrWhiteSpace(scheme))
+        .Select(scheme => scheme.Trim().ToLowerInvariant())
+        .Where(scheme => System.Text.RegularExpressions.Regex.IsMatch(scheme, "^[a-z][a-z0-9+.-]{0,31}$"))
+        .Where(scheme => !scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray()
+        ?? Array.Empty<string>();
+
     public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata,
-        FileNames, SupportsExtensionlessFiles);
+        FileNames, SupportsExtensionlessFiles, UriSchemes);
 }

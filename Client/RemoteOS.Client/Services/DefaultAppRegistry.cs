@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using RemoteOS.AppSDK;
+using RemoteOS.Core.Applications;
 using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services;
@@ -7,7 +9,7 @@ namespace Client.Services;
 /// 供启动路由查询（如点选 http 链接用映射应用打开）。
 /// 由 <see cref="PreferencesSync"/> 在登录时加载、<c>SettingsViewModel</c> 在编辑保存时同步更新。
 /// 映射按 scheme 不区分大小写索引；扩展名以 '.' 开头，scheme 不带（http/mailto）。</summary>
-public sealed class DefaultAppRegistry
+public sealed class DefaultAppRegistry : IUriSchemeDefaultResolver
 {
     private readonly ConcurrentDictionary<string, string> _byScheme = new(StringComparer.OrdinalIgnoreCase);
 
@@ -26,6 +28,12 @@ public sealed class DefaultAppRegistry
     {
         if (string.IsNullOrWhiteSpace(schemeOrExt)) return null;
         return _byScheme.TryGetValue(schemeOrExt.Trim(), out var appId) ? appId : null;
+    }
+
+    AppId? IUriSchemeDefaultResolver.ResolveDefaultApplication(string scheme)
+    {
+        var appId = Resolve(scheme);
+        return string.IsNullOrWhiteSpace(appId) ? null : new AppId(appId);
     }
 
     /// <summary>当前映射快照（只读）。</summary>

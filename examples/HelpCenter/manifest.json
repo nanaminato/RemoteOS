@@ -1,0 +1,16 @@
+{
+  "id": "com.remoteos.example.help-center",
+  "displayName": "Help Center",
+  "version": "0.1.0-dev",
+  "entryAssembly": "lib/net10.0/RemoteOS.Example.HelpCenter.dll",
+  "entryType": "RemoteOS.Examples.HelpCenter.HelpCenterApp",
+  "iconGlyph": "❔",
+  "description": "Offline, localized guides opened through help:// links",
+  "instancePolicy": "SingleWindow",
+  "supportedUriSchemes": ["help"],
+  "localizedMetadata": {
+    "en-US": { "displayName": "Help Center", "description": "Offline, localized guides" },
+    "zh-CN": { "displayName": "帮助中心", "description": "离线、多语言使用指南" },
+    "ja-JP": { "displayName": "ヘルプセンター", "description": "オフライン対応の多言語ガイド" }
+  }
+}

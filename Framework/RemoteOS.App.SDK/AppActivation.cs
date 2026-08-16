@@ -3,7 +3,7 @@ using RemoteOS.WindowManager;
 
 namespace RemoteOS.AppSDK;
 
-/// <summary>One request to activate a RemoteOS-owned <c>remoteos://</c> route.</summary>
+/// <summary>One request to activate a Shell-owned <c>remoteos://</c> route or a manifest-declared external URI.</summary>
 public sealed record AppActivationRequest(
     Uri Uri,
     AppId? SourceAppId = null,
@@ -33,8 +33,18 @@ public interface IAppActivationService
     AppActivationResult Activate(AppActivationRequest request);
 }
 
+/// <summary>Host-owned lookup for a user's default application for a URI scheme.</summary>
+/// <remarks>
+/// Implementations are optional. Without one, the runtime activates a scheme only when exactly
+/// one registered application declares that it can handle the URI.
+/// </remarks>
+public interface IUriSchemeDefaultResolver
+{
+    AppId? ResolveDefaultApplication(string scheme);
+}
+
 /// <summary>
-/// Optional application extension for registered <c>remoteos://</c> routes. The handler is also
+/// Optional built-in application extension for registered <c>remoteos://</c> routes. The handler is also
 /// invoked for an already-open single-window application, before that window is focused.
 /// </summary>
 public interface IAppActivationHandler

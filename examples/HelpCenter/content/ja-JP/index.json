@@ -1,0 +1,12 @@
+{
+  "displayName": "日本語",
+  "nodes": [
+    {
+      "title": "Docker",
+      "children": [
+        { "title": "Docker をインストールする", "id": "docker_install", "route": "docker/install", "file": "docker/install.md" },
+        { "title": "Docker をアンインストールする", "id": "docker_uninstall", "route": "docker/uninstall", "file": "docker/uninstall.md" }
+      ]
+    }
+  ]
+}

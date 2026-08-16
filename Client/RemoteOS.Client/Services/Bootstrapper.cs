@@ -100,6 +100,7 @@ public static class Bootstrapper
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
+        services.AddSingleton<IUriSchemeDefaultResolver>(sp => sp.GetRequiredService<DefaultAppRegistry>());
         services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();

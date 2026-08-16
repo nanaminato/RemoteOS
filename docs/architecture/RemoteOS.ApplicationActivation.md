@@ -16,7 +16,7 @@
 
 ## 2. URI 约定
 
-仅接受绝对 `remoteos://` URI；scheme、host 和路径由 Shell 验证，不能动态反射调用应用。
+`remoteos://` 是 Shell 保留 URI；scheme、host 和路径由 Shell 验证，不能动态反射调用应用。
 当前已注册：
 
 ```text
@@ -32,6 +32,23 @@ remoteos://file/open?appId={appId}&path={encodedPath}
 
 未匹配、歧义或不合法的 URI 分别得到 `RouteNotFound` 或 `InvalidUri`；应用不应猜测目标或
 降级为直接调用另一个应用。
+
+### 2.1 第三方 URI scheme
+
+第三方包可在 `manifest.json` 用 `supportedUriSchemes` 显式声明非保留 scheme，并实现
+`IExternalAppActivationHandler`。例如 Help Center 声明 `help`，接受：
+
+```text
+help://guide/docker/install?lang=en
+```
+
+Shell 先验证 URI（绝对 URI、无 user-info、无端口、scheme 长度不超过 32），只在已声明同一
+scheme 且 `CanHandleActivation` 返回真时才投递。若设置了该 scheme 的默认程序，则它必须也在
+候选集中；否则只有唯一候选程序时才会启动，避免任意或不确定的路由。`remoteos` 为保留 scheme，
+外部包不可声明。
+
+第三方 handler 仅接收 host 已验证后的 URI 与受限 `IExternalAppContext`，不能获得另一个应用或
+宿主的实现对象。应用自身必须继续验证它所拥有的 authority、路径与 query 参数。
 
 ## 3. 同 URI 与窗口策略
 
@@ -55,7 +72,8 @@ Firewall、Process Guardian 与 Docker 也已声明单窗口；Docker 尚未接�
 
 ## 4. 扩展规则
 
-新增公开路线时，应用实现 `IAppActivationHandler`，并在其应用设计文档中定义：路径、参数、
+新增 `remoteos://` 公开路线时，内置应用实现 `IAppActivationHandler`；第三方 scheme 则声明
+`supportedUriSchemes` 并实现 `IExternalAppActivationHandler`。两者都应在应用设计文档中定义：路径、参数、
 权限、同 URI 行为、单/多窗口策略和本地化错误 UX。Shell 要拒绝两个应用同时声明同一路线。
 
 将来的 Docker 预览不能仅靠 URI：镜像本身没有运行服务或已发布端口。它应先以受确认的

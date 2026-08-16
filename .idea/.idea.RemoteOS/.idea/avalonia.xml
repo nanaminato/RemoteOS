@@ -6,6 +6,7 @@
         <entry key="Client/RemoteOS.Client/Apps/AppInstaller/Views/AppInstallerView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/CodeEditor/CodeEditorSettingsView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/CodeEditor/CodeEditorView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Docker/Views/DockerLoginRequiredView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Docker/Views/DockerNetworkDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Docker/Views/DockerStackDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Docker/Views/DockerVolumeDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />

@@ -34,8 +34,9 @@ public sealed partial class DefaultAppsPageViewModel : SettingsPageViewModel, ID
     private void RefreshApplications()
     {
         var apps = _apps.Registered;
-        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName, app.FileExtensions)));
+        Replace(AvailableApps, apps.Select(app => new AppOption(app.Id.Value, app.DisplayName, app.FileExtensions, app.UriSchemes)));
         Replace(AvailableSchemes, new[] { "http", "https", "mailto", "ftp" }
+            .Concat(apps.SelectMany(app => app.UriSchemes))
             .Concat(apps.SelectMany(app => app.FileExtensions))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(scheme => scheme.StartsWith('.') ? 1 : 0)
@@ -100,7 +101,8 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
 
     public IReadOnlyList<AppOption> CompatibleApps => Scheme.StartsWith('.')
         ? AvailableApps.Where(app => app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray()
-        : AvailableApps;
+        : AvailableApps.Where(app => app.SupportedUriSchemes.Contains(Scheme, StringComparer.OrdinalIgnoreCase)
+            || new[] { "http", "https", "mailto", "ftp" }.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray();
 
     [RelayCommand]
     private void Remove() => _remove?.Invoke(this);
@@ -125,4 +127,8 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
     }
 }
 
-public sealed record AppOption(string Id, string DisplayName, IReadOnlyList<string> SupportedFileExtensions);
+public sealed record AppOption(
+    string Id,
+    string DisplayName,
+    IReadOnlyList<string> SupportedFileExtensions,
+    IReadOnlyList<string> SupportedUriSchemes);

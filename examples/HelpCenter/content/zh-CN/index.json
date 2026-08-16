@@ -1,0 +1,12 @@
+{
+  "displayName": "简体中文",
+  "nodes": [
+    {
+      "title": "Docker",
+      "children": [
+        { "title": "安装 Docker", "id": "docker_install", "route": "docker/install", "file": "docker/install.md" },
+        { "title": "卸载 Docker", "id": "docker_uninstall", "route": "docker/uninstall", "file": "docker/uninstall.md" }
+      ]
+    }
+  ]
+}

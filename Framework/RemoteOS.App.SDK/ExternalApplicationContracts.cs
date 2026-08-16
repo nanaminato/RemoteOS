@@ -23,6 +23,15 @@ public interface IExternalFileOpenApplication
     Task OpenFileAsync(IExternalAppContext context, string path, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Optional extension for package apps that declare URI schemes in their manifest.</summary>
+/// <remarks>The host validates the URI and selects the target application before this method runs.</remarks>
+public interface IExternalAppActivationHandler
+{
+    bool CanHandleActivation(Uri uri);
+
+    Task HandleActivationAsync(IExternalAppContext context, Uri uri, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Capability-only context supplied to a third-party package application.</summary>
 public interface IExternalAppContext
 {
@@ -37,7 +46,7 @@ public interface IExternalAppContext
     IExternalAppSettings SettingsStore { get; }
     /// <summary>Read-only system language and language-change notifications.</summary>
     ISystemLanguage SystemLanguage { get; }
-    /// <summary>Host-validated navigation to a registered <c>remoteos://</c> route.</summary>
+    /// <summary>Host-validated navigation to a registered <c>remoteos://</c> route or manifest-declared external scheme.</summary>
     IAppActivation Activations { get; }
     ISettingsNavigation Settings { get; }
     IExternalAppWindowService Windows { get; }

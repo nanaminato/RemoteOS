@@ -11,7 +11,8 @@ public sealed record ApplicationInfo(
     string Version = "1.0.0",
     IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
     IReadOnlyList<string>? SupportedFileNames = null,
-    bool SupportsExtensionlessFiles = false)
+    bool SupportsExtensionlessFiles = false,
+    IReadOnlyList<string>? SupportedUriSchemes = null)
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
 
@@ -20,6 +21,9 @@ public sealed record ApplicationInfo(
 
     /// <summary>Exact file names this application explicitly accepts from RemoteExplorer.</summary>
     public IReadOnlyList<string> FileNames => SupportedFileNames ?? Array.Empty<string>();
+
+    /// <summary>URI schemes this application explicitly accepts from the Shell.</summary>
+    public IReadOnlyList<string> UriSchemes => SupportedUriSchemes ?? Array.Empty<string>();
 
     /// <summary>Returns package-owned metadata in the requested UI language, with stable fallbacks.</summary>
     public ApplicationLocalizedMetadata GetLocalizedMetadata(string culture)

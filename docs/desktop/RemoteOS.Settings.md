@@ -228,7 +228,7 @@ Unauthenticated → ShellSettings.Apply(Default) + DefaultAppRegistry.SetMapping
 - `Resolve(string schemeOrExt)`：查询某 scheme/扩展名对应的应用 Id（供启动路由用，未配置返回 null）。
 - `Snapshot`：当前映射只读快照。
 
-> **已接入文件扩展名路由**：RemoteExplorer 双击文件时调用 `Resolve(extension)`，但只接受仍实现 `IFileOpenApplication` 且声明该扩展名的应用；无有效关联时从兼容应用中回退选择。“打开方式”可修改此关联并保存到 Workspace。URI scheme（如点选 http/mailto 链接）自动启动映射应用仍未接入。
+> **已接入文件扩展名与第三方 URI scheme 路由**：RemoteExplorer 双击文件时调用 `Resolve(extension)`，但只接受仍实现 `IFileOpenApplication` 且声明该扩展名的应用；无有效关联时从兼容应用中回退选择。“打开方式”可修改此关联并保存到 Workspace。对于如 `help://guide/docker/install?lang=en` 的 URI，Runtime 只会选择在 manifest 中显式声明该 scheme 且接受该 URI 的处理程序；默认映射只能指向此候选集。
 
 ### 5.6 桌面外壳时钟集成（`DesktopShellViewModel.StartClock`）
 
@@ -312,7 +312,7 @@ PreferencesSync.OnStateChanged
 
 - **完整主题切换**：当前仅任务栏底色随主题切换。后续接入 `RemoteOS.UI` 的 Light/Dark 样式切换（控件级主题）。
 - **自定义壁纸**：支持从本机选择 PNG/JPEG/WebP/GIF（最大 10 MB）。服务端以 Workspace 私有 blob 保存，偏好仅保存 `custom:{blobId}`；同 Workspace 的其他设备登录时按需下载并渲染。默认不读取、不同步或修改宿主 OS 的壁纸。
-- **URI scheme 自动路由**：文件扩展名关联已由 RemoteExplorer 使用；后续让 http/mailto 等链接也通过 `DefaultAppRegistry.Resolve` 启动映射应用。
+- **URI scheme 自动路由**：第三方 manifest 已声明的 scheme 通过 `DefaultAppRegistry.Resolve` 选择默认程序。`http`/`https`/`mailto` 等内置链接入口仍需在各自控件接入此 activation 流程。
 - **更多语言资源**：当前语言切换仅影响时钟格式化 culture。后续接入 i18n 资源文件，UI 文案随语言切换。
 - **区域格式化**：当前区域仅存储未深度应用。后续按区域格式化数字 / 货币 / 首日星期。
 - **通知中心 / 声音 / 显示**：当前未含。后续按需新增分类页。

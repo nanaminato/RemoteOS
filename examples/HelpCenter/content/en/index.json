@@ -1,0 +1,12 @@
+{
+  "displayName": "English",
+  "nodes": [
+    {
+      "title": "Docker",
+      "children": [
+        { "title": "Install Docker", "id": "docker_install", "route": "docker/install", "file": "docker/install.md" },
+        { "title": "Uninstall Docker", "id": "docker_uninstall", "route": "docker/uninstall", "file": "docker/uninstall.md" }
+      ]
+    }
+  ]
+}

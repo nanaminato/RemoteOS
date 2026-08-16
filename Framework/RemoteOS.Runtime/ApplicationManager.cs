@@ -134,16 +134,20 @@ public sealed class ApplicationManager : IAppActivationService
     }
 
     /// <summary>
-    /// Resolves a Shell-owned <c>remoteos://</c> URI. Only registered applications that
-    /// explicitly implement <see cref="IAppActivationHandler"/> can own a route.
+    /// Resolves a Shell-owned <c>remoteos://</c> URI or a manifest-declared external URI scheme.
     /// </summary>
     public AppActivationResult Activate(AppActivationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Uri);
         var uri = request.Uri;
-        if (!uri.IsAbsoluteUri || !uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo) || uri.Port != -1)
+        if (!uri.IsAbsoluteUri || string.IsNullOrWhiteSpace(uri.Scheme) || string.IsNullOrEmpty(uri.UserInfo) || uri.Port != -1)
+            return new AppActivationResult(AppActivationStatus.InvalidUri);
+
+        if (!uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase))
+            return ActivateExternalUri(request);
+
+        if (string.IsNullOrWhiteSpace(uri.Host))
             return new AppActivationResult(AppActivationStatus.InvalidUri);
 
         if (uri.Host.Equals("file", StringComparison.OrdinalIgnoreCase)
@@ -157,6 +161,30 @@ public sealed class ApplicationManager : IAppActivationService
             return new AppActivationResult(AppActivationStatus.RouteNotFound);
 
         var application = matches[0];
+        return ActivateApplication(application, request)
+            ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
+            : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
+    }
+
+    private AppActivationResult ActivateExternalUri(AppActivationRequest request)
+    {
+        var uri = request.Uri;
+        if (uri.Scheme.Length > 32 || string.IsNullOrWhiteSpace(uri.Host) || uri.Query.Length > 4097)
+            return new AppActivationResult(AppActivationStatus.InvalidUri);
+
+        var matches = _apps.Values
+            .Where(app => app.Manifest.UriSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+            .Where(app => app is IAppActivationHandler handler && handler.CanHandleActivation(uri))
+            .ToArray();
+
+        var preferredId = (_services.GetService(typeof(IUriSchemeDefaultResolver)) as IUriSchemeDefaultResolver)
+            ?.ResolveDefaultApplication(uri.Scheme);
+        var application = preferredId is { } preferred
+            ? matches.SingleOrDefault(app => app.Manifest.Id == preferred)
+            : matches.Length == 1 ? matches[0] : null;
+        if (application is null)
+            return new AppActivationResult(AppActivationStatus.RouteNotFound);
+
         return ActivateApplication(application, request)
             ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
             : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);

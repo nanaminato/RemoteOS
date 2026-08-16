@@ -99,7 +99,8 @@ public sealed class DeveloperPackageManager
                 manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
                 manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata,
                 manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements,
-                manifest.SupportedFileNames ?? Array.Empty<string>(), manifest.SupportsExtensionlessFiles);
+                manifest.SupportedFileNames ?? Array.Empty<string>(), manifest.SupportsExtensionlessFiles,
+                ParseInstancePolicy(manifest.InstancePolicy), manifest.SupportedUriSchemes ?? Array.Empty<string>());
             await Dispatcher.UIThread.InvokeAsync(() => Register(record));
 
             _catalog[appId] = record;
@@ -197,7 +198,8 @@ public sealed class DeveloperPackageManager
     private static ApplicationManifest ToApplicationManifest(DeveloperAppRecord record) => new(
         new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
         record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata,
-        record.ClientPlatforms, record.ServerRequirements, record.SupportedFileNames, record.SupportsExtensionlessFiles);
+        record.ClientPlatforms, record.ServerRequirements, record.SupportedFileNames, record.SupportsExtensionlessFiles,
+        record.InstancePolicy, record.SupportedUriSchemes);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
@@ -242,6 +244,20 @@ public sealed class DeveloperPackageManager
             throw new InvalidOperationException("entryAssembly must point to a DLL under lib/.");
         if (manifest.LocalizedMetadata?.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value.DisplayName)) == true)
             throw new InvalidOperationException("localizedMetadata must use non-empty culture names and display names.");
+        if (manifest.SupportedUriSchemes?.Any(scheme => string.IsNullOrWhiteSpace(scheme)
+                || !System.Text.RegularExpressions.Regex.IsMatch(scheme, "^[a-z][a-z0-9+.-]{0,31}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                || scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase)) == true)
+            throw new InvalidOperationException("supportedUriSchemes must contain non-reserved URI schemes.");
+        _ = ParseInstancePolicy(manifest.InstancePolicy);
+    }
+
+    private static ApplicationInstancePolicy ParseInstancePolicy(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return ApplicationInstancePolicy.MultiWindow;
+        return Enum.TryParse<ApplicationInstancePolicy>(value, ignoreCase: true, out var policy)
+            ? policy
+            : throw new InvalidOperationException("instancePolicy must be MultiWindow, SingleWindow, or SingleWindowPerActivationKey.");
     }
 
     private string AppDirectory(string appId)
@@ -330,7 +346,7 @@ public sealed class DeveloperPackageManager
         DeveloperAssemblyLoadContext LoadContext,
         IExternalRemoteApplication Application);
 
-    private class ExternalApplicationAdapter : RemoteApplicationBase
+    private class ExternalApplicationAdapter : RemoteApplicationBase, IAppActivationHandler
     {
         protected readonly DeveloperAppRecord Record;
         protected readonly DeveloperPackageManager Owner;
@@ -363,6 +379,37 @@ public sealed class DeveloperPackageManager
             context.ShowWindow($"{Manifest.DisplayName} failed to start",
                 new TextBlock { Text = exception.Message, Margin = new Avalonia.Thickness(20), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
                 iconGlyph: Manifest.IconGlyph, canResize: true);
+
+        public bool CanHandleActivation(Uri uri)
+        {
+            if (!Manifest.UriSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+                return false;
+            try
+            {
+                return Owner.GetOrLoad(Record).Application is IExternalAppActivationHandler handler
+                    && handler.CanHandleActivation(uri);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void HandleActivation(AppContext context, AppActivationRequest request, ManagedWindow? existingWindow) =>
+            _ = HandleActivationAsync(context, request);
+
+        private async Task HandleActivationAsync(AppContext context, AppActivationRequest request)
+        {
+            try
+            {
+                if (Owner.GetOrLoad(Record).Application is IExternalAppActivationHandler handler)
+                    await handler.HandleActivationAsync(ContextFactory.Create(Manifest.Id), request.Uri);
+            }
+            catch (Exception exception)
+            {
+                ShowFailure(context, exception);
+            }
+        }
     }
 
     private sealed class ExternalFileApplicationAdapter(DeveloperAppRecord record, DeveloperPackageManager owner, ExternalAppContextFactory contextFactory)
@@ -400,7 +447,9 @@ public sealed record DeveloperPackageManifest(
     IReadOnlyList<string>? ClientPlatforms = null,
     ApplicationServerRequirements? ServerRequirements = null,
     IReadOnlyList<string>? SupportedFileNames = null,
-    bool SupportsExtensionlessFiles = false);
+    bool SupportsExtensionlessFiles = false,
+    string? InstancePolicy = null,
+    IReadOnlyList<string>? SupportedUriSchemes = null);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -417,6 +466,8 @@ internal sealed record DeveloperAppRecord(
     IReadOnlyList<string>? ClientPlatforms = null,
     ApplicationServerRequirements? ServerRequirements = null,
     IReadOnlyList<string>? SupportedFileNames = null,
-    bool SupportsExtensionlessFiles = false);
+    bool SupportsExtensionlessFiles = false,
+    ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
+    IReadOnlyList<string>? SupportedUriSchemes = null);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);
