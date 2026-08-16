@@ -74,8 +74,10 @@
                     <Button Tag="volumes" Click="NavigationButton_Click" Content="{loc:Loc docker.volumes}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
                 </StackPanel>
             </Border>
-            <ScrollViewer Grid.Column="1">
-                <ContentControl x:Name="ContentHost" Margin="30,24" />
+            <!-- Pages with DataGrid columns must be measured against the workspace width.  An
+                 unconstrained horizontal ScrollViewer lets their desired width grow indefinitely. -->
+            <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ContentControl x:Name="ContentHost" Margin="30,24" HorizontalAlignment="Stretch" />
             </ScrollViewer>
         </Grid>
     </Grid>
