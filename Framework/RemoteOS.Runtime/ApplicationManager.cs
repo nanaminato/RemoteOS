@@ -299,9 +299,10 @@ public sealed class ApplicationManager : IAppActivationService
 
     private AppActivationResult ActivateFileOpen(AppActivationRequest request)
     {
-        // Host paths are intentionally not an inter-package protocol. The Explorer is the only
-        // current first-party caller; package applications must use their file capability APIs.
-        if (request.SourceAppId is not { Value: "remoteos.explorer" })
+        // Host paths are intentionally not an inter-package protocol. Only the first-party
+        // Explorer and the Shell (SourceAppId is null) may use this route; package applications
+        // must use their file capability APIs.
+        if (request.SourceAppId is { Value: not "remoteos.explorer" })
             return new AppActivationResult(AppActivationStatus.Unavailable);
 
         var values = ParseQuery(request.Uri);

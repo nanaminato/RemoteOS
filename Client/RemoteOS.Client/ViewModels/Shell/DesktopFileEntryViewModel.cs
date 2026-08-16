@@ -1,9 +1,10 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Protocol.Files;
 
 namespace Client.ViewModels.Shell;
 
 /// <summary>One file-system item shown on the user's remote desktop.</summary>
-public sealed class DesktopFileEntryViewModel
+public sealed partial class DesktopFileEntryViewModel : ObservableObject
 {
     public DesktopFileEntryViewModel(FileSystemEntryDto entry)
     {
@@ -15,6 +16,7 @@ public sealed class DesktopFileEntryViewModel
     public string DisplayName => Entry.Name;
     public string IconGlyph { get; }
     public bool IsDirectory => Entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive;
+    [ObservableProperty] private bool _isDesktopSelected;
 
     private static string GetIcon(FileSystemEntryDto entry)
     {

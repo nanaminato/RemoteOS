@@ -26,6 +26,11 @@
         <Style Selector="Button.desktop-icon:pressed">
             <Setter Property="Background" Value="#330078D4" />
         </Style>
+        <Style Selector="Button.desktop-icon.desktop-selected">
+            <Setter Property="Background" Value="#330078D4" />
+            <Setter Property="BorderBrush" Value="#660078D4" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
 
         <Style Selector="Button.start-button">
             <Setter Property="Background" Value="Transparent" />
@@ -127,7 +132,7 @@
         <Grid Grid.Row="0" ClipToBounds="True" Background="Transparent">
             <!-- This is a sibling behind icons and managed windows. Its menu can therefore open
                  only on actual desktop background, never from a child application window. -->
-            <Border Background="Transparent">
+            <Border Background="Transparent" PointerPressed="DesktopBackground_OnPointerPressed">
             <Border.ContextMenu>
                 <ContextMenu Classes="shell-context-menu"
                              DataContext="{Binding DataContext, ElementName=Root}">
@@ -155,33 +160,19 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.DataTemplates>
                     <DataTemplate DataType="{x:Type vm:AppEntryViewModel}" x:DataType="vm:AppEntryViewModel">
-                        <Button Classes="desktop-icon" Width="120" MinHeight="104" Margin="2"
+                        <Button Classes="desktop-icon" Width="120" Height="104" Margin="2"
+                                Classes.desktop-selected="{Binding IsDesktopSelected}"
+                                Command="{Binding DataContext.SelectDesktopItemCommand, ElementName=Root}"
+                                CommandParameter="{Binding}"
+                                PointerPressed="DesktopIcon_OnPointerPressed"
                                 DoubleTapped="DesktopAppIcon_OnDoubleTapped"
-                                ToolTip.Tip="{Binding DisplayName}">
-                            <StackPanel Spacing="6" HorizontalAlignment="Center">
-                                <Border Width="48" Height="48" CornerRadius="8" Background="#220078D4"
-                                        HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding IconGlyph}" FontSize="26"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextWrapping="Wrap" MaxWidth="116" />
-                            </StackPanel>
-                        </Button>
-                    </DataTemplate>
-                    <DataTemplate DataType="{x:Type vm:DesktopFileEntryViewModel}" x:DataType="vm:DesktopFileEntryViewModel">
-                        <Button Classes="desktop-icon" Width="120" MinHeight="104" Margin="2"
-                                DoubleTapped="DesktopFileIcon_OnDoubleTapped"
-                                ToolTip.Tip="{Binding DisplayName}">
+                                ToolTip.Tip="{Binding DisplayName}"
+                                ToolTip.IsOpen="{Binding IsDesktopSelected}">
                             <Button.ContextMenu>
-                                <ContextMenu DataContext="{Binding DataContext, ElementName=Root}">
-                                    <MenuItem Header="打开" Command="{Binding OpenDesktopEntryCommand}"
-                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                    <MenuItem Header="在资源管理器中打开" Command="{Binding ShowDesktopEntryInExplorerCommand}"
-                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                <ContextMenu Opened="DesktopAppContextMenu_OnOpened">
+                                    <MenuItem Header="打开" Click="DesktopAppOpenMenuItem_OnClick" />
                                     <Separator />
-                                    <MenuItem Header="刷新" Command="{Binding RefreshDesktopCommand}" />
+                                    <MenuItem Header="应用详情" Click="DesktopAppDetailsMenuItem_OnClick" />
                                 </ContextMenu>
                             </Button.ContextMenu>
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
@@ -192,7 +183,36 @@
                                 </Border>
                                 <TextBlock Text="{Binding DisplayName}" FontSize="12"
                                            HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextWrapping="Wrap" MaxWidth="116" />
+                                           TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="116" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:DesktopFileEntryViewModel}" x:DataType="vm:DesktopFileEntryViewModel">
+                        <Button Classes="desktop-icon" Width="120" Height="104" Margin="2"
+                                Classes.desktop-selected="{Binding IsDesktopSelected}"
+                                Command="{Binding DataContext.SelectDesktopItemCommand, ElementName=Root}"
+                                CommandParameter="{Binding}"
+                                PointerPressed="DesktopIcon_OnPointerPressed"
+                                DoubleTapped="DesktopFileIcon_OnDoubleTapped"
+                                ToolTip.Tip="{Binding DisplayName}"
+                                ToolTip.IsOpen="{Binding IsDesktopSelected}">
+                            <Button.ContextMenu>
+                                <ContextMenu Opened="DesktopFileContextMenu_OnOpened">
+                                    <MenuItem Header="打开" Click="DesktopFileOpenMenuItem_OnClick" />
+                                    <MenuItem Header="在资源管理器中打开" Click="DesktopFileOpenInExplorerMenuItem_OnClick" />
+                                    <Separator />
+                                    <MenuItem Header="刷新" Click="DesktopRefreshMenuItem_OnClick" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                <Border Width="48" Height="48" CornerRadius="8" Background="#220078D4"
+                                        HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding IconGlyph}" FontSize="26"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
+                                           HorizontalAlignment="Center" TextAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="116" />
                             </StackPanel>
                         </Button>
                     </DataTemplate>

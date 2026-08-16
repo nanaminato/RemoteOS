@@ -30,6 +30,8 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly IAuthSession _session;
     private readonly DesktopRestoreOrchestrator _desktopRestore;
     private readonly IExplorerClient _files;
+    private readonly DefaultAppRegistry _defaultApps;
+    private readonly IAppActivationDiagnostics _activationDiagnostics;
     private int _desktopFileLoadGeneration;
 
     public DesktopShellViewModel(
@@ -40,7 +42,9 @@ public partial class DesktopShellViewModel : ObservableObject
         IAuthSession session,
         Action shutdown,
         DesktopRestoreOrchestrator desktopRestore,
-        IExplorerClient files)
+        IExplorerClient files,
+        DefaultAppRegistry defaultApps,
+        IAppActivationDiagnostics activationDiagnostics)
     {
         _windowManager = windowManager;
         _applications = applications;
@@ -50,6 +54,8 @@ public partial class DesktopShellViewModel : ObservableObject
         _shutdown = shutdown;
         _desktopRestore = desktopRestore;
         _files = files;
+        _defaultApps = defaultApps;
+        _activationDiagnostics = activationDiagnostics;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
@@ -159,19 +165,54 @@ public partial class DesktopShellViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void SelectDesktopItem(object? item)
+    {
+        foreach (var app in DesktopIcons)
+            app.IsDesktopSelected = ReferenceEquals(app, item);
+        foreach (var file in DesktopFiles)
+            file.IsDesktopSelected = ReferenceEquals(file, item);
+    }
+
+    [RelayCommand]
+    private void ClearDesktopSelection() => SelectDesktopItem(null);
+
+    [RelayCommand]
+    private void OpenDesktopApp(AppEntryViewModel? app)
+    {
+        if (app is not null) app.LaunchCommand.Execute(null);
+    }
+
+    /// <summary>Shows an application's details through its existing Settings permission/details route.</summary>
+    [RelayCommand]
+    private void ShowDesktopAppDetails(AppEntryViewModel? app)
+    {
+        if (app is not null)
+            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.SettingsAppPermissions(app.Id)));
+    }
+
+    [RelayCommand]
     private void OpenDesktopEntry(DesktopFileEntryViewModel? item)
     {
         if (item is null) return;
 
         if (item.IsDirectory)
         {
-            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(item.Entry.Path)));
+            var folderResult = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.ExplorerPath(item.Entry.Path)));
+            _activationDiagnostics.Record($"Desktop folder open: name={item.DisplayName}, result={folderResult.Status}, target={folderResult.TargetAppId?.Value ?? "<none>"}.");
             return;
         }
 
-        var opener = _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault();
-        if (opener is not null)
-            _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Id, item.Entry.Path)));
+        var extension = Path.GetExtension(item.Entry.Name);
+        var defaultAppId = string.IsNullOrEmpty(extension) ? null : _defaultApps.Resolve(extension);
+        var opener = defaultAppId is not null && _applications.SupportsFile(new AppId(defaultAppId), item.Entry.Path)
+            ? new AppId(defaultAppId)
+            : _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault()?.Id;
+        _activationDiagnostics.Record(
+            $"Desktop file open requested: name={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}.");
+        if (opener is null) return;
+
+        var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
+        _activationDiagnostics.Record($"Desktop file open result: name={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
     }
 
     [RelayCommand]

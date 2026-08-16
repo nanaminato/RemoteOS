@@ -23,6 +23,7 @@ public partial class AppEntryViewModel : ObservableObject
     public string DisplayName { get; }
     public string? IconGlyph { get; }
     public string? Description { get; }
+    [ObservableProperty] private bool _isDesktopSelected;
 
     [RelayCommand]
     private void Launch()

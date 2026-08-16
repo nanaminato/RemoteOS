@@ -65,10 +65,25 @@ public partial class DesktopShellView : UserControl
             vm.CloseStartCommand.Execute(null);
     }
 
+    private void DesktopBackground_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (DataContext is DesktopShellViewModel shell)
+            shell.ClearDesktopSelectionCommand.Execute(null);
+    }
+
     private void DesktopAppIcon_OnDoubleTapped(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: AppEntryViewModel app })
             app.LaunchCommand.Execute(null);
+    }
+
+    private void DesktopIcon_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (sender is not Button { DataContext: { } item } || !e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+            return;
+
+        // Match Windows: the context-menu target is selected before the menu is displayed.
+        SelectDesktopItem(item);
     }
 
     private void DesktopFileIcon_OnDoubleTapped(object? sender, RoutedEventArgs e)
@@ -78,6 +93,62 @@ public partial class DesktopShellView : UserControl
             return;
 
         shell.OpenDesktopEntryCommand.Execute(file);
+    }
+
+    private void DesktopAppContextMenu_OnOpened(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu { PlacementTarget.DataContext: AppEntryViewModel app } menu) return;
+        SelectDesktopItem(app);
+        SetMenuEntry(menu, app);
+    }
+
+    private void DesktopFileContextMenu_OnOpened(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu { PlacementTarget.DataContext: DesktopFileEntryViewModel file } menu) return;
+        SelectDesktopItem(file);
+        SetMenuEntry(menu, file);
+    }
+
+    private void DesktopAppOpenMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: AppEntryViewModel app } && DataContext is DesktopShellViewModel shell)
+            shell.OpenDesktopAppCommand.Execute(app);
+    }
+
+    private void DesktopAppDetailsMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: AppEntryViewModel app } && DataContext is DesktopShellViewModel shell)
+            shell.ShowDesktopAppDetailsCommand.Execute(app);
+    }
+
+    private void DesktopFileOpenMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: DesktopFileEntryViewModel file } && DataContext is DesktopShellViewModel shell)
+            shell.OpenDesktopEntryCommand.Execute(file);
+    }
+
+    private void DesktopFileOpenInExplorerMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: DesktopFileEntryViewModel file } && DataContext is DesktopShellViewModel shell)
+            shell.ShowDesktopEntryInExplorerCommand.Execute(file);
+    }
+
+    private void DesktopRefreshMenuItem_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopShellViewModel shell)
+            shell.RefreshDesktopCommand.Execute(null);
+    }
+
+    private void SelectDesktopItem(object item)
+    {
+        if (DataContext is DesktopShellViewModel shell)
+            shell.SelectDesktopItemCommand.Execute(item);
+    }
+
+    private static void SetMenuEntry(ContextMenu menu, object entry)
+    {
+        foreach (var item in menu.Items.OfType<MenuItem>())
+            item.Tag = entry;
     }
 
     private void TaskbarPreviewBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
