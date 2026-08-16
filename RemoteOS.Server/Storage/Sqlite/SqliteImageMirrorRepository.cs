@@ -7,7 +7,10 @@ namespace Server.Storage.Sqlite;
 public sealed class SqliteImageMirrorRepository(RemoteOsDbContext db) : IImageMirrorRepository
 {
     public IReadOnlyList<ImageMirror> List(Guid userId, ImageMirrorTarget target) => db.ImageMirrors.AsNoTracking()
-        .Where(x => x.UserId == userId && x.Target == target).OrderBy(x => x.CreatedAt).ToArray();
+        .Where(x => x.UserId == userId && x.Target == target).ToArray()
+        // Microsoft.EntityFrameworkCore.Sqlite cannot translate DateTimeOffset ORDER BY.
+        // Mirror lists are small user preferences, so ordering after the filtered query is safe.
+        .OrderBy(x => x.CreatedAt).ToArray();
 
     public ImageMirror? Find(Guid userId, ImageMirrorTarget target, Guid id) => db.ImageMirrors.AsNoTracking()
         .FirstOrDefault(x => x.UserId == userId && x.Target == target && x.Id == id);
