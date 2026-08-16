@@ -228,7 +228,7 @@ Unauthenticated → ShellSettings.Apply(Default) + DefaultAppRegistry.SetMapping
 - `Resolve(string schemeOrExt)`：查询某 scheme/扩展名对应的应用 Id（供启动路由用，未配置返回 null）。
 - `Snapshot`：当前映射只读快照。
 
-> **已接入文件扩展名与第三方 URI scheme 路由**：RemoteExplorer 双击文件时调用 `Resolve(extension)`，但只接受仍实现 `IFileOpenApplication` 且声明该扩展名的应用；无有效关联时从兼容应用中回退选择。“打开方式”可修改此关联并保存到 Workspace。对于如 `help://guide/docker/install?lang=en` 的 URI，Runtime 只会选择在 manifest 中显式声明该 scheme 且接受该 URI 的处理程序；默认映射只能指向此候选集。
+> **已接入文件扩展名与第三方 URI scheme 路由**：RemoteExplorer 双击文件时调用 `Resolve(extension)`，但只接受仍实现 `IFileOpenApplication` 且声明该扩展名的应用；无有效关联时从兼容应用中回退选择。“打开方式”可修改此关联并保存到 Workspace。对于如 `help://guide/docker/install?lang=en` 的 URI，Runtime 只会选择在 manifest 中显式声明该 scheme 且接受该 URI 的处理程序；默认映射只能指向此候选集。没有默认映射时，唯一候选会直接打开，多个候选由 Shell 显示选择对话框，且可保存为 Workspace 默认程序。
 
 ### 5.6 桌面外壳时钟集成（`DesktopShellViewModel.StartClock`）
 

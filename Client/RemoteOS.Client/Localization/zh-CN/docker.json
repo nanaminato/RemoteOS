@@ -6,6 +6,7 @@
     "docker.status.available": "Docker Engine {0} 可用（{1}）。",
     "docker.status.unavailable": "Docker Engine 不可用：{0}。",
     "docker.status.open_install_guide": "打开 Docker 安装指南",
+    "docker.status.install_guide_unavailable": "Docker 安装指南不可用。请安装 Help Center，并将其设为 help 链接的处理程序。",
     "docker.status.failed": "Docker 状态请求失败：{0}",
     "docker.status.unavailable_operation": "Docker 当前不可用，未执行此操作。",
     "docker.unavailable_dialog.title": "Docker 不可用",

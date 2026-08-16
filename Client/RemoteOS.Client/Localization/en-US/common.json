@@ -49,6 +49,12 @@
         "common.encoding_selection_hint": "Choose the file encoding to use.",
         "common.reopen": "Reopen",
         "common.line_count_format": "Ln {0}",
+        "activation.choose_handler.title": "Choose an app",
+        "activation.choose_handler.message": "Choose an app to open {0} links.",
+        "activation.choose_handler.set_default": "Always use the selected app for {0} links",
+        "activation.no_handler.title": "Cannot open link",
+        "activation.no_handler.message": "No installed app can open {0} links.",
+        "activation.no_handler.help_message": "No app can open help links. Install Help Center and set it as the handler for help links.",
         "common.character_count_format": "{0} characters"
     }
 }

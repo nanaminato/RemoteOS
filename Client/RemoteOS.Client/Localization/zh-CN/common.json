@@ -49,6 +49,12 @@
         "common.encoding_selection_hint": "选择要使用的文件编码。",
         "common.reopen": "重新打开",
         "common.line_count_format": "第 {0} 行",
+        "activation.choose_handler.title": "选择应用",
+        "activation.choose_handler.message": "选择用于打开 {0} 链接的应用。",
+        "activation.choose_handler.set_default": "始终使用所选应用打开 {0} 链接",
+        "activation.no_handler.title": "无法打开链接",
+        "activation.no_handler.message": "没有已安装的应用可以打开 {0} 链接。",
+        "activation.no_handler.help_message": "没有应用可以打开 help 链接。请安装 Help Center，并将其设为 help 链接的处理程序。",
         "common.character_count_format": "{0} 个字符"
     }
 }

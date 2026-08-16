@@ -181,13 +181,69 @@ public sealed class ApplicationManager : IAppActivationService
             ?.ResolveDefaultApplication(uri.Scheme);
         var application = preferredId is { } preferred
             ? matches.SingleOrDefault(app => app.Manifest.Id == preferred)
-            : matches.Length == 1 ? matches[0] : null;
-        if (application is null)
-            return new AppActivationResult(AppActivationStatus.RouteNotFound);
+            : null;
+        if (application is not null)
+            return ActivateApplication(application, request)
+                ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
+                : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
 
-        return ActivateApplication(application, request)
-            ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
-            : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
+        if (matches.Length == 1)
+        {
+            application = matches[0];
+            return ActivateApplication(application, request)
+                ? new AppActivationResult(AppActivationStatus.Activated, application.Manifest.Id)
+                : new AppActivationResult(AppActivationStatus.Unavailable, application.Manifest.Id);
+        }
+
+        var routingUi = _services.GetService(typeof(IUriSchemeRoutingUi)) as IUriSchemeRoutingUi;
+        if (matches.Length == 0)
+        {
+            if (request.UserInitiated && routingUi is not null)
+                _ = NotifyNoHandlerAsync(routingUi, uri);
+            return new AppActivationResult(AppActivationStatus.NoHandler);
+        }
+
+        if (request.UserInitiated && routingUi is not null)
+        {
+            _ = ChooseExternalHandlerAsync(routingUi, request, matches);
+            return new AppActivationResult(AppActivationStatus.HandlerSelectionRequired);
+        }
+
+        return new AppActivationResult(AppActivationStatus.RouteNotFound);
+    }
+
+    private async Task ChooseExternalHandlerAsync(IUriSchemeRoutingUi routingUi, AppActivationRequest request,
+        IReadOnlyList<IRemoteApplication> candidates)
+    {
+        try
+        {
+            var choice = await routingUi.ChooseHandlerAsync(request.Uri,
+                candidates.Select(candidate => candidate.Manifest.ToInfo()).ToArray());
+            if (choice is null)
+                return;
+
+            var application = candidates.SingleOrDefault(candidate => candidate.Manifest.Id == choice.ApplicationId);
+            if (application is null)
+                return; // The package registry changed while the dialog was open.
+
+            if (choice.SetAsDefault)
+            {
+                try { await routingUi.SaveDefaultHandlerAsync(request.Uri.Scheme, application.Manifest.Id); }
+                catch { /* Persisting a preference must not prevent the selected app from opening. */ }
+            }
+
+            ActivateApplication(application, request);
+        }
+        catch
+        {
+            // A routing prompt must never crash the Shell or the source application.
+        }
+    }
+
+    private static async Task NotifyNoHandlerAsync(IUriSchemeRoutingUi routingUi, Uri uri)
+    {
+        try { await routingUi.NotifyNoHandlerAsync(uri); }
+        catch { /* A missing routing UI must not alter the stable activation result. */ }
     }
 
     private AppActivationResult ActivateFileOpen(AppActivationRequest request)

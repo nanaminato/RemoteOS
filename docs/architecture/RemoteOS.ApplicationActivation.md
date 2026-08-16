@@ -44,8 +44,10 @@ help://guide/docker/install?lang=en
 
 Shell 先验证 URI（绝对 URI、无 user-info、无端口、scheme 长度不超过 32），只在已声明同一
 scheme 且 `CanHandleActivation` 返回真时才投递。若设置了该 scheme 的默认程序，则它必须也在
-候选集中；否则只有唯一候选程序时才会启动，避免任意或不确定的路由。`remoteos` 为保留 scheme，
-外部包不可声明。
+候选集中并直接启动；否则只有唯一候选程序时才会启动。多个候选程序时，Shell 显示“选择应用”
+对话框，用户可以仅本次打开，或保存为此 scheme 的默认程序再打开。没有候选程序时，Shell 显示
+明确的未处理程序提示；对于 `help://`，提示安装 Help Center 并将其设为 help 链接处理程序。
+安装入口及安装后重试属于后续受信任应用目录流程。`remoteos` 为保留 scheme，外部包不可声明。
 
 第三方 handler 仅接收 host 已验证后的 URI 与受限 `IExternalAppContext`，不能获得另一个应用或
 宿主的实现对象。应用自身必须继续验证它所拥有的 authority、路径与 query 参数。

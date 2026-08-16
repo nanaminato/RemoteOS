@@ -39,7 +39,9 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         vm.OpenDockerInstallGuideAsync = () =>
         {
             var language = (context.Services.GetService(typeof(ISystemLanguage)) as ISystemLanguage)?.CurrentLanguage ?? "en-US";
-            context.Activations.Activate(new Uri($"help://guide/docker/install?lang={Uri.EscapeDataString(language)}"));
+            var activation = context.Activations.Activate(new Uri($"help://guide/docker/install?lang={Uri.EscapeDataString(language)}"));
+            if (!activation.Succeeded && !activation.IsPendingUserChoice)
+                vm.StatusText = LocalizedText.Get("docker.status.install_guide_unavailable");
             return Task.CompletedTask;
         };
         _ = vm.StartAsync();

@@ -16,12 +16,18 @@ public enum AppActivationStatus
     Activated,
     InvalidUri,
     RouteNotFound,
+    /// <summary>No installed application accepts the requested third-party URI scheme.</summary>
+    NoHandler,
+    /// <summary>The Shell has asked the user to select one of several eligible handlers.</summary>
+    HandlerSelectionRequired,
     Unavailable,
 }
 
 public sealed record AppActivationResult(AppActivationStatus Status, AppId? TargetAppId = null)
 {
     public bool Succeeded => Status == AppActivationStatus.Activated;
+    /// <summary>Whether the Shell accepted the request and may still complete it after user input.</summary>
+    public bool IsPendingUserChoice => Status == AppActivationStatus.HandlerSelectionRequired;
 }
 
 /// <summary>
@@ -41,6 +47,23 @@ public interface IAppActivationService
 public interface IUriSchemeDefaultResolver
 {
     AppId? ResolveDefaultApplication(string scheme);
+}
+
+/// <summary>A user choice made for an ambiguous external URI scheme.</summary>
+public sealed record UriSchemeHandlerChoice(AppId ApplicationId, bool SetAsDefault);
+
+/// <summary>
+/// Optional Shell-owned UI for third-party URI routing. The runtime calls it only for
+/// user-initiated requests that have no eligible handler or more than one eligible handler.
+/// Implementations may persist a selected default application.
+/// </summary>
+public interface IUriSchemeRoutingUi
+{
+    Task<UriSchemeHandlerChoice?> ChooseHandlerAsync(Uri uri, IReadOnlyList<ApplicationInfo> candidates);
+
+    Task SaveDefaultHandlerAsync(string scheme, AppId applicationId);
+
+    Task NotifyNoHandlerAsync(Uri uri);
 }
 
 /// <summary>

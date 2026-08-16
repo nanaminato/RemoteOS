@@ -49,6 +49,12 @@
         "common.encoding_selection_hint": "使用するファイル エンコーディングを選択してください。",
         "common.reopen": "再度開く",
         "common.line_count_format": "行 {0}",
+        "activation.choose_handler.title": "アプリを選択",
+        "activation.choose_handler.message": "{0} リンクを開くアプリを選択してください。",
+        "activation.choose_handler.set_default": "選択したアプリを {0} リンクで常に使用する",
+        "activation.no_handler.title": "リンクを開けません",
+        "activation.no_handler.message": "{0} リンクを開けるインストール済みアプリはありません。",
+        "activation.no_handler.help_message": "help リンクを開けるアプリはありません。Help Center をインストールし、help リンクのハンドラーとして設定してください。",
         "common.character_count_format": "{0} 文字"
     }
 }

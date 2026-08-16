@@ -6,6 +6,27 @@
              x:DataType="docker:DockerManagerViewModel"
              Background="#F4F7FB">
     <Grid RowDefinitions="Auto,*">
+        <Grid.Styles>
+            <!-- 基础状态 -->
+            <Style Selector="Button.docker-status">
+                <Setter Property="Background" Value="#1C3765" />
+                <Setter Property="BorderBrush" Value="#2C568D" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="#C8F6DD" />
+            </Style>
+
+            <!-- 悬停状态 (使用 /template/ 穿透默认模板防线) -->
+            <Style Selector="Button.docker-status:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="#2B78C0" />
+                <Setter Property="BorderBrush" Value="#8BC7FF" />
+                <Setter Property="Foreground" Value="White" />
+            </Style>
+
+            <!-- 禁用状态 -->
+            <Style Selector="Button.docker-status:disabled">
+                <Setter Property="Opacity" Value="1" />
+            </Style>
+        </Grid.Styles>
         <Border Grid.Row="0" Background="#122344" Padding="28,18">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
@@ -15,14 +36,19 @@
                     <TextBlock Text="{loc:Loc application.remoteos.docker.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="{loc:Loc docker.subtitle}" FontSize="13" Foreground="#B8C9E6" />
                 </StackPanel>
-                <Border Grid.Column="2" Background="#1C3765" CornerRadius="16" Padding="11,5" VerticalAlignment="Center">
-                    <Button Content="{Binding StatusText}"
-                            Command="{Binding OpenInstallGuideCommand}"
-                            IsEnabled="{Binding IsDockerInstallRequired}"
-                            ToolTip.Tip="{loc:Loc docker.status.open_install_guide}"
-                            Background="Transparent" BorderBrush="Transparent" BorderThickness="0" Padding="0"
-                            FontSize="12" Foreground="#C8F6DD" />
-                </Border>
+                <Button Grid.Column="2"
+                        Classes="docker-status"
+                        Content="{Binding StatusText}"
+                        Command="{Binding OpenInstallGuideCommand}"
+                        IsEnabled="{Binding IsDockerInstallRequired}"
+                        ToolTip.Tip="{loc:Loc docker.status.open_install_guide}"
+                        VerticalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Padding="12,6"
+                        CornerRadius="16"
+                        FontSize="12">
+                </Button>
             </Grid>
         </Border>
 

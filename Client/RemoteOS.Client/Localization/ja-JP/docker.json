@@ -6,6 +6,7 @@
     "docker.status.available": "Docker Engine {0} を利用できます（{1}）。",
     "docker.status.unavailable": "Docker Engine は利用できません: {0}。",
     "docker.status.open_install_guide": "Docker のインストールガイドを開く",
+    "docker.status.install_guide_unavailable": "Docker のインストールガイドを利用できません。Help Center をインストールし、help リンクのハンドラーとして設定してください。",
     "docker.status.failed": "Docker 状態の取得に失敗しました: {0}",
     "docker.status.unavailable_operation": "Docker を利用できないため、この操作は実行されませんでした。",
     "docker.unavailable_dialog.title": "Docker を利用できません",

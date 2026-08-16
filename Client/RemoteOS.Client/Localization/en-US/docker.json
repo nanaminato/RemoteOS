@@ -6,6 +6,7 @@
     "docker.status.available": "Docker Engine {0} is available ({1}).",
     "docker.status.unavailable": "Docker Engine is unavailable: {0}.",
     "docker.status.open_install_guide": "Open the Docker installation guide",
+    "docker.status.install_guide_unavailable": "The Docker installation guide is unavailable. Install Help Center and set it as the handler for help links.",
     "docker.status.failed": "Docker status request failed: {0}",
     "docker.status.unavailable_operation": "Docker is unavailable. This operation was not performed.",
     "docker.unavailable_dialog.title": "Docker unavailable",
