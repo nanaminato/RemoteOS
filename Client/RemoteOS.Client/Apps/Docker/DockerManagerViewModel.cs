@@ -34,6 +34,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _enginePlatform = "—";
     [ObservableProperty] private DockerContainerDto? _selectedContainer;
     [ObservableProperty] private DockerContainerDetailsDto? _containerDetails;
+    [ObservableProperty] private string _containerDetailsText = string.Empty;
     [ObservableProperty] private string _containerLogs = string.Empty;
     [ObservableProperty] private string _containerStats = string.Empty;
     [ObservableProperty] private bool _confirmContainerDeletion;
@@ -164,6 +165,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     {
         ContainerLogs = ContainerStats = string.Empty;
         ContainerDetails = null;
+        ContainerDetailsText = string.Empty;
         NotifyContainerCommands();
     }
     partial void OnConfirmContainerDeletionChanged(bool value) => DeleteContainerCommand.NotifyCanExecuteChanged();
@@ -198,6 +200,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         await RunReadAsync(async () =>
         {
             ContainerDetails = await client.GetContainerAsync(container.Id);
+            ContainerDetailsText = ContainerDetails is null ? string.Empty : FormatContainerDetails(ContainerDetails);
             StatusText = ContainerDetails is null
                 ? LocalizedText.Format("docker.action.failed", LocalizedText.Get("docker.container.details"), "docker.not_found")
                 : LocalizedText.Format("docker.container.details_loaded", container.Names);
@@ -567,4 +570,22 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         _ => problemCode
     };
     private static IReadOnlyList<string> Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    private static string FormatContainerDetails(DockerContainerDetailsDto details) => string.Join(Environment.NewLine, new[]
+    {
+        $"Name: {details.Name}",
+        $"ID: {details.Id}",
+        $"Image: {details.Image}",
+        $"State: {details.State}",
+        $"Status: {details.Status}",
+        $"Created: {details.Created}",
+        $"Restart policy: {details.RestartPolicy}",
+        $"Working directory: {details.WorkingDirectory}",
+        $"Command: {details.Command}",
+        FormatSection("Ports", details.Ports),
+        FormatSection("Mounts", details.Mounts),
+        FormatSection("Networks", details.Networks),
+        FormatSection("Environment", details.Environment),
+        FormatSection("Labels", details.Labels.Select(label => $"{label.Key}={label.Value}"))
+    });
+    private static string FormatSection(string heading, IEnumerable<string> values) => $"{heading}:{Environment.NewLine}{string.Join(Environment.NewLine, values)}";
 }

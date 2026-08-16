@@ -84,6 +84,7 @@
     "docker.container.command": "Command",
     "docker.container.networks": "Networks",
     "docker.container.labels": "Labels",
+    "docker.container.details_copy_hint": "Select text and press Ctrl+C, or use Copy to place the complete details on the clipboard.",
     "docker.image.delete_confirm": "I understand this removes the selected image",
     "docker.image.delete": "Delete image",
     "docker.image.deleted": "Deleted image {0}.",

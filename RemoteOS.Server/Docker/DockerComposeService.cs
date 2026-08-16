@@ -42,7 +42,7 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
             if (!request.Confirmed) return new DockerStackOperationResult(false, "docker.confirmation_required", []);
             var stack = (await ListAsync(cancellationToken)).FirstOrDefault(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             var composePath = FirstConfigFile(stack?.ConfigFiles);
-            if (composePath is null || !File.Exists(composePath)) return new DockerStackOperationResult(false, "docker.stack_source_unavailable", []);
+            if (composePath is null || !File.Exists(composePath)) return await DeleteByLabelsAsync(name, cancellationToken);
             var down = await RunAsync(["compose", "--project-name", stack!.Name, "--file", composePath, "down", "--remove-orphans"], cancellationToken);
             return new DockerStackOperationResult(down.Success, down.Success ? string.Empty : ToProblemCode(down.Error), down.Success ? ToLines(down.Output) : []);
         }
@@ -56,6 +56,36 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
         arguments.AddRange(ids);
         var result = await RunAsync(arguments, cancellationToken);
         return new DockerStackOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result.Error), result.Success ? ToLines(result.Output) : []);
+    }
+
+    /// <summary>
+    /// A Compose project has no independent Engine record: its containers and project networks
+    /// are the record.  This fallback removes those labelled resources when the original
+    /// Compose source has been deleted or moved, while deliberately retaining named volumes.
+    /// </summary>
+    private async Task<DockerStackOperationResult> DeleteByLabelsAsync(string name, CancellationToken cancellationToken)
+    {
+        var containers = await RunAsync(["ps", "--all", "--quiet", "--filter", $"label=com.docker.compose.project={name}"], cancellationToken);
+        if (!containers.Success) return new DockerStackOperationResult(false, ToProblemCode(containers.Error), []);
+        var containerIds = containers.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var output = new List<string>();
+        if (containerIds.Length > 0)
+        {
+            var remove = await RunAsync(["rm", "--force", .. containerIds], cancellationToken);
+            if (!remove.Success) return new DockerStackOperationResult(false, ToProblemCode(remove.Error), []);
+            output.AddRange(ToLines(remove.Output));
+        }
+
+        var networks = await RunAsync(["network", "ls", "--quiet", "--filter", $"label=com.docker.compose.project={name}"], cancellationToken);
+        if (!networks.Success) return new DockerStackOperationResult(false, ToProblemCode(networks.Error), []);
+        var networkIds = networks.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (networkIds.Length > 0)
+        {
+            var remove = await RunAsync(["network", "rm", .. networkIds], cancellationToken);
+            if (!remove.Success) return new DockerStackOperationResult(false, ToProblemCode(remove.Error), []);
+            output.AddRange(ToLines(remove.Output));
+        }
+        return new DockerStackOperationResult(true, string.Empty, output);
     }
     public async Task<IReadOnlyList<DockerStackDto>> ListAsync(CancellationToken cancellationToken = default)
     {

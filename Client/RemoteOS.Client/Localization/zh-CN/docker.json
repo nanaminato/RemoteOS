@@ -84,6 +84,7 @@
     "docker.container.command": "命令",
     "docker.container.networks": "网络",
     "docker.container.labels": "标签",
+    "docker.container.details_copy_hint": "可选中文本后按 Ctrl+C，也可以使用“复制”将完整详情放入剪贴板。",
     "docker.image.delete_confirm": "我了解这会删除所选镜像",
     "docker.image.delete": "删除镜像",
     "docker.image.deleted": "已删除镜像 {0}。",

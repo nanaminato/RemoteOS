@@ -84,6 +84,7 @@
     "docker.container.command": "コマンド",
     "docker.container.networks": "ネットワーク",
     "docker.container.labels": "ラベル",
+    "docker.container.details_copy_hint": "テキストを選択して Ctrl+C を押すか、コピーで詳細全体をクリップボードに保存できます。",
     "docker.image.delete_confirm": "選択したイメージを削除することを理解しています",
     "docker.image.delete": "イメージを削除",
     "docker.image.deleted": "イメージ {0} を削除しました。",
