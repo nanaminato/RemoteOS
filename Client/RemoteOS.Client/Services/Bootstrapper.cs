@@ -64,6 +64,7 @@ public static class Bootstrapper
         services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "explorer"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddSingleton<Client.Apps.Explorer.IRemoteFileClipboard, Client.Apps.Explorer.RemoteFileClipboard>();
 
         // Browser（浏览器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
         // NativeWebView 用平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK），网页内容走客户端网络；
@@ -170,6 +171,7 @@ public static class Bootstrapper
                 wm, apps, settings, localization, session, shutdown,
                 sp.GetRequiredService<DesktopRestoreOrchestrator>(),
                 sp.GetRequiredService<Client.Apps.Explorer.IExplorerClient>(),
+                sp.GetRequiredService<Client.Apps.Explorer.IRemoteFileClipboard>(),
                 sp.GetRequiredService<DefaultAppRegistry>(),
                 sp.GetRequiredService<ISettingsClient>(),
                 sp.GetRequiredService<IAppActivationDiagnostics>());

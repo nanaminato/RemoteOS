@@ -80,7 +80,8 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             return;
         }
 
-        var viewModel = new ExplorerViewModel(client);
+        var clipboard = context.Services.GetService(typeof(IRemoteFileClipboard)) as IRemoteFileClipboard;
+        var viewModel = new ExplorerViewModel(client, fileClipboard: clipboard);
         WireDialogs(context, viewModel, client);
         var view = new ExplorerMainView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.explorer.display_name"), view,

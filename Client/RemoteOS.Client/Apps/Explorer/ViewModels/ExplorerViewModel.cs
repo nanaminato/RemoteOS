@@ -27,13 +27,12 @@ namespace Client.Apps.Explorer.ViewModels;
 public sealed partial class ExplorerViewModel : ObservableObject
 {
     private readonly IExplorerClient _client;
+    private readonly IRemoteFileClipboard _fileClipboard;
     private readonly ExplorerPickerOptions? _pickerOptions;
     private readonly Action<IReadOnlyList<string>>? _selectPaths;
     private bool _isUpdatingPickerText;
     private bool _pickerInitialized;
     private readonly List<string?> _history = new();
-    private IReadOnlyList<FileSystemEntryDto> _fileClipboard = Array.Empty<FileSystemEntryDto>();
-    private RemoteClipboardOperation _fileClipboardOperation;
     private int _historyIndex = -1;
 
     /// <summary>路径变化时同步树选中的抑制标志：避免 SyncTreeSelectionAsync 设 SelectedNode 触发 OnSelectedNodeChanged
@@ -47,9 +46,11 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public ExplorerViewModel(
         IExplorerClient client,
         ExplorerPickerOptions? pickerOptions = null,
-        Action<IReadOnlyList<string>>? selectPaths = null)
+        Action<IReadOnlyList<string>>? selectPaths = null,
+        IRemoteFileClipboard? fileClipboard = null)
     {
         _client = client;
+        _fileClipboard = fileClipboard ?? new RemoteFileClipboard();
         _pickerOptions = pickerOptions;
         _selectPaths = selectPaths;
         Nodes = new ObservableCollection<TreeNodeModel>();
@@ -750,19 +751,17 @@ public sealed partial class ExplorerViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Copy()
     {
-        _fileClipboard = GetSelectedEntries();
-        _fileClipboardOperation = RemoteClipboardOperation.Copy;
+        _fileClipboard.Set(GetSelectedEntries(), RemoteFileClipboardOperation.Copy);
         PasteCommand.NotifyCanExecuteChanged();
-        StatusText = LocalizedText.Format("explorer.status.copied_to_clipboard", _fileClipboard.Count);
+        StatusText = LocalizedText.Format("explorer.status.copied_to_clipboard", _fileClipboard.Entries.Count);
     }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void Cut()
     {
-        _fileClipboard = GetSelectedEntries();
-        _fileClipboardOperation = RemoteClipboardOperation.Cut;
+        _fileClipboard.Set(GetSelectedEntries(), RemoteFileClipboardOperation.Cut);
         PasteCommand.NotifyCanExecuteChanged();
-        StatusText = LocalizedText.Format("explorer.status.cut_to_clipboard", _fileClipboard.Count);
+        StatusText = LocalizedText.Format("explorer.status.cut_to_clipboard", _fileClipboard.Entries.Count);
     }
 
     [RelayCommand(CanExecute = nameof(CanPaste))]
@@ -774,7 +773,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             return;
         }
 
-        if (_fileClipboard.Count > 0)
+        if (_fileClipboard.HasEntries)
         {
             await PasteRemoteClipboardAsync(AddressbarPath);
             return;
@@ -790,7 +789,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     private async Task PasteRemoteClipboardAsync(string targetDirectory)
     {
-        var entries = _fileClipboard
+        var entries = _fileClipboard.Entries
             .Where(entry => CanPlaceEntryInDirectory(entry, targetDirectory))
             .ToArray();
         if (entries.Length == 0)
@@ -808,15 +807,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 var entry = entries[index];
                 TransferText = LocalizedText.Format("explorer.status.pasting_item", entry.Name, index + 1, entries.Length);
                 var destination = CombineRemotePath(targetDirectory, entry.Name);
-                if (_fileClipboardOperation == RemoteClipboardOperation.Cut)
+                if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
                     await _client.MoveAsync(entry.Path, destination, overwrite: false);
                 else
                     await _client.CopyAsync(entry.Path, destination, overwrite: false);
                 TransferItemCompleted = index + 1;
             }
 
-            if (_fileClipboardOperation == RemoteClipboardOperation.Cut)
-                _fileClipboard = Array.Empty<FileSystemEntryDto>();
+            if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
+                _fileClipboard.Clear();
             StatusText = LocalizedText.Format("explorer.status.paste_completed", entries.Length);
             await RefreshAsync();
         }
@@ -1050,8 +1049,6 @@ public sealed partial class ExplorerViewModel : ObservableObject
 
     private sealed record UploadPlan(IReadOnlyList<string> Directories, IReadOnlyList<UploadFile> Files, long TotalBytes);
     private sealed record UploadFile(string SourcePath, string RelativePath, long Length);
-    private enum RemoteClipboardOperation { Copy, Cut }
-
     private static string CombineRemoteRelativePath(string directory, string relativePath)
     {
         var result = directory;

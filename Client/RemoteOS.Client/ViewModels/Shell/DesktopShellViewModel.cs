@@ -34,11 +34,10 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly IAuthSession _session;
     private readonly DesktopRestoreOrchestrator _desktopRestore;
     private readonly IExplorerClient _files;
+    private readonly IRemoteFileClipboard _fileClipboard;
     private readonly DefaultAppRegistry _defaultApps;
     private readonly ISettingsClient _settingsClient;
     private readonly IAppActivationDiagnostics _activationDiagnostics;
-    private IReadOnlyList<FileSystemEntryDto> _desktopClipboard = Array.Empty<FileSystemEntryDto>();
-    private DesktopClipboardOperation _desktopClipboardOperation;
     private int _desktopFileLoadGeneration;
 
     public DesktopShellViewModel(
@@ -50,6 +49,7 @@ public partial class DesktopShellViewModel : ObservableObject
         Action shutdown,
         DesktopRestoreOrchestrator desktopRestore,
         IExplorerClient files,
+        IRemoteFileClipboard fileClipboard,
         DefaultAppRegistry defaultApps,
         ISettingsClient settingsClient,
         IAppActivationDiagnostics activationDiagnostics)
@@ -62,6 +62,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _shutdown = shutdown;
         _desktopRestore = desktopRestore;
         _files = files;
+        _fileClipboard = fileClipboard;
         _defaultApps = defaultApps;
         _settingsClient = settingsClient;
         _activationDiagnostics = activationDiagnostics;
@@ -70,7 +71,12 @@ public partial class DesktopShellViewModel : ObservableObject
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
         _windowManager.ActiveWindowChanged += (_, _) => RefreshTaskbarGroups();
         _applications.RegistryChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
-        _session.StateChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
+        _session.StateChanged += (_, state) => Dispatcher.UIThread.Post(() =>
+        {
+            if (state.State != AuthSessionState.Authenticated)
+                _fileClipboard.Clear();
+            PopulateDesktop();
+        });
         _localization.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             PopulateDesktop();
@@ -281,8 +287,7 @@ public partial class DesktopShellViewModel : ObservableObject
     private void CopyDesktopEntry(DesktopFileEntryViewModel? item)
     {
         if (item is null) return;
-        _desktopClipboard = [item.Entry];
-        _desktopClipboardOperation = DesktopClipboardOperation.Copy;
+        _fileClipboard.Set([item.Entry], RemoteFileClipboardOperation.Copy);
         RecordDesktopFileMenuDiagnostic($"copy stored in desktop clipboard: entry={item.DisplayName}.");
     }
 
@@ -290,8 +295,7 @@ public partial class DesktopShellViewModel : ObservableObject
     private void CutDesktopEntry(DesktopFileEntryViewModel? item)
     {
         if (item is null) return;
-        _desktopClipboard = [item.Entry];
-        _desktopClipboardOperation = DesktopClipboardOperation.Cut;
+        _fileClipboard.Set([item.Entry], RemoteFileClipboardOperation.Cut);
         RecordDesktopFileMenuDiagnostic($"cut stored in desktop clipboard: entry={item.DisplayName}.");
     }
 
@@ -301,35 +305,35 @@ public partial class DesktopShellViewModel : ObservableObject
     private async Task PasteDesktopEntryAsync(DesktopFileEntryViewModel? item)
     {
         var targetDirectory = item is { IsDirectory: true } ? item.Entry.Path : _desktopPath;
-        if (string.IsNullOrWhiteSpace(targetDirectory) || _desktopClipboard.Count == 0)
+        if (string.IsNullOrWhiteSpace(targetDirectory) || !_fileClipboard.HasEntries)
         {
-            RecordDesktopFileMenuDiagnostic($"desktop paste stopped: targetAvailable={!string.IsNullOrWhiteSpace(targetDirectory)}, clipboardItems={_desktopClipboard.Count}.");
+            RecordDesktopFileMenuDiagnostic($"desktop paste stopped: targetAvailable={!string.IsNullOrWhiteSpace(targetDirectory)}, clipboardItems={_fileClipboard.Entries.Count}.");
             return;
         }
 
-        RecordDesktopFileMenuDiagnostic($"desktop paste started: clipboardItems={_desktopClipboard.Count}, operation={_desktopClipboardOperation}.");
+        RecordDesktopFileMenuDiagnostic($"desktop paste started: clipboardItems={_fileClipboard.Entries.Count}, operation={_fileClipboard.Operation}.");
 
         try
         {
-            foreach (var entry in _desktopClipboard)
+            foreach (var entry in _fileClipboard.Entries)
             {
                 var destination = CombineRemotePath(targetDirectory, entry.Name);
                 if (PathEquals(entry.Path, destination))
                 {
                     // Copying to the same Desktop should behave like a desktop file manager,
                     // producing a sibling copy instead of silently doing nothing.
-                    if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
+                    if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
                         continue;
                     destination = await GetAvailableDesktopCopyPathAsync(targetDirectory, entry.Name);
                 }
-                if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
+                if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
                     await _files.MoveAsync(entry.Path, destination, overwrite: false);
                 else
                     await _files.CopyAsync(entry.Path, destination, overwrite: false);
             }
 
-            if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
-                _desktopClipboard = Array.Empty<FileSystemEntryDto>();
+            if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
+                _fileClipboard.Clear();
             RefreshDesktop();
             RecordDesktopFileMenuDiagnostic("desktop paste completed and refresh requested.");
         }
@@ -580,8 +584,6 @@ public partial class DesktopShellViewModel : ObservableObject
                 return candidatePath;
         }
     }
-
-    private enum DesktopClipboardOperation { Copy, Cut }
 
     private async Task SaveDesktopDefaultAppAsync(string extension, string applicationId)
     {
