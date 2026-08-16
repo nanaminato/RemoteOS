@@ -62,10 +62,11 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options, ILogg
         return ToOperationResult(await RunAsync(arguments, cancellationToken));
     }
 
-    public async Task<DockerOperationResult> PullImageAsync(DockerImageOperationRequest request, CancellationToken cancellationToken = default)
+    public async Task<DockerOperationResult> PullImageAsync(DockerImageOperationRequest request, string? resolvedImageReference = null, CancellationToken cancellationToken = default)
     {
-        if (!IsImageReference(request.ImageReference)) return new DockerOperationResult(false, "docker.validation_failed");
-        return ToOperationResult(await RunAsync(["pull", request.ImageReference], cancellationToken, CommandTimeout.LongRunning));
+        var imageReference = resolvedImageReference ?? request.ImageReference;
+        if (!IsImageReference(request.ImageReference) || !IsImageReference(imageReference)) return new DockerOperationResult(false, "docker.validation_failed");
+        return ToOperationResult(await RunAsync(["pull", imageReference], cancellationToken, CommandTimeout.LongRunning));
     }
 
     public async Task<DockerOperationResult> DeleteImageAsync(string imageId, DockerImageOperationRequest request, CancellationToken cancellationToken = default)

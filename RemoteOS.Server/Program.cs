@@ -143,6 +143,7 @@ else
 // is ever exposed to clients. Guardian intentionally remains a separate Agent boundary.
 builder.Services.AddSingleton(builder.Configuration.GetSection("DockerEngine").Get<Server.Docker.DockerCliEngineOptions>() ?? new Server.Docker.DockerCliEngineOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
+builder.Services.AddScoped<Server.ImageMirrors.IDockerImageMirrorResolver, Server.ImageMirrors.DockerImageMirrorResolver>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("DockerRuntimeInstaller").Get<Server.Docker.DockerRuntimeInstallerOptions>() ?? new Server.Docker.DockerRuntimeInstallerOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
@@ -185,6 +186,7 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
     builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
+    builder.Services.AddScoped<IImageMirrorRepository, SqliteImageMirrorRepository>();
 }
 else
 {
@@ -194,6 +196,7 @@ else
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
     builder.Services.AddSingleton<IAppSettingsRepository, InMemoryAppSettingsRepository>();
+    builder.Services.AddSingleton<IImageMirrorRepository, InMemoryImageMirrorRepository>();
 }
 // Session 始终内存（连接关系，不持久化）
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
@@ -295,6 +298,18 @@ if (storageProvider == "sqlite")
             PRIMARY KEY ("UserId", "Scope", "ScopeId", "AppId", "Key")
         );
         CREATE INDEX IF NOT EXISTS "IX_app_settings_UserId_UpdatedAt" ON "app_settings" ("UserId", "UpdatedAt");
+
+        CREATE TABLE IF NOT EXISTS "image_mirrors" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Target" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Endpoint" TEXT NOT NULL,
+            "IsSelected" INTEGER NOT NULL,
+            "CreatedAt" TEXT NOT NULL,
+            "UpdatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_image_mirrors_UserId_Target" ON "image_mirrors" ("UserId", "Target");
         """);
 }
 
@@ -316,6 +331,7 @@ app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapAppCapabilityEndpoints();
 app.MapAppSettingsEndpoints();
+app.MapImageMirrorEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();

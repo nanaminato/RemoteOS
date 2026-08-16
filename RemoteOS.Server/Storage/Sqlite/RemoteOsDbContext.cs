@@ -18,6 +18,7 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
     public DbSet<HistoryEntry> History => Set<HistoryEntry>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<ImageMirror> ImageMirrors => Set<ImageMirror>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -143,6 +144,22 @@ public sealed class RemoteOsDbContext : DbContext
             e.Property(setting => setting.Revision).IsConcurrencyToken().IsRequired();
             e.Property(setting => setting.UpdatedAt).HasColumnType("TEXT");
             e.HasIndex(setting => new { setting.UserId, setting.UpdatedAt });
+        });
+
+        // ── image_mirrors ── per-user mirror prefixes. Selection is maintained in the
+        // repository so the default/no-mirror state needs no synthetic database row.
+        mb.Entity<ImageMirror>(e =>
+        {
+            e.ToTable("image_mirrors");
+            e.HasKey(mirror => mirror.Id);
+            e.Property(mirror => mirror.Id).HasColumnType("TEXT");
+            e.Property(mirror => mirror.UserId).HasColumnType("TEXT");
+            e.Property(mirror => mirror.Target).HasConversion<string>().HasMaxLength(32).IsRequired();
+            e.Property(mirror => mirror.Name).HasMaxLength(80).IsRequired();
+            e.Property(mirror => mirror.Endpoint).HasMaxLength(255).IsRequired();
+            e.Property(mirror => mirror.CreatedAt).HasColumnType("TEXT");
+            e.Property(mirror => mirror.UpdatedAt).HasColumnType("TEXT");
+            e.HasIndex(mirror => new { mirror.UserId, mirror.Target });
         });
     }
 }

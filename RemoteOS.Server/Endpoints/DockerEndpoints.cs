@@ -1,4 +1,5 @@
 using RemoteOS.Protocol.Docker;
+using System.Security.Claims;
 
 namespace Server.Endpoints;
 
@@ -14,7 +15,14 @@ public static class DockerEndpoints
         group.MapPost("/containers", (DockerContainerCreateRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.CreateContainerAsync(request, ct));
         group.MapPost("/containers/{id}/{action}", (string id, string action, DockerContainerActionRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ApplyContainerActionAsync(id, action, request, ct));
         group.MapGet("/images", (Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ListImagesAsync(ct));
-        group.MapPost("/images/pull", (DockerImageOperationRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.PullImageAsync(request, ct));
+        group.MapPost("/images/pull", (DockerImageOperationRequest request, ClaimsPrincipal principal, Server.ImageMirrors.IDockerImageMirrorResolver mirrors, Server.Docker.IDockerEngineService service, CancellationToken ct) =>
+        {
+            var subject = principal.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                ?? principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            return !Guid.TryParse(subject, out var userId)
+                ? Task.FromResult(new DockerOperationResult(false, "docker.operation_failed"))
+                : service.PullImageAsync(request, mirrors.Resolve(userId, request.ImageReference), ct);
+        });
         // DELETE endpoints do not infer a complex parameter as a request body.  The client
         // sends image-operation options in the body, so make that binding explicit.
         group.MapDelete("/images/{id}", (string id, [Microsoft.AspNetCore.Mvc.FromBody] DockerImageOperationRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.DeleteImageAsync(id, request, ct));

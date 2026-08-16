@@ -137,6 +137,16 @@ Docker Engine 仍是容器、镜像、卷、网络和运行状态的真源；Rem
 - 用户偏好、可恢复任务摘要和审计记录；
 - 管理器不保存 Docker socket、daemon TLS 私钥、Docker Desktop 账户令牌或明文 `.env` 秘密。
 
+### 3.4 Docker Hub 镜像源
+
+镜像源在内置“设置 → 镜像源”中按 RemoteOS 账户配置，而不是写入宿主机的全局 `daemon.json`。用户可维护多个 HTTPS、Docker Hub 兼容的 registry host，并选择其中一个或“默认”。
+
+- 默认：原样执行 `docker pull mysql:8.4`，由 Docker 使用默认 registry。
+- 选中镜像源：服务端从数据库读取当前用户的选择，将 Docker Hub 引用转换为 `{mirror}/library/mysql:8.4` 后再调用 Docker CLI。
+- 显式 registry（例如 `ghcr.io/owner/image`）不转换，避免把第三方镜像错误发送至 Docker Hub 镜像源。
+
+镜像地址不会由 Docker Manager 客户端随拉取请求发送，因此客户端不能替换其他用户的服务端选择；未来可通过 `ImageMirrorTarget` 扩展到其他镜像类服务。
+
 ---
 
 ## 4. 安全、权限与审计

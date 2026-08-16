@@ -56,9 +56,10 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
         var networkInspector = context.Services.GetRequiredService<NetworkInspectorWindowService>();
         var wallpapers = context.Services.GetRequiredService<WallpaperService>();
         var browserClient = context.Services.GetRequiredService<IBrowserClient>();
+        var imageMirrors = context.Services.GetRequiredService<IImageMirrorClient>();
 
         var viewModel = new SettingsViewModel(settings, settingsClient, session, apps, remote, system, registry, developerMode, packages,
-            browserClient, networkInspector, wallpapers: wallpapers);
+            browserClient, imageMirrors, networkInspector, wallpapers: wallpapers);
         var view = new SettingsView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("settings.title"), view,
             bounds: new Rect(180, 90, 820, 560),

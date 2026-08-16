@@ -92,6 +92,9 @@ public static class Bootstrapper
         services.AddHttpClient<ISettingsClient, SettingsClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "settings"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<IImageMirrorClient, ImageMirrorClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "image-mirrors"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<IWallpaperClient, WorkspaceWallpaperClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "wallpaper"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();

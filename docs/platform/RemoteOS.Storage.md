@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS.Server 的持久化存储方案：技术选型、持久化范围、表结构、仓储层、建库策略、配置项，以及与登录流程的交互。
 >
-> 本文档针对「配置 + 身份」这一组持久实体落地（User / Workspace / Device / AppSettings，含终端外观配置 TerminalSettings），让终端与应用私有配置等服务端状态跨重启保留。
+> 本文档针对「配置 + 身份」这一组持久实体落地（User / Workspace / Device / AppSettings / ImageMirrors，含终端外观配置 TerminalSettings），让终端与应用私有配置等服务端状态跨重启保留。
 >
 > - 用户/Workspace 模型见 [`RemoteOS.Workspace.md`](../architecture/RemoteOS.Workspace.md)
 > - 登录与身份见 [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) / [`RemoteOS.Login.md`](./RemoteOS.Login.md)
@@ -58,12 +58,13 @@
 | **User** | ✅ SQLite | 登录 `FindByUsername` 命中后复用；若不持久化，重启后 User.Id 变化 → `FindByUserId` 找不到旧 Workspace → TerminalSettings 成孤儿丢失。**必须与 Workspace 配套**。 |
 | **Workspace**（含 TerminalSettings / BrowserSettings / Preferences / WindowLayouts） | ✅ SQLite | 系统级、Workspace 语义强的配置均以 JSON 列随 Workspace 持久。 |
 | **AppSettings** | ✅ SQLite | 内置/外置应用的私有版本化 JSON 配置，按 User + scope + AppId + key 隔离；详见 [`RemoteOS.AppSettings.md`](../development/RemoteOS.AppSettings.md)。 |
+| **ImageMirrors** | ✅ SQLite | 按 User + 目标服务隔离的镜像仓库前缀与当前选择；Docker 拉取时由服务端读取，选择默认不使用镜像源。 |
 | **Device** | ✅ SQLite | 设备登记历史，与 User/Workspace 同属「持久实体」，保持一致。 |
 | Session | ❌ 内存 | 「连接关系」是运行时状态（Created→Active→Disconnected→Expired），重启后旧 Session 本就应失效，用户重新登录即可。持久化反而引入状态不一致。 |
 | AuthSessionStore（refresh token） | ❌ 内存 | 安全令牌重启失效 = 强制重新登录，符合安全语义（与 mstsc 默认不保存凭据一致）。 |
 | TerminalSessionManager（PTY + 环形缓冲） | ❌ 内存 | PTY 是活进程，无法序列化；重启后用户重连新建 PTY + 回放缓冲（缓冲内存丢失为已知行为，见 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)）。 |
 
-> 结论：持久化 **User + Workspace + Device + AppSettings**，以及浏览器书签/历史。Session / refresh token / PTY 维持内存，符合各自语义。
+> 结论：持久化 **User + Workspace + Device + AppSettings + ImageMirrors**，以及浏览器书签/历史。Session / refresh token / PTY 维持内存，符合各自语义。
 
 ---
 
@@ -133,6 +134,19 @@
 
 这是独立表，**不得**把任意应用配置追加到 `workspaces` 的系统偏好 JSON 列。旧数据库在服务端启动时以 `CREATE TABLE IF NOT EXISTS` 增量补齐；长期 schema 演进仍应迁移到 EF Core Migrations。
 
+### 5.5 image_mirrors
+
+| 列 | 类型 | 约束 |
+| --- | --- | --- |
+| Id | TEXT | PK |
+| UserId / Target | TEXT | 当前账户和使用该镜像源的服务（目前为 Docker） |
+| Name | TEXT | NOT NULL，≤80 |
+| Endpoint | TEXT | NOT NULL，≤255，HTTPS registry host，不含路径或凭据 |
+| IsSelected | INTEGER | 当前服务是否使用此镜像源；没有选中项即为默认直连 |
+| CreatedAt / UpdatedAt | TEXT | NOT NULL（ISO 8601） |
+
+镜像源不是 Docker 守护进程的全局 `registry-mirrors` 配置。它是用户选定的拉取前缀：服务端仅在 Docker Hub 镜像拉取时读取当前用户的选择，并将如 `mysql:8.4` 解析成 `{Endpoint}/library/mysql:8.4`。显式指定的第三方仓库（例如 `ghcr.io/...`）保持不变。
+
 ---
 
 ## 6. 仓储层
@@ -144,6 +158,7 @@
 - `IWorkspaceRepository`：FindByUserId / FindById / Add / Update
 - `IDeviceRepository`：FindByNameAndPlatform / FindById / Add / Update
 - `IAppSettingsRepository`：Find / Upsert（带 revision 乐观并发）
+- `IImageMirrorRepository`：List / Create / Update / Delete / Select / GetSelected（按 User + Target 隔离）
 - `ISessionRepository`：始终 `InMemorySessionRepository`（Session 不持久化）
 
 ### 6.2 新增 EF 实现

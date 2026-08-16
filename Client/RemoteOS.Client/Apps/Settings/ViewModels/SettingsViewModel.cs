@@ -42,6 +42,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         DeveloperModeService? developerMode,
         DeveloperPackageManager? packages,
         IBrowserClient? browserClient,
+        IImageMirrorClient? imageMirrors,
         NetworkInspectorWindowService? networkInspector = null,
         LocalizationService? localization = null,
         WallpaperService? wallpapers = null)
@@ -66,6 +67,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             new TimeLanguagePageViewModel(settings, localization, save),
             new NetworkPageViewModel(settings, session, remote!, system!, save),
             new AppsPageViewModel(settings, apps!, packages!, localization, browserClient!),
+            new ImageMirrorsPageViewModel(settings, imageMirrors!, session),
             new DefaultAppsPageViewModel(settings, apps!, save),
             new DeveloperPageViewModel(settings, developerMode!, networkInspector!, localization, save),
         };
@@ -105,6 +107,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
         if (Pages.OfType<NetworkPageViewModel>().FirstOrDefault() is { } networkPage)
             await networkPage.LoadServerAddressesAsync();
+        if (Pages.OfType<ImageMirrorsPageViewModel>().FirstOrDefault() is { } imageMirrorsPage)
+            await imageMirrorsPage.LoadAsync();
 
         try
         {
