@@ -111,4 +111,11 @@ public static class RemoteOsActivationUris
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return new Uri($"remoteos://file/open?appId={Uri.EscapeDataString(appId.Value)}&path={Uri.EscapeDataString(path)}");
     }
+
+    /// <summary>Internal route to navigate RemoteExplorer to a server-side directory.</summary>
+    public static Uri ExplorerPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return new Uri($"remoteos://explorer/open?path={Uri.EscapeDataString(path)}");
+    }
 }

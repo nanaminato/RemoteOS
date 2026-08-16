@@ -99,6 +99,17 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options, ILogg
         return ToOperationResult(await RunAsync(arguments, cancellationToken));
     }
 
+    public async Task<DockerOperationResult> UpdateContainerAsync(string id, DockerContainerUpdateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!IsContainerId(id) || !IsContainerId(request.Name))
+            return new DockerOperationResult(false, "docker.validation_failed");
+
+        // Rename is Docker's only safe in-place identity edit. Changing image, ports, mounts,
+        // or environment requires an explicit replacement workflow rather than a hidden
+        // destructive recreation.
+        return ToOperationResult(await RunAsync(["rename", id, request.Name], cancellationToken));
+    }
+
     public async Task<DockerNetworkDetailsDto?> GetNetworkAsync(string id, CancellationToken cancellationToken = default)
     {
         if (!IsContainerId(id)) return null;

@@ -13,6 +13,7 @@ public static class DockerEndpoints
         group.MapPost("/installation/execute", (DockerInstallationExecutionRequest request, Server.Docker.IDockerRuntimeInstaller installer, CancellationToken ct) => installer.ExecuteAsync(request, ct));
         group.MapGet("/containers", (Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ListContainersAsync(ct));
         group.MapPost("/containers", (DockerContainerCreateRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.CreateContainerAsync(request, ct));
+        group.MapPut("/containers/{id}", (string id, DockerContainerUpdateRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.UpdateContainerAsync(id, request, ct));
         group.MapPost("/containers/{id}/{action}", (string id, string action, DockerContainerActionRequest request, Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ApplyContainerActionAsync(id, action, request, ct));
         group.MapGet("/images", (Server.Docker.IDockerEngineService service, CancellationToken ct) => service.ListImagesAsync(ct));
         group.MapPost("/images/pull", (DockerImageOperationRequest request, ClaimsPrincipal principal, Server.ImageMirrors.IDockerImageMirrorResolver mirrors, Server.Docker.IDockerEngineService service, CancellationToken ct) =>
@@ -42,6 +43,7 @@ public static class DockerEndpoints
         group.MapGet("/stacks", (Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ListAsync(ct));
         group.MapPost("/stacks/validate", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ValidateAsync(definition, ct));
         group.MapPost("/stacks/deploy", (DockerStackDefinitionDto definition, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.DeployAsync(definition, ct));
+        group.MapGet("/stacks/{name}/definition", async (string name, Server.Docker.IDockerComposeService service, CancellationToken ct) => await service.GetDefinitionAsync(name, ct) is { } definition ? Results.Ok(definition) : Results.NotFound());
         group.MapGet("/stacks/{name}/services", (string name, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ListServicesAsync(name, ct));
         group.MapPost("/stacks/{name}/{action}", (string name, string action, Server.Docker.IDockerComposeService service, CancellationToken ct) => service.ApplyActionAsync(name, action, ct));
         return app;

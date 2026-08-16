@@ -2,7 +2,7 @@
 
 > 内置 Docker 管理器。它管理 **RemoteOS.Server 所在宿主机** 的本地 Docker Engine；客户端只负责本地 UI 渲染，不直连 Docker socket、不保存 Docker 凭据，也不将守护进程 API 暴露到网络。
 >
-> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷只读列表、容器启动/停止/重启，以及 Compose 编排项目的列表、校验、`up` 部署、服务查看和项目级启动/停止/重启。编排列表不展示 Compose 文件来源或宿主机路径。安装、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
+> 当前状态：**已实现**本机 Engine 状态、容器/镜像/网络/卷列表、容器生命周期与安全的原地重命名，以及 Compose 编排项目的列表、校验、编辑、`up` 部署、服务查看和项目级启动/停止/重启。编排会展示 Compose 文件来源；点击来源可路由至内置文件浏览器。RemoteOS 部署的 Compose 文件保存在服务器受管目录，停止后的项目仍会显示。安装、持久化 Stack 历史、终端、流式统计和审计仍为**设计中**。
 >
 > - 架构与内置应用边界：[`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
 > - 协议契约规则：[`RemoteOS.Protocol.md`](../architecture/RemoteOS.Protocol.md)

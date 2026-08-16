@@ -10,14 +10,16 @@
             <TextBlock Text="{loc:Loc docker.images_hint}" Foreground="#61708B" TextWrapping="Wrap" />
             <Button Content="{loc:Loc docker.image.pull}" Click="PullImage_Click" HorizontalAlignment="Left" />
             <Border Height="1" Background="#E5EAF2" Margin="0,2" />
-            <DataGrid ItemsSource="{Binding Images}" SelectedItem="{Binding SelectedImage, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" Height="230">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="{loc:Loc docker.table.repository}" Binding="{ReflectionBinding Repository}" Width="240" />
-                    <DataGridTextColumn Header="{loc:Loc docker.table.tag}" Binding="{ReflectionBinding Tag}" Width="120" />
-                    <DataGridTextColumn Header="{loc:Loc docker.table.size}" Binding="{ReflectionBinding Size}" Width="100" />
-                    <DataGridTextColumn Header="{loc:Loc docker.table.created}" Binding="{ReflectionBinding CreatedSince}" Width="180" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DataGrid ItemsSource="{Binding Images}" SelectedItem="{Binding SelectedImage, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Disabled" MinWidth="800" Height="230">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{loc:Loc docker.table.repository}" Binding="{ReflectionBinding Repository}" Width="300" />
+                        <DataGridTextColumn Header="{loc:Loc docker.table.tag}" Binding="{ReflectionBinding Tag}" Width="160" />
+                        <DataGridTextColumn Header="{loc:Loc docker.table.size}" Binding="{ReflectionBinding Size}" Width="120" />
+                        <DataGridTextColumn Header="{loc:Loc docker.table.created}" Binding="{ReflectionBinding CreatedSince}" Width="200" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </ScrollViewer>
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
                 <CheckBox Content="{loc:Loc docker.image.delete_confirm}" IsChecked="{Binding ConfirmImageDeletion, Mode=TwoWay}" VerticalAlignment="Center" />
                 <Button Content="{loc:Loc docker.image.delete}" Command="{Binding DeleteImageCommand}" Foreground="#B42318" />

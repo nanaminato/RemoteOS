@@ -5,20 +5,19 @@ using RemoteOS.Protocol.Docker;
 
 namespace Server.Docker;
 
-/// <summary>Runs only a small allow-list of Docker Compose operations in a temporary server-owned directory.</summary>
+/// <summary>Runs only a small allow-list of Docker Compose operations from server-owned files.</summary>
 public sealed class DockerComposeService(IHostEnvironment environment) : IDockerComposeService
 {
     private const int MaximumComposeBytes = 1024 * 1024;
 
     public Task<DockerStackOperationResult> ValidateAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
-        => ExecuteAsync(definition, ["config", "--quiet"], cancellationToken);
+        => ExecuteAsync(definition, ["config", "--quiet"], persistSource: false, cancellationToken: cancellationToken);
     public Task<DockerStackOperationResult> DeployAsync(DockerStackDefinitionDto definition, CancellationToken cancellationToken = default)
-        => ExecuteAsync(definition, ["up", "--detach", "--remove-orphans"], cancellationToken);
+        => ExecuteAsync(definition, ["up", "--detach", "--remove-orphans"], persistSource: true, cancellationToken: cancellationToken);
 
     /// <summary>
-    /// Reads the containers Docker labels as belonging to a Compose project. This deliberately
-    /// avoids exposing a host Compose-file path to the client and also works for projects that
-    /// were started outside RemoteOS.
+    /// Reads container labels as belonging to a Compose project. This also works for projects
+    /// started outside RemoteOS and for projects whose containers have all been stopped.
     /// </summary>
     public async Task<IReadOnlyList<DockerStackServiceDto>> ListServicesAsync(string name, CancellationToken cancellationToken = default)
     {
@@ -51,25 +50,67 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     }
     public async Task<IReadOnlyList<DockerStackDto>> ListAsync(CancellationToken cancellationToken = default)
     {
-        var result = await RunAsync(["compose", "ls", "--format", "json"], cancellationToken);
-        if (!result.Success) return [];
+        var result = await RunAsync(["compose", "ls", "--all", "--format", "json"], cancellationToken);
+        var stacks = new Dictionary<string, DockerStackDto>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            using var document = JsonDocument.Parse(result.Output);
-            if (document.RootElement.ValueKind != JsonValueKind.Array) return [];
-            return document.RootElement.EnumerateArray()
-                .Select(item => new DockerStackDto(Read(item, "Name"), Read(item, "Status"), Read(item, "ConfigFiles")))
-                .Where(stack => !string.IsNullOrWhiteSpace(stack.Name))
-                .OrderBy(stack => stack.Name, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            if (result.Success)
+            {
+                using var document = JsonDocument.Parse(result.Output);
+                if (document.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in document.RootElement.EnumerateArray())
+                    {
+                        var name = Read(item, "Name");
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            var files = Read(item, "ConfigFiles");
+                            stacks[name] = new DockerStackDto(name, Read(item, "Status"), files, ConfigDirectory(files));
+                        }
+                    }
+                }
+            }
         }
-        catch (JsonException) { return []; }
+        catch (JsonException) { /* Container labels below still recover stopped projects. */ }
+
+        // docker compose ls has varied between Compose releases. Labels are the Engine source
+        // of truth, so merge them as a fallback rather than letting a stopped project vanish.
+        var labels = await RunAsync(["ps", "--all", "--format", "{{.Label \\\"com.docker.compose.project\\\"}}\t{{.Label \\\"com.docker.compose.project.config_files\\\"}}"], cancellationToken);
+        if (labels.Success)
+        {
+            foreach (var row in labels.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(line => line.Split('\t', 2)))
+            {
+                var name = Value(row, 0);
+                if (!IsProjectName(name) || stacks.ContainsKey(name)) continue;
+                var files = Value(row, 1);
+                stacks[name] = new DockerStackDto(name, "stopped", files, ConfigDirectory(files));
+            }
+        }
+
+        return stacks.Values.OrderBy(stack => stack.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private async Task<DockerStackOperationResult> ExecuteAsync(DockerStackDefinitionDto definition, IReadOnlyList<string> composeCommand, CancellationToken cancellationToken)
+    public async Task<DockerStackDefinitionDto?> GetDefinitionAsync(string name, CancellationToken cancellationToken = default)
+    {
+        if (!IsProjectName(name)) return null;
+        var stack = (await ListAsync(cancellationToken)).FirstOrDefault(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        var composePath = FirstConfigFile(stack?.ConfigFiles);
+        if (composePath is null || !File.Exists(composePath)) return null;
+        try
+        {
+            var yaml = await File.ReadAllTextAsync(composePath, cancellationToken);
+            return yaml.Length <= MaximumComposeBytes ? new DockerStackDefinitionDto(stack!.Name, yaml) : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    private async Task<DockerStackOperationResult> ExecuteAsync(DockerStackDefinitionDto definition, IReadOnlyList<string> composeCommand, bool persistSource, CancellationToken cancellationToken)
     {
         if (!Validate(definition, out var problemCode)) return new DockerStackOperationResult(false, problemCode, []);
-        var directory = Path.Combine(environment.ContentRootPath, "data", "docker-compose", Guid.NewGuid().ToString("N"));
+        var directory = persistSource
+            ? Path.Combine(environment.ContentRootPath, "data", "docker-compose", definition.Name)
+            : Path.Combine(environment.ContentRootPath, "data", "docker-compose", "validation", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var composePath = Path.Combine(directory, "compose.yaml");
         try
@@ -84,7 +125,8 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
         }
         finally
         {
-            try { Directory.Delete(directory, recursive: true); } catch { /* best-effort cleanup; never expose the path */ }
+            if (!persistSource)
+                try { Directory.Delete(directory, recursive: true); } catch { /* best-effort cleanup */ }
         }
     }
 
@@ -114,6 +156,10 @@ public sealed class DockerComposeService(IHostEnvironment environment) : IDocker
     private static IReadOnlyList<string> ToLines(string message) => message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(line => line.Length <= 512 ? line : line[..512]).Take(20).ToArray();
     private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
     private static bool IsProjectName(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 63 && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+    private static string ConfigDirectory(string configFiles) => Path.GetDirectoryName(FirstConfigFile(configFiles) ?? string.Empty) ?? string.Empty;
+    private static string? FirstConfigFile(string? configFiles) => string.IsNullOrWhiteSpace(configFiles)
+        ? null
+        : configFiles.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
     private static string Read(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     private static string ToProblemCode(string error) => error.Contains("not_found", StringComparison.OrdinalIgnoreCase) ? "docker.not_installed" : error.Contains("permission denied", StringComparison.OrdinalIgnoreCase) ? "docker.permission_denied" : "docker.compose_failed";
     private sealed record CommandResult(bool Success, string Output, string Error);

@@ -10,6 +10,7 @@ public static class DockerApiRoutes
     public const string InstallationPlan = $"/{V1}/docker/installation/plan";
     public const string InstallationExecute = $"/{V1}/docker/installation/execute";
     public const string Containers = $"/{V1}/docker/containers";
+    public const string ContainerById = $"/{V1}/docker/containers/{{id}}";
     public const string ContainerAction = $"/{V1}/docker/containers/{{id}}/{{action}}";
     public const string Images = $"/{V1}/docker/images";
     public const string ImagePull = $"/{V1}/docker/images/pull";
@@ -27,5 +28,6 @@ public static class DockerApiRoutes
     public const string Stacks = $"/{V1}/docker/stacks";
     public const string StackDeploy = $"/{V1}/docker/stacks/deploy";
     public const string StackServices = $"/{V1}/docker/stacks/{{name}}/services";
+    public const string StackDefinition = $"/{V1}/docker/stacks/{{name}}/definition";
     public const string StackAction = $"/{V1}/docker/stacks/{{name}}/{{action}}";
 }

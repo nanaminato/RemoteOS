@@ -9,6 +9,8 @@ public sealed record DockerVolumeDetailsDto(string Name, string Driver, string M
 
 /// <summary>Structured container lifecycle request. Confirmation is required for irreversible actions.</summary>
 public sealed record DockerContainerActionRequest(bool Force = false, bool Confirmed = false);
+/// <summary>Docker permits renaming an existing container without recreating it.</summary>
+public sealed record DockerContainerUpdateRequest(string Name);
 
 /// <summary>
 /// Stable result for a Docker operation. <see cref="LogLines"/> contains bounded, sanitized

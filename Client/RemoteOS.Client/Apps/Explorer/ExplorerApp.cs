@@ -29,8 +29,9 @@ namespace Client.Apps.Explorer;
 /// UI 结构移植自 Jaya File Manager (BSD-3)：导航树 + Explorer 网格 + 地址栏 + 工具栏 + 状态栏。
 /// 所有文件操作经 <see cref="IExplorerClient"/> 调用 Server 端 REST API（JWT via <see cref="IAuthSession"/>）。
 /// 未登录时弹提示窗；服务端以宿主 OS 进程身份执行 IO，复用宿主用户/权限（不另建 ACL）。</summary>
-public sealed class ExplorerApp : RemoteApplicationBase
+public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
 {
+    private readonly Dictionary<ManagedWindow, ExplorerViewModel> _windows = [];
     public override ApplicationManifest Manifest { get; } = new(
         Id: new AppId("remoteos.explorer"),
         DisplayName: "RemoteExplorer",
@@ -38,7 +39,28 @@ public sealed class ExplorerApp : RemoteApplicationBase
         IconGlyph: "📁",
         Description: "远端文件管理器");
 
-    public override void Activate(AppContext context)
+    public override void Activate(AppContext context) => OpenExplorer(context, null);
+
+    public bool CanHandleActivation(Uri uri) =>
+        uri.Scheme.Equals("remoteos", StringComparison.OrdinalIgnoreCase)
+        && uri.Host.Equals("explorer", StringComparison.OrdinalIgnoreCase)
+        && uri.AbsolutePath.Equals("/open", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(QueryValue(uri, "path"));
+
+    public void HandleActivation(AppContext context, AppActivationRequest request, ManagedWindow? existingWindow)
+    {
+        var path = QueryValue(request.Uri, "path");
+        // For multi-window apps the runtime creates the new window before invoking the
+        // handler. Reuse that window instead of opening a duplicate Explorer instance.
+        if (existingWindow is not null && _windows.TryGetValue(existingWindow, out var viewModel))
+        {
+            _ = viewModel.NavigateToAsync(path);
+            return;
+        }
+        OpenExplorer(context, path);
+    }
+
+    private void OpenExplorer(AppContext context, string? initialPath)
     {
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
         var client = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
@@ -64,7 +86,12 @@ public sealed class ExplorerApp : RemoteApplicationBase
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.explorer.display_name"), view,
             bounds: new Rect(80, 60, 960, 640),
             iconGlyph: Manifest.IconGlyph);
-        viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
+        _windows[window] = viewModel;
+        viewModel.CloseAction = () => Dispatcher.UIThread.Post(() =>
+        {
+            _windows.Remove(window);
+            context.WindowManager.Close(window);
+        });
         window.KeyDown += (_, e) =>
         {
             if (e.Key == RemoteKey.Letter('L') && e.Modifiers == RemoteKeyModifiers.Control)
@@ -86,9 +113,21 @@ public sealed class ExplorerApp : RemoteApplicationBase
                 || WindowShortcut.TryExecute(e, RemoteKey.Letter('V'), RemoteKeyModifiers.Control, viewModel.PasteCommand);
         };
 
-        // 窗口打开后异步加载根
-        _ = viewModel.LoadRootAsync();
+        // 窗口打开后异步加载根；内部路由指定位置时直接导航到该目录。
+        _ = OpenInitialLocationAsync(viewModel, initialPath);
     }
+
+    private static async Task OpenInitialLocationAsync(ExplorerViewModel viewModel, string? initialPath)
+    {
+        await viewModel.LoadRootAsync();
+        if (!string.IsNullOrWhiteSpace(initialPath)) await viewModel.NavigateToAsync(initialPath);
+    }
+
+    private static string? QueryValue(Uri uri, string key) => uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries)
+        .Select(pair => pair.Split('=', 2))
+        .Where(pair => pair.Length == 2 && pair[0].Equals(key, StringComparison.OrdinalIgnoreCase))
+        .Select(pair => Uri.UnescapeDataString(pair[1]))
+        .FirstOrDefault();
 
     /// <summary>将对话框回调注入 VM：文本输入 / 确认 / 本地文件选择（上传/下载） / 消息 / 关闭。</summary>
     private static void WireDialogs(AppContext context, ExplorerViewModel vm, IExplorerClient client)

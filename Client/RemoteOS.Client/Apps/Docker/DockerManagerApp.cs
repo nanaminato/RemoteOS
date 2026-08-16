@@ -37,6 +37,15 @@ public sealed class DockerManagerApp : RemoteApplicationBase
             () => DockerManagerDialogs.ShowCreateVolumeAsync(context, window!, vm));
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.docker.display_name"), view, new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
         vm.ShowDockerUnavailableAsync = () => DockerManagerDialogs.ShowDockerUnavailableAsync(context, window, vm);
+        vm.ShowEditContainerAsync = () => DockerManagerDialogs.ShowEditContainerAsync(context, window!, vm);
+        vm.ShowEditStackAsync = () => DockerManagerDialogs.ShowEditStackAsync(context, window!, vm);
+        vm.OpenFileBrowserAtPathAsync = path =>
+        {
+            var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));
+            if (!activation.Succeeded && !activation.IsPendingUserChoice)
+                vm.StatusText = LocalizedText.Get("docker.stack.explorer_unavailable");
+            return Task.CompletedTask;
+        };
         vm.OpenDockerInstallGuideAsync = () =>
         {
             var language = (context.Services.GetService(typeof(ISystemLanguage)) as ISystemLanguage)?.CurrentLanguage ?? "en-US";
