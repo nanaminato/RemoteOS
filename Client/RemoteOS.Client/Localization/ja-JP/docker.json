@@ -78,6 +78,7 @@
     "docker.container.updated": "コンテナー {0} を更新しました。",
     "docker.container.update_failed": "コンテナーを更新できませんでした: {0}",
     "docker.container.details": "コンテナーの詳細",
+    "docker.container.id": "ID",
     "docker.container.details_loaded": "コンテナー {0} の詳細を読み込みました。",
     "docker.container.created_at": "作成日時",
     "docker.container.working_directory": "作業ディレクトリ",

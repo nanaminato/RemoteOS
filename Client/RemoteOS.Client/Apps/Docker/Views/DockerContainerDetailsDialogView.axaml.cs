@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Input.Platform;
 using RemoteOS.WindowManager;
 
 namespace Client.Apps.Docker.Views;

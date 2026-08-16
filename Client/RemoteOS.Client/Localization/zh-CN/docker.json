@@ -78,6 +78,7 @@
     "docker.container.updated": "已更新容器 {0}。",
     "docker.container.update_failed": "无法更新容器：{0}",
     "docker.container.details": "容器详情",
+    "docker.container.id": "ID",
     "docker.container.details_loaded": "已加载容器 {0} 的详情。",
     "docker.container.created_at": "创建时间",
     "docker.container.working_directory": "工作目录",

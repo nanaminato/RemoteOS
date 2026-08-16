@@ -78,6 +78,7 @@
     "docker.container.updated": "Updated container {0}.",
     "docker.container.update_failed": "Could not update container: {0}",
     "docker.container.details": "Container details",
+    "docker.container.id": "ID",
     "docker.container.details_loaded": "Loaded details for container {0}.",
     "docker.container.created_at": "Created",
     "docker.container.working_directory": "Working directory",

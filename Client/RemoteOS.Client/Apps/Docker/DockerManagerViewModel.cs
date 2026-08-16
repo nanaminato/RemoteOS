@@ -35,6 +35,11 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private DockerContainerDto? _selectedContainer;
     [ObservableProperty] private DockerContainerDetailsDto? _containerDetails;
     [ObservableProperty] private string _containerDetailsText = string.Empty;
+    [ObservableProperty] private string _containerPortsText = string.Empty;
+    [ObservableProperty] private string _containerMountsText = string.Empty;
+    [ObservableProperty] private string _containerNetworksText = string.Empty;
+    [ObservableProperty] private string _containerEnvironmentText = string.Empty;
+    [ObservableProperty] private string _containerLabelsText = string.Empty;
     [ObservableProperty] private string _containerLogs = string.Empty;
     [ObservableProperty] private string _containerStats = string.Empty;
     [ObservableProperty] private bool _confirmContainerDeletion;
@@ -166,6 +171,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         ContainerLogs = ContainerStats = string.Empty;
         ContainerDetails = null;
         ContainerDetailsText = string.Empty;
+        ContainerPortsText = ContainerMountsText = ContainerNetworksText = ContainerEnvironmentText = ContainerLabelsText = string.Empty;
         NotifyContainerCommands();
     }
     partial void OnConfirmContainerDeletionChanged(bool value) => DeleteContainerCommand.NotifyCanExecuteChanged();
@@ -201,6 +207,11 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         {
             ContainerDetails = await client.GetContainerAsync(container.Id);
             ContainerDetailsText = ContainerDetails is null ? string.Empty : FormatContainerDetails(ContainerDetails);
+            ContainerPortsText = ContainerDetails is null ? string.Empty : string.Join(Environment.NewLine, ContainerDetails.Ports);
+            ContainerMountsText = ContainerDetails is null ? string.Empty : string.Join(Environment.NewLine, ContainerDetails.Mounts);
+            ContainerNetworksText = ContainerDetails is null ? string.Empty : string.Join(Environment.NewLine, ContainerDetails.Networks);
+            ContainerEnvironmentText = ContainerDetails is null ? string.Empty : string.Join(Environment.NewLine, ContainerDetails.Environment);
+            ContainerLabelsText = ContainerDetails is null ? string.Empty : string.Join(Environment.NewLine, ContainerDetails.Labels.Select(label => $"{label.Key}={label.Value}"));
             StatusText = ContainerDetails is null
                 ? LocalizedText.Format("docker.action.failed", LocalizedText.Get("docker.container.details"), "docker.not_found")
                 : LocalizedText.Format("docker.container.details_loaded", container.Names);
