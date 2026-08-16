@@ -10,14 +10,13 @@ namespace Server.Docker;
 /// socket, keeping all transport details out of endpoints and clients. It deliberately uses
 /// fixed argument lists (never user-provided shell strings).
 /// </summary>
-public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDockerEngineService
+public sealed class DockerCliEngineService(DockerCliEngineOptions options, ILogger<DockerCliEngineService> logger) : IDockerEngineService
 {
-    private const int TimeoutSeconds = 10;
     private const int MaxArchiveBytes = 64 * 1024 * 1024;
 
     public async Task<DockerStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        var result = await RunAsync(["version", "--format", "{{json .Server}}"], cancellationToken);
+        var result = await RunAsync(["version", "--format", "{{json .Server}}"], cancellationToken, CommandTimeout.Status);
         if (!result.Success)
             return new DockerStatusDto(false, ToProblemCode(result), null, null, null);
 
@@ -60,25 +59,20 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
         if (action == "delete" && request.Force) arguments.Add("--force");
         if (action == "stop" && request.Force) arguments.Add("--time=0");
         arguments.Add(containerId);
-        var result = await RunAsync(arguments, cancellationToken);
-        return result.Success
-            ? new DockerOperationResult(true, string.Empty)
-            : new DockerOperationResult(false, ToProblemCode(result));
+        return ToOperationResult(await RunAsync(arguments, cancellationToken));
     }
 
     public async Task<DockerOperationResult> PullImageAsync(DockerImageOperationRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsImageReference(request.ImageReference)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["pull", request.ImageReference], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["pull", request.ImageReference], cancellationToken, CommandTimeout.LongRunning));
     }
 
     public async Task<DockerOperationResult> DeleteImageAsync(string imageId, DockerImageOperationRequest request, CancellationToken cancellationToken = default)
     {
         if (!request.Confirmed) return new DockerOperationResult(false, "docker.confirmation_required");
         if (!IsContainerId(imageId)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["image", "rm", imageId], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["image", "rm", imageId], cancellationToken));
     }
 
     public async Task<DockerOperationResult> CreateContainerAsync(DockerContainerCreateRequest request, CancellationToken cancellationToken = default)
@@ -101,8 +95,7 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
         if (!string.IsNullOrWhiteSpace(request.RestartPolicy)) { arguments.Add("--restart"); arguments.Add(request.RestartPolicy); }
         arguments.Add(request.Image);
         arguments.AddRange(request.Arguments);
-        var result = await RunAsync(arguments, cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(arguments, cancellationToken));
     }
 
     public async Task<DockerNetworkDetailsDto?> GetNetworkAsync(string id, CancellationToken cancellationToken = default)
@@ -138,31 +131,27 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
     public async Task<DockerOperationResult> CreateNetworkAsync(DockerNetworkCreateRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsContainerId(request.Name) || !IsContainerId(request.Driver)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["network", "create", "--driver", request.Driver, request.Name], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["network", "create", "--driver", request.Driver, request.Name], cancellationToken));
     }
 
     public async Task<DockerOperationResult> CreateVolumeAsync(DockerVolumeCreateRequest request, CancellationToken cancellationToken = default)
     {
         if (!IsContainerId(request.Name) || !IsContainerId(request.Driver)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["volume", "create", "--driver", request.Driver, request.Name], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["volume", "create", "--driver", request.Driver, request.Name], cancellationToken));
     }
 
     public async Task<DockerOperationResult> DeleteNetworkAsync(string id, bool confirmed, CancellationToken cancellationToken = default)
     {
         if (!confirmed) return new DockerOperationResult(false, "docker.confirmation_required");
         if (!IsContainerId(id)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["network", "rm", id], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["network", "rm", id], cancellationToken));
     }
 
     public async Task<DockerOperationResult> DeleteVolumeAsync(string name, bool confirmed, CancellationToken cancellationToken = default)
     {
         if (!confirmed) return new DockerOperationResult(false, "docker.confirmation_required");
         if (!IsContainerId(name)) return new DockerOperationResult(false, "docker.validation_failed");
-        var result = await RunAsync(["volume", "rm", name], cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        return ToOperationResult(await RunAsync(["volume", "rm", name], cancellationToken));
     }
 
     public async Task<DockerContainerLogsDto?> GetContainerLogsAsync(string id, int tail, CancellationToken cancellationToken = default)
@@ -194,8 +183,9 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
             arguments.Add("--file"); arguments.Add(dockerfile);
         }
         arguments.Add(contextDirectory);
-        var result = await RunAsync(arguments, cancellationToken);
-        return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+        // Build output can echo Dockerfile content and build arguments, so it is retained only
+        // in protected server diagnostics rather than returned to a client.
+        return ToOperationResult(await RunAsync(arguments, cancellationToken, CommandTimeout.LongRunning), includeLogLines: false);
     }
 
     public async Task<DockerImageArchiveDto?> ExportImageAsync(string imageId, CancellationToken cancellationToken = default)
@@ -225,8 +215,7 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
         try
         {
             await File.WriteAllBytesAsync(archivePath, content, cancellationToken);
-            var result = await RunAsync(["image", "load", "--input", archivePath], cancellationToken);
-            return new DockerOperationResult(result.Success, result.Success ? string.Empty : ToProblemCode(result));
+            return ToOperationResult(await RunAsync(["image", "load", "--input", archivePath], cancellationToken, CommandTimeout.LongRunning), includeLogLines: false);
         }
         finally { if (File.Exists(archivePath)) File.Delete(archivePath); }
     }
@@ -248,23 +237,62 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
             .Select(line => line.Split('\t')).ToArray();
     }
 
-    private static async Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private async Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken, CommandTimeout commandTimeout = CommandTimeout.Standard)
     {
+        var commandName = CommandName(arguments);
+        logger.LogInformation("Docker command {DockerCommand} started.", commandName);
         try
         {
             using var process = new Process { StartInfo = new ProcessStartInfo("docker") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true } };
             foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-            if (!process.Start()) return new CommandResult(false, "", "start_failed");
+            if (!process.Start()) return Complete(new CommandResult(false, "", "start_failed"), commandName);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(TimeoutSeconds));
-            var outputTask = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            var errorTask = process.StandardError.ReadToEndAsync(timeout.Token);
-            await process.WaitForExitAsync(timeout.Token);
-            return new CommandResult(process.ExitCode == 0, await outputTask, await errorTask);
+            timeout.CancelAfter(commandTimeout switch
+            {
+                CommandTimeout.Status => TimeSpan.FromSeconds(options.StatusCommandTimeoutSeconds),
+                CommandTimeout.LongRunning => TimeSpan.FromSeconds(options.LongRunningCommandTimeoutSeconds),
+                _ => TimeSpan.FromSeconds(options.CommandTimeoutSeconds)
+            });
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+                return Complete(new CommandResult(process.ExitCode == 0, await outputTask, await errorTask), commandName);
+            }
+            catch (OperationCanceledException)
+            {
+                TryStop(process);
+                await process.WaitForExitAsync(CancellationToken.None);
+                return Complete(new CommandResult(false, await outputTask, await errorTask, TimedOut: !cancellationToken.IsCancellationRequested), commandName);
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new CommandResult(false, "", "timeout"); }
-        catch (Exception exception) when (exception is Win32Exception or FileNotFoundException) { return new CommandResult(false, "", "not_found"); }
+        catch (Exception exception) when (exception is Win32Exception or FileNotFoundException) { return Complete(new CommandResult(false, "", "not_found"), commandName); }
     }
+
+    private CommandResult Complete(CommandResult result, string commandName)
+    {
+        if (result.Success)
+            logger.LogInformation("Docker command {DockerCommand} completed successfully.", commandName);
+        else
+            logger.LogWarning("Docker command {DockerCommand} failed. TimedOut: {TimedOut}; stderr: {DockerError}", commandName, result.TimedOut, Diagnostic(result.Error));
+        return result;
+    }
+    private static void TryStop(Process process)
+    {
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+        catch (InvalidOperationException) { /* The process exited between the checks. */ }
+    }
+    private static DockerOperationResult ToOperationResult(CommandResult result, bool includeLogLines = true) =>
+        new(result.Success, result.Success ? string.Empty : ToProblemCode(result), includeLogLines ? ToLogLines(result) : []);
+    private static IReadOnlyList<string> ToLogLines(CommandResult result) =>
+        string.Concat(result.Output, string.IsNullOrWhiteSpace(result.Output) || string.IsNullOrWhiteSpace(result.Error) ? string.Empty : Environment.NewLine, result.Error)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(line => line.Length <= 512 ? line : $"{line[..509]}...")
+            .TakeLast(100)
+            .ToArray();
+    private static string CommandName(IReadOnlyList<string> arguments) => string.Join(' ', arguments.Take(2));
+    private static string Diagnostic(string value) => value.Length <= 4096 ? value : $"{value[..4093]}...";
 
     private static string Read(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() ?? string.Empty : string.Empty;
     private static string Value(IReadOnlyList<string> row, int index) => index < row.Count ? row[index] : string.Empty;
@@ -285,12 +313,29 @@ public sealed class DockerCliEngineService(DockerCliEngineOptions options) : IDo
         var relative = Path.GetRelativePath(root, path);
         return relative != ".." && !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
     }
-    private static string ToProblemCode(CommandResult result) => result.Error.Contains("not_found", StringComparison.OrdinalIgnoreCase) ? "docker.not_installed" : result.Error.Contains("permission denied", StringComparison.OrdinalIgnoreCase) ? "docker.permission_denied" : "docker.unavailable";
-    private sealed record CommandResult(bool Success, string Output, string Error);
+    private static string ToProblemCode(CommandResult result)
+    {
+        if (result.TimedOut) return "docker.operation_timeout";
+        if (string.Equals(result.Error, "not_found", StringComparison.OrdinalIgnoreCase)) return "docker.not_installed";
+        if (result.Error.Contains("permission denied", StringComparison.OrdinalIgnoreCase)) return "docker.permission_denied";
+        return result.Error.Contains("Cannot connect to the Docker daemon", StringComparison.OrdinalIgnoreCase)
+            || result.Error.Contains("Is the docker daemon running", StringComparison.OrdinalIgnoreCase)
+            || result.Error.Contains("docker_engine", StringComparison.OrdinalIgnoreCase)
+            ? "docker.unavailable"
+            : "docker.operation_failed";
+    }
+    private sealed record CommandResult(bool Success, string Output, string Error, bool TimedOut = false);
+    private enum CommandTimeout { Status, Standard, LongRunning }
 }
 
 /// <summary>Host-admin approved source roots for Docker builds; an API caller cannot read arbitrary paths.</summary>
 public sealed class DockerCliEngineOptions
 {
     public IReadOnlyList<string> BuildRoots { get; init; } = [];
+    /// <summary>Maximum duration for fast availability checks.</summary>
+    public int StatusCommandTimeoutSeconds { get; init; } = 10;
+    /// <summary>Maximum duration for regular Docker management commands.</summary>
+    public int CommandTimeoutSeconds { get; init; } = 60;
+    /// <summary>Maximum duration for pulls, builds and archive imports.</summary>
+    public int LongRunningCommandTimeoutSeconds { get; init; } = 600;
 }

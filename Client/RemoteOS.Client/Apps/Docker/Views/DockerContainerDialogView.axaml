@@ -5,7 +5,7 @@
              x:Class="Client.Apps.Docker.Views.DockerContainerDialogView"
              x:DataType="docker:DockerManagerViewModel">
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="12">
-        <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="12">
             <TextBlock Text="{loc:Loc docker.containers_hint}" TextWrapping="Wrap" Foreground="#61708B" />
 
             <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*" RowSpacing="4" ColumnSpacing="10">
@@ -38,6 +38,7 @@
                 <TextBox Grid.Row="7" Grid.ColumnSpan="2" Text="{Binding ContainerArguments, Mode=TwoWay}"
                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="66" VerticalAlignment="Stretch" />
             </Grid>
+            <docker:DockerOperationActivityView Grid.Row="4" />
         </Grid>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

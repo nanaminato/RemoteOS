@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:docker="clr-namespace:Client.Apps.Docker"
+             x:Class="Client.Apps.Docker.DockerOperationActivityView"
+             x:DataType="docker:DockerManagerViewModel">
+    <Border IsVisible="{Binding HasOperationActivity}"
+            Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12">
+        <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{Binding OperationTitle}" FontWeight="SemiBold" Foreground="#163059" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{loc:Loc docker.operation.running_label}" IsVisible="{Binding IsOperationRunning}" Foreground="#2369A7" />
+            </Grid>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsOperationRunning}" Height="4" />
+            <Expander Header="{loc:Loc docker.operation.logs}">
+                <TextBox Text="{Binding OperationLog}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                         MinHeight="88" MaxHeight="180" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12" />
+            </Expander>
+        </StackPanel>
+    </Border>
+</UserControl>

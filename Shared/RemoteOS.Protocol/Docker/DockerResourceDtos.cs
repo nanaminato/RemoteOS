@@ -10,8 +10,12 @@ public sealed record DockerVolumeDetailsDto(string Name, string Driver, string M
 /// <summary>Structured container lifecycle request. Confirmation is required for irreversible actions.</summary>
 public sealed record DockerContainerActionRequest(bool Force = false, bool Confirmed = false);
 
-/// <summary>Stable result that does not expose Docker daemon error text to clients.</summary>
-public sealed record DockerOperationResult(bool Success, string ProblemCode);
+/// <summary>
+/// Stable result for a Docker operation. <see cref="LogLines"/> contains bounded, sanitized
+/// command progress for operations whose output is safe to show in the Docker Manager; detailed
+/// daemon diagnostics remain in the server logs.
+/// </summary>
+public sealed record DockerOperationResult(bool Success, string ProblemCode, IReadOnlyList<string>? LogLines = null);
 public sealed record DockerImageOperationRequest(string ImageReference, bool Confirmed = false);
 /// <summary>
 /// Structured container creation input. Options are kept separate from the command arguments so

@@ -5,7 +5,7 @@
              x:Class="Client.Apps.Docker.Views.DockerManagerWorkspace"
              x:DataType="docker:DockerManagerViewModel"
              Background="#F4F7FB">
-    <Grid RowDefinitions="Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*">
         <Grid.Styles>
             <!-- 基础状态 -->
             <Style Selector="Button.docker-status">
@@ -25,6 +25,12 @@
             <!-- 禁用状态 -->
             <Style Selector="Button.docker-status:disabled">
                 <Setter Property="Opacity" Value="1" />
+            </Style>
+
+            <Style Selector="Button.docker-status:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="#1C3765" />
+                <Setter Property="BorderBrush" Value="#2C568D" />
+                <Setter Property="Foreground" Value="#C8F6DD" />
             </Style>
         </Grid.Styles>
         <Border Grid.Row="0" Background="#122344" Padding="28,18">
@@ -52,7 +58,11 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="190,*">
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="#EDF4FF" BorderBrush="#CFE1FF" BorderThickness="0,0,0,1" Padding="18,10">
+            <docker:DockerOperationActivityView />
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="190,*">
             <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
                     <TextBlock Text="{loc:Loc docker.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
