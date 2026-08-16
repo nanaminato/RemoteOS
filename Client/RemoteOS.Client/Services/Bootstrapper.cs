@@ -171,6 +171,7 @@ public static class Bootstrapper
                 sp.GetRequiredService<DesktopRestoreOrchestrator>(),
                 sp.GetRequiredService<Client.Apps.Explorer.IExplorerClient>(),
                 sp.GetRequiredService<DefaultAppRegistry>(),
+                sp.GetRequiredService<ISettingsClient>(),
                 sp.GetRequiredService<IAppActivationDiagnostics>());
         });
 

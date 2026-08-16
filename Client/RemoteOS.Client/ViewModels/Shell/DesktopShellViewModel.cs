@@ -2,6 +2,9 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Threading;
 using Client.Apps.Explorer;
+using Client.Apps.Explorer.Dialogs;
+using Client.Apps.Settings;
+using Client.Localization;
 using Client.Services;
 using Client.Services.Auth;
 using Client.Services.DesktopRestore;
@@ -13,6 +16,7 @@ using RemoteOS.Core.Windows;
 using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Workspace;
 
 namespace Client.ViewModels.Shell;
 
@@ -31,7 +35,10 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly DesktopRestoreOrchestrator _desktopRestore;
     private readonly IExplorerClient _files;
     private readonly DefaultAppRegistry _defaultApps;
+    private readonly ISettingsClient _settingsClient;
     private readonly IAppActivationDiagnostics _activationDiagnostics;
+    private IReadOnlyList<FileSystemEntryDto> _desktopClipboard = Array.Empty<FileSystemEntryDto>();
+    private DesktopClipboardOperation _desktopClipboardOperation;
     private int _desktopFileLoadGeneration;
 
     public DesktopShellViewModel(
@@ -44,6 +51,7 @@ public partial class DesktopShellViewModel : ObservableObject
         DesktopRestoreOrchestrator desktopRestore,
         IExplorerClient files,
         DefaultAppRegistry defaultApps,
+        ISettingsClient settingsClient,
         IAppActivationDiagnostics activationDiagnostics)
     {
         _windowManager = windowManager;
@@ -55,6 +63,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _desktopRestore = desktopRestore;
         _files = files;
         _defaultApps = defaultApps;
+        _settingsClient = settingsClient;
         _activationDiagnostics = activationDiagnostics;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
@@ -92,6 +101,13 @@ public partial class DesktopShellViewModel : ObservableObject
     /// <summary>Application launchers and remote desktop files in the shared icon grid.</summary>
     public ObservableCollection<object> DesktopItems { get; } = new();
     public ObservableCollection<AppEntryViewModel> StartApps { get; } = new();
+
+    // The shell supplies these UI callbacks. Keeping prompts and picker controls out of this
+    // view-model lets the actual filesystem operations be shared by desktop context-menu items.
+    public Func<string, string, string, string, Task<string?>>? RequestDesktopTextInputAsync { get; set; }
+    public Func<string, string, string, Task<bool>>? RequestDesktopConfirmAsync { get; set; }
+    public Func<IReadOnlyList<ApplicationInfo>, string, Task<OpenWithChoice?>>? RequestDesktopOpenWithAsync { get; set; }
+    public Func<FilePropertiesDto, Task>? ShowDesktopPropertiesAsync { get; set; }
 
     [ObservableProperty] private bool _isStartOpen;
     [ObservableProperty] private bool _areDesktopIconsVisible = true;
@@ -214,6 +230,158 @@ public partial class DesktopShellViewModel : ObservableObject
         var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
         _activationDiagnostics.Record($"Desktop file open result: name={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
     }
+
+    [RelayCommand]
+    private async Task OpenDesktopEntryWithAsync(DesktopFileEntryViewModel? item)
+    {
+        if (item is null)
+            return;
+        if (item.IsDirectory)
+        {
+            OpenDesktopEntry(item);
+            return;
+        }
+
+        var openers = _applications.FileOpenersForPath(item.Entry.Path);
+        if (openers.Count == 0 || RequestDesktopOpenWithAsync is null)
+            return;
+
+        var choice = await RequestDesktopOpenWithAsync(openers, Path.GetExtension(item.Entry.Name));
+        if (choice is null)
+            return;
+
+        var selectedApplication = choice.ApplicationId;
+        var extension = Path.GetExtension(item.Entry.Name);
+        if (choice.SetAsDefault && !string.IsNullOrWhiteSpace(extension))
+            await SaveDesktopDefaultAppAsync(extension, selectedApplication);
+
+        var result = _applications.Activate(new AppActivationRequest(
+            RemoteOsActivationUris.OpenFile(new AppId(selectedApplication), item.Entry.Path)));
+        _activationDiagnostics.Record($"Desktop open-with result: name={item.DisplayName}, app={selectedApplication}, result={result.Status}.");
+    }
+
+    [RelayCommand]
+    private void OpenDesktopEntryTerminal(DesktopFileEntryViewModel? item)
+    {
+        var workingDirectory = item is { IsDirectory: true }
+            ? item.Entry.Path
+            : _desktopPath;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+            _applications.OpenTerminal(workingDirectory);
+    }
+
+    [RelayCommand]
+    private void CopyDesktopEntry(DesktopFileEntryViewModel? item)
+    {
+        if (item is null) return;
+        _desktopClipboard = [item.Entry];
+        _desktopClipboardOperation = DesktopClipboardOperation.Copy;
+    }
+
+    [RelayCommand]
+    private void CutDesktopEntry(DesktopFileEntryViewModel? item)
+    {
+        if (item is null) return;
+        _desktopClipboard = [item.Entry];
+        _desktopClipboardOperation = DesktopClipboardOperation.Cut;
+    }
+
+    [RelayCommand]
+    private async Task PasteDesktopEntryAsync(DesktopFileEntryViewModel? item)
+    {
+        var targetDirectory = item is { IsDirectory: true } ? item.Entry.Path : _desktopPath;
+        if (string.IsNullOrWhiteSpace(targetDirectory) || _desktopClipboard.Count == 0)
+            return;
+
+        try
+        {
+            foreach (var entry in _desktopClipboard)
+            {
+                var destination = CombineRemotePath(targetDirectory, entry.Name);
+                if (PathEquals(entry.Path, destination))
+                {
+                    // Copying to the same Desktop should behave like a desktop file manager,
+                    // producing a sibling copy instead of silently doing nothing.
+                    if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
+                        continue;
+                    destination = await GetAvailableDesktopCopyPathAsync(targetDirectory, entry.Name);
+                }
+                if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
+                    await _files.MoveAsync(entry.Path, destination, overwrite: false);
+                else
+                    await _files.CopyAsync(entry.Path, destination, overwrite: false);
+            }
+
+            if (_desktopClipboardOperation == DesktopClipboardOperation.Cut)
+                _desktopClipboard = Array.Empty<FileSystemEntryDto>();
+            RefreshDesktop();
+        }
+        catch (Exception ex)
+        {
+            _activationDiagnostics.Record($"Desktop paste failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RenameDesktopEntryAsync(DesktopFileEntryViewModel? item)
+    {
+        if (item is null || RequestDesktopTextInputAsync is null) return;
+        var newName = await RequestDesktopTextInputAsync(
+            T("common.rename", "Rename"), T("explorer.rename_prompt", "Enter a new name:"),
+            item.Entry.Name, T("common.rename", "Rename"));
+        if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, item.Entry.Name, StringComparison.Ordinal)) return;
+
+        try
+        {
+            await _files.RenameAsync(item.Entry.Path, newName);
+            RefreshDesktop();
+        }
+        catch (Exception ex)
+        {
+            _activationDiagnostics.Record($"Desktop rename failed: name={item.DisplayName}, error={ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task DeleteDesktopEntryAsync(DesktopFileEntryViewModel? item)
+    {
+        if (item is null || RequestDesktopConfirmAsync is null) return;
+        var confirmed = await RequestDesktopConfirmAsync(
+            T("common.delete", "Delete"),
+            LocalizedText.Format("explorer.delete_confirmation", item.Entry.Name),
+            T("common.delete", "Delete"));
+        if (!confirmed) return;
+
+        try
+        {
+            await _files.DeleteAsync(item.Entry.Path);
+            RefreshDesktop();
+        }
+        catch (Exception ex)
+        {
+            _activationDiagnostics.Record($"Desktop delete failed: name={item.DisplayName}, error={ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowDesktopEntryPropertiesAsync(DesktopFileEntryViewModel? item)
+    {
+        if (item is null || ShowDesktopPropertiesAsync is null) return;
+        try
+        {
+            var properties = await _files.GetPropertiesAsync(item.Entry.Path);
+            if (properties is not null)
+                await ShowDesktopPropertiesAsync(properties);
+        }
+        catch (Exception ex)
+        {
+            _activationDiagnostics.Record($"Desktop properties failed: name={item.DisplayName}, error={ex.Message}");
+        }
+    }
+
+    /// <summary>Used by the desktop-owned properties window to persist POSIX permission edits.</summary>
+    public Task<FilePropertiesDto> SetDesktopUnixPermissionsAsync(string path, int unixMode) =>
+        _files.SetUnixPermissionsAsync(path, unixMode);
 
     [RelayCommand]
     private void ShowDesktopEntryInExplorer(DesktopFileEntryViewModel? item)
@@ -368,6 +536,45 @@ public partial class DesktopShellViewModel : ObservableObject
         DesktopItems.Clear();
         foreach (var app in DesktopIcons) DesktopItems.Add(app);
         foreach (var file in DesktopFiles) DesktopItems.Add(file);
+    }
+
+    private static string CombineRemotePath(string directory, string name)
+    {
+        var separator = directory.Contains('\\') ? '\\' : '/';
+        var trimmed = directory.TrimEnd('\\', '/');
+        return trimmed.Length == 0 ? separator + name : trimmed + separator + name;
+    }
+
+    private static bool PathEquals(string first, string second) => string.Equals(
+        first.TrimEnd('\\', '/'), second.TrimEnd('\\', '/'),
+        OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    private async Task<string> GetAvailableDesktopCopyPathAsync(string directory, string name)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(name);
+        var extension = Path.GetExtension(name);
+        for (var index = 1; ; index++)
+        {
+            var candidateName = $"{baseName} ({index}){extension}";
+            var candidatePath = CombineRemotePath(directory, candidateName);
+            if (await _files.GetInfoAsync(candidatePath) is null)
+                return candidatePath;
+        }
+    }
+
+    private enum DesktopClipboardOperation { Copy, Cut }
+
+    private async Task SaveDesktopDefaultAppAsync(string extension, string applicationId)
+    {
+        var mappings = _defaultApps.Snapshot
+            .Where(mapping => !mapping.Scheme.Equals(extension, StringComparison.OrdinalIgnoreCase))
+            .Append(new DefaultAppMappingDto(extension, applicationId))
+            .ToArray();
+        _defaultApps.SetMappings(mappings);
+
+        if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } workspace })
+            return;
+        await _settingsClient.SaveAsync(url, tokens.AccessToken, workspace.Id, _settings.ToPreferences(mappings));
     }
 
     private void RefreshTaskbarGroups()

@@ -1,7 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Client.Apps.Explorer.Dialogs;
+using Client.Localization;
 using Client.ViewModels.Shell;
+using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.WindowManager;
 
 namespace Client.Views.Shell;
 
@@ -9,6 +13,7 @@ public partial class DesktopShellView : UserControl
 {
     private Canvas? _host;
     private Canvas? _fullScreenHost;
+    private DesktopFileEntryViewModel? _contextFile;
     private readonly CancellationTokenSource _desktopLifetime = new();
 
     public DesktopShellView()
@@ -27,6 +32,7 @@ public partial class DesktopShellView : UserControl
 
         vm.WindowManager.Attach(_host);
         vm.WindowManager.AttachFullScreenHost(_fullScreenHost);
+        ConfigureDesktopFileActions(vm);
         _host.SizeChanged += (_, _) => UpdateHostBounds();
         _fullScreenHost.SizeChanged += (_, _) => UpdateFullScreenHostBounds();
         this.LayoutUpdated += OnFirstLayout;
@@ -105,6 +111,7 @@ public partial class DesktopShellView : UserControl
     private void DesktopFileContextMenu_OnOpened(object? sender, RoutedEventArgs e)
     {
         if (sender is not ContextMenu { PlacementTarget.DataContext: DesktopFileEntryViewModel file } menu) return;
+        _contextFile = file;
         SelectDesktopItem(file);
         SetMenuEntry(menu, file);
     }
@@ -123,15 +130,39 @@ public partial class DesktopShellView : UserControl
 
     private void DesktopFileOpenMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Tag: DesktopFileEntryViewModel file } && DataContext is DesktopShellViewModel shell)
+        if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
             shell.OpenDesktopEntryCommand.Execute(file);
     }
 
+    private void DesktopFileOpenWithMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.OpenDesktopEntryWithCommand);
+
+    private void DesktopFileOpenTerminalMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.OpenDesktopEntryTerminalCommand);
+
+    private void DesktopFileCopyMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.CopyDesktopEntryCommand);
+
+    private void DesktopFileCutMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.CutDesktopEntryCommand);
+
+    private void DesktopFilePasteMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.PasteDesktopEntryCommand);
+
+    private void DesktopFileRenameMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.RenameDesktopEntryCommand);
+
+    private void DesktopFileDeleteMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.DeleteDesktopEntryCommand);
+
     private void DesktopFileOpenInExplorerMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem { Tag: DesktopFileEntryViewModel file } && DataContext is DesktopShellViewModel shell)
+        if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
             shell.ShowDesktopEntryInExplorerCommand.Execute(file);
     }
+
+    private void DesktopFilePropertiesMenuItem_OnClick(object? sender, RoutedEventArgs e) =>
+        ExecuteDesktopFileCommand(sender, shell => shell.ShowDesktopEntryPropertiesCommand);
 
     private void DesktopRefreshMenuItem_OnClick(object? sender, RoutedEventArgs e)
     {
@@ -149,6 +180,76 @@ public partial class DesktopShellView : UserControl
     {
         foreach (var item in menu.Items.OfType<MenuItem>())
             item.Tag = entry;
+    }
+
+    private DesktopFileEntryViewModel? GetContextFile(object? sender) =>
+        (sender as MenuItem)?.Tag as DesktopFileEntryViewModel ?? _contextFile;
+
+    private void ExecuteDesktopFileCommand(object? sender,
+        Func<DesktopShellViewModel, System.Windows.Input.ICommand> command)
+    {
+        if (GetContextFile(sender) is { } file && DataContext is DesktopShellViewModel shell)
+            command(shell).Execute(file);
+    }
+
+    private void ConfigureDesktopFileActions(DesktopShellViewModel shell)
+    {
+        shell.RequestDesktopTextInputAsync = (title, prompt, value, confirmLabel) =>
+            ShowDesktopDialogAsync<string>(shell, title, new Size(460, 220), complete => new TextInputDialogView
+            {
+                DataContext = new TextInputDialogViewModel(prompt, value, complete, confirmLabel),
+            });
+        shell.RequestDesktopConfirmAsync = (title, message, confirmLabel) =>
+            ShowDesktopDialogAsync<bool>(shell, title, new Size(460, 220), complete => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(message, confirmed => complete(confirmed), confirmLabel),
+            }).ContinueWith(task => task.Result == true);
+        shell.RequestDesktopOpenWithAsync = (applications, extension) =>
+            ShowDesktopDialogAsync<OpenWithChoice>(shell, LocalizedText.Get("explorer.open_with"), new Size(500, 360), complete => new OpenWithDialogView
+            {
+                DataContext = new OpenWithDialogViewModel(applications, extension, complete),
+            });
+        shell.ShowDesktopPropertiesAsync = properties =>
+            ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("explorer.properties"), new Size(720, 620), complete => new FilePropertiesDialogView
+            {
+                DataContext = new FilePropertiesDialogViewModel(
+                    properties,
+                    unixMode => shell.SetDesktopUnixPermissionsAsync(properties.Path, unixMode),
+                    () => complete(true)),
+            });
+    }
+
+    private static Task<TResult?> ShowDesktopDialogAsync<TResult>(DesktopShellViewModel shell, string title, Size preferredSize,
+        Func<Action<TResult?>, Control> contentFactory)
+    {
+        var completion = new TaskCompletionSource<TResult?>();
+        ManagedWindow? window = null;
+        EventHandler<ManagedWindow>? closed = null;
+        void Complete(TResult? result)
+        {
+            if (!completion.TrySetResult(result)) return;
+            if (closed is not null) shell.WindowManager.WindowClosed -= closed;
+            if (window is not null) shell.WindowManager.Close(window);
+        }
+
+        var host = shell.WindowManager.HostBounds;
+        var width = host.Width > 0 ? Math.Min(preferredSize.Width, Math.Max(320, host.Width - 48)) : preferredSize.Width;
+        var height = host.Height > 0 ? Math.Min(preferredSize.Height, Math.Max(220, host.Height - 56)) : preferredSize.Height;
+        var bounds = new Rect(
+            host.Width > 0 ? Math.Max(24, (host.Width - width) / 2) : 120,
+            host.Height > 0 ? Math.Max(28, (host.Height - height) / 2) : 100,
+            width, height);
+        window = shell.WindowManager.Create(new WindowCreateOptions(
+            new AppId("remoteos.shell"), title, contentFactory(Complete), bounds,
+            IconGlyph: "📁", CanResize: true, CanMinimize: false, CanMaximize: false));
+        closed = (_, closedWindow) =>
+        {
+            if (!ReferenceEquals(closedWindow, window)) return;
+            shell.WindowManager.WindowClosed -= closed;
+            completion.TrySetResult(default);
+        };
+        shell.WindowManager.WindowClosed += closed;
+        return completion.Task;
     }
 
     private void TaskbarPreviewBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)

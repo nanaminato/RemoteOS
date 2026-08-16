@@ -199,7 +199,18 @@
                             <Button.ContextMenu>
                                 <ContextMenu Opened="DesktopFileContextMenu_OnOpened">
                                     <MenuItem Header="打开" Click="DesktopFileOpenMenuItem_OnClick" />
-                                    <MenuItem Header="在资源管理器中打开" Click="DesktopFileOpenInExplorerMenuItem_OnClick" />
+                                    <MenuItem Header="打开方式..." Click="DesktopFileOpenWithMenuItem_OnClick" />
+                                    <MenuItem Header="在此处打开终端" Click="DesktopFileOpenTerminalMenuItem_OnClick" />
+                                    <Separator />
+                                    <MenuItem Header="复制" Click="DesktopFileCopyMenuItem_OnClick" />
+                                    <MenuItem Header="剪切" Click="DesktopFileCutMenuItem_OnClick" />
+                                    <MenuItem Header="粘贴" Click="DesktopFilePasteMenuItem_OnClick" />
+                                    <Separator />
+                                    <MenuItem Header="重命名" Click="DesktopFileRenameMenuItem_OnClick" />
+                                    <MenuItem Header="删除" Click="DesktopFileDeleteMenuItem_OnClick" />
+                                    <Separator />
+                                    <MenuItem Header="在资源管理器中显示" Click="DesktopFileOpenInExplorerMenuItem_OnClick" />
+                                    <MenuItem Header="属性" Click="DesktopFilePropertiesMenuItem_OnClick" />
                                     <Separator />
                                     <MenuItem Header="刷新" Click="DesktopRefreshMenuItem_OnClick" />
                                 </ContextMenu>

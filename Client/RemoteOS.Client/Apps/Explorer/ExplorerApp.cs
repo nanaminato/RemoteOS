@@ -307,7 +307,7 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
                     properties,
                     unixMode => client.SetUnixPermissionsAsync(properties.Path, unixMode),
                     () => dialog.Close(true)),
-            });
+            }, new RemoteOS.Core.Primitives.Size(720, 620));
         };
     }
 
