@@ -1,5 +1,7 @@
 # RemoteOS WebServerManager / Nginx 集成设计
 
+> 状态：**设计中**。本文不表示 Nginx 发现、集成、托管、站点管理或证书部署已实现。
+
 ## 1. 设计背景
 
 RemoteOS 是一个仅管理当前主机的服务器管理程序，后端采用 .NET 10，支持 Windows 和 Linux。
@@ -1157,46 +1159,46 @@ IntegrationState = Integrated
 发现 Web Server：
 
 ```text
-POST /api/webservers/discover
+POST /api/v1/webservers/discover
 ```
 
 列出：
 
 ```text
-GET /api/webservers
+GET /api/v1/webservers
 ```
 
 状态：
 
 ```text
-GET /api/webservers/{id}/status
+GET /api/v1/webservers/{id}/status
 ```
 
 启用集成：
 
 ```text
-POST /api/webservers/{id}/integrate
+POST /api/v1/webservers/{id}/integrate
 ```
 
 测试配置：
 
 ```text
-POST /api/webservers/{id}/config/test
+POST /api/v1/webservers/{id}/config/test
 ```
 
 Reload：
 
 ```text
-POST /api/webservers/{id}/reload
+POST /api/v1/webservers/{id}/reload
 ```
 
 站点：
 
 ```text
-GET    /api/webservers/{id}/sites
-POST   /api/webservers/{id}/sites
-PUT    /api/webservers/{id}/sites/{siteId}
-DELETE /api/webservers/{id}/sites/{siteId}
+GET    /api/v1/webservers/{id}/sites
+POST   /api/v1/webservers/{id}/sites
+PUT    /api/v1/webservers/{id}/sites/{siteId}
+DELETE /api/v1/webservers/{id}/sites/{siteId}
 ```
 
 ---
@@ -1514,3 +1516,72 @@ RemoteOS 完整管理
 - 配置修改全部经过验证、备份和回滚。
 - Windows 与 Linux 平台差异被封装在实现层。
 - 为 IIS、Apache、Caddy 等未来扩展保留稳定边界。
+
+---
+
+## 30. 落地约束（当前管理员模式）
+
+### 30.1 管理员运行与特权边界
+
+RemoteOS 当前服务于单台服务器的网站管理员。WebServerManager 是内置可信管理功能，不使用 User / Workspace / `AppPermissions` 的细粒度授权；Web Server 实例、站点和配置快照均是**宿主机全局资源**。
+
+发现和只读状态可以在当前进程具有读取权限时运行。集成、安装、升级、卸载、写配置、重载、启动/停止和证书部署只允许 RemoteOS 以管理员身份运行时执行。权限不足时返回稳定问题码并要求管理员以更高权限重新启动/安装 RemoteOS：
+
+```text
+webserver.admin_required
+webserver.config_elevation_required
+webserver.lifecycle_elevation_required
+webserver.install_elevation_required
+```
+
+客户端不得收集 sudo/UAC/服务账户密码，也不得把请求参数拼接为 shell 命令。Linux 使用参数数组和明确的 systemd/nginx 可执行文件；Windows 使用 SCM 或受控进程 API。任何高权限执行器只能接受本模块定义的结构化操作和允许的路径，不能成为通用命令执行入口。
+
+### 30.2 Provider、能力与输入校验
+
+`IWebServerProvider` 仅描述 Provider 能力；实际可用能力由 `WebServerInstance + ManagementMode + 当前权限` 共同决定。`External` 只能检测、读取和（若 Provider 支持）测试，不得宣称具备“管理站点/修改配置/重载”的能力；`Integrated` 仅可修改 RemoteOS ownership 的目录；`Managed` 才可提供安装、升级和卸载。
+
+`ReverseProxyTarget.Address` 不是可直接写入 Nginx 的任意 URI。服务端必须拒绝 URI 凭据、控制字符、未知 scheme 和未声明端口，规范化主机名并在解析后再次校验地址，防止 DNS rebinding。V1 仅支持显式确认的 `http`/`https` 上游；对 loopback、私网、链路本地和元数据地址的代理采用管理员可见的策略，不能让站点表单成为 SSRF 或内网扫描接口。
+
+### 30.3 可验证的配置事务
+
+`NginxConfigTransaction` 必须在每个 WebServerInstance 上串行运行，采用以下不可分割流程：
+
+1. 解析实际 `nginx -V` 的 `--conf-path` 与 include 图；只允许在确认属于 `http {}` 上下文的位置写入一次 RemoteOS include。
+2. 对主配置和 RemoteOS-owned 文件记录 hash、inode/文件标识与版本；若外部修改与快照不一致则中止并要求重新读取，不覆盖用户变更。
+3. 在与最终文件相同文件系统的受控 staging 目录生成所有文件，拒绝相对路径、越界路径和符号链接。
+4. 通过使用该 staging 文件图的明确 `-c`/`-p` 参数执行 `nginx -t`；不得只测试尚未引用临时文件的旧主配置。
+5. 用原子 rename 提交 RemoteOS-owned 文件，再执行 reload 并验证退出码和运行状态。
+6. 失败时恢复磁盘上的前一版本；注意 Nginx reload 失败通常继续运行旧 worker，因此“运行中配置”和“磁盘配置”都必须报告并分别恢复。每一步写入 OperationId、快照 ID、问题码和脱敏诊断。
+
+卸载或删除站点只能删除带有 RemoteOS ownership 标记且 hash 匹配的文件，永不递归删除用户目录。
+
+### 30.4 Protocol、异步操作与审计
+
+所有 WebServer DTO、枚举、路由常量和序列化规则位于 `Shared/RemoteOS.Protocol/WebServers/`。Endpoint、Client 和 UI 不硬编码 API 字符串或平台命令。发现、读取状态和测试可同步返回；安装、升级、卸载、集成、站点修改、reload 和证书部署必须携带 `Idempotency-Key` 并创建持久化操作：
+
+```text
+OperationId
+State: queued | running | succeeded | failed | cancelled
+Stage
+ProblemCode
+SnapshotId
+StartedAt / CompletedAt
+```
+
+Client 可轮询 operation 或订阅后续定义的事件契约；断线、窗口关闭和重试不应重复执行变更。审计记录管理员、操作、目标实例/站点、确认、结果、快照和 OperationId，不记录私钥、完整 Nginx 配置秘密或命令行中的敏感值。
+
+### 30.5 持久化与迁移
+
+`WebServerInstanceRecord`、`WebSiteRecord`、`CertificateDeploymentRecord` 和 `WebServerConfigSnapshot` 都属于 HostGlobal 作用域。需补充：schema version、乐观并发 revision、Provider 版本/检测时间、所有权标记、配置内容版本、当前/上次成功部署版本、操作状态和保留期。
+
+新增表和索引必须通过版本化 SQLite migration 创建；不可依赖 `EnsureCreated()` 对既有数据库追加表或列。站点与部署记录应有外键/唯一约束（实例 + 规范化域名/绑定、证书 + 目标），配置快照需限制数量和大小，并记录不可恢复/外部修改状态。
+
+### 30.6 Kestrel 与证书协作
+
+WebServerManager 不拥有 Kestrel 的证书或监听配置。证书签发完成后仅通过 `CertificateDeploymentCoordinator` 调用目标 Deployer；Kestrel 的首启、原子证书版本切换、SNI/端口绑定、热加载、健康检查和失败回退由 CertificateManager 文档定义。Nginx Deployer 只能修改 RemoteOS-owned 站点/挑战片段，部署失败不能破坏已有有效证书配置。
+
+### 30.7 平台范围、UI 与验收
+
+V1 支持目标为 **Ubuntu 24.04 LTS** 与 **Windows Server 2016 及以上**。V1 仅交付 Nginx 的发现/只读状态和经管理员确认的最小集成；Nginx 安装、升级、卸载、IIS、Apache、Caddy 和自动 HTTPS 部署均为后续阶段，除非在两个目标平台完成验证。
+
+UI 必须使用 `webserver.*` 三语言本地化 key，显示管理模式、实际能力、权限不足、外部修改冲突、风险确认、操作进度和可恢复建议。验收至少覆盖：两平台检测；External 不写入；Integrated 的 include 上下文；并发修改锁；`nginx -t` 失败；reload 失败回退；取消/断线重连；管理员/非管理员降级；以及配置、日志和审计的秘密脱敏。

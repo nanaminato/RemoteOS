@@ -77,6 +77,8 @@ Operating System
 
 RemoteOS 不拥有最终权限。最终决定权在 **宿主 OS Kernel**（Linux Kernel / Windows NT Kernel）。
 
+当前产品采用“单机网站管理员”模式：第一方内置应用视为可信管理工具，不实施应用级 RBAC、租户隔离或 `AppPermissions` 授权页。该简化仅适用于已认证、由管理员运行的 RemoteOS 实例；不会绕过宿主 OS 的权限、API 认证、危险操作确认、输入校验或审计。将来提供非管理员账户或第三方应用前，必须恢复细粒度授权和资源隔离。
+
 ---
 
 ## 3. Responsibility Boundary

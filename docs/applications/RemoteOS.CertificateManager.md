@@ -1,5 +1,7 @@
 # RemoteOS 证书管理器设计
 
+> 状态：**设计中**。本文定义未来实现的边界，不表示证书签发、Kestrel 部署或自动续期已经可用。
+
 ## 1. 项目背景
 
 RemoteOS 是一个**仅管理当前主机**的服务器管理程序，后端采用 **.NET 10**，客户端采用 **Avalonia**，通过 HTTP/HTTPS 远程连接 RemoteOS 服务端。
@@ -201,7 +203,7 @@ Avalonia Client
 
 HTTP-01 的关键要求是：
 
-> ACME CA 必须能够通过公网访问  
+> ACME CA 必须能够通过公网访问
 > `http://example.com/.well-known/acme-challenge/{token}`
 
 外部访问端口固定为：
@@ -1336,3 +1338,80 @@ RemoteOS 当前只管理本机，因此证书管理功能应保持为一个**本
 > **RemoteOS 自身作为 ACME 客户端，使用 Anvil 实现 ACME 协议，本机生成和保存私钥，以 PEM 作为统一证书格式；HTTP-01 支持临时监听 80 和 WebRoot 两种方式，已有 IIS / Nginx 只负责暴露 challenge，而不是负责与 CA 协商；后续增加 DNS-01 和 Wildcard；续期采用 ARI 驱动，并保留到期时间兜底。**
 
 该方案既能够满足 RemoteOS 当前“单机服务器管理器”的需求，也为未来扩展更多 Web Server、DNS Provider 和 ACME CA 保留了清晰的边界。
+
+---
+
+## 35. 落地约束（当前管理员模式）
+
+### 35.1 操作者与高权限
+
+RemoteOS 面向单台服务器的网站管理员。证书管理器是内置可信管理应用，不采用 User / Workspace / `AppPermissions` 的细粒度权限模型；证书、ACME account 和部署目标均为**当前宿主机全局资源**。
+
+所有会改变宿主机状态的操作（申请、续期、删除、导入、部署、监听 TCP 80、修改 HTTPS 绑定）只在 RemoteOS 以管理员身份运行时可执行。Server 缺少所需权限时必须返回稳定问题码，例如：
+
+```text
+certificate.admin_required
+certificate.port80_elevation_required
+certificate.deployment_elevation_required
+```
+
+客户端只显示本地化说明，提示管理员以更高权限重新启动/安装 RemoteOS；不得收集或转发 sudo、UAC、服务账户密码，也不得把 HTTP API 变成任意命令提权通道。读取证书元数据可以在可访问证书目录时提供；私钥永不出现在 DTO、日志、审计或错误详情中。
+
+### 35.2 HTTP-01 可用性预检
+
+“本机 80 端口空闲”不是 Direct HTTP-01 的充分条件。每次申请前需进行预检并返回结构化结果：
+
+- 域名格式、IDN/Punycode 规范化、重复 SAN 和 wildcard 规则校验；wildcard 只能选择 DNS-01。
+- 解析 A 与 AAAA 记录；任一会被 CA 访问的地址都必须能正确提供 token。
+- 检查 TCP 80 的监听权限、占用、宿主防火墙、云防火墙/NAT/CDN 或上游反向代理。
+- Direct 模式仅在管理员权限可用时短暂监听，并且仅路由 `/.well-known/acme-challenge/{token}`；签发完成、取消或超时后确定性释放监听器和 token。
+- WebRoot 模式在写入后读取回 token，并在 CA 验证结束后清理；已有 Web Server 的重定向、默认站点和 IPv6 路由必须在预检中显示，不假定本地路径映射一定可公网访问。
+
+预检不能伪造“公网可达”的保证。DNS、NAT 或 CDN 状态无法确定时，UI 必须标识为需要管理员确认，并允许选择 WebRoot 或 DNS-01。
+
+### 35.3 Kestrel 启动、部署与轮换
+
+Kestrel 部署必须先实现，不能只在签发成功后尝试替换文件。实现应明确以下闭环：
+
+1. 首次启动没有受信证书时，按部署配置运行 HTTP、管理员提供的初始证书或显式开发证书；不得宣称已经提供受信 HTTPS。
+2. 证书文件写入版本目录后完成权限设置和完整性校验，再以原子指针/rename 切换“当前版本”；不可覆盖正在使用的文件。
+3. HTTPS 层通过受控的证书选择器或等价机制读取当前完整版本。新连接使用新证书，已有连接自然结束；若运行时不支持热加载，执行有健康检查和回退的 graceful restart。
+4. 部署失败保留前一可用版本，记录稳定问题码与关联操作 ID；证书签发成功不等同于部署成功。
+5. 一张证书可具有多个 DNS 名称和部署目标；SNI、端口、绑定、目标版本和最后一次健康检查均应作为部署元数据保存。
+
+### 35.4 Protocol 与操作模型
+
+Certificate 模块新增的路由常量、DTO、枚举和 JSON 约定必须位于 `Shared/RemoteOS.Protocol/Certificates/`，不得在 UI 或 Endpoint 中硬编码字符串。所有变更请求携带 `Idempotency-Key`，并返回：
+
+```text
+OperationId
+State: queued | running | succeeded | failed | cancelled
+Stage
+ProblemCode
+StartedAt / CompletedAt
+```
+
+签发、续期、部署、导入、删除和撤销属于长任务。Client 可轮询 operation 端点或订阅后续定义的事件契约；关闭窗口、断线和取消不得丢失服务端操作状态。审计记录操作者、目标、确认、结果和 OperationId，但绝不记录私钥、account key、DNS token、CSR 或完整 CA 响应。
+
+### 35.5 持久化、并发与保留期
+
+证书元数据进入 SQLite，PEM 和私钥仍保存在受保护文件系统。新增实体必须通过版本化迁移创建，而不是依赖 `EnsureCreated()`：
+
+```text
+certificate_records              certificate_deployment_records
+acme_account_records             certificate_operations
+certificate_renewal_attempts     certificate_audit_entries
+```
+
+记录需包含 schema version、创建/更新时间、当前版本、上次成功版本、部署目标、问题码和乐观并发 revision；对同一 ACME account、同一证书和同一部署目标使用互斥锁，避免手动续期与后台 Worker、重复请求或重试并发执行。挑战文件、失败任务和旧证书版本应定义保留期；删除先解除部署并二次确认，私钥清除使用平台允许的安全删除策略或记录为无法保证物理擦除。
+
+### 35.6 ACME 与秘密管理
+
+- ACME Directory 由管理员配置，生产与 staging account/order 严格分离；首次使用必须确认 CA 条款和联系方式。
+- 处理 CA 的 `Retry-After`、速率限制、ARI 不可用、订单失效、撤销和换钥；`NotAfter` 兜底必须有明确的最晚重试截止时间和告警状态。
+- 文件型私钥/account key 目录需要同时满足 RemoteOS 与实际部署目标（Kestrel/Nginx）的最小读取 ACL。密钥版本、DNS Provider 凭据或导入密码不得写入 SQLite 明文、appsettings、导出包或日志；后续 DNS Provider 使用 OS 安全存储引用。
+- 反向代理或 WebRoot 配置中的域名、路径、证书路径均由服务端规范化和白名单校验，拒绝相对路径、符号链接逃逸和 URI 中的凭据。
+
+### 35.7 平台范围与验收
+
+V1 的支持目标为 **Ubuntu 24.04 LTS** 与 **Windows Server 2016 及以上**。实现前分别验证：管理员检测、文件 ACL、短暂 TCP 80 监听、Kestrel 换证、证书目录恢复、IPv4/IPv6 WebRoot、取消/断线恢复和权限不足降级。Anvil 引入前还需在中央包管理中锁定版本，并记录许可证、.NET 10 与两个目标平台的兼容性、离线部署和升级策略。

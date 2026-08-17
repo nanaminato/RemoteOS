@@ -286,3 +286,21 @@ if (storageProvider == "sqlite")
 - [`RemoteOS.Authentication.md`](./RemoteOS.Authentication.md) / [`RemoteOS.Login.md`](./RemoteOS.Login.md) — 登录流程、身份映射
 - [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md) — 终端应用（TerminalSettings 的消费端）
 - [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md) — 架构原则
+
+---
+
+## 14. 证书与 Web Server 管理（设计中）
+
+证书和 Web Server 管理属于当前宿主机全局管理能力，不随 User、Workspace、Session 或 AppSettings 保存。其实现将新增独立的 HostGlobal 表：
+
+```text
+certificate_records              acme_account_records
+certificate_deployment_records   certificate_operations
+certificate_renewal_attempts     certificate_audit_entries
+webserver_instances              webserver_sites
+webserver_config_snapshots       webserver_operations
+```
+
+PEM、私钥、ACME account key 和 challenge 文件仍位于受平台 ACL 保护的文件系统；数据库只保存规范化元数据、受保护文件引用、版本、状态、稳定问题码、审计引用和保留期信息，绝不保存私钥、account key、DNS token 或导入密码。
+
+这组表第一次落地时必须从 `EnsureCreated()` 迁移到带 `__EFMigrationsHistory` 的 EF Core Migrations，或提供经过验证的一次性基线迁移。不得在启动时以临时 `CREATE TABLE` / `ALTER TABLE` 拼接生产 schema。每个可变实体使用 revision 并发令牌；Operation、重试、审计和配置快照须保存到服务重启后仍可恢复的存储中。具体字段和保留策略分别以 [`RemoteOS.CertificateManager.md`](../applications/RemoteOS.CertificateManager.md) §35.5 与 [`RemoteOS.WebServerManager.Design.md`](../applications/RemoteOS.WebServerManager.Design.md) §30.5 为准。
