@@ -1,36 +1,36 @@
-# RemoteOS Developer Mode
+# RemoteOS 开发者模式
 
-Developer Mode provides a localhost-only bridge for installing and refreshing development applications without publishing them to the application store. It is disabled by default.
+开发者模式提供了一个仅限本地主机的桥接通道，用于安装和刷新开发应用，而无需将它们发布到应用商店。默认情况下已禁用。
 
-## Enable and pair
+## 启用与配对
 
-Open **Settings → Applications → Developer Mode**, enable it, and copy the pairing token. The bridge listens only on `http://127.0.0.1:45321/api/developer/v1/` and requires the token in every `X-RemoteOS-Dev-Token` request header.
+打开 **设置 → 应用 → 开发者模式**，启用它，然后复制配对令牌。该桥接仅在 `http://127.0.0.1:45321/api/developer/v1/` 上监听，并在每个 `X-RemoteOS-Dev-Token` 请求头中要求提供令牌。
 
-Use the included CLI from the repository root. `pack` needs only the .NET SDK; a token is needed only when a command installs, updates, watches, or otherwise communicates with the running Shell:
+从仓库根目录使用内置 CLI。`pack` 命令只需要 .NET SDK；只有当命令安装、更新、监视或以其他方式与运行中的 Shell 通信时才需要令牌：
 
 ```powershell
-# Build a package. The default output is <project>/artifacts/<entry-assembly>.roapp.
+# 构建包。默认输出为 <project>/artifacts/<entry-assembly>.roapp。
 dotnet run --project Tools/RemoteOS.DevCli -- pack .\MyApp --configuration Release
 
-# Build, package, install, and launch in one command.
-$env:REMOTEOS_DEV_TOKEN = "<token from Settings>"
+# 一条命令完成构建、打包、安装和启动。
+$env:REMOTEOS_DEV_TOKEN = "<设置中的令牌>"
 dotnet run --project Tools/RemoteOS.DevCli -- pack .\MyApp --configuration Debug --install
 
-# Rebuild, package, and reinstall when the project source changes.
+# 当项目源码更改时重新构建、打包和重新安装。
 dotnet run --project Tools/RemoteOS.DevCli -- watch .\MyApp --configuration Debug
 ```
 
-The same commands work in PowerShell, bash, zsh, and cmd; only the environment-variable syntax differs. `watch <project>` rebuilds from source, creates a new package, then reinstalls and relaunches it. `watch <package.roapp>` remains available for an externally produced archive. Updating an app closes its windows, unloads its collectible assembly load context, registers the new version, and launches it again.
+相同的命令适用于 PowerShell、bash、zsh 和 cmd；只有环境变量语法不同。`watch <project>` 从源码重新构建，创建新包，然后重新安装并重新启动。`watch <package.roapp>` 仍可用于外部生成的归档。更新应用会关闭其窗口，卸载其可收集的程序集加载上下文，注册新版本，然后再次启动。
 
-## Package a third-party application
+## 打包第三方应用
 
-Place a `manifest.json` beside the application's `.csproj`, then use the following shell command:
+在应用的 `.csproj` 旁边放置 `manifest.json`，然后使用以下 shell 命令：
 
 ```bash
 dotnet run --project /path/to/RemoteOS/Tools/RemoteOS.DevCli -- pack ./MyApp/MyApp.csproj --configuration Release
 ```
 
-For a reusable shell command, build the included .NET tool once and install it from its local package directory:
+要获得可复用的 shell 命令，请构建内置的 .NET 工具一次，然后从其本地包目录安装：
 
 ```bash
 dotnet pack /path/to/RemoteOS/Tools/RemoteOS.DevCli --output /tmp/remoteos-dev-tool
@@ -38,29 +38,29 @@ dotnet tool install --global --add-source /tmp/remoteos-dev-tool RemoteOS.DevCli
 remoteos-dev pack ./MyApp/MyApp.csproj --configuration Release
 ```
 
-When RemoteOS publishes the tool to a package feed, replace `--add-source` with that feed. The `remoteos-dev` command accepts the same arguments as `dotnet run --project … --`.
+当 RemoteOS 将工具发布到包源时，用该源替换 `--add-source`。`remoteos-dev` 命令接受与 `dotnet run --project … --` 相同的参数。
 
-The CLI runs `dotnet publish` and writes a ZIP-format `.roapp` to `artifacts/<entry-assembly>.roapp`. It copies the complete publish output below the `lib/<TFM>/` directory declared by `entryAssembly`; private managed dependencies, `.deps.json`, and native runtime assets are therefore packaged consistently without application-specific scripts.
+CLI 运行 `dotnet publish` 并将 ZIP 格式的 `.roapp` 写入 `artifacts/<entry-assembly>.roapp`。它将完整的发布输出复制到 `entryAssembly` 声明的 `lib/<TFM>/` 目录下；私有托管依赖、`.deps.json` 和原生运行时资产因此被一致地打包，无需应用特定脚本。
 
-For a project that needs native platform assets, add the target runtime explicitly:
+对于需要原生平台资产的项目，请显式添加目标运行时：
 
 ```bash
 dotnet run --project /path/to/RemoteOS/Tools/RemoteOS.DevCli -- pack ./MyApp --runtime win-x64 --configuration Release
 ```
 
-Use one package per runtime identifier for native applications, for example `--runtime win-x64` and `--runtime linux-x64`, and declare the compatible client platforms in the manifest. Pure managed applications generally omit `--runtime` and produce one cross-platform package. Use `--manifest <path>` when the manifest is not beside the project, `--output <file.roapp>` to override the artifact location, and `--no-install` with `watch` to rebuild packages without contacting a Shell.
+对原生应用每个运行时标识符使用一个包，例如 `--runtime win-x64` 和 `--runtime linux-x64`，并在清单中声明兼容的客户端平台。纯托管应用通常省略 `--runtime` 并生成一个跨平台包。当清单不在项目旁边时使用 `--manifest <path>`，使用 `--output <file.roapp>` 覆盖制品位置，并在 `watch` 命令中使用 `--no-install` 在不联系 Shell 的情况下重建包。
 
-## Development package format
+## 开发包格式
 
-A `.roapp` file is a ZIP archive with this minimum structure:
+`.roapp` 文件是一个 ZIP 归档，具有以下最小结构：
 
 ```text
 manifest.json
 lib/net10.0/MyApp.dll
-lib/net10.0/<private dependencies>.dll
+lib/net10.0/<私有依赖>.dll
 ```
 
-`manifest.json`:
+`manifest.json`：
 
 ```json
 {
@@ -70,7 +70,7 @@ lib/net10.0/<private dependencies>.dll
   "entryAssembly": "lib/net10.0/MyApp.dll",
   "entryType": "Example.HelloApp",
   "iconGlyph": "🧪",
-  "description": "A development package",
+  "description": "一个开发包",
   "requestedPermissions": ["desktop.wallpaper.write"],
   "supportedFileExtensions": [".hello"],
   "supportedFileNames": [".hellorc"],
@@ -85,86 +85,67 @@ lib/net10.0/<private dependencies>.dll
 }
 ```
 
-`clientPlatforms` and `serverRequirements` are optional. An omitted or empty list means that the
-package places no restriction on that dimension. The shell evaluates them before loading the
-package assembly, both for desktop launches and **Open with** file launches. See
-[`RemoteOS.ApplicationCompatibility.md`](./RemoteOS.ApplicationCompatibility.md) for the complete
-contract and the server capability catalogue.
+`clientPlatforms` 和 `serverRequirements` 是可选的。省略或空列表意味着该包在该维度上没有限制。Shell 在加载包程序集之前评估它们，包括桌面启动和 **打开方式** 文件启动。完整的契约和服务器能力目录请参阅 [`RemoteOS.ApplicationCompatibility.md`](./RemoteOS.ApplicationCompatibility.md)。
 
-The entry type must implement `RemoteOS.AppSDK.IExternalRemoteApplication`. It receives `IExternalAppContext`, which exposes only approved RemoteOS capabilities, including owned-window creation and the permission-gated desktop appearance service.
+入口类型必须实现 `RemoteOS.AppSDK.IExternalRemoteApplication`。它接收 `IExternalAppContext`，该上下文仅暴露已批准的 RemoteOS 能力，包括自有窗口创建和权限门控的桌面外观服务。
 
-To appear in RemoteExplorer's **Open with** menu, the entry type must also implement `IExternalFileOpenApplication` and declare at least one accepted path rule. `supportedFileExtensions` is case-insensitive and each extension must begin with a dot. `supportedFileNames` accepts exact file names such as `.gitignore`; these take precedence over extension matches. `supportsExtensionlessFiles` enables a low-priority fallback only for files without an extension. Packages that omit all three fields remain launchable, but are never offered a file path.
+要出现在 RemoteExplorer 的 **打开方式** 菜单中，入口类型还必须实现 `IExternalFileOpenApplication` 并声明至少一个接受的路径规则。`supportedFileExtensions` 不区分大小写，每个扩展名必须以点开头。`supportedFileNames` 接受精确文件名，例如 `.gitignore`；这些优先于扩展名匹配。`supportsExtensionlessFiles` 仅对没有扩展名的文件启用低优先级回退。省略这三个字段的包仍可启动，但永远不会获得文件路径。
 
-`supportedUriSchemes` optionally declares custom URI schemes owned by a package. Each scheme must
-match `^[a-z][a-z0-9+.-]{0,31}$`; `remoteos` is reserved for the Shell. The entry type must implement
-`IExternalAppActivationHandler` to receive one of its declared URIs. The Shell selects the user's
-valid default application for the scheme, or the sole compatible handler when no default is set.
-Use `instancePolicy: "SingleWindow"` for a navigator such as Help Center so repeat links navigate the
-same window rather than opening duplicates.
+`supportedUriSchemes` 可选地声明包拥有的自定义 URI 方案。每个方案必须匹配 `^[a-z][a-z0-9+.-]{0,31}$`；`remoteos` 保留给 Shell 使用。入口类型必须实现 `IExternalAppActivationHandler` 以接收其声明的 URI 之一。Shell 为该方案选择用户有效的默认应用，或者在没有设置默认值时选择唯一兼容的处理程序。对导航器（如帮助中心）使用 `instancePolicy: "SingleWindow"`，这样重复的链接会导航到同一窗口而不是打开重复的窗口。
 
-## Server monitoring capability
+## 服务器监控能力
 
-`IExternalAppContext.ServerMonitor` provides a stable, read-only aggregate server metrics API. It requires the `server.metrics.read` manifest permission and user approval under **Application permissions**. `GetSnapshotAsync` returns one capability result; `WatchAsync` returns a host-polled sequence (minimum one-second interval) for live dashboards. It deliberately does not expose process enumeration, process termination, raw server credentials, or the task-manager client.
+`IExternalAppContext.ServerMonitor` 提供稳定的只读聚合服务器指标 API。它需要 `server.metrics.read` 清单权限和用户在 **应用权限** 下的批准。`GetSnapshotAsync` 返回一个能力结果；`WatchAsync` 返回主机轮询序列（最小一秒间隔）用于实时仪表板。它故意不暴露进程枚举、进程终止、原始服务器凭据或任务管理器客户端。
 
-The complete sample is in [`examples/ServerMonitor`](../../examples/ServerMonitor). Build, package, and install it with:
+完整示例位于 [`examples/ServerMonitor`](../../examples/ServerMonitor)。构建、打包并安装：
 
 ```powershell
-$env:REMOTEOS_DEV_TOKEN = "<token from Settings>"
+$env:REMOTEOS_DEV_TOKEN = "<设置中的令牌>"
 dotnet run --project Tools/RemoteOS.DevCli -- pack .\examples\ServerMonitor --configuration Debug --install
 ```
 
-After installation, grant **读取服务器性能指标** to **Server Monitor** in Settings, then launch the desktop icon.
+安装后，在设置中向 **Server Monitor** 授予 **读取服务器性能指标**，然后启动桌面图标。
 
-## Network Inspector
+## 网络检查器
 
-`Network Inspector` is a RemoteOS system diagnostics window, not a development package. Open it through **Settings → Developer → Network Inspector** or `Ctrl+Shift+I`. Recording is off by default; turning Developer Mode off or signing out immediately stops recording and clears its in-memory log. It displays only redacted RemoteOS REST and SignalR summaries, never tokens, cookies, media bodies, terminal data, or arbitrary device traffic.
+`网络检查器` 是一个 RemoteOS 系统诊断窗口，不是开发包。通过 **设置 → 开发者 → 网络检查器** 或 `Ctrl+Shift+I` 打开。默认为关闭状态；关闭开发者模式或退出登录会立即停止录制并清除其内存日志。它仅显示经过脱敏处理的 RemoteOS REST 和 SignalR 摘要，从不显示令牌、cookie、媒体正文、终端数据或任意设备流量。
 
-## Security model
+## 安全模型
 
-Developer packages use a reserved external app ID and cannot use the `remoteos.*` built-in namespace. They are installed below the current user's local application data and do not overwrite store packages. Developer Mode does not grant manifest permissions automatically; grant or revoke each requested capability under **Application permissions**.
+开发包使用保留的外部应用 ID，不能使用 `remoteos.*` 内置命名空间。它们安装在当前用户的本地应用数据下方，不会覆盖商店包。开发者模式不会自动授予清单权限；请在 **应用权限** 下授予或撤销每个请求的能力。
 
-The bridge has no LAN listener. Do not expose its pairing token. Regenerating the token invalidates existing developer tooling sessions.
+桥接没有局域网监听器。不要暴露其配对令牌。重新生成令牌会使现有的开发者工具会话失效。
 
-## Permission catalogue
+## 权限目录
 
-Package manifests request stable, host-defined permissions rather than defining their own permission types. Settings groups requested permissions by category and opens a separate editor for each application.
+包清单请求稳定的、主机定义的权限，而不是定义自己的权限类型。设置按类别分组请求的权限，并为每个应用打开单独的编辑器。
 
-| Category | Permission ids |
+| 类别 | 权限 ID |
 | --- | --- |
-| Server files | `server.files.read`, `server.files.write` |
-| Server monitoring | `server.metrics.read` |
-| Server management | `server.processes.manage`, `server.services.manage`, `server.power.manage` |
-| Server network | `server.network.read`, `server.network.configure` |
-| Desktop and workspace | `desktop.wallpaper.write` |
+| 服务器文件 | `server.files.read`, `server.files.write` |
+| 服务器监控 | `server.metrics.read` |
+| 服务器管理 | `server.processes.manage`, `server.services.manage`, `server.power.manage` |
+| 服务器网络 | `server.network.read`, `server.network.configure` |
+| 桌面与工作区 | `desktop.wallpaper.write` |
 
-Management permissions include only the minimal inspection needed to safely perform that action (for example, process management includes listing processes); they do not grant other categories. Declaring a future catalogue permission alone never grants access to host services until a permission-gated SDK capability exposes it.
+管理权限仅包括安全执行该操作所需的最小检查（例如，进程管理包括列出进程）；它们不授予其他类别。仅声明未来的目录权限永远不会授予对主机服务的访问，直到权限门控的 SDK 能力暴露它。
 
-Grants are local to the desktop client. On Windows they are stored with current-user DPAPI protection; other platforms use the compatible local JSON fallback.
+授予在桌面客户端是本地的。在 Windows 上，它们使用当前用户的 DPAPI 保护存储；其他平台使用兼容的本地 JSON 回退。
 
-## Clearing application data
+## 清除应用数据
 
-**Settings → Applications → [application] → Clear data** always removes the application's
-standard local-data directory on the current device. It deliberately does not uninstall the
-package. The user may additionally choose either or both of the following:
+**设置 → 应用 → [应用] → 清除数据** 始终会删除当前设备上该应用的标准本地数据目录。它故意不卸载包。用户还可以选择以下任一或两者：
 
-- **Permission decisions**: removes local `Granted`/`Denied` decisions for that app id. Its
-  declared permissions are therefore `Undecided` and will be requested again at a later launch.
-- **Server application data**: deletes every `IExternalAppContext.SettingsStore` document for
-  that app and current user, across its user, workspace, and device scopes.
+- **权限决策**：删除该应用 ID 的本地 `Granted`/`Denied` 决策。其声明的权限因此变为 `Undecided`，并将在下次启动时再次请求。
+- **服务器应用数据**：删除该应用和当前用户的每个 `IExternalAppContext.SettingsStore` 文档，跨其用户、工作区和设备范围。
 
-The second option is account-wide private configuration deletion, not merely a reset of the
-current device. A package must therefore tolerate missing settings documents after any launch.
+第二个选项是全账户私有配置删除，不仅仅是当前设备的重置。因此包必须在任何启动后容忍缺失的设置文档。
 
-## Runtime permission approval
+## 运行时权限批准
 
-When an application opens, the Shell opens one app-owned prompt for every declared permission that
-is still undecided. The application is already running while these prompts are shown: choosing
-**Deny** does not close it, and choosing **Later** leaves that permission undecided while the
-remaining prompts continue. Granted and denied decisions are remembered; only undecided
-permissions are prompted automatically on a later launch.
+当应用打开时，Shell 为每个仍未决定的声明权限打开一个应用拥有的提示。应用在这些提示显示时已经在运行：选择 **拒绝** 不会关闭它，选择 **稍后** 会在剩余提示继续时保持该权限未决定。授予和拒绝的决策会被记住；只有未决定的权限会在下次启动时自动提示。
 
-Both built-in `AppContext` and package `IExternalAppContext` expose the same scoped
-`Permissions` surface. It can only inspect or request the current application's declared IDs:
+内置的 `AppContext` 和包的 `IExternalAppContext` 都暴露相同的作用域 `Permissions` 表面。它只能检查或请求当前应用的声明 ID：
 
 ```csharp
 var status = context.Permissions.GetStatus("server.metrics.read");
@@ -174,33 +155,31 @@ if (status != AppPermissionStatus.Granted)
 if (status == AppPermissionStatus.Granted)
     await LoadMetricsAsync();
 
-// Opens remoteos://settings/apps/{this-app}/permissions.
+// 打开 remoteos://settings/apps/{this-app}/permissions。
 await context.Permissions.OpenSettingsAsync();
 ```
 
-`RequestAsync` deliberately shows the one-permission prompt again even after a previous denial;
-**Later** preserves the current decision. Applications must handle `Undecided` and `Denied` as
-not granted and keep their non-privileged functionality available.
+`RequestAsync` 故意在先前拒绝后再次显示单权限提示；**稍后** 保留当前决策。应用必须将 `Undecided` 和 `Denied` 视为未授予，并保持其非特权功能可用。
 
-## Navigate to application settings
+## 导航到应用设置
 
-An external application can send the user to the host-owned Applications page without receiving any additional permission:
+外部应用可以在不获得任何额外权限的情况下将用户发送到主机拥有的应用页面：
 
 ```csharp
 await context.Settings.OpenApplicationsAsync();
 ```
 
-The host reuses and focuses an existing Settings window when possible; otherwise it opens Settings and selects **Applications**. This API only performs navigation and cannot read or change settings.
+主机在可能时重用并聚焦现有的设置窗口；否则它打开设置并选择 **应用**。此 API 仅执行导航，不能读取或更改设置。
 
-## System language
+## 系统语言
 
-Package applications can read the workspace display language and refresh their UI when it changes. This is read-only and does not require a permission:
+包应用可以读取工作区显示语言，并在其更改时刷新其 UI。这是只读的，不需要权限：
 
 ```csharp
 context.SystemLanguage.LanguageChanged += (_, change) =>
     RefreshUi(change.CurrentLanguage);
 
-RefreshUi(context.SystemLanguage.CurrentLanguage); // BCP-47 name, such as "en-US"
+RefreshUi(context.SystemLanguage.CurrentLanguage); // BCP-47 名称，如 "en-US"
 ```
 
-The built-in language selector discovers files from the client `Localization` directory. A language file declares its BCP-47 `Culture`, display name, sort order, and source-string translations; adding a correctly formed `.json` file makes it selectable without changing client code.
+内置语言选择器从客户端 `Localization` 目录发现文件。语言文件声明其 BCP-47 `Culture`、显示名称、排序顺序和源字符串翻译；添加格式正确的 `.json` 文件即可选择，无需更改客户端代码。

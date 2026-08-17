@@ -1,38 +1,25 @@
-# RemoteOS Port Forwarding
+# RemoteOS 端口转发
 
-## Scope
+## 定位与范围
 
-`remoteos.port-forwarding` is a first-party Client application that creates local SSH forwards for
-services listening on the RemoteOS Server loopback interface. A request such as `localhost:7000`
-produces a Client-host URL such as `http://localhost:7000`; if that port is occupied, it searches
-for the next bindable loopback port and returns that effective URL.
+`remoteos.port-forwarding` 是 RemoteOS 的第一方客户端应用，用于为监听在 RemoteOS Server 环回接口上的服务创建本地 SSH 转发。当请求 `localhost:7000` 时，会生成客户端托管的 URL，如 `http://localhost:7000`；若该端口被占用，则搜索下一个可用的环回端口并返回实际的有效 URL。
 
-## Boundary and security model
+## 边界与安全模型
 
-- The Client starts `ssh -N -L 127.0.0.1:<local>:<server-loopback>:<remote>`; the listening socket
-  is always restricted to `127.0.0.1`, so it does not expose a service on the LAN.
-- Requests only accept `localhost` and `127.0.0.1` as the server-side target, and HTTP/HTTPS links.
-  They cannot become arbitrary network proxies.
-- SSH authentication is delegated to the host `ssh` program and its existing config, key files, and
-  agent. RemoteOS neither collects nor stores passwords, private keys, or tokens.
-- The service is registered as `IPortForwardingService` for the Port Forwarding application's local
-  lifecycle; RemoteBrowser does not call it or create tunnels automatically.
+- 客户端启动 `ssh -N -L 127.0.0.1:<本地端口>:<服务器环回地址>:<远程端口>`；监听套接字始终限制在 `127.0.0.1`，因此不会在局域网中暴露服务。
+- 请求仅接受 `localhost` 和 `127.0.0.1` 作为服务端目标，以及 HTTP/HTTPS 链接。它们不能成为任意网络代理。
+- SSH 认证委托给宿主 `ssh` 程序及其现有配置、密钥文件和代理。RemoteOS 不收集或存储密码、私钥或令牌。
+- 该服务注册为 `IPortForwardingService`，供端口转发应用的本地生命周期使用；RemoteBrowser 不会调用它或自动创建隧道。
 
-## Local-only state
+## 仅本地状态
 
-SSH host/user/port are stored at `LocalApplicationData/RemoteOS/port-forwarding.json`. The file
-contains non-secret connection preferences only. Running processes are held in memory and disappear
-when the Client exits. Neither setting is sent to the Server or added to Workspace preferences, so
-they are never synchronized between devices.
+SSH 主机/用户/端口存储在 `LocalApplicationData/RemoteOS/port-forwarding.json` 中。该文件仅包含非敏感的连接偏好。正在运行的进程保存在内存中，当客户端退出时消失。设置和活动隧道都不会发送到服务端或添加到 Workspace 偏好中，因此它们永远不会在设备之间同步。
 
-## Lifecycle
+## 生命周期
 
-1. Validate the loopback target and choose the requested local port when it can be bound; otherwise
-   search upward and then wrap for the next available port.
-2. Start OpenSSH with `BatchMode=yes` and `ExitOnForwardFailure=yes`; wait briefly for immediate
-   authentication/bind failure before returning success.
-3. Keep the owned process in the runtime registry and surface it in the application UI.
-4. Update replaces the selected process; stop terminates only the process owned by this Client.
+1. 验证环回目标，在可以绑定时选择请求的本地端口；否则向上搜索并循环以找到下一个可用端口。
+2. 以 `BatchMode=yes` 和 `ExitOnForwardFailure=yes` 启动 OpenSSH；短暂等待立即的认证/绑定失败后再返回成功。
+3. 在运行时注册表中保留已拥有的进程，并在应用 UI 中显示。
+4. 更新会替换所选进程；停止只会终止当前客户端拥有的进程。
 
-The UI allows starting, listing, changing, and stopping forwards. A failed SSH start returns a
-generic actionable status and never logs SSH output or credentials.
+UI 允许启动、列出、更改和停止转发。SSH 启动失败会返回通用的可操作状态，且从不记录 SSH 输出或凭据。

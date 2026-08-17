@@ -393,6 +393,7 @@ RemoteOS.Server     = Cloud Backend
 | [`Architecture`](./architecture/RemoteOS.Architecture.md) | 模块设计、依赖关系、架构原则 |
 | [`Protocol`](./architecture/RemoteOS.Protocol.md) | 通信协议契约层、REST/SignalR、序列化约定 |
 | [`Workspace`](./architecture/RemoteOS.Workspace.md) | User / Workspace / Session / Device、多设备、云桌面状态 |
+| [`ApplicationActivation`](./architecture/RemoteOS.ApplicationActivation.md) | 应用启动 URI、窗口实例策略、受控 `remoteos://` 路由 |
 
 ### 平台服务
 
@@ -407,7 +408,7 @@ RemoteOS.Server     = Cloud Backend
 
 | 文档 | 用途 |
 |------|------|
-| [`Desktop`](./desktop/RemoteOS.Desktop.md) | 桌面外壳、宿主窗口控制与模态对话框 |
+| [`Desktop`](./desktop/RemoteOS.Desktop.md) | 桌面外壳、宿主窗口控制、模态对话框与键盘路由 |
 | [`Settings`](./desktop/RemoteOS.Settings.md) | 设置中心、偏好持久化与多设备同步 |
 | [`Localization`](./desktop/RemoteOS.Localization.md) | 多语言机制、语言包结构与 i18n 约束 |
 

@@ -120,8 +120,11 @@ RemoteOS/
 │   │   │   ├── TaskManager/      # 任务管理器
 │   │   │   ├── Docker/           # Docker 管理器
 │   │   │   ├── ProcessGuardian/  # 进程守护
+│   │   │   ├── Firewall/         # Linux UFW 防火墙
+│   │   │   ├── PortForwarding/   # SSH 端口转发
 │   │   │   ├── Notepad/          # 记事本
 │   │   │   ├── CodeEditor/       # 代码编辑器
+│   │   │   ├── TextEditor/       # 文本编辑器（编码支持）
 │   │   │   ├── ImageViewer/      # 图片查看器
 │   │   │   ├── Welcome/          # 欢迎页
 │   │   │   └── AppInstaller/     # 应用安装器
@@ -141,12 +144,14 @@ RemoteOS/
 ├── RemoteOS.Server/              # 服务端（ASP.NET Core）
 ├── RemoteOS.Guardian.Agent/      # 进程守护独立进程（原生服务管理）
 ├── Tools/
-│   └── RemoteOS.DevCli/          # 开发者 CLI 工具
+│   ├── RemoteOS.DevCli/          # 开发者 CLI 工具
+│   └── verify-localization.py    # 多语言验证脚本
 ├── examples/
 │   ├── VideoPlayer/              # 视频播放器示例应用
-│   └── ServerMonitor/            # 服务器监控示例应用
-├── docs/                         # 详细设计文档
+│   ├── ServerMonitor/            # 服务器监控示例应用
+│   └── HelpCenter/               # 帮助中心示例应用
 ├── deployment/                   # 部署脚本（Linux / Windows）
+├── docs/                         # 详细设计文档
 ├── Directory.Packages.props      # 中央包管理
 └── RemoteOS.sln                  # 解决方案文件
 ```
@@ -213,30 +218,61 @@ dotnet run
 
 ## 📖 详细文档
 
+### 架构与核心模型
+
 | 文档 | 说明 |
 |------|------|
 | [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | 架构设计原则、模块依赖、分层架构 |
 | [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | 通信协议契约、REST/SignalR、序列化约定 |
 | [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | 用户/工作区/会话/设备、多设备模型 |
+| [RemoteOS.ApplicationActivation.md](./docs/architecture/RemoteOS.ApplicationActivation.md) | 应用启动 URI 与窗口实例策略 |
+
+### 平台服务
+
+| 文档 | 说明 |
+|------|------|
 | [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | 登录系统、身份模型、OS 用户集成 |
-| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框 |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
+| [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
+
+### 桌面体验
+
+| 文档 | 说明 |
+|------|------|
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | 桌面外壳、窗口控制、模态对话框、键盘路由 |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
+| [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
+
+### 内置应用
+
+| 文档 | 说明 |
+|------|------|
 | [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
 | [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
 | [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | 浏览器、书签/历史 |
-| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 设置中心、偏好持久化、多设备同步 |
+| [RemoteOS.PortForwarding.md](./docs/applications/RemoteOS.PortForwarding.md) | SSH 端口转发、本机隧道管理 |
 | [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
 | [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
 | [RemoteOS.Firewall.md](./docs/applications/RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用 |
 | [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
-| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
-| [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
-| [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | 多语言机制、语言包结构 |
+| [RemoteOS.CodeEditor.md](./docs/applications/RemoteOS.CodeEditor.md) | 代码编辑器、语法高亮、文件安全边界 |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
+
+### 开发与扩展
+
+| 文档 | 说明 |
+|------|------|
 | [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | 开发者快速上手、代码结构、调试指南 |
 | [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | 开发模式、DevCli、应用包发布 |
+| [RemoteOS.AppSettings.md](./docs/development/RemoteOS.AppSettings.md) | 应用私有配置存储 |
 | [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | 内置应用设计约束、国际化、跨平台 |
 | [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | 应用兼容性、平台适配、降级策略 |
-| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
-| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
+
+### 项目文档索引
+
+| 文档 | 说明 |
+|------|------|
 | [RemoteOS.md](./docs/README.md) | 项目结构、代码地图、当前进度 |
 
 ---
