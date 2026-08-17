@@ -1,0 +1,1338 @@
+# RemoteOS 证书管理器设计
+
+## 1. 项目背景
+
+RemoteOS 是一个**仅管理当前主机**的服务器管理程序，后端采用 **.NET 10**，客户端采用 **Avalonia**，通过 HTTP/HTTPS 远程连接 RemoteOS 服务端。
+
+当前设计目标：
+
+- RemoteOS 只管理自己所在的服务器，不管理其他远程服务器。
+- 支持 **Linux** 和 **Windows**。
+- 支持自动申请、安装和续期 TLS 证书。
+- 优先支持 ACME 协议，例如 Let's Encrypt。
+- RemoteOS 本身可以运行在 `443`、`8443` 或其他 HTTPS 端口。
+- 不要求 RemoteOS 永久占用 TCP 80 端口。
+- 应兼容服务器上已经存在的 IIS、Nginx、Apache、Caddy 等 Web Server。
+- 后续可以扩展 DNS-01、Wildcard 证书和更多 ACME CA。
+
+---
+
+## 2. 总体设计原则
+
+RemoteOS 的证书管理器应定位为：
+
+> **本机证书生命周期管理器（Local Certificate Lifecycle Manager）**
+
+不需要采用 Controller / Agent、多服务器调度、跨服务器私钥分发等复杂架构。
+
+推荐总体结构：
+
+```text
+Avalonia Client
+       │
+       │ HTTPS / HTTP
+       ▼
+┌───────────────────────────┐
+│      RemoteOS Server      │
+│         .NET 10           │
+│                           │
+│  ┌─────────────────────┐  │
+│  │ Certificate Manager │  │
+│  └──────────┬──────────┘  │
+│             │             │
+│        ACME Client        │
+│             │             │
+└─────────────┼─────────────┘
+              │
+              ▼
+        ACME Certificate
+            Authority
+```
+
+核心原则：
+
+1. **私钥始终在本机生成和保存。**
+2. **ACME 协议层与 RemoteOS 业务层解耦。**
+3. **证书管理与证书部署分离。**
+4. **HTTP-01 不要求 RemoteOS 自己永久监听 80。**
+5. **Windows / Linux 尽量采用统一存储模型。**
+6. **自动续期优先采用 ACME ARI，而不是固定“剩余 30 天续期”。**
+7. **不要把 Let's Encrypt 写死，应通过 ACME Directory URL 支持不同 CA。**
+
+---
+
+## 3. 推荐技术选型
+
+### 3.1 ACME
+
+推荐：
+
+```text
+Webprofusion.Certify.ACME.Anvil
+```
+
+但 RemoteOS 不应让业务代码直接依赖该库。
+
+建议定义自己的抽象：
+
+```csharp
+public interface IAcmeService
+{
+    Task<AcmeOrder> CreateOrderAsync(
+        IReadOnlyCollection<string> identifiers,
+        CancellationToken cancellationToken);
+
+    Task<AcmeChallenge> GetChallengeAsync(
+        Guid orderId,
+        AcmeChallengeType type,
+        CancellationToken cancellationToken);
+
+    Task ValidateAsync(
+        Guid orderId,
+        CancellationToken cancellationToken);
+
+    Task<byte[]> FinalizeAsync(
+        Guid orderId,
+        byte[] csr,
+        CancellationToken cancellationToken);
+
+    Task<RenewalInfo?> GetRenewalInfoAsync(
+        X509Certificate2 certificate,
+        CancellationToken cancellationToken);
+}
+```
+
+具体实现内部再调用 Anvil。
+
+这样未来即使替换 ACME SDK，RemoteOS 其他模块也不需要修改。
+
+---
+
+## 4. 模块结构
+
+建议第一版保持适度简单：
+
+```text
+RemoteOS.Server
+│
+├── Api
+│
+├── Certificate
+│   │
+│   ├── ICertificateManager.cs
+│   ├── CertificateManager.cs
+│   ├── IAcmeService.cs
+│   ├── AnvilAcmeService.cs
+│   ├── CertificateStore.cs
+│   ├── CertificateRenewalWorker.cs
+│   │
+│   └── Challenges
+│       ├── IHttp01ChallengeProvider.cs
+│       ├── DirectHttp01ChallengeProvider.cs
+│       ├── WebRootHttp01ChallengeProvider.cs
+│       └── IDns01ChallengeProvider.cs
+│
+├── Security
+│
+└── Platform
+    ├── Windows
+    └── Linux
+```
+
+不要在第一版拆出过多接口和服务。
+
+当功能增加后，再进一步拆分：
+
+```text
+Certificate
+├── Acme
+├── Challenges
+├── Storage
+├── Renewal
+└── Deployment
+```
+
+---
+
+## 5. 证书签发流程
+
+推荐流程：
+
+```text
+Avalonia Client
+       │
+       │ 申请 example.com
+       ▼
+RemoteOS API
+       │
+       ▼
+CertificateManager
+       │
+       ├── 创建 / 加载 ACME Account
+       │
+       ├── 创建 ACME Order
+       │
+       ├── 完成域名验证
+       │
+       ├── 本机生成 Private Key
+       │
+       ├── 生成 CSR
+       │
+       ├── Finalize Order
+       │
+       ├── 下载 Certificate Chain
+       │
+       ├── 保存证书
+       │
+       └── 更新 HTTPS 服务
+       │
+       ▼
+Avalonia Client
+    显示签发结果
+```
+
+私钥绝不需要离开当前服务器。
+
+---
+
+## 6. HTTP-01 设计
+
+### 6.1 80 端口的真正要求
+
+HTTP-01 的关键要求是：
+
+> ACME CA 必须能够通过公网访问  
+> `http://example.com/.well-known/acme-challenge/{token}`
+
+外部访问端口固定为：
+
+```text
+TCP 80
+```
+
+但这**不代表 RemoteOS 必须自己监听 80**。
+
+RemoteOS 可以正常运行在：
+
+```text
+https://example.com:8443
+```
+
+而 HTTP-01 验证由其他服务的 80 端口完成。
+
+---
+
+## 7. IIS / Nginx 在 HTTP-01 中的角色
+
+IIS / Nginx 本身通常**不会主动与 CA 协商证书**。
+
+真正与 Let's Encrypt 等 CA 通信的是：
+
+```text
+RemoteOS ACME Client
+```
+
+IIS / Nginx 的任务只是：
+
+> 把 RemoteOS 生成的 challenge 内容通过公网 80 端口返回给 CA。
+
+流程如下：
+
+```text
+RemoteOS ACME Client
+        │
+        │ 创建 ACME Order
+        ▼
+Certificate Authority
+        │
+        │ 返回 challenge
+        ▼
+RemoteOS
+        │
+        │ 写入 token
+        ▼
+IIS / Nginx :80
+        │
+        │ 响应：
+        │ /.well-known/acme-challenge/{token}
+        ▼
+Certificate Authority
+```
+
+因此：
+
+```text
+Nginx / IIS 占用 80
+```
+
+并不会阻止 RemoteOS 申请证书。
+
+---
+
+## 8. HTTP-01 的三种实现模式
+
+建议 RemoteOS 支持以下三种模式。
+
+| 模式 | RemoteOS 自己监听 80 | 说明 |
+|---|---:|---|
+| Direct | 是，临时 | 80 空闲时由 RemoteOS 临时监听 |
+| WebRoot / WebServer | 否 | IIS / Nginx 等已有 Web Server 提供 challenge |
+| DNS-01 | 否 | 完全不依赖 80 端口 |
+
+推荐默认提供：
+
+```text
+验证方式
+
+● 自动
+○ HTTP-01
+○ DNS-01
+```
+
+---
+
+## 9. Direct HTTP-01
+
+当 TCP 80 空闲时，RemoteOS 可以临时监听：
+
+```text
+0.0.0.0:80
+```
+
+只处理：
+
+```text
+/.well-known/acme-challenge/*
+```
+
+流程：
+
+```text
+RemoteOS
+   │
+   ├── 临时监听 :80
+   │
+   ├── 返回 ACME token
+   │
+   ├── CA 完成验证
+   │
+   └── 释放 :80
+```
+
+RemoteOS 主服务仍可以运行：
+
+```text
+:8443
+```
+
+这种方式适合作为一个 fallback，但不应成为唯一实现。
+
+原因包括：
+
+- Linux 低端口权限问题。
+- Windows 服务权限。
+- 防火墙。
+- 已有 Web Server 占用端口。
+- Docker / NAT 等网络环境。
+
+---
+
+## 10. WebRoot HTTP-01
+
+当服务器已经运行：
+
+```text
+Nginx
+IIS
+Apache
+```
+
+推荐采用 WebRoot 模式。
+
+RemoteOS 创建一个固定目录：
+
+### Linux
+
+```text
+/var/lib/remoteos/acme-challenge/
+```
+
+### Windows
+
+```text
+C:\ProgramData\RemoteOS\acme-challenge\
+```
+
+RemoteOS 只需要：
+
+```text
+token
+    ↓
+写入文件
+```
+
+例如：
+
+```text
+acme-challenge/
+├── abc123
+├── def456
+└── ...
+```
+
+定义接口：
+
+```csharp
+public interface IHttp01ChallengeStore
+{
+    Task PutAsync(
+        string token,
+        string keyAuthorization,
+        CancellationToken cancellationToken);
+
+    Task RemoveAsync(
+        string token,
+        CancellationToken cancellationToken);
+}
+```
+
+---
+
+## 11. Nginx 示例
+
+可以让 Nginx 将 ACME 路径映射到 RemoteOS 的 challenge 目录。
+
+```nginx
+server {
+    listen 80;
+    server_name remote.example.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/lib/remoteos;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+```
+
+关键目标是让：
+
+```text
+http://remote.example.com/.well-known/acme-challenge/{token}
+```
+
+能够返回 RemoteOS 写入的：
+
+```text
+keyAuthorization
+```
+
+---
+
+## 12. DNS-01
+
+DNS-01 应作为 RemoteOS 的重要后续能力。
+
+它完全不依赖：
+
+```text
+TCP 80
+TCP 443
+```
+
+RemoteOS 可以运行：
+
+```text
+https://remote.example.com:8443
+```
+
+同时通过 DNS TXT Record 完成验证：
+
+```text
+_acme-challenge.remote.example.com
+        ↓
+TXT <challenge-value>
+```
+
+DNS-01 适合：
+
+- 80 端口无法暴露。
+- 服务器位于 NAT 后。
+- 使用非标准 HTTPS 端口。
+- 需要 Wildcard Certificate。
+- 不希望修改 IIS / Nginx 配置。
+
+建议抽象：
+
+```csharp
+public interface IDns01ChallengeProvider
+{
+    Task PresentAsync(
+        string domain,
+        string value,
+        CancellationToken cancellationToken);
+
+    Task CleanupAsync(
+        string domain,
+        string value,
+        CancellationToken cancellationToken);
+}
+```
+
+后续可以实现：
+
+```text
+CloudflareDnsProvider
+AliyunDnsProvider
+TencentCloudDnsProvider
+Route53DnsProvider
+AzureDnsProvider
+```
+
+---
+
+## 13. 自动验证策略
+
+可以设计：
+
+```text
+                   Auto
+                    │
+              Port 80 free?
+               /          \
+             Yes          No
+              │            │
+        Direct HTTP-01   已有 Web Server?
+                         /           \
+                       Yes           No
+                        │             │
+                   WebRoot         DNS-01
+```
+
+注意：
+
+RemoteOS 不一定能够安全、可靠地自动修改所有 IIS / Nginx 配置。
+
+因此第一版更适合：
+
+```text
+Direct HTTP-01
++
+WebRoot HTTP-01
++
+手动配置 Web Server
+```
+
+后续再开发：
+
+```text
+Nginx 自动配置
+IIS 自动配置
+Apache 自动配置
+```
+
+---
+
+## 14. 证书与端口的关系
+
+证书本身与端口无关。
+
+例如证书包含：
+
+```text
+remote.example.com
+```
+
+它可以用于：
+
+```text
+https://remote.example.com:443
+https://remote.example.com:8443
+https://remote.example.com:9443
+```
+
+证书验证的是：
+
+```text
+Hostname
+```
+
+不是：
+
+```text
+Hostname + Port
+```
+
+HTTP-01 固定使用 80，仅仅是 ACME 的**域名所有权验证过程**。
+
+---
+
+## 15. Windows / Linux 跨平台存储策略
+
+不建议把 Windows Certificate Store 作为 RemoteOS 的核心证书存储方式。
+
+推荐使用统一的文件存储模型。
+
+### Linux
+
+```text
+/var/lib/remoteos/
+└── certificates/
+```
+
+### Windows
+
+```text
+C:\ProgramData\RemoteOS\
+└── certificates\
+```
+
+目录示例：
+
+```text
+certificates/
+│
+├── acme/
+│   └── account.key
+│
+└── remote.example.com/
+    ├── private.key
+    ├── certificate.pem
+    ├── chain.pem
+    ├── fullchain.pem
+    └── metadata.json
+```
+
+推荐内部 canonical format：
+
+```text
+PEM
+```
+
+---
+
+## 16. 私钥保护
+
+### Linux
+
+建议：
+
+```text
+Directory: 700
+Private Key: 600
+```
+
+并确保 owner 为：
+
+```text
+remoteos
+```
+
+或 RemoteOS service account。
+
+### Windows
+
+使用 NTFS ACL，仅允许：
+
+```text
+RemoteOS Service Account
+SYSTEM
+```
+
+访问私钥目录。
+
+原则：
+
+> 私钥不应通过 RemoteOS API 返回给 Avalonia 客户端。
+
+正常管理接口只返回：
+
+```text
+Domain
+Issuer
+Serial Number
+Not Before
+Not After
+Status
+Thumbprint
+Renewal Status
+```
+
+---
+
+## 17. Certificate Store
+
+建议统一封装：
+
+```csharp
+public interface ICertificateStore
+{
+    Task SaveAsync(
+        ManagedCertificate certificate,
+        CancellationToken cancellationToken);
+
+    Task<ManagedCertificate?> GetAsync(
+        Guid certificateId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ManagedCertificate>> ListAsync(
+        CancellationToken cancellationToken);
+
+    Task DeleteAsync(
+        Guid certificateId,
+        CancellationToken cancellationToken);
+}
+```
+
+底层：
+
+```text
+Windows
+   │
+   └── FileCertificateStore
+
+Linux
+   │
+   └── FileCertificateStore
+```
+
+尽量避免核心逻辑出现：
+
+```csharp
+if (OperatingSystem.IsWindows())
+{
+    ...
+}
+else
+{
+    ...
+}
+```
+
+平台差异应尽量封装在：
+
+```text
+Platform/
+```
+
+模块中。
+
+---
+
+## 18. 证书部署
+
+证书签发和证书部署应保持逻辑分离。
+
+### Certificate Manager
+
+负责：
+
+```text
+ACME
+↓
+Private Key
+↓
+CSR
+↓
+Certificate
+```
+
+### Deployment
+
+负责：
+
+```text
+Certificate
+      │
+      ├── RemoteOS Kestrel
+      ├── Nginx
+      ├── IIS
+      └── Apache
+```
+
+第一版只需要支持：
+
+```text
+RemoteOS 自身 HTTPS
+```
+
+后续再考虑：
+
+```text
+Nginx Deployment
+IIS Deployment
+Apache Deployment
+```
+
+---
+
+## 19. RemoteOS 自身 HTTPS
+
+RemoteOS 可以使用：
+
+```text
+certificate.pem
+private.key
+```
+
+或转换为：
+
+```text
+certificate.pfx
+```
+
+供 Kestrel 使用。
+
+建议 CertificateManager 完成续期后通知 HTTPS 层：
+
+```text
+Certificate Updated
+        │
+        ▼
+Reload Certificate
+```
+
+应优先采用可热更新的方式。
+
+如果无法热更新，再考虑：
+
+```text
+Graceful Restart
+```
+
+不要让证书续期过程直接强制终止 RemoteOS。
+
+---
+
+## 20. ACME Account
+
+建议独立保存 ACME Account：
+
+```text
+AcmeAccount
+├── DirectoryUrl
+├── AccountUrl
+├── ContactEmail
+├── AccountKey
+└── CreatedAt
+```
+
+其中 Account Key 同样属于敏感信息。
+
+不要每次签发证书都创建新的 ACME Account。
+
+---
+
+## 21. 不要写死 Let's Encrypt
+
+错误设计：
+
+```csharp
+public class LetsEncryptService
+{
+}
+```
+
+推荐：
+
+```csharp
+public interface IAcmeService
+{
+}
+```
+
+配置：
+
+```json
+{
+  "Certificate": {
+    "Acme": {
+      "DirectoryUrl": "https://acme-v02.api.letsencrypt.org/directory"
+    }
+  }
+}
+```
+
+以后可以支持：
+
+```text
+Let's Encrypt
+ZeroSSL
+Google Trust Services
+Private ACME CA
+Enterprise CA
+```
+
+---
+
+## 22. 自动续期
+
+不要使用简单逻辑：
+
+```text
+每天检查一次
+↓
+证书剩余 < 30 天
+↓
+Renew
+```
+
+推荐采用：
+
+```text
+ACME ARI
+```
+
+即：
+
+```text
+ACME CA
+   │
+   │ 返回建议续期窗口
+   ▼
+RemoteOS
+   │
+   ├── RenewalWindowStart
+   └── RenewalWindowEnd
+```
+
+RemoteOS 在窗口中选择合适时间执行续期。
+
+---
+
+## 23. Renewal Worker
+
+推荐结构：
+
+```text
+CertificateRenewalWorker
+          │
+          ▼
+      Load Certificate
+          │
+          ▼
+       Query ARI
+          │
+          ▼
+    Renewal Window?
+       /       \
+     Yes       No
+      │         │
+  Schedule   Fallback
+      │
+      ▼
+     Renew
+      │
+   ┌──┴───┐
+   │      │
+ Success Failure
+   │      │
+ Deploy  Retry
+   │      │
+ Reload Alert
+```
+
+即使支持 ARI，也应保留：
+
+```text
+NotAfter
+```
+
+作为兜底机制。
+
+---
+
+## 24. 重试策略
+
+ACME 请求失败时，应支持：
+
+```text
+Exponential Backoff
+Jitter
+Retry-After
+Maximum Retry Count
+```
+
+例如：
+
+```text
+1 min
+2 min
+4 min
+8 min
+...
+```
+
+再增加随机 jitter，避免所有实例在同一时刻重试。
+
+如果 CA 返回：
+
+```text
+Retry-After
+```
+
+应优先尊重该值。
+
+---
+
+## 25. 建议的数据模型
+
+第一版不需要复杂数据库。
+
+可以采用：
+
+```text
+CertificateRecord
+────────────────────────
+Id
+PrimaryDomain
+SANs
+Issuer
+SerialNumber
+Thumbprint
+NotBefore
+NotAfter
+Status
+CertificatePath
+PrivateKeyPath
+CreatedAt
+UpdatedAt
+RenewalWindowStart
+RenewalWindowEnd
+LastRenewalAt
+LastRenewalStatus
+```
+
+以及：
+
+```text
+AcmeAccountRecord
+────────────────────────
+Id
+DirectoryUrl
+AccountUrl
+ContactEmail
+AccountKeyPath
+CreatedAt
+```
+
+如果 RemoteOS 已经有 SQLite 等内部数据库，则建议元数据进入数据库，证书和私钥仍然保存为文件。
+
+---
+
+## 26. 建议的状态模型
+
+Certificate：
+
+```text
+Pending
+Validating
+Issued
+Active
+Renewing
+Failed
+Expired
+Revoked
+```
+
+ACME Order：
+
+```text
+Pending
+Ready
+Processing
+Valid
+Invalid
+```
+
+UI 不应该只显示：
+
+```text
+Success / Failed
+```
+
+应该让用户知道失败发生在哪一步。
+
+---
+
+## 27. Avalonia 管理界面建议
+
+证书页面可以展示：
+
+```text
+证书
+
+域名
+remote.example.com
+
+状态
+有效
+
+签发机构
+Let's Encrypt
+
+有效期
+2026-08-01 ～ 2026-10-30
+
+自动续期
+已启用
+
+验证方式
+HTTP-01 / WebRoot
+
+HTTPS 端口
+8443
+```
+
+操作：
+
+```text
+[申请证书]
+[立即续期]
+[重新部署]
+[删除]
+[查看详情]
+```
+
+高级设置：
+
+```text
+ACME Directory
+Challenge Type
+WebRoot Path
+DNS Provider
+Key Algorithm
+Renewal Policy
+```
+
+---
+
+## 28. 第一版推荐范围
+
+### V1
+
+实现：
+
+```text
+ACME v2
+HTTP-01
+Direct HTTP-01
+WebRoot HTTP-01
+PEM Certificate Store
+RSA / ECDSA
+RemoteOS HTTPS Deployment
+Automatic Renewal
+ARI
+```
+
+目标：
+
+> RemoteOS 可以独立为自己的 HTTPS 服务申请和自动续期证书。
+
+---
+
+## 29. 第二阶段
+
+增加：
+
+```text
+DNS-01
+Wildcard Certificates
+
+Cloudflare
+Aliyun
+Tencent Cloud
+Route53
+Azure DNS
+```
+
+此阶段解决：
+
+```text
+*.example.com
+80 无法开放
+NAT
+非标准网络环境
+```
+
+---
+
+## 30. 第三阶段
+
+增加：
+
+```text
+Nginx 自动集成
+IIS 自动集成
+Apache 自动集成
+Caddy 检测
+多 ACME CA
+私有 CA
+证书导入 / 导出
+证书吊销
+证书监控 / 告警
+```
+
+---
+
+## 31. 最终推荐架构
+
+```text
+                         Avalonia
+                            │
+                            │ HTTPS
+                            ▼
+                    ┌───────────────┐
+                    │   RemoteOS    │
+                    │    .NET 10    │
+                    └───────┬───────┘
+                            │
+                   CertificateManager
+                            │
+             ┌──────────────┼──────────────┐
+             │              │              │
+             ▼              ▼              ▼
+        AcmeService   ChallengeProvider  CertificateStore
+             │              │              │
+             │       ┌──────┴──────┐       │
+             │       │             │       │
+             │    HTTP-01       DNS-01     │
+             │       │             │       │
+             │   ┌───┴────┐        │       │
+             │   │        │        │       │
+             │ Direct   WebRoot   DNS API   │
+             │                              │
+             └──────────────┬───────────────┘
+                            │
+                            ▼
+                    Deployment Service
+                            │
+                            ▼
+                     RemoteOS HTTPS
+```
+
+---
+
+## 32. 最重要的设计结论
+
+### 证书签发
+
+```text
+RemoteOS
+   ↓
+ACME Client
+   ↓
+Certificate Authority
+```
+
+---
+
+### HTTP-01
+
+外部验证必须经过：
+
+```text
+TCP 80
+```
+
+但：
+
+> **不要求 RemoteOS 自己占用 TCP 80。**
+
+已有 IIS / Nginx 可以继续监听 80。
+
+RemoteOS 只需要让：
+
+```text
+/.well-known/acme-challenge/*
+```
+
+能够返回正确 challenge。
+
+---
+
+### DNS-01
+
+```text
+完全不依赖 80 / 443
+```
+
+因此是 RemoteOS 后续非常重要的能力。
+
+---
+
+### 私钥
+
+```text
+只在当前服务器生成
+↓
+只保存在当前服务器
+↓
+不返回给 Avalonia Client
+```
+
+---
+
+### 跨平台
+
+统一：
+
+```text
+PEM + File Certificate Store
+```
+
+避免让 Windows Certificate Store 成为核心依赖。
+
+---
+
+### 自动续期
+
+优先：
+
+```text
+ACME ARI
+```
+
+而不是：
+
+```text
+固定剩余 30 天续期
+```
+
+同时保留证书到期时间作为 fallback。
+
+---
+
+## 33. 推荐开发顺序
+
+```text
+1. IAcmeService
+2. AnvilAcmeService
+3. CertificateStore
+4. Private Key / CSR
+5. HTTP-01 Direct
+6. HTTP-01 WebRoot
+7. CertificateManager
+8. Kestrel HTTPS Deployment
+9. Renewal Worker
+10. ARI
+11. DNS-01
+12. DNS Provider Plugins
+13. IIS / Nginx 自动集成
+```
+
+这样可以避免一开始为了 IIS、Nginx、DNS Provider 等外围能力拖慢核心证书流程的实现。
+
+---
+
+## 34. 总结
+
+RemoteOS 当前只管理本机，因此证书管理功能应保持为一个**本地化、跨平台、协议解耦**的证书生命周期模块。
+
+推荐最终方案：
+
+> **RemoteOS 自身作为 ACME 客户端，使用 Anvil 实现 ACME 协议，本机生成和保存私钥，以 PEM 作为统一证书格式；HTTP-01 支持临时监听 80 和 WebRoot 两种方式，已有 IIS / Nginx 只负责暴露 challenge，而不是负责与 CA 协商；后续增加 DNS-01 和 Wildcard；续期采用 ARI 驱动，并保留到期时间兜底。**
+
+该方案既能够满足 RemoteOS 当前“单机服务器管理器”的需求，也为未来扩展更多 Web Server、DNS Provider 和 ACME CA 保留了清晰的边界。
