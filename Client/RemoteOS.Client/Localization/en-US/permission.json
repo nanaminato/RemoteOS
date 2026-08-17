@@ -42,6 +42,14 @@
         "permission.server.firewall.read.display_name": "Read firewall configuration",
         "permission.server.firewall.read.description": "View the Linux server firewall status, defaults, and rules.",
         "permission.server.firewall.manage.display_name": "Manage firewall configuration",
-        "permission.server.firewall.manage.description": "Change the Linux server firewall status, default policies, and rules."
+        "permission.server.firewall.manage.description": "Change the Linux server firewall status, default policies, and rules.",
+        "permission.server.certificates.read.display_name": "Read TLS certificates",
+        "permission.server.certificates.read.description": "View TLS/SSL certificate metadata, issuance status, and renewal state on the server.",
+        "permission.server.certificates.manage.display_name": "Manage TLS certificates",
+        "permission.server.certificates.manage.description": "Request, renew, deploy, revoke, and delete TLS certificates on the server.",
+        "permission.server.webservers.read.display_name": "Read web server configuration",
+        "permission.server.webservers.read.description": "View discovered web servers, their runtime status, and configuration metadata on the server.",
+        "permission.server.webservers.manage.display_name": "Manage web server configuration",
+        "permission.server.webservers.manage.description": "Integrate, reload, and test web server configuration on the server."
     }
 }

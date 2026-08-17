@@ -42,6 +42,14 @@
         "permission.server.firewall.read.display_name": "读取防火墙配置",
         "permission.server.firewall.read.description": "查看 Linux Server 防火墙状态、默认策略和规则。",
         "permission.server.firewall.manage.display_name": "管理防火墙配置",
-        "permission.server.firewall.manage.description": "更改 Linux Server 防火墙状态、默认策略和规则。"
+        "permission.server.firewall.manage.description": "更改 Linux Server 防火墙状态、默认策略和规则。",
+        "permission.server.certificates.read.display_name": "读取 TLS 证书",
+        "permission.server.certificates.read.description": "查看服务器上 TLS/SSL 证书的元数据、签发状态和续期状态。",
+        "permission.server.certificates.manage.display_name": "管理 TLS 证书",
+        "permission.server.certificates.manage.description": "在服务器上申请、续期、部署、吊销和删除 TLS 证书。",
+        "permission.server.webservers.read.display_name": "读取 Web 服务器配置",
+        "permission.server.webservers.read.description": "查看服务器上已发现的 Web 服务器、运行时状态和配置元数据。",
+        "permission.server.webservers.manage.display_name": "管理 Web 服务器配置",
+        "permission.server.webservers.manage.description": "在服务器上集成、重载和测试 Web 服务器配置。"
     }
 }

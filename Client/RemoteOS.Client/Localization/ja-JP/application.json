@@ -28,6 +28,10 @@
         "application.remoteos.port-forwarding.display_name": "ポート フォワーディング",
         "application.remoteos.port-forwarding.description": "RemoteOS Server の loopback サービスへのローカル SSH トンネルを管理します",
         "application.remoteos.firewall.display_name": "ファイアウォール",
-        "application.remoteos.firewall.description": "Linux Server の UFW ファイアウォールルールを管理します"
+        "application.remoteos.firewall.description": "Linux Server の UFW ファイアウォールルールを管理します",
+        "application.remoteos.certificates.display_name": "証明書マネージャー",
+        "application.remoteos.certificates.description": "RemoteOS Server の TLS 証明書を管理します",
+        "application.remoteos.webservers.display_name": "Web サーバーマネージャー",
+        "application.remoteos.webservers.description": "RemoteOS Server の Web サーバーを管理します"
     }
 }

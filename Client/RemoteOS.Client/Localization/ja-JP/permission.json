@@ -42,6 +42,14 @@
         "permission.server.firewall.read.display_name": "ファイアウォール設定を読み取る",
         "permission.server.firewall.read.description": "Linux Server のファイアウォール状態、既定、ルールを表示します。",
         "permission.server.firewall.manage.display_name": "ファイアウォール設定を管理する",
-        "permission.server.firewall.manage.description": "Linux Server のファイアウォール状態、既定ポリシー、ルールを変更します。"
+        "permission.server.firewall.manage.description": "Linux Server のファイアウォール状態、既定ポリシー、ルールを変更します。",
+        "permission.server.certificates.read.display_name": "TLS 証明書の読み取り",
+        "permission.server.certificates.read.description": "サーバー上の TLS/SSL 証明書のメタデータ、発行状態、更新状態を表示します。",
+        "permission.server.certificates.manage.display_name": "TLS 証明書の管理",
+        "permission.server.certificates.manage.description": "サーバー上で TLS 証明書の要求、更新、デプロイ、失効、削除を行います。",
+        "permission.server.webservers.read.display_name": "Web サーバー設定の読み取り",
+        "permission.server.webservers.read.description": "サーバー上で検出された Web サーバー、ランタイム状態、構成メタデータを表示します。",
+        "permission.server.webservers.manage.display_name": "Web サーバー設定の管理",
+        "permission.server.webservers.manage.description": "サーバー上で Web サーバー設定の統合、リロード、テストを行います。"
     }
 }

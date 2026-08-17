@@ -87,6 +87,14 @@ public static class Bootstrapper
         services.AddHttpClient<Client.Apps.Firewall.IRemoteFirewallClient, Client.Apps.Firewall.RemoteFirewallClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "firewall"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        // Certificates（证书管理器）与 WebServers（Web 服务器管理器）：typed HttpClient（JWT from IAuthSession，与 Firewall 同模式）。
+        // 长时操作通过 Idempotency-Key + 操作轮询跟踪；私钥/ACME 账户与 shell 文本均不通过 HTTP 暴露。
+        services.AddHttpClient<Client.Apps.Certificates.IRemoteCertificateClient, Client.Apps.Certificates.RemoteCertificateClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "certificates"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.WebServers.IRemoteWebServerClient, Client.Apps.WebServers.RemoteWebServerClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "webservers"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
@@ -153,6 +161,8 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Firewall.FirewallApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Certificates.CertificateManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.WebServers.WebServerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>

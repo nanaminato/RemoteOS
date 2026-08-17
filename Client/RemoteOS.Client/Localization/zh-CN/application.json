@@ -28,6 +28,10 @@
         "application.remoteos.port-forwarding.display_name": "端口转发",
         "application.remoteos.port-forwarding.description": "管理到 RemoteOS Server loopback 服务的本机 SSH 隧道",
         "application.remoteos.firewall.display_name": "防火墙",
-        "application.remoteos.firewall.description": "管理 Linux Server UFW 防火墙规则"
+        "application.remoteos.firewall.description": "管理 Linux Server UFW 防火墙规则",
+        "application.remoteos.certificates.display_name": "证书管理器",
+        "application.remoteos.certificates.description": "管理 RemoteOS Server 上的 TLS 证书",
+        "application.remoteos.webservers.display_name": "Web 服务器管理器",
+        "application.remoteos.webservers.description": "管理 RemoteOS Server 上的 Web 服务器"
     }
 }

@@ -18,6 +18,10 @@ public static class AppPermissions
     public const string ServerGuardianManage = "server.guardian.manage";
     public const string ServerFirewallRead = "server.firewall.read";
     public const string ServerFirewallManage = "server.firewall.manage";
+    public const string ServerCertificatesRead = "server.certificates.read";
+    public const string ServerCertificatesManage = "server.certificates.manage";
+    public const string ServerWebServersRead = "server.webservers.read";
+    public const string ServerWebServersManage = "server.webservers.manage";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -40,6 +44,10 @@ public static class AppPermissions
         new(ServerGuardianManage, "Manage guardian workloads", "Create and control workloads supervised by the Guardian Agent.", "server_management"),
         new(ServerFirewallRead, "Read firewall configuration", "View the Linux server firewall status, defaults, and rules.", "server_network"),
         new(ServerFirewallManage, "Manage firewall configuration", "Change the Linux server firewall status, default policies, and rules.", "server_network"),
+        new(ServerCertificatesRead, "Read TLS certificates", "View TLS/SSL certificate metadata, issuance status, and renewal state on the server.", "server_management"),
+        new(ServerCertificatesManage, "Manage TLS certificates", "Request, renew, deploy, revoke, and delete TLS certificates on the server.", "server_management"),
+        new(ServerWebServersRead, "Read web server configuration", "View discovered web servers, their runtime status, and configuration metadata on the server.", "server_management"),
+        new(ServerWebServersManage, "Manage web server configuration", "Integrate, reload, and test web server configuration on the server.", "server_management"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>
