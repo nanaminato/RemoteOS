@@ -1,0 +1,208 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using RemoteOS.Protocol.Certificates;
+using RemoteOS.Protocol.WebServers;
+using Server.Certificate;
+using Server.Storage.Sqlite;
+using Server.WebServer;
+
+var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
+Directory.CreateDirectory(root);
+try
+{
+    await VerifyCertificateStoreAndSniAsync(root);
+    await VerifyRenewalRetryAsync(root);
+    await VerifyHostGlobalMigrationAsync(root);
+    await VerifyDeploymentAndNginxSnapshotsAsync(root);
+    await VerifyOperationIdempotencyAsync(root);
+    Console.WriteLine("RemoteOS.Server backend verification passed.");
+}
+finally
+{
+    if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+}
+
+static async Task VerifyCertificateStoreAndSniAsync(string root)
+{
+    var environment = new TestHostEnvironment(root);
+    var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Provider"] = "memory" }).Build();
+    var options = new CertificateOptions { StorageRoot = Path.Combine(root, "certificates"), VersionRetentionCount = 2 };
+    var metadata = new CertificateMetadataRepository(environment, configuration);
+    var store = new FileCertificateStore(environment, options, metadata);
+    var certificateId = Guid.NewGuid();
+    var first = CreateMaterial(certificateId, "one.example.test");
+    var second = CreateMaterial(certificateId, "one.example.test");
+    var third = CreateMaterial(certificateId, "one.example.test");
+    await store.SaveAsync(first, CancellationToken.None);
+    await store.SaveAsync(second, CancellationToken.None);
+    await store.SaveAsync(third, CancellationToken.None);
+    var stored = await store.GetAsync(certificateId, CancellationToken.None) ?? throw new InvalidOperationException("Certificate metadata was not saved.");
+    Assert(stored.Version.Length == 32, "Certificate version was not generated.");
+    var versions = Directory.EnumerateDirectories(Path.Combine(options.StorageRoot!, certificateId.ToString("D"), "versions")).ToArray();
+    Assert(versions.Length == 2, "Certificate version retention did not prune old material.");
+    if (!OperatingSystem.IsWindows())
+    {
+        var certificateRoot = Path.Combine(options.StorageRoot!, certificateId.ToString("D"));
+        Assert(File.GetUnixFileMode(certificateRoot) == (UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute), "Certificate root permissions are not private.");
+        Assert(File.GetUnixFileMode(Path.Combine(certificateRoot, "versions", stored.Version, "private.key")) == (UnixFileMode.UserRead | UnixFileMode.UserWrite), "Private-key permissions are not private.");
+    }
+    using var loaded = await store.LoadCurrentAsync(certificateId, CancellationToken.None) ?? throw new InvalidOperationException("Current certificate did not load.");
+    Assert(loaded.HasPrivateKey, "Stored certificate lost its private key.");
+
+    var registry = new KestrelCertificateRegistry();
+    using var firstSni = CreateX509("one.example.test");
+    using var secondSni = CreateX509("two.example.test");
+    Assert(registry.Activate(Guid.NewGuid(), firstSni, ["one.example.test"]), "First SNI activation failed.");
+    var secondId = Guid.NewGuid();
+    Assert(registry.Activate(secondId, secondSni, ["two.example.test"]), "Second SNI activation failed.");
+    Assert(registry.Select("one.example.test") == firstSni, "First SNI binding was lost.");
+    Assert(registry.Select("two.example.test") == secondSni, "Second SNI binding was not selected.");
+    Assert(registry.Deactivate(secondId), "Second SNI binding did not deactivate.");
+    Assert(registry.Select("one.example.test") == firstSni, "Unrelated SNI binding changed during deactivation.");
+}
+
+static async Task VerifyRenewalRetryAsync(string root)
+{
+    var environment = new TestHostEnvironment(root);
+    var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Provider"] = "memory" }).Build();
+    var repository = new CertificateRenewalAttemptRepository(environment, configuration,
+        new CertificateOptions { RenewalRetryMaxAttempts = 2, RenewalRetryBaseDelayMinutes = 1 });
+    var certificateId = Guid.NewGuid();
+    var failed = new CertificateOperationDto(Guid.NewGuid(), certificateId, "renew", CertificateOperationState.Failed, "failed", "certificate.acme_request_failed", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    await repository.RecordAsync(failed, CancellationToken.None);
+    var schedule = await repository.GetScheduleAsync(certificateId, CancellationToken.None);
+    Assert(schedule.ConsecutiveFailures == 1 && schedule.RetryAfter > DateTimeOffset.UtcNow && !schedule.Exhausted, "Renewal retry backoff was not persisted.");
+    var succeeded = new CertificateOperationDto(Guid.NewGuid(), certificateId, "renew", CertificateOperationState.Succeeded, "succeeded", "", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    await repository.RecordAsync(succeeded, CancellationToken.None);
+    Assert((await repository.GetScheduleAsync(certificateId, CancellationToken.None)).ConsecutiveFailures == 0, "A successful renewal did not reset retry state.");
+}
+
+static async Task VerifyHostGlobalMigrationAsync(string root)
+{
+    var databasePath = Path.Combine(root, "host-global.db");
+    await HostGlobalMigrationRunner.MigrateAsync($"Data Source={databasePath}", CancellationToken.None);
+    await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath}");
+    await connection.OpenAsync();
+    await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT MAX(version) FROM remoteos_host_schema_migrations;";
+    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 6, "HostGlobal migrations did not reach the expected version.");
+}
+
+static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
+{
+    var databasePath = Path.Combine(root, "deployment-and-snapshots.db");
+    await HostGlobalMigrationRunner.MigrateAsync($"Data Source={databasePath}", CancellationToken.None);
+    var environment = new TestHostEnvironment(root);
+    var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Storage:Provider"] = "sqlite",
+        ["Storage:DatabasePath"] = databasePath
+    }).Build();
+    var certificateId = Guid.NewGuid();
+    var certificate = new StoredCertificate(certificateId, "a".PadLeft(32, 'a'), "one.example.test", ["one.example.test"],
+        CertificateChallengeType.WebRootHttp01, CertificateKeyAlgorithm.EcdsaP256, null, null, null, DateTimeOffset.UtcNow,
+        DateTimeOffset.UtcNow.AddDays(7), CertificateStatus.Active, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "ops@example.test", null, null, null, null);
+    var deployments = new CertificateDeploymentRepository(environment, configuration);
+    await deployments.RecordKestrelAsync(certificate, false, "certificate.kestrel_activation_failed", CancellationToken.None);
+    Assert((await deployments.ListKestrelAsync(CancellationToken.None)).Count == 0, "A failed Kestrel deployment became restartable.");
+    await deployments.RecordKestrelAsync(certificate, true, null, CancellationToken.None);
+    Assert((await deployments.ListKestrelAsync(CancellationToken.None)).Single().CurrentVersion == certificate.Version, "A successful Kestrel deployment was not persisted.");
+
+    var configPath = Path.Combine(root, "nginx.conf");
+    Directory.CreateDirectory(Path.Combine(root, "conf.d"));
+    await File.WriteAllTextAsync(configPath, "events {}\nhttp {\n  include conf.d/*.conf;\n}\n");
+    var instance = new WebServerDto("nginx-test", "nginx", WebServerType.Nginx, WebServerManagementMode.External, "/usr/sbin/nginx", configPath,
+        "test", DateTimeOffset.UtcNow, new WebServerCapabilities(true, true, false, false));
+    var webServers = new WebServerMetadataRepository(environment, configuration);
+    await webServers.UpsertInstanceAsync(instance, CancellationToken.None);
+    var snapshot = await webServers.CreateSnapshotAsync(instance, CancellationToken.None) ?? throw new InvalidOperationException("Nginx snapshot was not created.");
+    Assert(await webServers.IsSnapshotCurrentAsync(configPath, snapshot, CancellationToken.None), "Fresh Nginx snapshot was incorrectly stale.");
+    await File.AppendAllTextAsync(configPath, "# external change\n");
+    Assert(!await webServers.IsSnapshotCurrentAsync(configPath, snapshot, CancellationToken.None), "Nginx external modification was not detected.");
+
+    var resolver = typeof(NginxWebServerManager).GetMethod("FindOwnedIncludeDirectory", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx include resolver was not found.");
+    var resolved = (string?)resolver.Invoke(null, [configPath]);
+    Assert(string.Equals(resolved, Path.Combine(root, "conf.d"), StringComparison.Ordinal), "Nginx http-context include was not found.");
+    var outsideHttp = Path.Combine(root, "outside-http.conf");
+    await File.WriteAllTextAsync(outsideHttp, "include conf.d/*.conf;\nevents {}\nhttp {}\n");
+    Assert(resolver.Invoke(null, [outsideHttp]) is null, "Nginx include outside http context was accepted.");
+}
+
+static async Task VerifyOperationIdempotencyAsync(string root)
+{
+    var environment = new TestHostEnvironment(root);
+    var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:Provider"] = "memory" }).Build();
+    var options = new CertificateOptions { StorageRoot = Path.Combine(root, "operation-certificates") };
+    var certificates = new FileCertificateStore(environment, options, new CertificateMetadataRepository(environment, configuration));
+    var retries = new CertificateRenewalAttemptRepository(environment, configuration, options);
+    var journal = new HostOperationJournal(environment, configuration);
+    var certificateOperations = new CertificateOperationStore(environment, journal, certificates, retries);
+    var certificateId = Guid.NewGuid();
+    var first = await certificateOperations.StartAsync("same-key", certificateId, "issue", "test", _ => Task.FromResult(""), CancellationToken.None);
+    var duplicate = await certificateOperations.StartAsync("same-key", certificateId, "issue", "test", _ => Task.FromResult("certificate.should_not_run"), CancellationToken.None);
+    Assert(first.OperationId == duplicate.OperationId, "Certificate idempotency key created duplicate work.");
+    Assert((await WaitForCertificateOperationAsync(certificateOperations, first.OperationId)).State == CertificateOperationState.Succeeded, "Certificate operation did not complete.");
+
+    var webOperations = new WebServerOperationStore(environment, journal);
+    var webFirst = await webOperations.StartAsync("same-key", "nginx-test", "reload", "test", _ => Task.FromResult(WebServerOperationResult.Success), CancellationToken.None);
+    var webDuplicate = await webOperations.StartAsync("same-key", "nginx-test", "reload", "test", _ => Task.FromResult(new WebServerOperationResult("webserver.should_not_run")), CancellationToken.None);
+    Assert(webFirst.OperationId == webDuplicate.OperationId, "WebServer idempotency key created duplicate work.");
+    Assert((await WaitForWebOperationAsync(webOperations, webFirst.OperationId)).State == WebServerOperationState.Succeeded, "WebServer operation did not complete.");
+}
+
+static async Task<CertificateOperationDto> WaitForCertificateOperationAsync(CertificateOperationStore operations, Guid id)
+{
+    for (var attempt = 0; attempt < 100; attempt++)
+    {
+        var operation = await operations.GetAsync(id, CancellationToken.None) ?? throw new InvalidOperationException("Certificate operation disappeared.");
+        if (operation.State is CertificateOperationState.Succeeded or CertificateOperationState.Failed or CertificateOperationState.Cancelled) return operation;
+        await Task.Delay(10);
+    }
+    throw new TimeoutException("Certificate operation did not complete.");
+}
+
+static async Task<WebServerOperationDto> WaitForWebOperationAsync(WebServerOperationStore operations, Guid id)
+{
+    for (var attempt = 0; attempt < 100; attempt++)
+    {
+        var operation = await operations.GetAsync(id, CancellationToken.None) ?? throw new InvalidOperationException("WebServer operation disappeared.");
+        if (operation.State is WebServerOperationState.Succeeded or WebServerOperationState.Failed or WebServerOperationState.Cancelled) return operation;
+        await Task.Delay(10);
+    }
+    throw new TimeoutException("WebServer operation did not complete.");
+}
+
+static CertificateMaterial CreateMaterial(Guid id, string domain)
+{
+    using var certificate = CreateX509(domain);
+    return new CertificateMaterial(id, [domain], CertificateChallengeType.WebRootHttp01, CertificateKeyAlgorithm.EcdsaP256,
+        "ops@example.test", certificate.ExportCertificatePem(), certificate.GetECDsaPrivateKey()!.ExportPkcs8PrivateKeyPem(), DateTimeOffset.UtcNow);
+}
+
+static X509Certificate2 CreateX509(string domain)
+{
+    using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    var request = new CertificateRequest($"CN={domain}", key, HashAlgorithmName.SHA256);
+    request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+    request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, false));
+    request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+    return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(7));
+}
+
+static void Assert(bool condition, string message)
+{
+    if (!condition) throw new InvalidOperationException(message);
+}
+
+sealed class TestHostEnvironment(string contentRoot) : IHostEnvironment
+{
+    public string EnvironmentName { get; set; } = Environments.Development;
+    public string ApplicationName { get; set; } = "RemoteOS.Server.Tests";
+    public string ContentRootPath { get; set; } = contentRoot;
+    public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(contentRoot);
+}

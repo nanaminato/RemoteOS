@@ -47,8 +47,8 @@ Shared/RemoteOS.Protocol/
 ├── Files/         # FileSystemEntryType/Dto、FileEntryDto、DirectoryDto、DriveDto、Rename/Move/CopyRequest、FileApiRoutes
 ├── Browser/       # BookmarkDto、HistoryEntryDto、Create*Request、BrowserSettingsDto、BrowserApiRoutes
 ├── SystemMonitor/ # SystemMetricsDto、Cpu/Memory/Disk/Network/GpuUsageDto、ProcessInfoDto、KillProcessResultDto、SystemMonitorApiRoutes
-├── Certificates/  # 设计中：证书、ACME account、部署目标、operation DTO 与 CertificateApiRoutes
-├── WebServers/    # 设计中：实例、站点、配置快照、operation DTO 与 WebServerApiRoutes
+├── Certificates/  # V1：证书、挑战类型、密钥算法、operation DTO 与 CertificateApiRoutes
+├── WebServers/    # V1：Nginx 实例/状态/配置测试/集成、operation DTO 与 WebServerApiRoutes
 └── Hubs/          # Workspace Hub（IWorkspaceHubClient/Methods/Events、JoinWorkspaceRequest、事件参数）
                   # + Terminal Hub（ITerminalHubClient、TerminalHubMethods/Events、StartTerminalRequest、AttachTerminalResponse、TerminalSessionInfo）
 ```
@@ -152,9 +152,9 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | GET | `/api/v1/system/processes` | — | `ProcessInfoDto[]` | JWT |
 | DELETE | `/api/v1/system/processes/{id}?force=` | query: `force`（可选） | `KillProcessResultDto` | JWT |
 
-### Certificates / WebServers（设计中）
+### Certificates / WebServers（V1 后端）
 
-证书和 Web Server 管理尚未实现；其具体资源模型见 [`RemoteOS.CertificateManager.md`](../applications/RemoteOS.CertificateManager.md) 与 [`RemoteOS.WebServerManager.Design.md`](../applications/RemoteOS.WebServerManager.Design.md)。实现时：
+证书与 Web Server 的 HostGlobal 后端已实现；具体资源模型见 [`RemoteOS.CertificateManager.md`](../applications/RemoteOS.CertificateManager.md) 与 [`RemoteOS.WebServerManager.Design.md`](../applications/RemoteOS.WebServerManager.Design.md)。证书 API 提供元数据读取、预检、签发、续期、Kestrel 部署、删除、撤销和 operation 查询/取消；Web Server API 提供 Nginx 发现、状态、配置测试、最小集成、重载和 operation 查询/取消。所有变更请求：
 
 - 所有变更请求携带 `Idempotency-Key`，返回 `OperationDto`（操作 ID、状态、阶段、稳定问题码、时间、可选快照 ID）。
 - `CertificateApiRoutes` 与 `WebServerApiRoutes` 只定义 `/api/v1` 路径常量；Endpoint、Client 和 UI 不重复字面量。

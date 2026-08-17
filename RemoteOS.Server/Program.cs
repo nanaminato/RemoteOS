@@ -15,6 +15,9 @@ using Server.Storage;
 using Server.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+var kestrelCertificates = new Server.Certificate.KestrelCertificateRegistry();
+builder.WebHost.ConfigureKestrel(options => options.ConfigureHttpsDefaults(https =>
+    https.ServerCertificateSelector = (_, hostName) => kestrelCertificates.Select(hostName)));
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
@@ -166,6 +169,32 @@ else
     builder.Services.AddSingleton<Server.Firewall.IHostFirewallService, Server.Firewall.UnavailableHostFirewallService>();
 builder.Services.AddSingleton<Server.Firewall.IFirewallChangeAuthorizationService, Server.Firewall.FirewallChangeAuthorizationService>();
 
+// Web Server V1: host-global Nginx discovery/read state plus an explicitly confirmed,
+// marker-owned conf.d integration. It never accepts shell text or elevation credentials from HTTP.
+builder.Services.AddSingleton<Server.WebServer.IHostPrivilegeService, Server.WebServer.HostPrivilegeService>();
+builder.Services.AddSingleton<Server.Certificate.HostOperationJournal>();
+builder.Services.AddSingleton<Server.WebServer.WebServerMetadataRepository>();
+builder.Services.AddSingleton<Server.WebServer.WebServerOperationStore>();
+builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServer.NginxWebServerManager>();
+
+// Certificate management is host-global. PEM/account keys remain behind the server-side
+// store; the API exposes metadata and operation IDs only.
+var certificateOptions = builder.Configuration.GetSection("Certificate").Get<Server.Certificate.CertificateOptions>() ?? new Server.Certificate.CertificateOptions();
+builder.Services.AddSingleton(certificateOptions);
+builder.Services.AddSingleton<Server.Certificate.FileHttp01ChallengeStore>();
+builder.Services.AddSingleton<Server.Certificate.DirectHttp01ChallengeStore>();
+builder.Services.AddSingleton(kestrelCertificates);
+builder.Services.AddSingleton<Server.Certificate.CertificateMetadataRepository>();
+builder.Services.AddSingleton<Server.Certificate.ICertificateStore, Server.Certificate.FileCertificateStore>();
+builder.Services.AddSingleton<Server.Certificate.CertificateDeploymentRepository>();
+builder.Services.AddSingleton<Server.Certificate.IAcmeService, Server.Certificate.AnvilAcmeService>();
+builder.Services.AddSingleton<Server.Certificate.IAcmeRenewalInfoProvider>(services => (Server.Certificate.AnvilAcmeService)services.GetRequiredService<Server.Certificate.IAcmeService>());
+builder.Services.AddSingleton<Server.Certificate.CertificateRenewalAttemptRepository>();
+builder.Services.AddSingleton<Server.Certificate.CertificateOperationStore>();
+builder.Services.AddSingleton<Server.Certificate.ICertificateManager, Server.Certificate.CertificateManager>();
+builder.Services.AddHostedService<Server.Certificate.KestrelCertificateStartupService>();
+builder.Services.AddHostedService<Server.Certificate.CertificateRenewalWorker>();
+
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
 // 详见 docs/RemoteOS.Storage.md。
@@ -312,6 +341,11 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_image_mirrors_UserId_Target" ON "image_mirrors" ("UserId", "Target");
         """);
+
+    // Host-global certificate/WebServer state uses independently versioned migrations. This
+    // is deliberately not an ad-hoc ALTER/CREATE compatibility patch: operations must remain
+    // durable and recoverable independently from user/workspace schema evolution.
+    await HostGlobalMigrationRunner.MigrateAsync(db.Database.GetDbConnection().ConnectionString, app.Lifetime.ApplicationStopping);
 }
 
 if (app.Environment.IsDevelopment())
@@ -338,6 +372,8 @@ app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
+app.MapWebServerEndpoints();
+app.MapCertificateEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

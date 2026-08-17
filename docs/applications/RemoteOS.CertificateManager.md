@@ -1,6 +1,6 @@
 # RemoteOS 证书管理器设计
 
-> 状态：**设计中**。本文定义未来实现的边界，不表示证书签发、Kestrel 部署或自动续期已经可用。
+> 状态：**后端核心 V1 已实现，待目标平台验收**。已提供 ACME v2、HTTP-01（Direct/WebRoot）、受保护的 PEM 存储、RSA/ECDSA、Kestrel 部署、ARI 优先的自动续期与 HostGlobal SQLite 元数据。DNS-01、Wildcard、IIS/Nginx/Apache 部署和管理界面仍属后续阶段；Ubuntu 24.04 与 Windows Server 的真实 CA/监听/ACL 验收仍须在目标主机执行。
 
 ## 1. 项目背景
 

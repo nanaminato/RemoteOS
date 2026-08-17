@@ -1,0 +1,48 @@
+using RemoteOS.Protocol.WebServers;
+
+namespace Server.Endpoints;
+
+public static class WebServerEndpoints
+{
+    public static IEndpointRouteBuilder MapWebServerEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup(WebServerApiRoutes.WebServers).RequireAuthorization().WithTags("WebServers");
+        group.MapPost(WebServerApiRoutes.DiscoverPattern, (Server.WebServer.IWebServerManager manager, CancellationToken ct) => manager.DiscoverAsync(ct));
+        group.MapGet(WebServerApiRoutes.CollectionPattern, (Server.WebServer.IWebServerManager manager, CancellationToken ct) => manager.ListAsync(ct));
+        group.MapGet(WebServerApiRoutes.ByIdPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            (await manager.ListAsync(ct)).FirstOrDefault(server => server.Id == id) is { } item ? Results.Ok(item) : Results.NotFound());
+        group.MapGet(WebServerApiRoutes.StatusPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.GetStatusAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound());
+        group.MapPost(WebServerApiRoutes.TestConfigurationPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.TestConfigurationAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
+        group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await StartAsync(context.Request, key => manager.ReloadAsync(id, key, Actor(context), ct)));
+        group.MapGet(WebServerApiRoutes.OperationsPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>
+            await operations.GetAsync(operationId, ct) is { } operation ? Results.Ok(operation) : Results.NotFound());
+        group.MapPost(WebServerApiRoutes.CancelOperationPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>
+            await operations.CancelAsync(operationId, ct) is { } operation ? Results.Ok(operation) : Results.NotFound());
+        return app;
+    }
+
+    private static async Task<IResult> StartAsync(HttpRequest request, Func<string, Task<WebServerOperationDto?>> start)
+    {
+        var key = request.Headers["Idempotency-Key"].ToString();
+        if (string.IsNullOrWhiteSpace(key) || key.Length > 128)
+            return Results.BadRequest(new { problemCode = "webserver.idempotency_key_required" });
+        var operation = await start(key);
+        if (operation is null) return Results.NotFound();
+        if (operation.OperationId == Guid.Empty)
+        {
+            var status = operation.ProblemCode.EndsWith("elevation_required", StringComparison.Ordinal)
+                ? StatusCodes.Status403Forbidden
+                : StatusCodes.Status409Conflict;
+            return Results.Problem(statusCode: status, extensions: new Dictionary<string, object?> { ["problemCode"] = operation.ProblemCode });
+        }
+        return Results.Accepted($"{WebServerApiRoutes.WebServers}/operations/{operation.OperationId}", operation);
+    }
+
+    private static string? Actor(HttpContext context) => context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Name)?.Value
+        ?? context.User.Identity?.Name;
+}
