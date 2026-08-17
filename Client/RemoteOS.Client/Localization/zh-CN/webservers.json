@@ -1,6 +1,7 @@
 {
   "Culture": "zh-CN",
   "Strings": {
+    "webservers.subtitle": "发现并管理主机上的 Web 服务器",
     "webservers.login_required": "登录 RemoteOS Server 后才能管理 Web 服务器。",
     "webservers.status.loading": "正在加载 Web 服务器…",
     "webservers.status.ready": "已注册 {0} 个 Web 服务器。",

@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:certificates="clr-namespace:Client.Apps.Certificates"
+             x:Class="Client.Apps.Certificates.Views.CertificateManagerWorkspace"
+             x:DataType="certificates:CertificateManagerViewModel"
+             Background="#F4F7FB">
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Border Grid.Row="0" Background="#122344" Padding="28,18">
+            <Grid ColumnDefinitions="Auto,*">
+                <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
+                    <TextBlock Text="🔐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{loc:Loc application.remoteos.certificates.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="{loc:Loc certificates.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}"
+                Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="18,12,18,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
+                <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}"
+                        IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="2" Margin="18,12,18,18" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+            </StackPanel>
+
+            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14" Padding="16" Margin="0,0,0,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{loc:Loc certificates.request.title}" FontWeight="SemiBold" Foreground="#163059" />
+                    <TextBlock Text="{loc:Loc certificates.request.help}" TextWrapping="Wrap" Foreground="#61708B" />
+
+                    <StackPanel Spacing="4" Width="520">
+                        <TextBlock Text="{loc:Loc certificates.request.domains}" />
+                        <TextBox Text="{Binding Domains, Mode=TwoWay}" PlaceholderText="example.com, www.example.com" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4" Width="320">
+                        <TextBlock Text="{loc:Loc certificates.request.contact_email}" />
+                        <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" PlaceholderText="admin@example.com" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Bottom">
+                        <StackPanel Spacing="4" Width="220">
+                            <TextBlock Text="{loc:Loc certificates.request.challenge}" />
+                            <ComboBox ItemsSource="{Binding ChallengeTypes}"
+                                      DisplayMemberBinding="{ReflectionBinding Label}"
+                                      SelectedItem="{Binding SelectedChallengeType, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4" Width="180">
+                            <TextBlock Text="{loc:Loc certificates.request.key_algorithm}" />
+                            <ComboBox ItemsSource="{Binding KeyAlgorithms}"
+                                      DisplayMemberBinding="{ReflectionBinding Label}"
+                                      SelectedItem="{Binding SelectedKeyAlgorithm, Mode=TwoWay}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <CheckBox Content="{loc:Loc certificates.request.accept_terms}" IsChecked="{Binding AcceptedTerms, Mode=TwoWay}" />
+                        <CheckBox Content="{loc:Loc certificates.request.confirm_reachability}" IsChecked="{Binding PublicReachabilityConfirmed, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{loc:Loc certificates.request.preflight}" Command="{Binding PreflightCommand}" />
+                        <Button Classes="primary" Content="{loc:Loc certificates.request.submit}" Command="{Binding RequestCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding PreflightText}" TextWrapping="Wrap" Foreground="#61708B" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                <Button Content="{loc:Loc certificates.action.deploy}" Command="{Binding DeployCommand}" />
+                <Button Content="{loc:Loc certificates.action.renew}" Command="{Binding RenewCommand}" />
+                <Button Content="{loc:Loc certificates.action.revoke}" Command="{Binding RevokeCommand}" />
+                <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteCommand}" Foreground="#B42318" />
+            </StackPanel>
+
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#163059" />
+
+            <Border Background="White" CornerRadius="14" Padding="16">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <DataGrid HorizontalAlignment="Left"
+                              ItemsSource="{Binding Certificates}"
+                              SelectedItem="{Binding SelectedCertificate, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserReorderColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              SelectionMode="Single"
+                              HorizontalScrollBarVisibility="Disabled"
+                              MinWidth="900">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.domain}" Binding="{ReflectionBinding PrimaryDomain}" Width="220" />
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.status}" Binding="{ReflectionBinding Status}" Width="110" />
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.challenge}" Binding="{ReflectionBinding ChallengeType}" Width="130" />
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.issuer}" Binding="{ReflectionBinding Issuer}" Width="180" />
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.not_before}" Binding="{ReflectionBinding NotBefore}" Width="180" />
+                            <DataGridTextColumn Header="{loc:Loc certificates.column.not_after}" Binding="{ReflectionBinding NotAfter}" Width="180" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+    </Grid>
+</UserControl>

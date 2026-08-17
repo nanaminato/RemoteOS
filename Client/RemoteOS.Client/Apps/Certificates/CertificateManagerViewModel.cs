@@ -47,7 +47,8 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(DeployCommand), nameof(RenewCommand), nameof(RevokeCommand), nameof(DeleteCommand))]
     private CertificateDto? _selectedCertificate;
     [ObservableProperty] private string _statusText = LocalizedText.Get("certificates.status.loading");
-    [ObservableProperty] private string _operationText = string.Empty;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOperationActivity))]
+    private string _operationText = string.Empty;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(PreflightCommand), nameof(RequestCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(PreflightCommand), nameof(RequestCommand), nameof(DeployCommand), nameof(RenewCommand), nameof(RevokeCommand), nameof(DeleteCommand), nameof(CancelOperationCommand))]
@@ -61,6 +62,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     [ObservableProperty] private string _preflightText = string.Empty;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
 
     public async Task StartAsync() => await RefreshAsync();
 

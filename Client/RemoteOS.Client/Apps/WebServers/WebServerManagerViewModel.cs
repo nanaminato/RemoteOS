@@ -34,7 +34,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private WebServerDto? _selectedServer;
     [ObservableProperty] private string _statusText = LocalizedText.Get("webservers.status.loading");
-    [ObservableProperty] private string _operationText = string.Empty;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOperationActivity))]
+    private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
@@ -43,6 +44,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool _isOperationRunning;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
 
     public async Task StartAsync() => await RefreshAsync();
 

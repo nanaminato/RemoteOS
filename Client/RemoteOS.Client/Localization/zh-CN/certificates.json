@@ -1,6 +1,7 @@
 {
   "Culture": "zh-CN",
   "Strings": {
+    "certificates.subtitle": "申请并部署 TLS 证书",
     "certificates.login_required": "登录 RemoteOS Server 后才能管理 TLS 证书。",
     "certificates.status.loading": "正在加载证书…",
     "certificates.status.ready": "服务器上共有 {0} 个证书。",

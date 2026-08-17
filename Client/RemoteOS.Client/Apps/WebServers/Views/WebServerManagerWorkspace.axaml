@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:webservers="clr-namespace:Client.Apps.WebServers"
+             x:Class="Client.Apps.WebServers.Views.WebServerManagerWorkspace"
+             x:DataType="webservers:WebServerManagerViewModel"
+             Background="#F4F7FB">
+    <Grid RowDefinitions="Auto,Auto,*">
+        <Border Grid.Row="0" Background="#122344" Padding="28,18">
+            <Grid ColumnDefinitions="Auto,*">
+                <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
+                    <TextBlock Text="🌐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{loc:Loc application.remoteos.webservers.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="{loc:Loc webservers.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}"
+                Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="18,12,18,0">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
+                <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}"
+                        IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="2" Margin="18,12,18,18" LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
+            </StackPanel>
+
+            <TextBlock DockPanel.Dock="Top" Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#163059" />
+
+            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14" Padding="16" Margin="0,0,0,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="{Binding SelectedStatusText}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="#163059" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{loc:Loc webservers.action.test_config}" Command="{Binding TestConfigurationCommand}" />
+                        <Button Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" />
+                        <Button Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" />
+                        <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding TestResultText}" TextWrapping="Wrap" Foreground="#61708B" />
+                </StackPanel>
+            </Border>
+
+            <Border Background="White" CornerRadius="14" Padding="16">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <DataGrid HorizontalAlignment="Left"
+                              ItemsSource="{Binding Servers}"
+                              SelectedItem="{Binding SelectedServer, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserReorderColumns="False"
+                              GridLinesVisibility="Horizontal"
+                              SelectionMode="Single"
+                              HorizontalScrollBarVisibility="Disabled"
+                              MinWidth="900">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.id}" Binding="{ReflectionBinding Id}" Width="140" />
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.type}" Binding="{ReflectionBinding Type}" Width="110" />
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.management_mode}" Binding="{ReflectionBinding ManagementMode}" Width="140" />
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.executable}" Binding="{ReflectionBinding ExecutablePath}" Width="280" />
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.config}" Binding="{ReflectionBinding ConfigurationPath}" Width="260" />
+                            <DataGridTextColumn Header="{loc:Loc webservers.column.version}" Binding="{ReflectionBinding Version}" Width="120" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,6 +1,7 @@
 {
   "Culture": "ja-JP",
   "Strings": {
+    "webservers.subtitle": "ホストの Web サーバーを検出・管理",
     "webservers.login_required": "Web サーバーを管理するには RemoteOS Server にサインインしてください。",
     "webservers.status.loading": "Web サーバーを読み込んでいます…",
     "webservers.status.ready": "{0} 個の Web サーバーが登録されています。",

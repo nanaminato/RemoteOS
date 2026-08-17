@@ -1,6 +1,7 @@
 {
   "Culture": "en-US",
   "Strings": {
+    "webservers.subtitle": "Discover and manage host web servers",
     "webservers.login_required": "Sign in to a RemoteOS Server to manage its web servers.",
     "webservers.status.loading": "Loading web servers…",
     "webservers.status.ready": "{0} web server(s) registered.",
