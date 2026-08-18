@@ -175,7 +175,9 @@ builder.Services.AddSingleton<Server.WebServer.IHostPrivilegeService, Server.Web
 builder.Services.AddSingleton<Server.Certificate.HostOperationJournal>();
 builder.Services.AddSingleton<Server.WebServer.WebServerMetadataRepository>();
 builder.Services.AddSingleton<Server.WebServer.WebServerOperationStore>();
-builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServer.NginxWebServerManager>();
+builder.Services.AddSingleton<Server.WebServer.NginxWebServerManager>();
+builder.Services.AddSingleton<Server.WebServer.IWebServerProvider>(services => services.GetRequiredService<Server.WebServer.NginxWebServerManager>());
+builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServer.WebServerManager>();
 
 // Certificate management is host-global. PEM/account keys remain behind the server-side
 // store; the API exposes metadata and operation IDs only.

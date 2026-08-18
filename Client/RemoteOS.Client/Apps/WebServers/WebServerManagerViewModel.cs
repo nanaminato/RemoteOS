@@ -38,13 +38,18 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(IntegrateCommand), nameof(ReloadCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
 
+    private Guid? _currentOperationId;
+
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
+
+    /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
+    public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -81,7 +86,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
-    [RelayCommand(CanExecute = nameof(CanRead))]
+    [RelayCommand(CanExecute = nameof(CanDiscover))]
     private async Task DiscoverAsync()
     {
         IsLoading = true;
@@ -102,7 +107,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
-    [RelayCommand(CanExecute = nameof(CanRead))]
+    [RelayCommand(CanExecute = nameof(CanRefreshStatus))]
     private async Task RefreshStatusAsync()
     {
         if (SelectedServer is null) return;
@@ -121,7 +126,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
-    [RelayCommand(CanExecute = nameof(CanRead))]
+    [RelayCommand(CanExecute = nameof(CanTestConfiguration))]
     private async Task TestConfigurationAsync()
     {
         if (SelectedServer is null) return;
@@ -143,11 +148,15 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         finally { IsLoading = false; }
     }
 
-    [RelayCommand(CanExecute = nameof(CanManageSelected))]
-    private Task IntegrateAsync() => RunOperationAsync("integrate", SelectedServer!,
-        (id, ct) => _client.IntegrateAsync(id, new IntegrateWebServerRequest(true), ct));
+    [RelayCommand(CanExecute = nameof(CanIntegrate))]
+    private async Task IntegrateAsync()
+    {
+        if (RequestIntegrationConfirmationAsync is null || !await RequestIntegrationConfirmationAsync()) return;
+        await RunOperationAsync("integrate", SelectedServer!,
+            (id, ct) => _client.IntegrateAsync(id, new IntegrateWebServerRequest(true), ct));
+    }
 
-    [RelayCommand(CanExecute = nameof(CanManageSelected))]
+    [RelayCommand(CanExecute = nameof(CanReload))]
     private Task ReloadAsync() => RunOperationAsync("reload", SelectedServer!,
         (id, ct) => _client.ReloadAsync(id, ct));
 
@@ -155,7 +164,12 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task CancelOperationAsync()
     {
         if (_operationCts is null) return;
-        try { await _operationCts.CancelAsync(); }
+        try
+        {
+            if (_currentOperationId is { } operationId)
+                await _client.CancelOperationAsync(operationId);
+            await _operationCts.CancelAsync();
+        }
         catch (Exception) { /* cancellation is best-effort; the poll loop observes the token */ }
     }
 
@@ -192,6 +206,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
                 OperationText = LocalizedText.Format("webservers.operation.rejected", operation.ProblemCode);
                 return;
             }
+            _currentOperationId = operation.OperationId;
             operation = await PollOperationAsync(operation, token);
             if (operation.State == WebServerOperationState.Succeeded)
             {
@@ -213,6 +228,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         }
         finally
         {
+            _currentOperationId = null;
             IsOperationRunning = false;
             _operationCts?.Dispose();
             _operationCts = null;
@@ -236,8 +252,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool HasReadPermission => _permissions.IsGranted(AppPermissions.ServerWebServersRead);
     private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerWebServersManage);
     private bool CanRefresh => HasReadPermission && !IsLoading && !IsOperationRunning;
-    private bool CanRead => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer is not null;
-    private bool CanManageSelected => HasManagePermission && !IsOperationRunning && SelectedServer is not null;
+    private bool CanDiscover => HasReadPermission && !IsLoading && !IsOperationRunning;
+    private bool CanRefreshStatus => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanRead == true;
+    private bool CanTestConfiguration => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanTestConfiguration == true;
+    private bool CanIntegrate => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanIntegrate == true;
+    private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanReload == true;
     private bool CanCancelOperation => IsOperationRunning;
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.

@@ -18,6 +18,7 @@ try
     await VerifyRenewalRetryAsync(root);
     await VerifyHostGlobalMigrationAsync(root);
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
+    await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
@@ -155,6 +156,17 @@ static async Task VerifyOperationIdempotencyAsync(string root)
     Assert((await WaitForWebOperationAsync(webOperations, webFirst.OperationId)).State == WebServerOperationState.Succeeded, "WebServer operation did not complete.");
 }
 
+static async Task VerifyWebServerProviderRoutingAsync()
+{
+    var provider = new FakeWebServerProvider();
+    IWebServerManager manager = new WebServerManager([provider]);
+    var discovered = await manager.DiscoverAsync(CancellationToken.None);
+    Assert(discovered.Count == 1 && discovered[0].ProviderId == provider.ProviderId, "Web Server Manager did not aggregate provider discovery.");
+    var status = await manager.GetStatusAsync(provider.Instance.Id, CancellationToken.None);
+    Assert(status?.RuntimeState == WebServerRuntimeState.Running, "Web Server Manager did not route the instance to its provider.");
+    Assert(await manager.GetStatusAsync("unknown", CancellationToken.None) is null, "Web Server Manager routed an unknown instance.");
+}
+
 static async Task<CertificateOperationDto> WaitForCertificateOperationAsync(CertificateOperationStore operations, Guid id)
 {
     for (var attempt = 0; attempt < 100; attempt++)
@@ -205,4 +217,17 @@ sealed class TestHostEnvironment(string contentRoot) : IHostEnvironment
     public string ApplicationName { get; set; } = "RemoteOS.Server.Tests";
     public string ContentRootPath { get; set; } = contentRoot;
     public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(contentRoot);
+}
+
+sealed class FakeWebServerProvider : IWebServerProvider
+{
+    public string ProviderId => "fake";
+    public WebServerDto Instance { get; } = new("fake-instance", "fake", WebServerType.Nginx, WebServerManagementMode.External,
+        "/fake/nginx", null, "test", DateTimeOffset.UtcNow, new WebServerCapabilities(true, true, false, false));
+
+    public Task<IReadOnlyList<WebServerDto>> DiscoverAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<WebServerDto>>([Instance]);
+    public Task<WebServerStatusDto?> GetStatusAsync(string instanceId, CancellationToken cancellationToken) => Task.FromResult<WebServerStatusDto?>(instanceId == Instance.Id ? new WebServerStatusDto(instanceId, WebServerRuntimeState.Running) : null);
+    public Task<WebServerConfigTestResultDto?> TestConfigurationAsync(string instanceId, CancellationToken cancellationToken) => Task.FromResult<WebServerConfigTestResultDto?>(null);
+    public Task<WebServerOperationDto?> IntegrateAsync(string instanceId, string idempotencyKey, IntegrateWebServerRequest request, string? actor, CancellationToken cancellationToken) => Task.FromResult<WebServerOperationDto?>(null);
+    public Task<WebServerOperationDto?> ReloadAsync(string instanceId, string idempotencyKey, string? actor, CancellationToken cancellationToken) => Task.FromResult<WebServerOperationDto?>(null);
 }

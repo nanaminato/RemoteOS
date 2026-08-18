@@ -29,8 +29,22 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         }
         var viewModel = new WebServerManagerViewModel(client, session, context.Permissions);
         var view = WebServerManagerWorkspace.Create(viewModel);
-        context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
             view, new Rect(70, 55, 1080, 680), Manifest.IconGlyph);
+        viewModel.RequestIntegrationConfirmationAsync = async () =>
+        {
+            var confirmed = false;
+            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("webservers.integration.confirmation.title"), dialog =>
+            {
+                var dialogViewModel = new NginxIntegrationConfirmationDialogViewModel(result =>
+                {
+                    confirmed = result;
+                    dialog.Close(result);
+                });
+                return new NginxIntegrationConfirmationDialogView { DataContext = dialogViewModel };
+            }, new Size(500, 190));
+            return confirmed;
+        };
         _ = viewModel.StartAsync();
     }
 }

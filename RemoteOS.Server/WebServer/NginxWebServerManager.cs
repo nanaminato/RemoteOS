@@ -6,27 +6,31 @@ using RemoteOS.Protocol.WebServers;
 
 namespace Server.WebServer;
 
-/// <summary>Nginx V1 provider. It uses fixed executable arguments and only creates one owned,
-/// marker-bearing file in an already-included conf.d directory.</summary>
+/// <summary>
+/// Nginx V1 provider. It uses fixed executable arguments and only creates one owned,
+/// marker-bearing file in an already-included conf.d directory. It is deliberately below
+/// <see cref="IWebServerManager"/> so callers use the product-neutral facade and Nginx remains
+/// an optional host integration.
+/// </summary>
 internal sealed partial class NginxWebServerManager(
     IHostPrivilegeService privileges,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
-    IHostApplicationLifetime lifetime) : IWebServerManager
+    IHostApplicationLifetime lifetime) : IWebServerProvider
 {
-    private const string ProviderId = "nginx";
+    private const string ProviderKey = "nginx";
     private const string OwnedFileName = "remoteos.conf";
     private const string OwnershipMarker = "# Managed by RemoteOS. Do not edit.";
     private static readonly string OwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
+
+    public string ProviderId => ProviderKey;
 
     public async Task<IReadOnlyList<WebServerDto>> DiscoverAsync(CancellationToken cancellationToken)
     {
         var instance = await DetectAsync(cancellationToken);
         return instance is null ? [] : [instance];
     }
-
-    public Task<IReadOnlyList<WebServerDto>> ListAsync(CancellationToken cancellationToken) => DiscoverAsync(cancellationToken);
 
     public async Task<WebServerStatusDto?> GetStatusAsync(string instanceId, CancellationToken cancellationToken)
     {
@@ -84,7 +88,7 @@ internal sealed partial class NginxWebServerManager(
             CanTestConfiguration: true,
             CanIntegrate: !integrated && privileges.IsAdministrator && includeDirectory is not null,
             CanReload: integrated && privileges.IsAdministrator);
-        var instance = new WebServerDto(InstanceId(executable), ProviderId, WebServerType.Nginx, mode, executable, configPath, version, DateTimeOffset.UtcNow, capabilities);
+        var instance = new WebServerDto(InstanceId(executable), ProviderKey, WebServerType.Nginx, mode, executable, configPath, version, DateTimeOffset.UtcNow, capabilities);
         await metadata.UpsertInstanceAsync(instance, cancellationToken);
         return instance;
     }

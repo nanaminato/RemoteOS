@@ -1,6 +1,6 @@
 # RemoteOS WebServerManager / Nginx 集成设计
 
-> 状态：**后端 V1 部分实现**。已提供 Nginx 发现、只读状态/配置测试，以及经管理员明确确认的最小 `conf.d` 集成与可恢复重载；安装、升级、卸载、站点管理和自动证书部署仍属后续阶段。
+> 状态：**Nginx Provider V1 已实现**。已提供 Nginx 发现、只读状态/配置测试，以及经管理员明确确认的最小 `conf.d` 集成与可恢复重载；安装、升级、卸载、站点管理和自动证书部署仍属后续阶段。
 
 ## 1. 设计背景
 
@@ -54,6 +54,21 @@ IWebServerProvider
    ├── Apache
    └── ...
 ```
+
+当前实现对应关系：
+
+```text
+HTTP endpoints / Certificate modules
+              ↓
+IWebServerManager
+              ↓
+WebServerManager                 ← 产品无关的发现聚合与实例路由
+              ↓
+IWebServerProvider
+              └── NginxWebServerManager  ← Nginx 的探测、配置测试、集成和重载
+```
+
+因此，**Web Server 管理器是入口和调度层，Nginx 管理器是其中一个 Provider**。其他模块只依赖前者；新增 IIS、Apache 或 Caddy 时，注册新的 Provider 即可，不需要改变 API 调用方。
 
 ---
 
