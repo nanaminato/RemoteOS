@@ -5,10 +5,13 @@ using CommunityToolkit.Mvvm.Input;
 namespace Client.Apps.WebServers.Views;
 
 /// <summary>State for the Nginx integration confirmation dialog.</summary>
-internal sealed partial class NginxIntegrationConfirmationDialogViewModel(Action<bool> complete) : ObservableObject
+internal sealed partial class NginxIntegrationConfirmationDialogViewModel(
+    Action<bool> complete,
+    string messageKey = "webservers.integration.confirmation.message",
+    string confirmKey = "webservers.integration.confirmation.confirm") : ObservableObject
 {
-    public string Message => LocalizedText.Get("webservers.integration.confirmation.message");
-    public string ConfirmLabel => LocalizedText.Get("webservers.integration.confirmation.confirm");
+    public string Message => LocalizedText.Get(messageKey);
+    public string ConfirmLabel => LocalizedText.Get(confirmKey);
 
     [RelayCommand]
     private void Confirm() => complete(true);

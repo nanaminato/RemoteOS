@@ -18,6 +18,12 @@ public static class WebServerApiRoutes
     public const string TestConfigurationPattern = "/{id}/config/test";
     public const string Integrate = $"{WebServers}/{{id}}/integrate";
     public const string IntegratePattern = "/{id}/integrate";
+    public const string ManagedInstall = $"{WebServers}/managed/{{providerId}}/install";
+    public const string ManagedInstallPattern = "/managed/{providerId}/install";
+    public const string Lifecycle = $"{WebServers}/{{id}}/lifecycle/{{action}}";
+    public const string LifecyclePattern = "/{id}/lifecycle/{action}";
+    public const string ManagedUninstall = $"{WebServers}/{{id}}/managed/uninstall";
+    public const string ManagedUninstallPattern = "/{id}/managed/uninstall";
     public const string Reload = $"{WebServers}/{{id}}/reload";
     public const string ReloadPattern = "/{id}/reload";
     public const string Operations = $"{WebServers}/operations/{{operationId}}";

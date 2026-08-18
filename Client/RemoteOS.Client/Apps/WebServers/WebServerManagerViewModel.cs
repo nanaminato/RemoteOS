@@ -31,14 +31,14 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<WebServerDto> Servers { get; } = [];
     public ObservableCollection<WebServerStatusDto> Statuses { get; } = [];
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private WebServerDto? _selectedServer;
     [ObservableProperty] private string _statusText = LocalizedText.Get("webservers.status.loading");
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOperationActivity))]
     private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(IntegrateCommand), nameof(ReloadCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(InstallManagedCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
@@ -50,6 +50,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
     public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
+    public Func<Task<bool>>? RequestManagedInstallConfirmationAsync { get; set; }
+    public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -156,9 +158,33 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             (id, ct) => _client.IntegrateAsync(id, new IntegrateWebServerRequest(true), ct));
     }
 
+    [RelayCommand(CanExecute = nameof(CanInstallManaged))]
+    private async Task InstallManagedAsync()
+    {
+        if (RequestManagedInstallConfirmationAsync is null || !await RequestManagedInstallConfirmationAsync()) return;
+        await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true), ct));
+        await RefreshAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStart))]
+    private Task StartManagedAsync() => RunOperationAsync("start", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Start, ct));
+
+    [RelayCommand(CanExecute = nameof(CanStop))]
+    private Task StopAsync() => RunOperationAsync("stop", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Stop, ct));
+
+    [RelayCommand(CanExecute = nameof(CanRestart))]
+    private Task RestartAsync() => RunOperationAsync("restart", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Restart, ct));
+
     [RelayCommand(CanExecute = nameof(CanReload))]
-    private Task ReloadAsync() => RunOperationAsync("reload", SelectedServer!,
-        (id, ct) => _client.ReloadAsync(id, ct));
+    private Task ReloadAsync() => RunOperationAsync("reload", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Reload, ct));
+
+    [RelayCommand(CanExecute = nameof(CanUninstallManaged))]
+    private async Task UninstallManagedAsync()
+    {
+        if (RequestManagedUninstallConfirmationAsync is null || !await RequestManagedUninstallConfirmationAsync()) return;
+        await RunOperationAsync("uninstall", ct => _client.UninstallManagedAsync(SelectedServer!.Id, new UninstallManagedWebServerRequest(true), ct));
+        await RefreshAsync();
+    }
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
     private async Task CancelOperationAsync()
@@ -181,6 +207,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     }
 
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
+        => await RunOperationAsync(kindKey, ct => start(server.Id, ct));
+
+    private async Task RunOperationAsync(string kindKey, Func<CancellationToken, Task<WebServerOperationDto?>> start)
     {
         if (!HasManagePermission)
         {
@@ -195,7 +224,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         OperationText = LocalizedText.Format("webservers.operation.starting", kindKey);
         try
         {
-            var operation = await start(server.Id, token);
+            var operation = await start(token);
             if (operation is null)
             {
                 OperationText = LocalizedText.Get("webservers.operation.not_found");
@@ -253,10 +282,17 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerWebServersManage);
     private bool CanRefresh => HasReadPermission && !IsLoading && !IsOperationRunning;
     private bool CanDiscover => HasReadPermission && !IsLoading && !IsOperationRunning;
-    private bool CanRefreshStatus => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanRead == true;
-    private bool CanTestConfiguration => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanTestConfiguration == true;
-    private bool CanIntegrate => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanIntegrate == true;
-    private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities.CanReload == true;
+    // A server from an older deployment can omit the capabilities object. Treat that response as
+    // read-only instead of letting command re-evaluation crash while the DataGrid selects it.
+    private bool CanRefreshStatus => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRead == true;
+    private bool CanTestConfiguration => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanTestConfiguration == true;
+    private bool CanInstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning;
+    private bool CanIntegrate => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanIntegrate == true;
+    private bool CanStart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStart == true;
+    private bool CanStop => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStop == true;
+    private bool CanRestart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRestart == true;
+    private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanReload == true;
+    private bool CanUninstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanUninstall == true;
     private bool CanCancelOperation => IsOperationRunning;
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.

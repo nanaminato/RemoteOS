@@ -26,8 +26,17 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
     public Task<WebServerConfigTestResultDto?> TestConfigurationAsync(string id, CancellationToken cancellationToken = default)
         => SendAsync<WebServerConfigTestResultDto?>(HttpMethod.Post, WebServerApiRoutes.TestConfigurationPattern.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
 
+    public Task<WebServerOperationDto?> InstallManagedAsync(string providerId, InstallManagedWebServerRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedInstallPattern.Replace("{providerId}", WebUtility.UrlEncode(providerId)), request, NewKey(), cancellationToken);
+
     public Task<WebServerOperationDto?> IntegrateAsync(string id, IntegrateWebServerRequest request, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.IntegratePattern.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+
+    public Task<WebServerOperationDto?> ApplyLifecycleAsync(string id, WebServerLifecycleAction action, CancellationToken cancellationToken = default)
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.LifecyclePattern.Replace("{id}", WebUtility.UrlEncode(id)).Replace("{action}", action.ToString().ToLowerInvariant()), null, NewKey(), cancellationToken);
+
+    public Task<WebServerOperationDto?> UninstallManagedAsync(string id, UninstallManagedWebServerRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedUninstallPattern.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> ReloadAsync(string id, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ReloadPattern.Replace("{id}", WebUtility.UrlEncode(id)), null, NewKey(), cancellationToken);

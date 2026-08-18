@@ -33,18 +33,25 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
             view, new Rect(70, 55, 1080, 680), Manifest.IconGlyph);
         viewModel.RequestIntegrationConfirmationAsync = async () =>
         {
+            return await ConfirmAsync("webservers.integration.confirmation.title", "webservers.integration.confirmation.message", "webservers.integration.confirmation.confirm");
+        };
+        viewModel.RequestManagedInstallConfirmationAsync = () => ConfirmAsync("webservers.managed.install.title", "webservers.managed.install.message", "webservers.managed.install.confirm");
+        viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
+
+        async Task<bool> ConfirmAsync(string titleKey, string messageKey, string confirmKey)
+        {
             var confirmed = false;
-            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("webservers.integration.confirmation.title"), dialog =>
+            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get(titleKey), dialog =>
             {
                 var dialogViewModel = new NginxIntegrationConfirmationDialogViewModel(result =>
                 {
                     confirmed = result;
                     dialog.Close(result);
-                });
+                }, messageKey, confirmKey);
                 return new NginxIntegrationConfirmationDialogView { DataContext = dialogViewModel };
-            }, new Size(500, 190));
+            }, new Size(500, 220));
             return confirmed;
-        };
+        }
         _ = viewModel.StartAsync();
     }
 }

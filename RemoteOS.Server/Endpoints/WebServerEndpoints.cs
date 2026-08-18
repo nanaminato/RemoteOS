@@ -15,8 +15,16 @@ public static class WebServerEndpoints
             await manager.GetStatusAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.TestConfigurationPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.TestConfigurationAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
+        group.MapPost(WebServerApiRoutes.ManagedInstallPattern, async (string providerId, InstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await StartAsync(context.Request, key => manager.InstallManagedAsync(providerId, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            Enum.TryParse<WebServerLifecycleAction>(action, ignoreCase: true, out var lifecycle)
+                ? await StartAsync(context.Request, key => manager.ApplyLifecycleAsync(id, lifecycle, key, Actor(context), ct))
+                : Results.BadRequest(new { problemCode = "webserver.lifecycle_action_invalid" }));
+        group.MapPost(WebServerApiRoutes.ManagedUninstallPattern, async (string id, UninstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await StartAsync(context.Request, key => manager.UninstallManagedAsync(id, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.ReloadAsync(id, key, Actor(context), ct)));
         group.MapGet(WebServerApiRoutes.OperationsPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>

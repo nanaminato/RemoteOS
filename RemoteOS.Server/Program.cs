@@ -172,6 +172,7 @@ builder.Services.AddSingleton<Server.Firewall.IFirewallChangeAuthorizationServic
 // Web Server V1: host-global Nginx discovery/read state plus an explicitly confirmed,
 // marker-owned conf.d integration. It never accepts shell text or elevation credentials from HTTP.
 builder.Services.AddSingleton<Server.WebServer.IHostPrivilegeService, Server.WebServer.HostPrivilegeService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("NginxManaged").Get<Server.WebServer.NginxManagedOptions>() ?? new Server.WebServer.NginxManagedOptions());
 builder.Services.AddSingleton<Server.Certificate.HostOperationJournal>();
 builder.Services.AddSingleton<Server.WebServer.WebServerMetadataRepository>();
 builder.Services.AddSingleton<Server.WebServer.WebServerOperationStore>();

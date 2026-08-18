@@ -6,12 +6,17 @@ public enum WebServerType { Nginx }
 public enum WebServerManagementMode { External, Integrated, Managed }
 public enum WebServerRuntimeState { Unknown, Running, Stopped }
 public enum WebServerOperationState { Queued, Running, Succeeded, Failed, Cancelled }
+public enum WebServerLifecycleAction { Start, Stop, Restart, Reload }
 
 public sealed record WebServerCapabilities(
     [property: JsonPropertyName("canRead")] bool CanRead,
     [property: JsonPropertyName("canTestConfiguration")] bool CanTestConfiguration,
     [property: JsonPropertyName("canIntegrate")] bool CanIntegrate,
-    [property: JsonPropertyName("canReload")] bool CanReload);
+    [property: JsonPropertyName("canReload")] bool CanReload,
+    [property: JsonPropertyName("canStart")] bool CanStart = false,
+    [property: JsonPropertyName("canStop")] bool CanStop = false,
+    [property: JsonPropertyName("canRestart")] bool CanRestart = false,
+    [property: JsonPropertyName("canUninstall")] bool CanUninstall = false);
 
 public sealed record WebServerDto(
     [property: JsonPropertyName("id")] string Id,
@@ -34,6 +39,14 @@ public sealed record WebServerConfigTestResultDto(
     [property: JsonPropertyName("problemCode")] string ProblemCode = "");
 
 public sealed record IntegrateWebServerRequest(
+    [property: JsonPropertyName("confirmed")] bool Confirmed);
+
+/// <summary>Explicit acknowledgement for installing the provider's RemoteOS-owned instance.</summary>
+public sealed record InstallManagedWebServerRequest(
+    [property: JsonPropertyName("confirmed")] bool Confirmed);
+
+/// <summary>Explicit acknowledgement for deleting a RemoteOS-owned web-server installation.</summary>
+public sealed record UninstallManagedWebServerRequest(
     [property: JsonPropertyName("confirmed")] bool Confirmed);
 
 public sealed record WebServerOperationDto(

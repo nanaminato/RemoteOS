@@ -31,6 +31,7 @@
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
                 <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
                 <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
+                <Button Classes="primary" Content="{loc:Loc webservers.managed.install}" Command="{Binding InstallManagedCommand}" />
             </StackPanel>
 
             <TextBlock DockPanel.Dock="Top" Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#163059" />
@@ -42,7 +43,11 @@
                         <Button Content="{loc:Loc webservers.action.test_config}" Command="{Binding TestConfigurationCommand}" />
                         <Button Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" />
                         <Button Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" />
+                        <Button Content="{loc:Loc webservers.action.start}" Command="{Binding StartManagedCommand}" />
+                        <Button Content="{loc:Loc webservers.action.stop}" Command="{Binding StopCommand}" />
+                        <Button Content="{loc:Loc webservers.action.restart}" Command="{Binding RestartCommand}" />
                         <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" />
+                        <Button Content="{loc:Loc webservers.managed.uninstall}" Command="{Binding UninstallManagedCommand}" />
                     </StackPanel>
                     <TextBlock Text="{Binding TestResultText}" TextWrapping="Wrap" Foreground="#61708B" />
                 </StackPanel>

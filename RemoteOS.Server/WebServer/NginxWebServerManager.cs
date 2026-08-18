@@ -16,11 +16,14 @@ internal sealed partial class NginxWebServerManager(
     IHostPrivilegeService privileges,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
-    IHostApplicationLifetime lifetime) : IWebServerProvider
+    IHostApplicationLifetime lifetime,
+    NginxManagedOptions managedOptions) : IWebServerProvider
 {
     private const string ProviderKey = "nginx";
     private const string OwnedFileName = "remoteos.conf";
     private const string OwnershipMarker = "# Managed by RemoteOS. Do not edit.";
+    private const string ManagedMarkerName = ".remoteos-managed";
+    private const string ManagedMarkerContent = "RemoteOS owns this Nginx installation. Do not move this marker.\n";
     private static readonly string OwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
 
@@ -28,13 +31,26 @@ internal sealed partial class NginxWebServerManager(
 
     public async Task<IReadOnlyList<WebServerDto>> DiscoverAsync(CancellationToken cancellationToken)
     {
-        var instance = await DetectAsync(cancellationToken);
-        return instance is null ? [] : [instance];
+        var discovered = new List<WebServerDto>();
+        var managed = GetManagedLayout();
+        if (IsManagedInstallation(managed))
+        {
+            var instance = await DetectAsync(managed.ExecutablePath, WebServerManagementMode.Managed, cancellationToken);
+            if (instance is not null) discovered.Add(instance);
+        }
+
+        foreach (var executable in FindExternalExecutables())
+        {
+            if (string.Equals(executable, managed.ExecutablePath, StringComparison.OrdinalIgnoreCase)) continue;
+            var instance = await DetectAsync(executable, null, cancellationToken);
+            if (instance is not null) discovered.Add(instance);
+        }
+        return discovered;
     }
 
     public async Task<WebServerStatusDto?> GetStatusAsync(string instanceId, CancellationToken cancellationToken)
     {
-        var instance = await DetectAsync(cancellationToken);
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null || instance.Id != instanceId) return null;
         var running = IsNginxRunning();
         return new WebServerStatusDto(instanceId, running ? WebServerRuntimeState.Running : WebServerRuntimeState.Stopped);
@@ -42,7 +58,7 @@ internal sealed partial class NginxWebServerManager(
 
     public async Task<WebServerConfigTestResultDto?> TestConfigurationAsync(string instanceId, CancellationToken cancellationToken)
     {
-        var detected = await DetectAsync(cancellationToken);
+        var detected = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (detected is null || detected.Id != instanceId) return null;
         var result = await RunNginxAsync(detected.ExecutablePath, ["-t"], cancellationToken);
         return new WebServerConfigTestResultDto(result.Success, result.Success ? "" : "webserver.config_test_failed");
@@ -50,7 +66,7 @@ internal sealed partial class NginxWebServerManager(
 
     public async Task<WebServerOperationDto?> IntegrateAsync(string instanceId, string idempotencyKey, IntegrateWebServerRequest request, string? actor, CancellationToken cancellationToken)
     {
-        var detected = await DetectAsync(cancellationToken);
+        var detected = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (detected is null || detected.Id != instanceId) return null;
         if (!request.Confirmed)
             return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "validation", "webserver.confirmation_required", null, null, DateTimeOffset.UtcNow);
@@ -61,7 +77,7 @@ internal sealed partial class NginxWebServerManager(
 
     public async Task<WebServerOperationDto?> ReloadAsync(string instanceId, string idempotencyKey, string? actor, CancellationToken cancellationToken)
     {
-        var detected = await DetectAsync(cancellationToken);
+        var detected = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (detected is null || detected.Id != instanceId) return null;
         if (detected.ManagementMode != WebServerManagementMode.Integrated)
             return new WebServerOperationDto(Guid.Empty, instanceId, "reload", WebServerOperationState.Failed, "authorization", "webserver.reload_not_permitted", null, null, DateTimeOffset.UtcNow);
@@ -71,10 +87,58 @@ internal sealed partial class NginxWebServerManager(
             new WebServerOperationResult((await RunNginxAsync(detected.ExecutablePath, ["-s", "reload"], ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
     }
 
-    private async Task<WebServerDto?> DetectAsync(CancellationToken cancellationToken)
+    public async Task<WebServerOperationDto?> InstallManagedAsync(string idempotencyKey, InstallManagedWebServerRequest request, string? actor, CancellationToken cancellationToken)
     {
-        var executable = FindExecutable();
-        if (executable is null) return null;
+        var layout = GetManagedLayout();
+        if (!request.Confirmed)
+            return Rejected(layout.InstanceId, "install", "webserver.confirmation_required");
+        if (!privileges.IsAdministrator)
+            return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
+        if (IsManagedInstallation(layout))
+            return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
+        if (!IsConfiguredInstaller())
+            return Rejected(layout.InstanceId, "install", "webserver.install_not_configured");
+        return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
+            ct => InstallManagedCoreAsync(layout, ct), lifetime.ApplicationStopping);
+    }
+
+    public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
+    {
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
+        if (instance is null) return null;
+        if (!privileges.IsAdministrator)
+            return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.lifecycle_elevation_required");
+        if (action == WebServerLifecycleAction.Reload)
+        {
+            if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
+                return Rejected(instanceId, "reload", "webserver.reload_not_permitted");
+            var arguments = instance.ManagementMode == WebServerManagementMode.Managed
+                ? ManagedArguments(GetManagedLayout(), ["-s", "reload"])
+                : new[] { "-s", "reload" };
+            return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
+                new WebServerOperationResult((await RunNginxAsync(instance.ExecutablePath, arguments, ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
+        }
+        if (instance.ManagementMode != WebServerManagementMode.Managed)
+            return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.managed_required");
+
+        var layout = GetManagedLayout();
+        return await operations.StartAsync(idempotencyKey, instanceId, action.ToString().ToLowerInvariant(), actor,
+            ct => ApplyManagedLifecycleCoreAsync(layout, action, ct), lifetime.ApplicationStopping);
+    }
+
+    public async Task<WebServerOperationDto?> UninstallManagedAsync(string instanceId, string idempotencyKey, UninstallManagedWebServerRequest request, string? actor, CancellationToken cancellationToken)
+    {
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
+        if (instance is null) return null;
+        if (!request.Confirmed) return Rejected(instanceId, "uninstall", "webserver.confirmation_required");
+        if (!privileges.IsAdministrator) return Rejected(instanceId, "uninstall", "webserver.install_elevation_required");
+        if (instance.ManagementMode != WebServerManagementMode.Managed) return Rejected(instanceId, "uninstall", "webserver.managed_required");
+        return await operations.StartAsync(idempotencyKey, instanceId, "uninstall", actor,
+            ct => UninstallManagedCoreAsync(GetManagedLayout(), ct), lifetime.ApplicationStopping);
+    }
+
+    private async Task<WebServerDto?> DetectAsync(string executable, WebServerManagementMode? forcedMode, CancellationToken cancellationToken)
+    {
         var details = await RunNginxAsync(executable, ["-V"], cancellationToken);
         if (!details.Success && string.IsNullOrWhiteSpace(details.Output)) return null;
         var configPath = ParseConfigPath(details.Output, executable);
@@ -82,12 +146,17 @@ internal sealed partial class NginxWebServerManager(
         var includeDirectory = configPath is null ? null : FindOwnedIncludeDirectory(configPath);
         var ownedPath = includeDirectory is null ? null : Path.Combine(includeDirectory, OwnedFileName);
         var integrated = ownedPath is not null && IsOwnedFile(ownedPath);
-        var mode = integrated ? WebServerManagementMode.Integrated : WebServerManagementMode.External;
+        var mode = forcedMode ?? (integrated ? WebServerManagementMode.Integrated : WebServerManagementMode.External);
+        var isManaged = mode == WebServerManagementMode.Managed;
         var capabilities = new WebServerCapabilities(
             CanRead: true,
             CanTestConfiguration: true,
-            CanIntegrate: !integrated && privileges.IsAdministrator && includeDirectory is not null,
-            CanReload: integrated && privileges.IsAdministrator);
+            CanIntegrate: !isManaged && !integrated && privileges.IsAdministrator && includeDirectory is not null,
+            CanReload: (integrated || isManaged) && privileges.IsAdministrator,
+            CanStart: isManaged && privileges.IsAdministrator,
+            CanStop: isManaged && privileges.IsAdministrator,
+            CanRestart: isManaged && privileges.IsAdministrator,
+            CanUninstall: isManaged && privileges.IsAdministrator);
         var instance = new WebServerDto(InstanceId(executable), ProviderKey, WebServerType.Nginx, mode, executable, configPath, version, DateTimeOffset.UtcNow, capabilities);
         await metadata.UpsertInstanceAsync(instance, cancellationToken);
         return instance;
@@ -152,12 +221,116 @@ internal sealed partial class NginxWebServerManager(
         finally { IntegrationGate.Release(); }
     }
 
-    private static string? FindExecutable()
+    private async Task<WebServerOperationResult> InstallManagedCoreAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        var started = await RunConfiguredInstallerAsync(cancellationToken);
+        if (!started) return new WebServerOperationResult("webserver.install_failed");
+        if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath) || !Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root))
+            return new WebServerOperationResult("webserver.install_layout_invalid");
+        try
+        {
+            await File.WriteAllTextAsync(layout.MarkerPath, ManagedMarkerContent, new UTF8Encoding(false), cancellationToken);
+            var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
+            if (test.Success) return new WebServerOperationResult("");
+            File.Delete(layout.MarkerPath);
+            return new WebServerOperationResult("webserver.config_test_failed");
+        }
+        catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.install_elevation_required"); }
+        catch (IOException) { return new WebServerOperationResult("webserver.install_layout_invalid"); }
+    }
+
+    private async Task<WebServerOperationResult> ApplyManagedLifecycleCoreAsync(ManagedLayout layout, WebServerLifecycleAction action, CancellationToken cancellationToken)
+    {
+        var result = action switch
+        {
+            WebServerLifecycleAction.Start => await StartManagedAsync(layout, cancellationToken),
+            WebServerLifecycleAction.Stop => await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken),
+            WebServerLifecycleAction.Restart => await RestartManagedAsync(layout, cancellationToken),
+            _ => new CommandResult(false, "")
+        };
+        return new WebServerOperationResult(result.Success ? "" : $"webserver.{action.ToString().ToLowerInvariant()}_failed");
+    }
+
+    private async Task<WebServerOperationResult> UninstallManagedCoreAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        if (!IsManagedInstallation(layout)) return new WebServerOperationResult("webserver.managed_required");
+        _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
+        try
+        {
+            Directory.Delete(layout.Root, recursive: true);
+            return new WebServerOperationResult("");
+        }
+        catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.install_elevation_required"); }
+        catch (IOException) { return new WebServerOperationResult("webserver.uninstall_failed"); }
+    }
+
+    private async Task<CommandResult> StartManagedAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
+        return !test.Success ? test : await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, []), cancellationToken);
+    }
+
+    private async Task<CommandResult> RestartManagedAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
+        return await StartManagedAsync(layout, cancellationToken);
+    }
+
+    private bool IsConfiguredInstaller() => Path.IsPathFullyQualified(managedOptions.InstallerCommand) && File.Exists(managedOptions.InstallerCommand);
+
+    private async Task<bool> RunConfiguredInstallerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var process = new Process { StartInfo = new ProcessStartInfo(managedOptions.InstallerCommand) { UseShellExecute = false, RedirectStandardError = true, CreateNoWindow = true } };
+            foreach (var argument in managedOptions.InstallerArguments) process.StartInfo.ArgumentList.Add(argument);
+            if (!process.Start()) return false;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(10));
+            await process.WaitForExitAsync(timeout.Token);
+            return process.ExitCode == 0;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
+        catch { return false; }
+    }
+
+    private ManagedLayout GetManagedLayout()
+    {
+        var root = string.IsNullOrWhiteSpace(managedOptions.InstallationRoot)
+            ? OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RemoteOS", "webserver", "nginx")
+                : "/var/lib/remoteos/webserver/nginx"
+            : managedOptions.InstallationRoot;
+        root = Path.GetFullPath(root);
+        var executable = OperatingSystem.IsWindows() ? Path.Combine(root, "nginx.exe") : Path.Combine(root, "sbin", "nginx");
+        return new ManagedLayout(root, executable, Path.Combine(root, "conf", "nginx.conf"), Path.Combine(root, ManagedMarkerName), InstanceId(executable));
+    }
+
+    private static bool IsManagedInstallation(ManagedLayout layout)
+    {
+        try
+        {
+            return File.Exists(layout.ExecutablePath) && File.Exists(layout.MarkerPath)
+                && !IsSymbolicLink(layout.Root) && !IsSymbolicLink(layout.ExecutablePath)
+                && !IsSymbolicLink(layout.MarkerPath) && File.ReadAllText(layout.MarkerPath) == ManagedMarkerContent;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static IReadOnlyList<string> ManagedArguments(ManagedLayout layout, IReadOnlyList<string> operation) => ["-p", layout.Root, "-c", layout.ConfigurationPath, .. operation];
+
+    private static WebServerOperationDto Rejected(string instanceId, string kind, string problemCode) =>
+        new(Guid.Empty, instanceId, kind, WebServerOperationState.Failed, "validation", problemCode, null, null, DateTimeOffset.UtcNow);
+
+    private sealed record ManagedLayout(string Root, string ExecutablePath, string ConfigurationPath, string MarkerPath, string InstanceId);
+
+    private static IEnumerable<string> FindExternalExecutables()
     {
         var candidates = OperatingSystem.IsWindows()
-            ? new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nginx", "nginx.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "RemoteOS", "webserver", "nginx", "nginx.exe") }
-            : new[] { "/usr/sbin/nginx", "/usr/bin/nginx", "/usr/local/sbin/nginx", "/usr/local/bin/nginx" };
-        return candidates.FirstOrDefault(File.Exists);
+            ? new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nginx", "nginx.exe"), @"C:\nginx\nginx.exe" }
+            : new[] { "/usr/sbin/nginx", "/usr/bin/nginx", "/usr/local/sbin/nginx", "/usr/local/bin/nginx", "/usr/local/nginx/sbin/nginx", "/usr/local/openresty/nginx/sbin/nginx" };
+        return candidates.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string InstanceId(string executable) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(executable))))[..32].ToLowerInvariant();
