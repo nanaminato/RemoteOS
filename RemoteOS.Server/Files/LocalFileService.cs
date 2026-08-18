@@ -16,6 +16,21 @@ public sealed class LocalFileService : IFileService
 
     public IReadOnlyList<DriveDto> GetDrives()
     {
+        // DriveInfo.GetDrives() 在 Linux 上会枚举每一个挂载点，其中包含 /dev、
+        // /dev/pts、/dev/shm 等嵌套的伪文件系统。把它们全部作为“此电脑”的
+        // 直接子项会丢失目录层级，也会让挂载点看起来像并列磁盘。Linux 的
+        // 文件系统只有一个可浏览的根，因此仅将 / 作为导航树根；其余挂载点
+        // 会在按目录展开 /dev、/sys 等时显示在各自正确的父目录下。
+        if (IsLinux)
+        {
+            var root = new DriveInfo(Path.DirectorySeparatorChar.ToString());
+            return [new DriveDto(
+                Name: root.Name,
+                Path: root.RootDirectory.FullName,
+                TotalSize: root.IsReady ? root.TotalSize : null,
+                IsReady: root.IsReady)];
+        }
+
         var list = new List<DriveDto>();
         foreach (var d in DriveInfo.GetDrives())
         {
