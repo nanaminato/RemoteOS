@@ -65,6 +65,7 @@
     "webservers.action.restart": "Restart",
     "webservers.managed.install": "Install managed Nginx",
     "webservers.managed.version": "Nginx version",
+    "webservers.managed.linux_version_hint": "Linux: leave empty for the repository default, or enter the full APT package version (see apt-cache policy nginx).",
     "webservers.managed.select_package": "Choose local ZIP",
     "webservers.managed.package_file_type": "Nginx Windows ZIP package",
     "webservers.managed.uninstall": "Uninstall managed Nginx",

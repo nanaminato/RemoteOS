@@ -5,6 +5,8 @@
       <map>
         <entry key="Client/RemoteOS.Client/Apps/AppInstaller/Views/AppInstallerView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Browser/Views/BrowserSettingsView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Certificates/Views/CertificateLoginRequiredView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Certificates/Views/CertificateManagerWorkspace.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/CodeEditor/CodeEditorSettingsView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/CodeEditor/CodeEditorView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Docker/Views/DockerContainerDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />

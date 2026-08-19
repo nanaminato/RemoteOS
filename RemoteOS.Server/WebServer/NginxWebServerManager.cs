@@ -115,6 +115,8 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
+        if (!OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(request.Version) && !LinuxPackageVersionPattern().IsMatch(request.Version.Trim()))
+            return Rejected(layout.InstanceId, "install", "webserver.version_invalid");
         if (!OperatingSystem.IsWindows() && !IsConfiguredInstaller() && !CanUseBuiltInInstaller())
             return Rejected(layout.InstanceId, "install", "webserver.install_unsupported_platform");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
@@ -253,7 +255,7 @@ internal sealed partial class NginxWebServerManager(
         if (OperatingSystem.IsWindows())
             return await InstallWindowsManagedAsync(layout, request, progress, cancellationToken);
         await progress.ReportAsync(IsConfiguredInstaller() ? "installer_running" : "installing_package", cancellationToken);
-        var started = await RunInstallerAsync(layout, cancellationToken);
+        var started = await RunInstallerAsync(layout, request.Version, cancellationToken);
         if (!started) return new WebServerOperationResult("webserver.install_failed");
         await progress.ReportAsync("verifying_layout", cancellationToken);
         if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath) || !Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root))
@@ -368,10 +370,10 @@ internal sealed partial class NginxWebServerManager(
 
     private static bool CanUseBuiltInInstaller() => OperatingSystem.IsLinux() && File.Exists("/usr/bin/apt-get");
 
-    private Task<bool> RunInstallerAsync(ManagedLayout layout, CancellationToken cancellationToken) =>
+    private Task<bool> RunInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken) =>
         IsConfiguredInstaller()
             ? RunConfiguredInstallerAsync(cancellationToken)
-            : RunBuiltInLinuxInstallerAsync(layout, cancellationToken);
+            : RunBuiltInLinuxInstallerAsync(layout, version, cancellationToken);
 
     private async Task<bool> RunConfiguredInstallerAsync(CancellationToken cancellationToken)
     {
@@ -389,11 +391,12 @@ internal sealed partial class NginxWebServerManager(
         catch { return false; }
     }
 
-    private async Task<bool> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    private async Task<bool> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken)
     {
         if (!CanUseBuiltInInstaller()) return false;
         if (!await RunProcessAsync("/usr/bin/apt-get", ["update"], cancellationToken)) return false;
-        if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", "nginx"], cancellationToken)) return false;
+        var package = string.IsNullOrWhiteSpace(version) ? "nginx" : $"nginx={version.Trim()}";
+        if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", package], cancellationToken)) return false;
         const string systemExecutable = "/usr/sbin/nginx";
         if (!File.Exists(systemExecutable) || IsSymbolicLink(systemExecutable)) return false;
         try
@@ -566,6 +569,8 @@ internal sealed partial class NginxWebServerManager(
     private static partial Regex VersionPattern();
     [GeneratedRegex("^1\\.(?:[0-9]{1,3})\\.(?:[0-9]{1,3})$", RegexOptions.CultureInvariant)]
     private static partial Regex WindowsVersionPattern();
+    [GeneratedRegex("^[0-9][0-9A-Za-z.+:~\\-]{0,127}$", RegexOptions.CultureInvariant)]
+    private static partial Regex LinuxPackageVersionPattern();
     [GeneratedRegex("^\\s*include\\s+(?<path>[^;]+\\.conf)\\s*;", RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex IncludePattern();
     [GeneratedRegex("^\\s*http\\s*\\{", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]

@@ -65,6 +65,7 @@
     "webservers.action.restart": "重启",
     "webservers.managed.install": "安装受管 Nginx",
     "webservers.managed.version": "Nginx 版本",
+    "webservers.managed.linux_version_hint": "Linux：留空安装软件源默认版本；指定时请输入 APT 的完整包版本（可用 apt-cache policy nginx 查看）。",
     "webservers.managed.select_package": "选择本地 ZIP",
     "webservers.managed.package_file_type": "Nginx Windows ZIP 包",
     "webservers.managed.uninstall": "卸载受管 Nginx",

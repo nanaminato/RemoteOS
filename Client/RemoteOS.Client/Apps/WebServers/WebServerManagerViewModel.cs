@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.WebServers;
 
 namespace Client.Apps.WebServers;
@@ -26,6 +27,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         _client = client;
         _session = session;
         _permissions = permissions;
+        InstallVersion = session.CurrentServer?.Platform == PlatformKind.Windows ? "1.31.3" : string.Empty;
     }
 
     public ObservableCollection<WebServerDto> Servers { get; } = [];
@@ -38,7 +40,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
-    [ObservableProperty] private string _installVersion = "1.31.3";
+    [ObservableProperty] private string _installVersion = string.Empty;
     [ObservableProperty] private string _localPackageName = string.Empty;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
@@ -49,6 +51,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string? _localPackageId;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    public bool IsWindowsServer => _session.CurrentServer?.Platform == PlatformKind.Windows;
+    public bool IsLinuxServer => _session.CurrentServer?.Platform == PlatformKind.Linux;
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
 
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
