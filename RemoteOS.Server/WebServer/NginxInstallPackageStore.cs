@@ -1,16 +1,29 @@
 using System.IO.Compression;
+using Microsoft.Extensions.Logging;
 
 namespace Server.WebServer;
 
 /// <summary>Stores only validated, short-lived Windows Nginx ZIP archives outside user-controlled paths.</summary>
-internal sealed class NginxInstallPackageStore(IHostEnvironment environment)
+internal sealed class NginxInstallPackageStore(IHostEnvironment environment, ILogger<NginxInstallPackageStore> logger)
 {
     private const long MaximumPackageBytes = 128L * 1024 * 1024;
     private readonly string _root = Path.Combine(environment.ContentRootPath, "data", "webserver-packages");
 
     public async Task<string?> SaveAsync(string fileName, Stream content, CancellationToken cancellationToken)
     {
-        if (!OperatingSystem.IsWindows() || !fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) return null;
+        var safeFileName = Path.GetFileName(fileName);
+        if (!OperatingSystem.IsWindows())
+        {
+            logger.LogWarning("Rejected Nginx package upload because the host is not Windows. FileName={FileName}", safeFileName);
+            return null;
+        }
+        if (!safeFileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("Rejected Nginx package upload because it is not a ZIP archive. FileName={FileName}", safeFileName);
+            return null;
+        }
+
+        logger.LogInformation("Saving Windows Nginx package upload. FileName={FileName}", safeFileName);
         Directory.CreateDirectory(_root);
         var id = Guid.NewGuid().ToString("N");
         var temporary = Path.Combine(_root, $"{id}.uploading");
@@ -26,24 +39,55 @@ internal sealed class NginxInstallPackageStore(IHostEnvironment environment)
                     var read = await content.ReadAsync(buffer, cancellationToken);
                     if (read == 0) break;
                     total += read;
-                    if (total > MaximumPackageBytes) return null;
+                    if (total > MaximumPackageBytes)
+                    {
+                        logger.LogWarning("Rejected Nginx package upload because it exceeds the size limit. FileName={FileName}, Bytes={Bytes}, MaximumBytes={MaximumBytes}", safeFileName, total, MaximumPackageBytes);
+                        return null;
+                    }
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 }
             }
-            if (!ContainsNginxExecutable(temporary)) return null;
+            if (!ContainsNginxExecutable(temporary))
+            {
+                logger.LogWarning("Rejected Nginx package upload because it does not contain nginx.exe. FileName={FileName}", safeFileName);
+                return null;
+            }
             File.Move(temporary, destination);
+            logger.LogInformation("Saved validated Windows Nginx package. PackageId={PackageId}, FileName={FileName}", id, safeFileName);
             return id;
         }
-        catch (InvalidDataException) { return null; }
-        catch (IOException) { return null; }
+        catch (InvalidDataException exception)
+        {
+            logger.LogWarning(exception, "Rejected invalid Nginx ZIP package. FileName={FileName}", safeFileName);
+            return null;
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "Failed to save Nginx package upload. FileName={FileName}", safeFileName);
+            return null;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            logger.LogWarning(exception, "Access denied while saving Nginx package upload. FileName={FileName}", safeFileName);
+            return null;
+        }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
     public string? GetPath(string packageId)
     {
-        if (!Guid.TryParseExact(packageId, "N", out _)) return null;
+        if (!Guid.TryParseExact(packageId, "N", out _))
+        {
+            logger.LogWarning("Rejected invalid Nginx package identifier.");
+            return null;
+        }
         var path = Path.Combine(_root, $"{packageId}.zip");
-        return File.Exists(path) && !IsSymbolicLink(path) ? path : null;
+        if (!File.Exists(path) || IsSymbolicLink(path))
+        {
+            logger.LogWarning("Nginx package was not available for installation. PackageId={PackageId}", packageId);
+            return null;
+        }
+        return path;
     }
 
     public void Delete(string? packageId)

@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.WebServers;
 
 namespace Server.WebServer;
@@ -19,7 +20,8 @@ internal sealed partial class NginxWebServerManager(
     WebServerMetadataRepository metadata,
     IHostApplicationLifetime lifetime,
     NginxManagedOptions managedOptions,
-    NginxInstallPackageStore packages) : IWebServerProvider
+    NginxInstallPackageStore packages,
+    ILogger<NginxWebServerManager> logger) : IWebServerProvider
 {
     private const string ProviderKey = "nginx";
     private const string OwnedFileName = "remoteos.conf";
@@ -125,7 +127,10 @@ internal sealed partial class NginxWebServerManager(
 
     public async Task<WebServerInstallPackageDto?> UploadManagedPackageAsync(string fileName, Stream content, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Received request to upload a Windows Nginx installation package. FileName={FileName}", Path.GetFileName(fileName));
         var packageId = await packages.SaveAsync(fileName, content, cancellationToken);
+        if (packageId is null)
+            logger.LogWarning("Windows Nginx package upload was rejected. FileName={FileName}", Path.GetFileName(fileName));
         return packageId is null ? null : new WebServerInstallPackageDto(packageId, Path.GetFileName(fileName));
     }
 
@@ -134,16 +139,26 @@ internal sealed partial class NginxWebServerManager(
         if (!OperatingSystem.IsWindows()) return new WebServerInstallCatalogDto(null, null, []);
         try
         {
+            logger.LogInformation("Retrieving Windows Nginx version catalog from the official download page.");
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var page = await client.GetStringAsync("https://nginx.org/en/download.html", cancellationToken);
             var versions = WindowsDownloadVersionPattern().Matches(page).Select(match => match.Groups["version"].Value)
                 .Distinct(StringComparer.Ordinal).OrderByDescending(version => Version.TryParse(version, out var parsed) ? parsed : new Version(0, 0)).ToArray();
+            logger.LogInformation("Retrieved Windows Nginx version catalog. Versions={VersionCount}", versions.Length);
             return new WebServerInstallCatalogDto(
                 FirstWindowsVersionInSection(page, "Mainline version", "Stable version"),
                 FirstWindowsVersionInSection(page, "Stable version", "Legacy versions"), versions);
         }
-        catch (HttpRequestException) { return new WebServerInstallCatalogDto(null, null, []); }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new WebServerInstallCatalogDto(null, null, []); }
+        catch (HttpRequestException exception)
+        {
+            logger.LogWarning(exception, "Failed to retrieve the Windows Nginx version catalog.");
+            return new WebServerInstallCatalogDto(null, null, []);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception, "Timed out while retrieving the Windows Nginx version catalog.");
+            return new WebServerInstallCatalogDto(null, null, []);
+        }
     }
 
     public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
@@ -297,53 +312,112 @@ internal sealed partial class NginxWebServerManager(
     private async Task<WebServerOperationResult> InstallWindowsManagedAsync(ManagedLayout layout, InstallManagedWebServerRequest request, IWebServerOperationProgress progress, CancellationToken cancellationToken)
     {
         string? packageId = request.PackageId;
+        logger.LogInformation("Starting managed Windows Nginx installation. Version={Version}, UsesUploadedPackage={UsesUploadedPackage}", request.Version, !string.IsNullOrWhiteSpace(packageId));
         try
         {
             if (string.IsNullOrWhiteSpace(packageId))
             {
                 var version = string.IsNullOrWhiteSpace(request.Version) ? "1.31.3" : request.Version.Trim();
-                if (!WindowsVersionPattern().IsMatch(version)) return new WebServerOperationResult("webserver.version_invalid");
+                if (!WindowsVersionPattern().IsMatch(version))
+                {
+                    logger.LogWarning("Rejected Windows Nginx installation due to an invalid version. Version={Version}", version);
+                    return new WebServerOperationResult("webserver.version_invalid");
+                }
                 await progress.ReportAsync("downloading", cancellationToken);
+                logger.LogInformation("Downloading Windows Nginx ZIP from the official source. Version={Version}", version);
                 using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
                 using var response = await client.GetAsync($"https://nginx.org/download/nginx-{version}.zip", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                if (!response.IsSuccessStatusCode) return new WebServerOperationResult("webserver.download_failed");
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger.LogWarning("Official Windows Nginx download failed. Version={Version}, StatusCode={StatusCode}", version, (int)response.StatusCode);
+                    return new WebServerOperationResult("webserver.download_failed");
+                }
                 await using var download = await response.Content.ReadAsStreamAsync(cancellationToken);
                 packageId = await packages.SaveAsync($"nginx-{version}.zip", download, cancellationToken);
-                if (packageId is null) return new WebServerOperationResult("webserver.package_invalid");
+                if (packageId is null)
+                {
+                    logger.LogWarning("Downloaded Windows Nginx ZIP failed validation. Version={Version}", version);
+                    return new WebServerOperationResult("webserver.package_invalid");
+                }
             }
 
             var archivePath = packages.GetPath(packageId);
-            if (archivePath is null) return new WebServerOperationResult("webserver.package_not_found");
+            if (archivePath is null)
+            {
+                logger.LogWarning("Windows Nginx installation package is unavailable. PackageId={PackageId}", packageId);
+                return new WebServerOperationResult("webserver.package_not_found");
+            }
             await progress.ReportAsync("extracting", cancellationToken);
-            return ExtractWindowsPackage(layout, archivePath) ? new WebServerOperationResult("") : new WebServerOperationResult("webserver.package_invalid");
+            var extracted = ExtractWindowsPackage(layout, archivePath);
+            if (!extracted)
+                logger.LogWarning("Windows Nginx package extraction or layout validation failed. PackageId={PackageId}", packageId);
+            else
+                logger.LogInformation("Managed Windows Nginx installation completed. PackageId={PackageId}", packageId);
+            return extracted ? new WebServerOperationResult("") : new WebServerOperationResult("webserver.package_invalid");
         }
         catch (OperationCanceledException) { throw; }
-        catch (HttpRequestException) { return new WebServerOperationResult("webserver.download_failed"); }
+        catch (HttpRequestException exception)
+        {
+            logger.LogWarning(exception, "Windows Nginx download request failed.");
+            return new WebServerOperationResult("webserver.download_failed");
+        }
         finally { packages.Delete(packageId); }
     }
 
-    private static bool ExtractWindowsPackage(ManagedLayout layout, string archivePath)
+    private bool ExtractWindowsPackage(ManagedLayout layout, string archivePath)
     {
         var staging = $"{layout.Root}.staging-{Guid.NewGuid():N}";
         try
         {
-            if (Directory.Exists(layout.Root) || File.Exists(layout.Root) || IsSymbolicLink(layout.Root)) return false;
+            if (Directory.Exists(layout.Root) || File.Exists(layout.Root) || IsSymbolicLink(layout.Root))
+            {
+                logger.LogWarning("Cannot extract Windows Nginx package because the managed destination already exists or is unsafe. Destination={Destination}", layout.Root);
+                return false;
+            }
+            logger.LogInformation("Extracting Windows Nginx ZIP into a staging directory. Destination={Destination}", layout.Root);
             using (var archive = ZipFile.OpenRead(archivePath))
             {
-                if (!archive.Entries.All(entry => NginxInstallPackageStore.IsSafeEntry(entry.FullName))) return false;
+                if (!archive.Entries.All(entry => NginxInstallPackageStore.IsSafeEntry(entry.FullName)))
+                {
+                    logger.LogWarning("Rejected Windows Nginx ZIP because it contains an unsafe archive entry.");
+                    return false;
+                }
                 archive.ExtractToDirectory(staging);
             }
             var executable = Directory.GetFiles(staging, "nginx.exe", SearchOption.AllDirectories).SingleOrDefault();
-            if (executable is null) return false;
+            if (executable is null)
+            {
+                logger.LogWarning("Rejected Windows Nginx ZIP because nginx.exe was not found after extraction.");
+                return false;
+            }
             var extractedRoot = Path.GetDirectoryName(executable)!;
-            if (!File.Exists(Path.Combine(extractedRoot, "conf", "nginx.conf"))) return false;
+            if (!File.Exists(Path.Combine(extractedRoot, "conf", "nginx.conf")))
+            {
+                logger.LogWarning("Rejected Windows Nginx ZIP because conf/nginx.conf was not found next to nginx.exe.");
+                return false;
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(layout.Root)!);
             Directory.Move(extractedRoot, layout.Root);
-            return File.Exists(layout.ExecutablePath) && File.Exists(layout.ConfigurationPath);
+            var validLayout = File.Exists(layout.ExecutablePath) && File.Exists(layout.ConfigurationPath);
+            if (!validLayout)
+                logger.LogWarning("Windows Nginx extraction completed but the managed layout is incomplete. Destination={Destination}", layout.Root);
+            return validLayout;
         }
-        catch (InvalidDataException) { return false; }
-        catch (IOException) { return false; }
-        catch (UnauthorizedAccessException) { return false; }
+        catch (InvalidDataException exception)
+        {
+            logger.LogWarning(exception, "Windows Nginx ZIP could not be read during extraction.");
+            return false;
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "I/O failure while extracting Windows Nginx ZIP. Destination={Destination}", layout.Root);
+            return false;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            logger.LogWarning(exception, "Access denied while extracting Windows Nginx ZIP. Destination={Destination}", layout.Root);
+            return false;
+        }
         finally { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
     }
 
