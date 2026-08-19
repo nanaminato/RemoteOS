@@ -63,8 +63,21 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
         using var response = await http.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound && default(T) is null)
             return default!;
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<WebServerProblemDetails>(RemoteOsJsonOptions.Default, cancellationToken);
+            throw new WebServerApiException(problem?.ProblemCode ?? $"webserver.http_{(int)response.StatusCode}", response.StatusCode);
+        }
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken)
             ?? throw new InvalidOperationException("RemoteOS returned an empty response.");
     }
+
+    private sealed record WebServerProblemDetails(string? ProblemCode);
+}
+
+/// <summary>Structured server failure exposed to the view model as a stable problem code.</summary>
+internal sealed class WebServerApiException(string problemCode, HttpStatusCode statusCode)
+    : HttpRequestException(problemCode, null, statusCode)
+{
+    public string ProblemCode { get; } = problemCode;
 }

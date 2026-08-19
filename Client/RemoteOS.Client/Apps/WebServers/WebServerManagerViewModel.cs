@@ -232,7 +232,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             }
             if (operation.OperationId == Guid.Empty)
             {
-                OperationText = LocalizedText.Format("webservers.operation.rejected", operation.ProblemCode);
+                OperationText = LocalizedText.Format("webservers.operation.rejected", ProblemText(operation.ProblemCode));
                 return;
             }
             _currentOperationId = operation.OperationId;
@@ -245,11 +245,15 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             else if (operation.State == WebServerOperationState.Cancelled)
                 OperationText = LocalizedText.Get("webservers.operation.cancelled");
             else
-                OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), operation.ProblemCode);
+                OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), ProblemText(operation.ProblemCode));
         }
         catch (OperationCanceledException)
         {
             OperationText = LocalizedText.Get("webservers.operation.cancelled");
+        }
+        catch (WebServerApiException exception)
+        {
+            OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), ProblemText(exception.ProblemCode));
         }
         catch (Exception exception)
         {
@@ -316,6 +320,15 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration", "正在验证 Nginx 配置"),
         ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing", "正在完成安装"),
         _ => stage,
+    };
+
+    private static string ProblemText(string problemCode) => problemCode switch
+    {
+        "webserver.install_elevation_required" => LocalizedText.Get("webservers.problem.install_elevation_required", "安装需要 RemoteOS Server 以管理员权限运行。"),
+        "webserver.config_elevation_required" => LocalizedText.Get("webservers.problem.config_elevation_required", "此配置操作需要 RemoteOS Server 以管理员权限运行。"),
+        "webserver.lifecycle_elevation_required" => LocalizedText.Get("webservers.problem.lifecycle_elevation_required", "此服务操作需要 RemoteOS Server 以管理员权限运行。"),
+        "webserver.install_not_configured" => LocalizedText.Get("webservers.problem.install_not_configured", "服务器管理员尚未配置 Nginx 安装程序。"),
+        _ => problemCode,
     };
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.
