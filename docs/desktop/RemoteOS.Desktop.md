@@ -132,6 +132,7 @@ WindowManager.ShowDialogAsync<TResult>(owner, title, contentFactory)
     │
     new ModalBlocker(owner); blocker.ApplyBounds(owner.Bounds)
     blocker.ZIndex = dialogWindow.View.ZIndex - 1   // 遮罩在 owner 之上、对话框之下
+    blocker.PointerPressed → Focus(owner)            // 点遮罩 = 点 owner → 激活最顶层模态（见 §3.9）
     _host.Children.Add(blocker)
     │
     new ModalSession(owner, dialogWindow, blocker, dialog) → _modalSessions
@@ -187,6 +188,24 @@ var result = await context.ShowDialogAsync<string>(window, "选择要打开的�
 
 `FilePickerViewModel` 用本地 `Directory.Enumerate*` 列目录，选中文件后 `dialog.Close(fullPath)`；返回路径后 Notepad 读取文件内容。这同时验证了"模态对话框返回任意类型结果"与"应用通过对话框获取输入"两条路径。
 
+### 3.9 模态链激活与层级（Z-order）
+
+激活逻辑保证：**点击模态链上的任意窗口（或盖在 owner 上的遮罩）都激活该链最顶层的模态对话框，并把整条链一起抬到最上层。** 焦点/激活态永远交给链的叶子对话框，根 owner 与中间对话框保持被遮罩、不可交互。
+
+- **链的构成**（`BuildModalChain`）：从被点击窗口出发，先向上经 `GetModalOwner` 找到根 owner（没有任何 modal session 把它当作 `DialogWindow` 的窗口），再向下经 `GetTopmostModal` 走到最顶层模态对话框。例如 `A → B(modal) → C(modal)`，点击 A/B/C 任一，链都是 `[A, B, C]`；点击叶子 C 也是 `[A, B, C]`。
+- **激活目标**：链的叶子（最顶层模态）。`Focus` 把 `IsFocused`/`IsActive`/`SetActive` 只设给叶子，根 owner 与中间对话框不被激活。
+- **层级抬升**：沿链自底向上依次递增 `_zCounter`，每个窗口之后紧跟其遮罩 `GetBlockerFor(w)`，保证 `owner < blocker < dialog` 的相对顺序，且整条链高于桌面其它窗口。抬升 `[A,B,C]` 后 Z 顺序为 `A < blocker₁ < B < blocker₂ < C`，其余窗口（含并存的其它模态链，如另一激活的模态 D）全部落在 A 之下。
+- **遮罩点击转发**：`ModalBlocker.PointerPressed` 调 `Focus(owner)`——点击被屏蔽的 owner 区域等价于点击其模态链，从而激活最顶层对话框。遮罩事件标记 `Handled`，不冒泡到宿主。
+
+> **仅模态子窗口才传递激活**：普通（非模态）子窗口不创建 modal session、不遮罩 owner、不阻塞 owner。此时点击 owner 激活 owner、点击子窗口激活子窗口，二者互不传递（`BuildModalChain` 对非模态窗口返回单元素链）。
+
+**两场景对照**：
+
+| 场景 | 窗口关系 | 点击 A/B/C 的结果 | 激活后层级 |
+|---|---|---|---|
+| 1 | A→B(modal)→C(modal)，另有激活的模态 D | 都激活 C | C 最高；B 次之（高于 A）；A 高于除 C 外所有窗口（含 D）；D 落到 A 之下 |
+| 2 | A→B(modal)，另有激活的模态 C | 都激活 B | B 最高；A 高于除 B 外所有窗口（含 C）；C 落到 A 之下 |
+
 ---
 
 ## 4. 关键文件清单
@@ -196,7 +215,7 @@ var result = await context.ShowDialogAsync<string>(window, "选择要打开的�
 | `Client/RemoteOS.Client/Views/MainWindow.axaml`(+`.cs`) | 宿主窗口：标题栏、8 向 resize 命中区、连接栏、连接信息面板、全屏/固定/自动隐藏、关闭 = 登出 |
 | `Client/RemoteOS.Client/ViewModels/Shell/DesktopShellViewModel.cs` | `ConnectionServer/User/Workspace` 绑定 `IAuthSession` |
 | `Framework/RemoteOS.WindowManager/ModalDialog.cs` | `ModalDialog<TResult>` / `ModalBlocker` / `ModalSession` / `IModalSession` |
-| `Framework/RemoteOS.WindowManager/WindowManager.cs` | `ShowDialogAsync` / `CloseModalSession` / `UpdateDialogs` |
+| `Framework/RemoteOS.WindowManager/WindowManager.cs` | `ShowDialogAsync` / `CloseModalSession` / `UpdateDialogs` / `Focus`（模态链激活与层级抬升）/ `BuildModalChain` / `GetBlockerFor` / `GetModalOwner` |
 | `Framework/RemoteOS.WindowManager/IWindowManager.cs` | `ShowDialogAsync` 接口契约 |
 | `Framework/RemoteOS.App.SDK/AppContext.cs` | `ShowDialogAsync` 应用入口 |
 | `Client/RemoteOS.Client/Apps/NotepadApp.cs` | 模态对话框 + 嵌套 + 文件选择示例装配 |
@@ -214,6 +233,7 @@ var result = await context.ShowDialogAsync<string>(window, "选择要打开的�
 - 模态对话框必须是**真正的受管窗口**（`WindowManager.Create`），不要用 Avalonia 顶层 `Window.ShowDialog` 绕开 WindowManager。
 - `ShowDialogAsync` 的遮罩只盖 owner；owner 拖动/resize/宿主区域变化时必须 `UpdateDialogs` / `SetHostBounds` 同步 blocker 边界。
 - owner 关闭/最小化前必须取消其 modal session（避免遮罩悬空或对话框孤儿）。
+- 模态链激活不变量：点击模态链上任一窗口或其遮罩必须激活该链最顶层模态对话框，并把整条链（根 owner → … → 顶层模态，含各自 `ModalBlocker`）一起抬到最上层，保持 `owner < blocker < dialog` 的相对顺序（见 §3.9）。仅模态子窗口传递激活，非模态子窗口不创建 session、各自独立激活。
 - 应用层一律经 `AppContext.ShowDialogAsync` 打开对话框，不直接调 `WindowManager.ShowDialogAsync`。
 - 宿主 `MainWindow` 的 resize/拖动用 Avalonia `BeginMoveDrag` / `BeginResizeDrag(WindowEdge)`；`WindowDecorations=None` + 自绘标题栏。
 - "关闭连接"/标题栏关闭 = `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`，与登录模块登出路径一致。
@@ -224,6 +244,8 @@ var result = await context.ShowDialogAsync<string>(window, "选择要打开的�
 - 用 `RemoteWindow` 承载模态对话框以外的"屏蔽全桌面"遮罩（遮罩只跟随 owner，不屏蔽其它窗口）。
 - 在 `WindowManager.ShowDialogAsync` 之外另起模态实现。
 - 让模态遮罩脱离 owner 边界（必须 `ApplyBounds(owner.Info.Bounds)` 跟随）。
+- 只抬升最顶层模态而不抬升其 owner 链（owner 会被其它窗口压住，模态链被割裂）。
+- 让 `ModalBlocker` 点击无响应（遮罩必须 `Focus(owner)` 转发激活到最顶层模态）。
 - 把宿主 `MainWindow` 的窗口控制与桌面内 `RemoteWindow` 的 resize 混为一谈（两套独立机制）。
 - 在连接栏"关闭连接"里跳过 `LogoutAsync` 直接 `Close()`（会留下未吊销的 RefreshToken）。
 

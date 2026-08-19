@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
@@ -169,6 +170,13 @@ public sealed class WindowManager : IWindowManager
         blocker.ApplyBounds(owner.Info.Bounds);
         // Place the shield above only its owner and below the newly-created dialog window.
         blocker.ZIndex = dialogWindow.View.ZIndex - 1;
+        // Clicking the shield over a blocked owner reactivates the modal chain: Focus walks
+        // up to the root owner and down to the topmost modal dialog, which receives focus.
+        blocker.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            Focus(owner);
+        };
         dialogHost.Children.Add(blocker);
 
         var session = new ModalSession<TResult>(owner, dialogWindow, blocker, dialogHost, dialog);
@@ -240,29 +248,44 @@ public sealed class WindowManager : IWindowManager
         if (!_windows.Contains(window))
             return;
 
-        // A modal owner must never be raised above its dialog. This also covers taskbar
-        // activation, which targets the application's primary window rather than the dialog.
-        while (GetTopmostModal(window) is { } dialog)
-            window = dialog;
+        // Activation always targets the topmost modal dialog of the clicked window's modal
+        // chain. A modal owner stays blocked, so clicking it (or the input shield that covers
+        // it) forwards activation to the dialog that currently owns it. The whole chain —
+        // from the root owner down to the topmost modal — is raised together so each owner
+        // sits just below its dialog and the entire group lands above every other window.
+        // Non-modal child windows never create a session, so they form a chain of one and
+        // activate directly (clicking a non-modal owner activates the owner, not its child).
+        var chain = BuildModalChain(window);
+        var target = chain[^1];
 
-        _zCounter++;
-        window.View.ZIndex = _zCounter;
+        foreach (var w in chain)
+        {
+            _zCounter++;
+            w.View.ZIndex = _zCounter;
+            // The shield that disables this owner sits just above it and just below its
+            // modal dialog; raise it as part of the same group so it never lags behind.
+            if (GetBlockerFor(w) is { } blocker)
+            {
+                _zCounter++;
+                blocker.ZIndex = _zCounter;
+            }
+        }
 
         foreach (var w in _windows)
         {
-            var active = ReferenceEquals(w, window);
+            var active = ReferenceEquals(w, target);
             w.Info.IsFocused = active;
             w.IsActive = active;
             w.View.SetActive(active);
         }
 
-        if (!ReferenceEquals(_active, window))
+        if (!ReferenceEquals(_active, target))
         {
-            _active = window;
-            ActiveWindowChanged?.Invoke(this, window);
+            _active = target;
+            ActiveWindowChanged?.Invoke(this, target);
         }
 
-        window.View.Focus();
+        target.View.Focus();
     }
 
     public void Minimize(ManagedWindow window)
@@ -496,6 +519,42 @@ public sealed class WindowManager : IWindowManager
 
     private ManagedWindow? GetTopmostModal(ManagedWindow owner)
         => _modalSessions.LastOrDefault(session => ReferenceEquals(session.Owner, owner))?.DialogWindow;
+
+    /// <summary>The window that opened <paramref name="dialog"/> as its modal dialog, if any.</summary>
+    private ManagedWindow? GetModalOwner(ManagedWindow dialog)
+        => _modalSessions.FirstOrDefault(session => ReferenceEquals(session.DialogWindow, dialog))?.Owner;
+
+    /// <summary>The shield that disables <paramref name="owner"/>, if it currently owns a modal dialog.</summary>
+    private ModalBlocker? GetBlockerFor(ManagedWindow owner)
+        => _modalSessions.LastOrDefault(session => ReferenceEquals(session.Owner, owner))?.Blocker;
+
+    /// <summary>
+    /// The full activation chain for a clicked window: from the root owner (the window no
+    /// modal session claims as its dialog) down to the topmost modal dialog. Clicking any
+    /// window in a modal chain reactivates the whole chain with the leaf dialog on top; a
+    /// non-modal window forms a chain of one and activates directly.
+    /// </summary>
+    private List<ManagedWindow> BuildModalChain(ManagedWindow window)
+    {
+        // Walk up through modal owners to the root of the chain.
+        var ancestors = new Stack<ManagedWindow>();
+        var current = window;
+        while (current is not null)
+        {
+            ancestors.Push(current);
+            current = GetModalOwner(current);
+        }
+
+        var chain = new List<ManagedWindow>(ancestors); // root first, clicked window last so far
+        // Extend from the clicked window down to the topmost modal it (transitively) owns.
+        var node = window;
+        while (GetTopmostModal(node) is { } dialog)
+        {
+            chain.Add(dialog);
+            node = dialog;
+        }
+        return chain;
+    }
 
     private Canvas GetRegularHost()
         => _host ?? throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
