@@ -31,7 +31,9 @@
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
                 <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
                 <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
-                <TextBox Width="150" Watermark="{loc:Loc webservers.managed.version}" Text="{Binding InstallVersion}" />
+                <ComboBox IsVisible="{Binding IsWindowsServer}" Width="150" IsEditable="True"
+                          ItemsSource="{Binding AvailableWindowsVersions}" SelectedItem="{Binding InstallVersion}" />
+                <TextBox IsVisible="{Binding IsLinuxServer}" Width="150" Watermark="{loc:Loc webservers.managed.version}" Text="{Binding InstallVersion}" />
                 <Button IsVisible="{Binding IsWindowsServer}" Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
                 <Button Classes="primary" Content="{loc:Loc webservers.managed.install}" Command="{Binding InstallManagedCommand}" />
             </StackPanel>

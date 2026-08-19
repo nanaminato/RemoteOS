@@ -52,6 +52,12 @@ public sealed record WebServerInstallPackageDto(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("fileName")] string FileName);
 
+/// <summary>Official Nginx Windows versions discovered by the server from nginx.org.</summary>
+public sealed record WebServerInstallCatalogDto(
+    [property: JsonPropertyName("mainlineVersion")] string? MainlineVersion,
+    [property: JsonPropertyName("stableVersion")] string? StableVersion,
+    [property: JsonPropertyName("versions")] IReadOnlyList<string> Versions);
+
 /// <summary>Explicit acknowledgement for deleting a RemoteOS-owned web-server installation.</summary>
 public sealed record UninstallManagedWebServerRequest(
     [property: JsonPropertyName("confirmed")] bool Confirmed);

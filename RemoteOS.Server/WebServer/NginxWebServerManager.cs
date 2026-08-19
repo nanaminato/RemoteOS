@@ -129,6 +129,23 @@ internal sealed partial class NginxWebServerManager(
         return packageId is null ? null : new WebServerInstallPackageDto(packageId, Path.GetFileName(fileName));
     }
 
+    public async Task<WebServerInstallCatalogDto?> GetManagedInstallCatalogAsync(CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows()) return new WebServerInstallCatalogDto(null, null, []);
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var page = await client.GetStringAsync("https://nginx.org/en/download.html", cancellationToken);
+            var versions = WindowsDownloadVersionPattern().Matches(page).Select(match => match.Groups["version"].Value)
+                .Distinct(StringComparer.Ordinal).OrderByDescending(version => Version.TryParse(version, out var parsed) ? parsed : new Version(0, 0)).ToArray();
+            return new WebServerInstallCatalogDto(
+                FirstWindowsVersionInSection(page, "Mainline version", "Stable version"),
+                FirstWindowsVersionInSection(page, "Stable version", "Legacy versions"), versions);
+        }
+        catch (HttpRequestException) { return new WebServerInstallCatalogDto(null, null, []); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new WebServerInstallCatalogDto(null, null, []); }
+    }
+
     public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
@@ -327,6 +344,15 @@ internal sealed partial class NginxWebServerManager(
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
         finally { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+    }
+
+    private static string? FirstWindowsVersionInSection(string page, string startHeading, string endHeading)
+    {
+        var start = page.IndexOf(startHeading, StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return null;
+        var end = page.IndexOf(endHeading, start + startHeading.Length, StringComparison.OrdinalIgnoreCase);
+        var section = page[start..(end < 0 ? page.Length : end)];
+        return WindowsDownloadVersionPattern().Match(section) is { Success: true } match ? match.Groups["version"].Value : null;
     }
 
     private async Task<WebServerOperationResult> ApplyManagedLifecycleCoreAsync(ManagedLayout layout, WebServerLifecycleAction action, CancellationToken cancellationToken)
@@ -569,6 +595,8 @@ internal sealed partial class NginxWebServerManager(
     private static partial Regex VersionPattern();
     [GeneratedRegex("^1\\.(?:[0-9]{1,3})\\.(?:[0-9]{1,3})$", RegexOptions.CultureInvariant)]
     private static partial Regex WindowsVersionPattern();
+    [GeneratedRegex("nginx/Windows[- ](?<version>1\\.[0-9]{1,3}\\.[0-9]{1,3})", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex WindowsDownloadVersionPattern();
     [GeneratedRegex("^[0-9][0-9A-Za-z.+:~\\-]{0,127}$", RegexOptions.CultureInvariant)]
     private static partial Regex LinuxPackageVersionPattern();
     [GeneratedRegex("^\\s*include\\s+(?<path>[^;]+\\.conf)\\s*;", RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]

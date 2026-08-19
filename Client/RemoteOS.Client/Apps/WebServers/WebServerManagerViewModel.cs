@@ -27,11 +27,12 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         _client = client;
         _session = session;
         _permissions = permissions;
-        InstallVersion = session.CurrentServer?.Platform == PlatformKind.Windows ? "1.31.3" : string.Empty;
+        InstallVersion = string.Empty;
     }
 
     public ObservableCollection<WebServerDto> Servers { get; } = [];
     public ObservableCollection<WebServerStatusDto> Statuses { get; } = [];
+    public ObservableCollection<string> AvailableWindowsVersions { get; } = [];
 
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private WebServerDto? _selectedServer;
@@ -61,7 +62,27 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
     public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
 
-    public async Task StartAsync() => await RefreshAsync();
+    public async Task StartAsync()
+    {
+        await RefreshAsync();
+        if (IsWindowsServer) await LoadWindowsVersionsAsync();
+    }
+
+    private async Task LoadWindowsVersionsAsync()
+    {
+        try
+        {
+            var catalog = await _client.GetManagedInstallCatalogAsync("nginx");
+            AvailableWindowsVersions.Clear();
+            foreach (var version in catalog?.Versions ?? []) AvailableWindowsVersions.Add(version);
+            InstallVersion = catalog?.MainlineVersion ?? catalog?.StableVersion ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            AvailableWindowsVersions.Clear();
+            InstallVersion = string.Empty;
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()

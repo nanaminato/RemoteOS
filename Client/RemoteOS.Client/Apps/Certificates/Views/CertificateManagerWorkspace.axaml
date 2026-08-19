@@ -37,12 +37,12 @@
                     <TextBlock Text="{loc:Loc certificates.request.title}" FontWeight="SemiBold" Foreground="#163059" />
                     <TextBlock Text="{loc:Loc certificates.request.help}" TextWrapping="Wrap" Foreground="#61708B" />
 
-                    <StackPanel Spacing="4" Width="520">
+                    <StackPanel Spacing="4">
                         <TextBlock Text="{loc:Loc certificates.request.domains}" />
                         <TextBox Text="{Binding Domains, Mode=TwoWay}" PlaceholderText="example.com, www.example.com" />
                     </StackPanel>
 
-                    <StackPanel Spacing="4" Width="320">
+                    <StackPanel Spacing="4">
                         <TextBlock Text="{loc:Loc certificates.request.contact_email}" />
                         <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" PlaceholderText="admin@example.com" />
                     </StackPanel>

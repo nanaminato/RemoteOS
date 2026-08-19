@@ -51,6 +51,9 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
         return await response.Content.ReadFromJsonAsync<WebServerInstallPackageDto>(RemoteOsJsonOptions.Default, cancellationToken);
     }
 
+    public Task<WebServerInstallCatalogDto?> GetManagedInstallCatalogAsync(string providerId, CancellationToken cancellationToken = default)
+        => SendAsync<WebServerInstallCatalogDto?>(HttpMethod.Get, WebServerApiRoutes.ManagedVersions.Replace("{providerId}", WebUtility.UrlEncode(providerId)), null, null, cancellationToken);
+
     public Task<WebServerOperationDto?> IntegrateAsync(string id, IntegrateWebServerRequest request, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.Integrate.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
 
