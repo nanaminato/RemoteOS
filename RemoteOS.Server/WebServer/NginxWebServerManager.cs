@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -17,7 +18,8 @@ internal sealed partial class NginxWebServerManager(
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
     IHostApplicationLifetime lifetime,
-    NginxManagedOptions managedOptions) : IWebServerProvider
+    NginxManagedOptions managedOptions,
+    NginxInstallPackageStore packages) : IWebServerProvider
 {
     private const string ProviderKey = "nginx";
     private const string OwnedFileName = "remoteos.conf";
@@ -25,6 +27,20 @@ internal sealed partial class NginxWebServerManager(
     private const string ManagedMarkerName = ".remoteos-managed";
     private const string ManagedMarkerContent = "RemoteOS owns this Nginx installation. Do not move this marker.\n";
     private static readonly string OwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
+    private static readonly string ManagedConfiguration = """
+        worker_processes auto;
+        error_log logs/error.log notice;
+        pid logs/nginx.pid;
+
+        events { worker_connections 1024; }
+
+        http {
+            default_type application/octet-stream;
+            access_log logs/access.log;
+            sendfile on;
+            include conf.d/*.conf;
+        }
+        """;
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
 
     public string ProviderId => ProviderKey;
@@ -60,7 +76,10 @@ internal sealed partial class NginxWebServerManager(
     {
         var detected = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (detected is null || detected.Id != instanceId) return null;
-        var result = await RunNginxAsync(detected.ExecutablePath, ["-t"], cancellationToken);
+        var arguments = detected.ManagementMode == WebServerManagementMode.Managed
+            ? ManagedArguments(GetManagedLayout(), ["-t"])
+            : new[] { "-t" };
+        var result = await RunNginxAsync(detected.ExecutablePath, arguments, cancellationToken);
         return new WebServerConfigTestResultDto(result.Success, result.Success ? "" : "webserver.config_test_failed");
     }
 
@@ -96,10 +115,16 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
-        if (!IsConfiguredInstaller())
-            return Rejected(layout.InstanceId, "install", "webserver.install_not_configured");
+        if (!OperatingSystem.IsWindows() && !IsConfiguredInstaller() && !CanUseBuiltInInstaller())
+            return Rejected(layout.InstanceId, "install", "webserver.install_unsupported_platform");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
-            (progress, ct) => InstallManagedCoreAsync(layout, progress, ct), lifetime.ApplicationStopping);
+            (progress, ct) => InstallManagedCoreAsync(layout, request, progress, ct), lifetime.ApplicationStopping);
+    }
+
+    public async Task<WebServerInstallPackageDto?> UploadManagedPackageAsync(string fileName, Stream content, CancellationToken cancellationToken)
+    {
+        var packageId = await packages.SaveAsync(fileName, content, cancellationToken);
+        return packageId is null ? null : new WebServerInstallPackageDto(packageId, Path.GetFileName(fileName));
     }
 
     public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
@@ -141,7 +166,9 @@ internal sealed partial class NginxWebServerManager(
     {
         var details = await RunNginxAsync(executable, ["-V"], cancellationToken);
         if (!details.Success && string.IsNullOrWhiteSpace(details.Output)) return null;
-        var configPath = ParseConfigPath(details.Output, executable);
+        var configPath = forcedMode == WebServerManagementMode.Managed
+            ? GetManagedLayout().ConfigurationPath
+            : ParseConfigPath(details.Output, executable);
         var version = VersionPattern().Match(details.Output) is { Success: true } match ? match.Groups["version"].Value : null;
         var includeDirectory = configPath is null ? null : FindOwnedIncludeDirectory(configPath);
         var ownedPath = includeDirectory is null ? null : Path.Combine(includeDirectory, OwnedFileName);
@@ -221,10 +248,12 @@ internal sealed partial class NginxWebServerManager(
         finally { IntegrationGate.Release(); }
     }
 
-    private async Task<WebServerOperationResult> InstallManagedCoreAsync(ManagedLayout layout, IWebServerOperationProgress progress, CancellationToken cancellationToken)
+    private async Task<WebServerOperationResult> InstallManagedCoreAsync(ManagedLayout layout, InstallManagedWebServerRequest request, IWebServerOperationProgress progress, CancellationToken cancellationToken)
     {
-        await progress.ReportAsync("installer_running", cancellationToken);
-        var started = await RunConfiguredInstallerAsync(cancellationToken);
+        if (OperatingSystem.IsWindows())
+            return await InstallWindowsManagedAsync(layout, request, progress, cancellationToken);
+        await progress.ReportAsync(IsConfiguredInstaller() ? "installer_running" : "installing_package", cancellationToken);
+        var started = await RunInstallerAsync(layout, cancellationToken);
         if (!started) return new WebServerOperationResult("webserver.install_failed");
         await progress.ReportAsync("verifying_layout", cancellationToken);
         if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath) || !Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root))
@@ -244,6 +273,58 @@ internal sealed partial class NginxWebServerManager(
         }
         catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.install_elevation_required"); }
         catch (IOException) { return new WebServerOperationResult("webserver.install_layout_invalid"); }
+    }
+
+    private async Task<WebServerOperationResult> InstallWindowsManagedAsync(ManagedLayout layout, InstallManagedWebServerRequest request, IWebServerOperationProgress progress, CancellationToken cancellationToken)
+    {
+        string? packageId = request.PackageId;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(packageId))
+            {
+                var version = string.IsNullOrWhiteSpace(request.Version) ? "1.31.3" : request.Version.Trim();
+                if (!WindowsVersionPattern().IsMatch(version)) return new WebServerOperationResult("webserver.version_invalid");
+                await progress.ReportAsync("downloading", cancellationToken);
+                using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+                using var response = await client.GetAsync($"https://nginx.org/download/nginx-{version}.zip", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (!response.IsSuccessStatusCode) return new WebServerOperationResult("webserver.download_failed");
+                await using var download = await response.Content.ReadAsStreamAsync(cancellationToken);
+                packageId = await packages.SaveAsync($"nginx-{version}.zip", download, cancellationToken);
+                if (packageId is null) return new WebServerOperationResult("webserver.package_invalid");
+            }
+
+            var archivePath = packages.GetPath(packageId);
+            if (archivePath is null) return new WebServerOperationResult("webserver.package_not_found");
+            await progress.ReportAsync("extracting", cancellationToken);
+            return ExtractWindowsPackage(layout, archivePath) ? new WebServerOperationResult("") : new WebServerOperationResult("webserver.package_invalid");
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (HttpRequestException) { return new WebServerOperationResult("webserver.download_failed"); }
+        finally { packages.Delete(packageId); }
+    }
+
+    private static bool ExtractWindowsPackage(ManagedLayout layout, string archivePath)
+    {
+        var staging = $"{layout.Root}.staging-{Guid.NewGuid():N}";
+        try
+        {
+            if (Directory.Exists(layout.Root) || File.Exists(layout.Root) || IsSymbolicLink(layout.Root)) return false;
+            using (var archive = ZipFile.OpenRead(archivePath))
+            {
+                if (!archive.Entries.All(entry => NginxInstallPackageStore.IsSafeEntry(entry.FullName))) return false;
+                archive.ExtractToDirectory(staging);
+            }
+            var executable = Directory.GetFiles(staging, "nginx.exe", SearchOption.AllDirectories).SingleOrDefault();
+            if (executable is null) return false;
+            var extractedRoot = Path.GetDirectoryName(executable)!;
+            if (!File.Exists(Path.Combine(extractedRoot, "conf", "nginx.conf"))) return false;
+            Directory.Move(extractedRoot, layout.Root);
+            return File.Exists(layout.ExecutablePath) && File.Exists(layout.ConfigurationPath);
+        }
+        catch (InvalidDataException) { return false; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        finally { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
     }
 
     private async Task<WebServerOperationResult> ApplyManagedLifecycleCoreAsync(ManagedLayout layout, WebServerLifecycleAction action, CancellationToken cancellationToken)
@@ -285,12 +366,57 @@ internal sealed partial class NginxWebServerManager(
 
     private bool IsConfiguredInstaller() => Path.IsPathFullyQualified(managedOptions.InstallerCommand) && File.Exists(managedOptions.InstallerCommand);
 
+    private static bool CanUseBuiltInInstaller() => OperatingSystem.IsLinux() && File.Exists("/usr/bin/apt-get");
+
+    private Task<bool> RunInstallerAsync(ManagedLayout layout, CancellationToken cancellationToken) =>
+        IsConfiguredInstaller()
+            ? RunConfiguredInstallerAsync(cancellationToken)
+            : RunBuiltInLinuxInstallerAsync(layout, cancellationToken);
+
     private async Task<bool> RunConfiguredInstallerAsync(CancellationToken cancellationToken)
     {
         try
         {
-            using var process = new Process { StartInfo = new ProcessStartInfo(managedOptions.InstallerCommand) { UseShellExecute = false, RedirectStandardError = true, CreateNoWindow = true } };
+            using var process = new Process { StartInfo = new ProcessStartInfo(managedOptions.InstallerCommand) { UseShellExecute = false, CreateNoWindow = true } };
             foreach (var argument in managedOptions.InstallerArguments) process.StartInfo.ArgumentList.Add(argument);
+            if (!process.Start()) return false;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(10));
+            await process.WaitForExitAsync(timeout.Token);
+            return process.ExitCode == 0;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
+        catch { return false; }
+    }
+
+    private async Task<bool> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        if (!CanUseBuiltInInstaller()) return false;
+        if (!await RunProcessAsync("/usr/bin/apt-get", ["update"], cancellationToken)) return false;
+        if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", "nginx"], cancellationToken)) return false;
+        const string systemExecutable = "/usr/sbin/nginx";
+        if (!File.Exists(systemExecutable) || IsSymbolicLink(systemExecutable)) return false;
+        try
+        {
+            if (IsSymbolicLink(layout.Root)) return false;
+            Directory.CreateDirectory(Path.Combine(layout.Root, "sbin"));
+            Directory.CreateDirectory(Path.Combine(layout.Root, "conf", "conf.d"));
+            Directory.CreateDirectory(Path.Combine(layout.Root, "logs"));
+            File.Copy(systemExecutable, layout.ExecutablePath, overwrite: true);
+            await File.WriteAllTextAsync(layout.ConfigurationPath, ManagedConfiguration, new UTF8Encoding(false), cancellationToken);
+            return true;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static async Task<bool> RunProcessAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true } };
+            process.StartInfo.Environment["DEBIAN_FRONTEND"] = "noninteractive";
+            foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
             if (!process.Start()) return false;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromMinutes(10));
@@ -438,6 +564,8 @@ internal sealed partial class NginxWebServerManager(
     private static partial Regex ConfigurationPathPattern();
     [GeneratedRegex("nginx/(?<version>[^\\s]+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex VersionPattern();
+    [GeneratedRegex("^1\\.(?:[0-9]{1,3})\\.(?:[0-9]{1,3})$", RegexOptions.CultureInvariant)]
+    private static partial Regex WindowsVersionPattern();
     [GeneratedRegex("^\\s*include\\s+(?<path>[^;]+\\.conf)\\s*;", RegexOptions.Multiline | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex IncludePattern();
     [GeneratedRegex("^\\s*http\\s*\\{", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]

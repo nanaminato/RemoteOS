@@ -17,6 +17,17 @@ public static class WebServerEndpoints
             await manager.TestConfigurationAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.ManagedInstallPattern, async (string providerId, InstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.InstallManagedAsync(providerId, key, request, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.ManagedPackagePattern, async (string providerId, HttpRequest request, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!request.HasFormContentType) return Results.BadRequest(new { problemCode = "webserver.package_multipart_required" });
+            var form = await request.ReadFormAsync(ct);
+            var package = form.Files.GetFile("package");
+            if (package is null || package.Length == 0) return Results.BadRequest(new { problemCode = "webserver.package_required" });
+            await using var content = package.OpenReadStream();
+            return await manager.UploadManagedPackageAsync(providerId, package.FileName, content, ct) is { } uploaded
+                ? Results.Ok(uploaded)
+                : Results.NotFound();
+        });
         group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>

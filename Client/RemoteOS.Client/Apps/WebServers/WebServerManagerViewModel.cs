@@ -38,12 +38,15 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(InstallManagedCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] private string _installVersion = "1.31.3";
+    [ObservableProperty] private string _localPackageName = string.Empty;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
 
     private Guid? _currentOperationId;
+    private string? _localPackageId;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
@@ -52,6 +55,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
     public Func<Task<bool>>? RequestManagedInstallConfirmationAsync { get; set; }
     public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
+    public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -162,8 +166,38 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task InstallManagedAsync()
     {
         if (RequestManagedInstallConfirmationAsync is null || !await RequestManagedInstallConfirmationAsync()) return;
-        await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true), ct));
+        await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true,
+            string.IsNullOrWhiteSpace(_localPackageId) ? InstallVersion.Trim() : null, _localPackageId), ct));
         await RefreshAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanInstallManaged))]
+    private async Task SelectLocalPackageAsync()
+    {
+        if (RequestLocalNginxPackageAsync is null) return;
+        var path = await RequestLocalNginxPackageAsync();
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try
+        {
+            await using var package = File.OpenRead(path);
+            var uploaded = await _client.UploadManagedPackageAsync("nginx", Path.GetFileName(path), package);
+            if (uploaded is null)
+            {
+                StatusText = LocalizedText.Get("webservers.package.invalid");
+                return;
+            }
+            _localPackageId = uploaded.Id;
+            LocalPackageName = uploaded.FileName;
+            StatusText = LocalizedText.Format("webservers.package.ready", uploaded.FileName);
+        }
+        catch (WebServerApiException exception)
+        {
+            StatusText = LocalizedText.Format("webservers.package.failed", ProblemText(exception.ProblemCode));
+        }
+        catch (Exception exception)
+        {
+            StatusText = LocalizedText.Format("webservers.package.failed", exception.Message);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanStart))]
@@ -316,6 +350,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         (_, "queued") => LocalizedText.Get("webservers.operation.stage.queued", "等待执行"),
         (_, "running") => LocalizedText.Get("webservers.operation.stage.running", "正在执行"),
         ("install", "installer_running") => LocalizedText.Get("webservers.operation.stage.installer_running", "正在运行安装程序"),
+        ("install", "installing_package") => LocalizedText.Get("webservers.operation.stage.installing_package", "正在通过系统软件源安装 Nginx"),
+        ("install", "downloading") => LocalizedText.Get("webservers.operation.stage.downloading", "正在从 Nginx 官方站点下载"),
+        ("install", "extracting") => LocalizedText.Get("webservers.operation.stage.extracting", "正在验证并解压 Nginx 包"),
         ("install", "verifying_layout") => LocalizedText.Get("webservers.operation.stage.verifying_layout", "正在验证安装目录"),
         ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration", "正在验证 Nginx 配置"),
         ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing", "正在完成安装"),
@@ -328,6 +365,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.config_elevation_required" => LocalizedText.Get("webservers.problem.config_elevation_required", "此配置操作需要 RemoteOS Server 以管理员权限运行。"),
         "webserver.lifecycle_elevation_required" => LocalizedText.Get("webservers.problem.lifecycle_elevation_required", "此服务操作需要 RemoteOS Server 以管理员权限运行。"),
         "webserver.install_not_configured" => LocalizedText.Get("webservers.problem.install_not_configured", "服务器管理员尚未配置 Nginx 安装程序。"),
+        "webserver.install_unsupported_platform" => LocalizedText.Get("webservers.problem.install_unsupported_platform", "当前平台不支持内置安装；请配置受管安装程序。"),
+        "webserver.version_invalid" => LocalizedText.Get("webservers.problem.version_invalid", "请输入 Nginx 版本号，例如 1.31.3。"),
+        "webserver.download_failed" => LocalizedText.Get("webservers.problem.download_failed", "无法从 Nginx 官方站点下载该版本。"),
+        "webserver.package_invalid" => LocalizedText.Get("webservers.problem.package_invalid", "Nginx ZIP 包无效或不符合预期布局。"),
+        "webserver.package_not_found" => LocalizedText.Get("webservers.problem.package_not_found", "离线安装包已过期，请重新选择。"),
         _ => problemCode,
     };
 

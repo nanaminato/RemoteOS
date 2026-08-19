@@ -1,3 +1,6 @@
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 using Client.Apps.WebServers.Views;
 using Client.Localization;
 using Client.Services.Auth;
@@ -37,6 +40,18 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         };
         viewModel.RequestManagedInstallConfirmationAsync = () => ConfirmAsync("webservers.managed.install.title", "webservers.managed.install.message", "webservers.managed.install.confirm");
         viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
+        viewModel.RequestLocalNginxPackageAsync = async () =>
+        {
+            var topLevel = GetTopLevel();
+            if (topLevel is null) return null;
+            var selected = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = LocalizedText.Get("webservers.managed.select_package"),
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType(LocalizedText.Get("webservers.managed.package_file_type")) { Patterns = ["*.zip"] }],
+            });
+            return selected.FirstOrDefault()?.TryGetLocalPath();
+        };
 
         async Task<bool> ConfirmAsync(string titleKey, string messageKey, string confirmKey)
         {
@@ -54,4 +69,8 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         }
         _ = viewModel.StartAsync();
     }
+
+    private static TopLevel? GetTopLevel() => Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+        ? desktop.MainWindow
+        : null;
 }

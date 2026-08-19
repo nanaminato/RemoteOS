@@ -32,8 +32,18 @@ builder.Services.ConfigureHttpJsonOptions(opts =>
 
 // JWT 配置（绑定 + 启动校验）
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-var jwtCfg = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
-    ?? throw new InvalidOperationException("Missing 'Jwt' configuration section.");
+var jwtSection = builder.Configuration.GetSection("Jwt");
+
+if (!jwtSection.Exists())
+{
+    throw new InvalidOperationException(
+        $"Missing 'Jwt' configuration section. " +
+        $"Environment={builder.Environment.EnvironmentName}, " +
+        $"ContentRoot={builder.Environment.ContentRootPath}");
+}
+
+var jwtCfg = jwtSection.Get<JwtOptions>()
+             ?? throw new InvalidOperationException("Failed to bind Jwt configuration.");
 if (string.IsNullOrWhiteSpace(jwtCfg.Secret) || jwtCfg.Secret.Length < 32)
     throw new InvalidOperationException("Jwt:Secret 必须至少 32 字符（HMACSHA256 要求 ≥256 位）。");
 if (builder.Environment.IsProduction() && jwtCfg.Secret == JwtOptions.DefaultInsecureSecret)
@@ -173,6 +183,7 @@ builder.Services.AddSingleton<Server.Firewall.IFirewallChangeAuthorizationServic
 // marker-owned conf.d integration. It never accepts shell text or elevation credentials from HTTP.
 builder.Services.AddSingleton<Server.WebServer.IHostPrivilegeService, Server.WebServer.HostPrivilegeService>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("NginxManaged").Get<Server.WebServer.NginxManagedOptions>() ?? new Server.WebServer.NginxManagedOptions());
+builder.Services.AddSingleton<Server.WebServer.NginxInstallPackageStore>();
 builder.Services.AddSingleton<Server.Certificate.HostOperationJournal>();
 builder.Services.AddSingleton<Server.WebServer.WebServerMetadataRepository>();
 builder.Services.AddSingleton<Server.WebServer.WebServerOperationStore>();

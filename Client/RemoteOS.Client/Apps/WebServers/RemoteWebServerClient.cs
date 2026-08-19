@@ -29,6 +29,28 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
     public Task<WebServerOperationDto?> InstallManagedAsync(string providerId, InstallManagedWebServerRequest request, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedInstall.Replace("{providerId}", WebUtility.UrlEncode(providerId)), request, NewKey(), cancellationToken);
 
+    public async Task<WebServerInstallPackageDto?> UploadManagedPackageAsync(string providerId, string fileName, Stream content, CancellationToken cancellationToken = default)
+    {
+        if (session.State != AuthSessionState.Authenticated || session.Tokens is null || session.ServerUrl is null)
+            throw new InvalidOperationException("RemoteOS session is not authenticated.");
+        using var form = new MultipartFormDataContent();
+        using var file = new StreamContent(content);
+        form.Add(file, "package", fileName);
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(new Uri(session.ServerUrl), WebServerApiRoutes.ManagedPackage.Replace("{providerId}", WebUtility.UrlEncode(providerId)).TrimStart('/')))
+        {
+            Content = form,
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            var problem = await response.Content.ReadFromJsonAsync<WebServerProblemDetails>(RemoteOsJsonOptions.Default, cancellationToken);
+            throw new WebServerApiException(problem?.ProblemCode ?? $"webserver.http_{(int)response.StatusCode}", response.StatusCode);
+        }
+        return await response.Content.ReadFromJsonAsync<WebServerInstallPackageDto>(RemoteOsJsonOptions.Default, cancellationToken);
+    }
+
     public Task<WebServerOperationDto?> IntegrateAsync(string id, IntegrateWebServerRequest request, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.Integrate.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
 

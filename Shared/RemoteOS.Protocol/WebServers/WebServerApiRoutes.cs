@@ -20,6 +20,8 @@ public static class WebServerApiRoutes
     public const string IntegratePattern = "/{id}/integrate";
     public const string ManagedInstall = $"{WebServers}/managed/{{providerId}}/install";
     public const string ManagedInstallPattern = "/managed/{providerId}/install";
+    public const string ManagedPackage = $"{WebServers}/managed/{{providerId}}/package";
+    public const string ManagedPackagePattern = "/managed/{providerId}/package";
     public const string Lifecycle = $"{WebServers}/{{id}}/lifecycle/{{action}}";
     public const string LifecyclePattern = "/{id}/lifecycle/{action}";
     public const string ManagedUninstall = $"{WebServers}/{{id}}/managed/uninstall";

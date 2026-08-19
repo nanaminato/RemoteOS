@@ -43,7 +43,14 @@ public sealed record IntegrateWebServerRequest(
 
 /// <summary>Explicit acknowledgement for installing the provider's RemoteOS-owned instance.</summary>
 public sealed record InstallManagedWebServerRequest(
-    [property: JsonPropertyName("confirmed")] bool Confirmed);
+    [property: JsonPropertyName("confirmed")] bool Confirmed,
+    [property: JsonPropertyName("version")] string? Version = null,
+    [property: JsonPropertyName("packageId")] string? PackageId = null);
+
+/// <summary>A validated local Nginx Windows ZIP staged by the server for one installation.</summary>
+public sealed record WebServerInstallPackageDto(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("fileName")] string FileName);
 
 /// <summary>Explicit acknowledgement for deleting a RemoteOS-owned web-server installation.</summary>
 public sealed record UninstallManagedWebServerRequest(

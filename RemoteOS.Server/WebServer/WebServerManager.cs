@@ -41,6 +41,12 @@ internal sealed class WebServerManager(IEnumerable<IWebServerProvider> providers
         return provider is null ? null : await provider.InstallManagedAsync(idempotencyKey, request, actor, cancellationToken);
     }
 
+    public async Task<WebServerInstallPackageDto?> UploadManagedPackageAsync(string providerId, string fileName, Stream content, CancellationToken cancellationToken)
+    {
+        var provider = _providers.FirstOrDefault(candidate => string.Equals(candidate.ProviderId, providerId, StringComparison.Ordinal));
+        return provider is null ? null : await provider.UploadManagedPackageAsync(fileName, content, cancellationToken);
+    }
+
     public async Task<WebServerOperationDto?> IntegrateAsync(string instanceId, string idempotencyKey, IntegrateWebServerRequest request, string? actor, CancellationToken cancellationToken)
         => await WithProviderAsync(instanceId, (provider, ct) => provider.IntegrateAsync(instanceId, idempotencyKey, request, actor, ct), cancellationToken);
 
