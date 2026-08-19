@@ -43,7 +43,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private string _selectedStatusText = string.Empty;
     [ObservableProperty] private string _installVersion = string.Empty;
     [ObservableProperty] private string _localPackageName = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
@@ -71,19 +71,33 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     private async Task LoadWindowsVersionsAsync()
     {
+        IsLoading = true;
         try
         {
             var catalog = await _client.GetManagedInstallCatalogAsync("nginx");
             AvailableWindowsVersions.Clear();
             foreach (var version in catalog?.Versions ?? []) AvailableWindowsVersions.Add(version);
-            InstallVersion = catalog?.MainlineVersion ?? catalog?.StableVersion ?? string.Empty;
+            if (catalog is null || catalog.Versions.Count == 0 || !string.IsNullOrWhiteSpace(catalog.ProblemCode))
+            {
+                InstallVersion = string.Empty;
+                StatusText = LocalizedText.Get("webservers.version_catalog.unavailable");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(InstallVersion))
+                InstallVersion = catalog.MainlineVersion ?? catalog.StableVersion ?? string.Empty;
+            StatusText = LocalizedText.Format("webservers.version_catalog.ready", catalog.Versions.Count);
         }
         catch (Exception)
         {
             AvailableWindowsVersions.Clear();
             InstallVersion = string.Empty;
+            StatusText = LocalizedText.Get("webservers.version_catalog.unavailable");
         }
+        finally { IsLoading = false; }
     }
+
+    [RelayCommand(CanExecute = nameof(CanRefreshWindowsVersions))]
+    private Task RefreshWindowsVersionsAsync() => LoadWindowsVersionsAsync();
 
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task RefreshAsync()
@@ -191,6 +205,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanInstallManaged))]
     private async Task InstallManagedAsync()
     {
+        if (IsWindowsServer && string.IsNullOrWhiteSpace(_localPackageId) && string.IsNullOrWhiteSpace(InstallVersion))
+        {
+            StatusText = LocalizedText.Get("webservers.problem.version_required");
+            return;
+        }
         if (RequestManagedInstallConfirmationAsync is null || !await RequestManagedInstallConfirmationAsync()) return;
         var version = string.IsNullOrWhiteSpace(_localPackageId) ? InstallVersion.Trim() : null;
         try
@@ -365,6 +384,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerWebServersManage);
     private bool CanRefresh => HasReadPermission && !IsLoading && !IsOperationRunning;
     private bool CanDiscover => HasReadPermission && !IsLoading && !IsOperationRunning;
+    private bool CanRefreshWindowsVersions => IsWindowsServer && HasReadPermission && !IsLoading && !IsOperationRunning;
     // A server from an older deployment can omit the capabilities object. Treat that response as
     // read-only instead of letting command re-evaluation crash while the DataGrid selects it.
     private bool CanRefreshStatus => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRead == true;
@@ -413,6 +433,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.install_not_configured" => LocalizedText.Get("webservers.problem.install_not_configured", "服务器管理员尚未配置 Nginx 安装程序。"),
         "webserver.install_unsupported_platform" => LocalizedText.Get("webservers.problem.install_unsupported_platform", "当前平台不支持内置安装；请配置受管安装程序。"),
         "webserver.version_invalid" => LocalizedText.Get("webservers.problem.version_invalid", "请输入 Nginx 版本号，例如 1.31.3。"),
+        "webserver.version_required" => LocalizedText.Get("webservers.problem.version_required", "请选择或输入 Nginx 版本，或选择本地 ZIP 包。"),
+        "webserver.version_catalog_unavailable" => LocalizedText.Get("webservers.version_catalog.unavailable", "无法加载 Nginx Windows 版本列表。请刷新后重试，或选择本地 ZIP 包。"),
         "webserver.download_failed" => LocalizedText.Get("webservers.problem.download_failed", "无法从 Nginx 官方站点下载该版本。"),
         "webserver.managed_installation_exists" => LocalizedText.Get("webservers.problem.managed_installation_exists", "RemoteOS 的 Nginx 安装目录已存在。"),
         "webserver.existing_installation_unsafe" => LocalizedText.Get("webservers.problem.existing_installation_unsafe", "现有安装目录不完整或包含不安全链接，无法复用或删除。"),

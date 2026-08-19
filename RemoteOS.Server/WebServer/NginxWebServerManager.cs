@@ -120,6 +120,8 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
+        if (OperatingSystem.IsWindows() && string.IsNullOrWhiteSpace(request.PackageId) && string.IsNullOrWhiteSpace(request.Version))
+            return Rejected(layout.InstanceId, "install", "webserver.version_required");
         if (OperatingSystem.IsWindows() && ManagedRootExists(layout)
             && request.ExistingDirectoryAction == ManagedInstallExistingDirectoryAction.Reject)
             return Rejected(layout.InstanceId, "install", "webserver.managed_installation_exists");
@@ -151,6 +153,11 @@ internal sealed partial class NginxWebServerManager(
             var versions = WindowsDownloadVersionPattern().Matches(page).Select(match => match.Groups["version"].Value)
                 .Distinct(StringComparer.Ordinal).OrderByDescending(version => Version.TryParse(version, out var parsed) ? parsed : new Version(0, 0)).ToArray();
             logger.LogInformation("Retrieved Windows Nginx version catalog. Versions={VersionCount}", versions.Length);
+            if (versions.Length == 0)
+            {
+                logger.LogWarning("The official Nginx download page did not contain any Windows versions.");
+                return new WebServerInstallCatalogDto(null, null, [], "webserver.version_catalog_unavailable");
+            }
             return new WebServerInstallCatalogDto(
                 FirstWindowsVersionInSection(page, "Mainline version", "Stable version"),
                 FirstWindowsVersionInSection(page, "Stable version", "Legacy versions"), versions);
@@ -158,12 +165,12 @@ internal sealed partial class NginxWebServerManager(
         catch (HttpRequestException exception)
         {
             logger.LogWarning(exception, "Failed to retrieve the Windows Nginx version catalog.");
-            return new WebServerInstallCatalogDto(null, null, []);
+            return new WebServerInstallCatalogDto(null, null, [], "webserver.version_catalog_unavailable");
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(exception, "Timed out while retrieving the Windows Nginx version catalog.");
-            return new WebServerInstallCatalogDto(null, null, []);
+            return new WebServerInstallCatalogDto(null, null, [], "webserver.version_catalog_unavailable");
         }
     }
 

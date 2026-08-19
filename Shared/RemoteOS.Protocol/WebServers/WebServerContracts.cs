@@ -59,7 +59,8 @@ public sealed record WebServerInstallPackageDto(
 public sealed record WebServerInstallCatalogDto(
     [property: JsonPropertyName("mainlineVersion")] string? MainlineVersion,
     [property: JsonPropertyName("stableVersion")] string? StableVersion,
-    [property: JsonPropertyName("versions")] IReadOnlyList<string> Versions);
+    [property: JsonPropertyName("versions")] IReadOnlyList<string> Versions,
+    [property: JsonPropertyName("problemCode")] string ProblemCode = "");
 
 /// <summary>Explicit acknowledgement for deleting a RemoteOS-owned web-server installation.</summary>
 public sealed record UninstallManagedWebServerRequest(
