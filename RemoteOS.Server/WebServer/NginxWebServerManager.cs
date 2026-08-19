@@ -337,6 +337,7 @@ internal sealed partial class NginxWebServerManager(
             if (executable is null) return false;
             var extractedRoot = Path.GetDirectoryName(executable)!;
             if (!File.Exists(Path.Combine(extractedRoot, "conf", "nginx.conf"))) return false;
+            Directory.CreateDirectory(Path.GetDirectoryName(layout.Root)!);
             Directory.Move(extractedRoot, layout.Root);
             return File.Exists(layout.ExecutablePath) && File.Exists(layout.ConfigurationPath);
         }
