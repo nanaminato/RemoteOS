@@ -85,6 +85,8 @@ internal sealed partial class NginxWebServerManager(
             ? ManagedArguments(GetManagedLayout(), ["-t"])
             : new[] { "-t" };
         var result = await RunNginxAsync(detected.ExecutablePath, arguments, cancellationToken);
+        if (!result.Success)
+            logger.LogWarning("Nginx configuration test failed. Executable={Executable}, Output={Output}", detected.ExecutablePath, CommandOutputForLog(result.Output));
         return new WebServerConfigTestResultDto(result.Success, result.Success ? "" : "webserver.config_test_failed");
     }
 
@@ -413,7 +415,12 @@ internal sealed partial class NginxWebServerManager(
                 return new WebServerOperationResult("webserver.existing_installation_unsafe");
             await progress.ReportAsync("validating_configuration", cancellationToken);
             var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
-            if (!test.Success) return new WebServerOperationResult("webserver.config_test_failed");
+            if (!test.Success)
+            {
+                logger.LogWarning("Windows Nginx configuration test failed during managed installation. Executable={Executable}, Configuration={Configuration}, Output={Output}",
+                    layout.ExecutablePath, layout.ConfigurationPath, CommandOutputForLog(test.Output));
+                return new WebServerOperationResult("webserver.config_test_failed");
+            }
             await progress.ReportAsync("finalizing", cancellationToken);
             await WriteManagedMarkerAsync(layout.MarkerPath, cancellationToken);
             logger.LogInformation("Validated and marked Windows Nginx installation as RemoteOS-managed. Destination={Destination}", layout.Root);
@@ -759,7 +766,7 @@ internal sealed partial class NginxWebServerManager(
         catch { return false; }
     }
 
-    private static async Task<CommandResult> RunNginxAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private async Task<CommandResult> RunNginxAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         using var process = new Process { StartInfo = new ProcessStartInfo { FileName = executable, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true } };
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
@@ -773,7 +780,19 @@ internal sealed partial class NginxWebServerManager(
             return new CommandResult(process.ExitCode == 0, (await output) + (await error));
         }
         catch (OperationCanceledException) { throw; }
-        catch { return new CommandResult(false, ""); }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Unable to start Nginx command. Executable={Executable}", executable);
+            return new CommandResult(false, "");
+        }
+    }
+
+    private static string CommandOutputForLog(string output)
+    {
+        const int maximumLength = 4_096;
+        if (string.IsNullOrWhiteSpace(output)) return "<no output>";
+        var trimmed = output.Trim();
+        return trimmed.Length <= maximumLength ? trimmed : $"{trimmed[..maximumLength]}…";
     }
 
     [GeneratedRegex("--conf-path=(?:\\\"(?<path>[^\\\"]+)\\\"|(?<path>[^\\s]+))", RegexOptions.CultureInvariant)]
