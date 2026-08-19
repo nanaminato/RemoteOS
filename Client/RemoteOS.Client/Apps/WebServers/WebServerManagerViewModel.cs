@@ -70,7 +70,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         IsLoading = true;
         try
         {
-            var servers = await _client.ListAsync();
+            var servers = await _client.ListAsync() ?? [];
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
@@ -95,7 +95,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         StatusText = LocalizedText.Get("webservers.discover.running");
         try
         {
-            var servers = await _client.DiscoverAsync();
+            var servers = await _client.DiscoverAsync() ?? [];
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
@@ -221,7 +221,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         _operationCts = new CancellationTokenSource();
         var token = _operationCts.Token;
         IsOperationRunning = true;
-        OperationText = LocalizedText.Format("webservers.operation.starting", kindKey);
+        OperationText = LocalizedText.Format("webservers.operation.starting", OperationName(kindKey));
         try
         {
             var operation = await start(token);
@@ -239,13 +239,13 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             operation = await PollOperationAsync(operation, token);
             if (operation.State == WebServerOperationState.Succeeded)
             {
-                OperationText = LocalizedText.Format("webservers.operation.succeeded", kindKey);
+                OperationText = LocalizedText.Format("webservers.operation.succeeded", OperationName(kindKey));
                 await RefreshStatusAsync();
             }
             else if (operation.State == WebServerOperationState.Cancelled)
                 OperationText = LocalizedText.Get("webservers.operation.cancelled");
             else
-                OperationText = LocalizedText.Format("webservers.operation.failed", kindKey, operation.ProblemCode);
+                OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), operation.ProblemCode);
         }
         catch (OperationCanceledException)
         {
@@ -253,7 +253,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            OperationText = LocalizedText.Format("webservers.operation.exception", kindKey, exception.Message);
+            OperationText = LocalizedText.Format("webservers.operation.exception", OperationName(kindKey), exception.Message);
         }
         finally
         {
@@ -268,7 +268,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     {
         while (operation.State is WebServerOperationState.Queued or WebServerOperationState.Running)
         {
-            OperationText = LocalizedText.Format("webservers.operation.progress", operation.Kind, operation.Stage);
+            OperationText = LocalizedText.Format("webservers.operation.progress", OperationName(operation.Kind), OperationStage(operation.Kind, operation.Stage));
             try { await Task.Delay(PollInterval, cancellationToken); }
             catch (OperationCanceledException) { return operation; }
             var updated = await _client.GetOperationAsync(operation.OperationId, cancellationToken);
@@ -294,6 +294,29 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanReload == true;
     private bool CanUninstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanUninstall == true;
     private bool CanCancelOperation => IsOperationRunning;
+
+    private static string OperationName(string kind) => kind switch
+    {
+        "install" => LocalizedText.Get("webservers.operation.kind.install", "安装 Nginx"),
+        "integrate" => LocalizedText.Get("webservers.operation.kind.integrate", "集成 Nginx"),
+        "uninstall" => LocalizedText.Get("webservers.operation.kind.uninstall", "卸载 Nginx"),
+        "start" => LocalizedText.Get("webservers.operation.kind.start", "启动 Nginx"),
+        "stop" => LocalizedText.Get("webservers.operation.kind.stop", "停止 Nginx"),
+        "restart" => LocalizedText.Get("webservers.operation.kind.restart", "重启 Nginx"),
+        "reload" => LocalizedText.Get("webservers.operation.kind.reload", "重载 Nginx"),
+        _ => kind,
+    };
+
+    private static string OperationStage(string kind, string stage) => (kind, stage) switch
+    {
+        (_, "queued") => LocalizedText.Get("webservers.operation.stage.queued", "等待执行"),
+        (_, "running") => LocalizedText.Get("webservers.operation.stage.running", "正在执行"),
+        ("install", "installer_running") => LocalizedText.Get("webservers.operation.stage.installer_running", "正在运行安装程序"),
+        ("install", "verifying_layout") => LocalizedText.Get("webservers.operation.stage.verifying_layout", "正在验证安装目录"),
+        ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration", "正在验证 Nginx 配置"),
+        ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing", "正在完成安装"),
+        _ => stage,
+    };
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);

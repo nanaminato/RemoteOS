@@ -99,7 +99,7 @@ internal sealed partial class NginxWebServerManager(
         if (!IsConfiguredInstaller())
             return Rejected(layout.InstanceId, "install", "webserver.install_not_configured");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
-            ct => InstallManagedCoreAsync(layout, ct), lifetime.ApplicationStopping);
+            (progress, ct) => InstallManagedCoreAsync(layout, progress, ct), lifetime.ApplicationStopping);
     }
 
     public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
@@ -221,17 +221,24 @@ internal sealed partial class NginxWebServerManager(
         finally { IntegrationGate.Release(); }
     }
 
-    private async Task<WebServerOperationResult> InstallManagedCoreAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    private async Task<WebServerOperationResult> InstallManagedCoreAsync(ManagedLayout layout, IWebServerOperationProgress progress, CancellationToken cancellationToken)
     {
+        await progress.ReportAsync("installer_running", cancellationToken);
         var started = await RunConfiguredInstallerAsync(cancellationToken);
         if (!started) return new WebServerOperationResult("webserver.install_failed");
+        await progress.ReportAsync("verifying_layout", cancellationToken);
         if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath) || !Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root))
             return new WebServerOperationResult("webserver.install_layout_invalid");
         try
         {
+            await progress.ReportAsync("validating_configuration", cancellationToken);
             await File.WriteAllTextAsync(layout.MarkerPath, ManagedMarkerContent, new UTF8Encoding(false), cancellationToken);
             var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
-            if (test.Success) return new WebServerOperationResult("");
+            if (test.Success)
+            {
+                await progress.ReportAsync("finalizing", cancellationToken);
+                return new WebServerOperationResult("");
+            }
             File.Delete(layout.MarkerPath);
             return new WebServerOperationResult("webserver.config_test_failed");
         }

@@ -15,37 +15,37 @@ namespace Client.Apps.WebServers;
 public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session) : IRemoteWebServerClient
 {
     public Task<IReadOnlyList<WebServerDto>> DiscoverAsync(CancellationToken cancellationToken = default)
-        => SendAsync<IReadOnlyList<WebServerDto>>(HttpMethod.Post, WebServerApiRoutes.DiscoverPattern, null, null, cancellationToken);
+        => SendAsync<IReadOnlyList<WebServerDto>>(HttpMethod.Post, WebServerApiRoutes.Discover, null, null, cancellationToken);
 
     public Task<IReadOnlyList<WebServerDto>> ListAsync(CancellationToken cancellationToken = default)
-        => SendAsync<IReadOnlyList<WebServerDto>>(HttpMethod.Get, WebServerApiRoutes.CollectionPattern, null, null, cancellationToken);
+        => SendAsync<IReadOnlyList<WebServerDto>>(HttpMethod.Get, WebServerApiRoutes.WebServers, null, null, cancellationToken);
 
     public Task<WebServerStatusDto?> GetStatusAsync(string id, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerStatusDto?>(HttpMethod.Get, WebServerApiRoutes.StatusPattern.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
+        => SendAsync<WebServerStatusDto?>(HttpMethod.Get, WebServerApiRoutes.Status.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
 
     public Task<WebServerConfigTestResultDto?> TestConfigurationAsync(string id, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerConfigTestResultDto?>(HttpMethod.Post, WebServerApiRoutes.TestConfigurationPattern.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
+        => SendAsync<WebServerConfigTestResultDto?>(HttpMethod.Post, WebServerApiRoutes.TestConfiguration.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
 
     public Task<WebServerOperationDto?> InstallManagedAsync(string providerId, InstallManagedWebServerRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedInstallPattern.Replace("{providerId}", WebUtility.UrlEncode(providerId)), request, NewKey(), cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedInstall.Replace("{providerId}", WebUtility.UrlEncode(providerId)), request, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> IntegrateAsync(string id, IntegrateWebServerRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.IntegratePattern.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.Integrate.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> ApplyLifecycleAsync(string id, WebServerLifecycleAction action, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.LifecyclePattern.Replace("{id}", WebUtility.UrlEncode(id)).Replace("{action}", action.ToString().ToLowerInvariant()), null, NewKey(), cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.Lifecycle.Replace("{id}", WebUtility.UrlEncode(id)).Replace("{action}", action.ToString().ToLowerInvariant()), null, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> UninstallManagedAsync(string id, UninstallManagedWebServerRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedUninstallPattern.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ManagedUninstall.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> ReloadAsync(string id, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.ReloadPattern.Replace("{id}", WebUtility.UrlEncode(id)), null, NewKey(), cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.Reload.Replace("{id}", WebUtility.UrlEncode(id)), null, NewKey(), cancellationToken);
 
     public Task<WebServerOperationDto?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Get, WebServerApiRoutes.OperationsPattern.Replace("{operationId:guid}", operationId.ToString("N")), null, null, cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Get, WebServerApiRoutes.Operations.Replace("{operationId}", operationId.ToString("N")), null, null, cancellationToken);
 
     public Task<WebServerOperationDto?> CancelOperationAsync(Guid operationId, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.CancelOperationPattern.Replace("{operationId:guid}", operationId.ToString("N")), null, null, cancellationToken);
+        => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.CancelOperation.Replace("{operationId}", operationId.ToString("N")), null, NewKey(), cancellationToken);
 
     private static string NewKey() => Guid.NewGuid().ToString("N");
 

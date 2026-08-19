@@ -11,6 +11,12 @@ internal sealed record WebServerOperationResult(string ProblemCode, string? Snap
     public static readonly WebServerOperationResult Success = new("");
 }
 
+/// <summary>Allows a long-running web-server operation to publish a durable, client-visible stage.</summary>
+internal interface IWebServerOperationProgress
+{
+    Task ReportAsync(string stage, CancellationToken cancellationToken);
+}
+
 /// <summary>Durable idempotency ledger for host-global web-server changes.
 /// It contains only operation metadata and stable problem codes, never config content or command output.</summary>
 internal sealed class WebServerOperationStore
@@ -33,6 +39,10 @@ internal sealed class WebServerOperationStore
 
     public async Task<WebServerOperationDto> StartAsync(string idempotencyKey, string instanceId, string kind, string? actor,
         Func<CancellationToken, Task<WebServerOperationResult>> action, CancellationToken applicationStopping)
+        => await StartAsync(idempotencyKey, instanceId, kind, actor, (_, cancellationToken) => action(cancellationToken), applicationStopping);
+
+    public async Task<WebServerOperationDto> StartAsync(string idempotencyKey, string instanceId, string kind, string? actor,
+        Func<IWebServerOperationProgress, CancellationToken, Task<WebServerOperationResult>> action, CancellationToken applicationStopping)
     {
         var key = $"{kind}:{instanceId}:{idempotencyKey}";
         PersistedOperation operation;
@@ -79,7 +89,7 @@ internal sealed class WebServerOperationStore
         finally { _gate.Release(); }
     }
 
-    private async Task RunAsync(Guid operationId, string instanceId, Func<CancellationToken, Task<WebServerOperationResult>> action, CancellationToken applicationStopping)
+    private async Task RunAsync(Guid operationId, string instanceId, Func<IWebServerOperationProgress, CancellationToken, Task<WebServerOperationResult>> action, CancellationToken applicationStopping)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(applicationStopping);
         _cancellations[operationId] = linked;
@@ -89,7 +99,7 @@ internal sealed class WebServerOperationStore
             var instanceGate = _instanceGates.GetOrAdd(instanceId, static _ => new SemaphoreSlim(1, 1));
             await instanceGate.WaitAsync(linked.Token);
             WebServerOperationResult result;
-            try { result = await action(linked.Token); }
+            try { result = await action(new OperationProgress(this, operationId), linked.Token); }
             finally { instanceGate.Release(); }
             await CompleteAsync(operationId, linked.IsCancellationRequested ? WebServerOperationState.Cancelled : string.IsNullOrEmpty(result.ProblemCode) ? WebServerOperationState.Succeeded : WebServerOperationState.Failed,
                 linked.IsCancellationRequested ? "webserver.operation_cancelled" : result.ProblemCode, result.SnapshotId, applicationStopping);
@@ -126,6 +136,20 @@ internal sealed class WebServerOperationStore
         finally { _gate.Release(); }
     }
 
+    private async Task ReportStageAsync(Guid id, string stage, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (!_operations.TryGetValue(id, out var operation)
+                || operation.State is WebServerOperationState.Succeeded or WebServerOperationState.Failed or WebServerOperationState.Cancelled)
+                return;
+            _operations[id] = operation with { Stage = stage };
+            await SaveAsync(ct);
+        }
+        finally { _gate.Release(); }
+    }
+
     private void LoadAndRecover()
     {
         if (!File.Exists(_path)) return;
@@ -157,5 +181,14 @@ internal sealed class WebServerOperationStore
         WebServerOperationState State, string Stage, string ProblemCode, string? SnapshotId, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt)
     {
         public WebServerOperationDto ToDto() => new(OperationId, InstanceId, Kind, State, Stage, ProblemCode, SnapshotId, StartedAt, CompletedAt);
+    }
+
+    private sealed class OperationProgress(WebServerOperationStore owner, Guid operationId) : IWebServerOperationProgress
+    {
+        public Task ReportAsync(string stage, CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+            return owner.ReportStageAsync(operationId, stage, cancellationToken);
+        }
     }
 }
