@@ -7,6 +7,7 @@ using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Protocol.WebServers;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.WebServers;
@@ -39,6 +40,11 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
             return await ConfirmAsync("webservers.integration.confirmation.title", "webservers.integration.confirmation.message", "webservers.integration.confirmation.confirm");
         };
         viewModel.RequestManagedInstallConfirmationAsync = () => ConfirmAsync("webservers.managed.install.title", "webservers.managed.install.message", "webservers.managed.install.confirm");
+        viewModel.RequestExistingManagedInstallActionAsync = () => context.ShowDialogAsync<ManagedInstallExistingDirectoryAction?>(window,
+            LocalizedText.Get("webservers.managed.existing.title"), dialog => new ExistingNginxInstallationDialogView
+            {
+                DataContext = new ExistingNginxInstallationDialogViewModel(action => dialog.Close(action)),
+            }, new Size(560, 260));
         viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
         viewModel.RequestLocalNginxPackageAsync = async () =>
         {

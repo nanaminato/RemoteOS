@@ -59,6 +59,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
     public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
     public Func<Task<bool>>? RequestManagedInstallConfirmationAsync { get; set; }
+    public Func<Task<ManagedInstallExistingDirectoryAction?>>? RequestExistingManagedInstallActionAsync { get; set; }
     public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
     public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
 
@@ -191,8 +192,23 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task InstallManagedAsync()
     {
         if (RequestManagedInstallConfirmationAsync is null || !await RequestManagedInstallConfirmationAsync()) return;
-        await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true,
-            string.IsNullOrWhiteSpace(_localPackageId) ? InstallVersion.Trim() : null, _localPackageId), ct));
+        var version = string.IsNullOrWhiteSpace(_localPackageId) ? InstallVersion.Trim() : null;
+        try
+        {
+            await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true,
+                version, _localPackageId), ct), rethrowApiException: true);
+        }
+        catch (WebServerApiException exception) when (exception.ProblemCode == "webserver.managed_installation_exists")
+        {
+            var action = await (RequestExistingManagedInstallActionAsync?.Invoke() ?? Task.FromResult<ManagedInstallExistingDirectoryAction?>(null));
+            if (action is not (ManagedInstallExistingDirectoryAction.Reuse or ManagedInstallExistingDirectoryAction.Replace))
+            {
+                OperationText = LocalizedText.Get("webservers.managed.existing.cancelled");
+                return;
+            }
+            await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true,
+                version, _localPackageId, action.Value), ct));
+        }
         await RefreshAsync();
     }
 
@@ -268,7 +284,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
         => await RunOperationAsync(kindKey, ct => start(server.Id, ct));
 
-    private async Task RunOperationAsync(string kindKey, Func<CancellationToken, Task<WebServerOperationDto?>> start)
+    private async Task RunOperationAsync(string kindKey, Func<CancellationToken, Task<WebServerOperationDto?>> start, bool rethrowApiException = false)
     {
         if (!HasManagePermission)
         {
@@ -309,6 +325,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             OperationText = LocalizedText.Get("webservers.operation.cancelled");
+        }
+        catch (WebServerApiException) when (rethrowApiException)
+        {
+            throw;
         }
         catch (WebServerApiException exception)
         {
@@ -378,6 +398,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         ("install", "installing_package") => LocalizedText.Get("webservers.operation.stage.installing_package", "正在通过系统软件源安装 Nginx"),
         ("install", "downloading") => LocalizedText.Get("webservers.operation.stage.downloading", "正在从 Nginx 官方站点下载"),
         ("install", "extracting") => LocalizedText.Get("webservers.operation.stage.extracting", "正在验证并解压 Nginx 包"),
+        ("install", "removing_existing_installation") => LocalizedText.Get("webservers.operation.stage.removing_existing_installation", "正在删除现有 Nginx 安装"),
         ("install", "verifying_layout") => LocalizedText.Get("webservers.operation.stage.verifying_layout", "正在验证安装目录"),
         ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration", "正在验证 Nginx 配置"),
         ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing", "正在完成安装"),
@@ -393,6 +414,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.install_unsupported_platform" => LocalizedText.Get("webservers.problem.install_unsupported_platform", "当前平台不支持内置安装；请配置受管安装程序。"),
         "webserver.version_invalid" => LocalizedText.Get("webservers.problem.version_invalid", "请输入 Nginx 版本号，例如 1.31.3。"),
         "webserver.download_failed" => LocalizedText.Get("webservers.problem.download_failed", "无法从 Nginx 官方站点下载该版本。"),
+        "webserver.managed_installation_exists" => LocalizedText.Get("webservers.problem.managed_installation_exists", "RemoteOS 的 Nginx 安装目录已存在。"),
+        "webserver.existing_installation_unsafe" => LocalizedText.Get("webservers.problem.existing_installation_unsafe", "现有安装目录不完整或包含不安全链接，无法复用或删除。"),
         "webserver.package_invalid" => LocalizedText.Get("webservers.problem.package_invalid", "Nginx ZIP 包无效或不符合预期布局。"),
         "webserver.package_not_found" => LocalizedText.Get("webservers.problem.package_not_found", "离线安装包已过期，请重新选择。"),
         _ => problemCode,

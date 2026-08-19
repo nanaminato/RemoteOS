@@ -7,6 +7,8 @@ public enum WebServerManagementMode { External, Integrated, Managed }
 public enum WebServerRuntimeState { Unknown, Running, Stopped }
 public enum WebServerOperationState { Queued, Running, Succeeded, Failed, Cancelled }
 public enum WebServerLifecycleAction { Start, Stop, Restart, Reload }
+/// <summary>How a Windows managed installation handles a pre-existing RemoteOS Nginx directory.</summary>
+public enum ManagedInstallExistingDirectoryAction { Reject, Reuse, Replace }
 
 public sealed record WebServerCapabilities(
     [property: JsonPropertyName("canRead")] bool CanRead,
@@ -45,7 +47,8 @@ public sealed record IntegrateWebServerRequest(
 public sealed record InstallManagedWebServerRequest(
     [property: JsonPropertyName("confirmed")] bool Confirmed,
     [property: JsonPropertyName("version")] string? Version = null,
-    [property: JsonPropertyName("packageId")] string? PackageId = null);
+    [property: JsonPropertyName("packageId")] string? PackageId = null,
+    [property: JsonPropertyName("existingDirectoryAction")] ManagedInstallExistingDirectoryAction ExistingDirectoryAction = ManagedInstallExistingDirectoryAction.Reject);
 
 /// <summary>A validated local Nginx Windows ZIP staged by the server for one installation.</summary>
 public sealed record WebServerInstallPackageDto(

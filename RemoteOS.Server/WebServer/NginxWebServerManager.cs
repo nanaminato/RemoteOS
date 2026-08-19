@@ -44,6 +44,9 @@ internal sealed partial class NginxWebServerManager(
         }
         """;
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
+    // A managed instance has one fixed root, so concurrent installs must serialize their
+    // directory checks, replacement, and extraction.
+    private static readonly SemaphoreSlim ManagedInstallGate = new(1, 1);
 
     public string ProviderId => ProviderKey;
 
@@ -117,6 +120,9 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
+        if (OperatingSystem.IsWindows() && ManagedRootExists(layout)
+            && request.ExistingDirectoryAction == ManagedInstallExistingDirectoryAction.Reject)
+            return Rejected(layout.InstanceId, "install", "webserver.managed_installation_exists");
         if (!OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(request.Version) && !LinuxPackageVersionPattern().IsMatch(request.Version.Trim()))
             return Rejected(layout.InstanceId, "install", "webserver.version_invalid");
         if (!OperatingSystem.IsWindows() && !IsConfiguredInstaller() && !CanUseBuiltInInstaller())
@@ -311,10 +317,26 @@ internal sealed partial class NginxWebServerManager(
 
     private async Task<WebServerOperationResult> InstallWindowsManagedAsync(ManagedLayout layout, InstallManagedWebServerRequest request, IWebServerOperationProgress progress, CancellationToken cancellationToken)
     {
+        await ManagedInstallGate.WaitAsync(cancellationToken);
+        try { return await InstallWindowsManagedCoreAsync(layout, request, progress, cancellationToken); }
+        finally { ManagedInstallGate.Release(); }
+    }
+
+    private async Task<WebServerOperationResult> InstallWindowsManagedCoreAsync(ManagedLayout layout, InstallManagedWebServerRequest request, IWebServerOperationProgress progress, CancellationToken cancellationToken)
+    {
         string? packageId = request.PackageId;
+        var replaceExisting = false;
         logger.LogInformation("Starting managed Windows Nginx installation. Version={Version}, UsesUploadedPackage={UsesUploadedPackage}", request.Version, !string.IsNullOrWhiteSpace(packageId));
         try
         {
+            if (ManagedRootExists(layout))
+            {
+                if (request.ExistingDirectoryAction == ManagedInstallExistingDirectoryAction.Reuse)
+                    return await ValidateAndMarkWindowsManagedInstallationAsync(layout, progress, cancellationToken);
+                if (request.ExistingDirectoryAction != ManagedInstallExistingDirectoryAction.Replace)
+                    return new WebServerOperationResult("webserver.managed_installation_exists");
+                replaceExisting = true;
+            }
             if (string.IsNullOrWhiteSpace(packageId))
             {
                 var version = string.IsNullOrWhiteSpace(request.Version) ? "1.31.3" : request.Version.Trim();
@@ -347,13 +369,24 @@ internal sealed partial class NginxWebServerManager(
                 logger.LogWarning("Windows Nginx installation package is unavailable. PackageId={PackageId}", packageId);
                 return new WebServerOperationResult("webserver.package_not_found");
             }
+            if (replaceExisting)
+            {
+                // Download and validate the replacement before deleting a working installation.
+                await progress.ReportAsync("removing_existing_installation", cancellationToken);
+                if (!DeleteReplaceableWindowsInstallation(layout))
+                    return new WebServerOperationResult("webserver.existing_installation_unsafe");
+            }
             await progress.ReportAsync("extracting", cancellationToken);
             var extracted = ExtractWindowsPackage(layout, archivePath);
             if (!extracted)
+            {
                 logger.LogWarning("Windows Nginx package extraction or layout validation failed. PackageId={PackageId}", packageId);
-            else
+                return new WebServerOperationResult("webserver.package_invalid");
+            }
+            var finalized = await ValidateAndMarkWindowsManagedInstallationAsync(layout, progress, cancellationToken);
+            if (finalized.ProblemCode.Length == 0)
                 logger.LogInformation("Managed Windows Nginx installation completed. PackageId={PackageId}", packageId);
-            return extracted ? new WebServerOperationResult("") : new WebServerOperationResult("webserver.package_invalid");
+            return finalized;
         }
         catch (OperationCanceledException) { throw; }
         catch (HttpRequestException exception)
@@ -362,6 +395,29 @@ internal sealed partial class NginxWebServerManager(
             return new WebServerOperationResult("webserver.download_failed");
         }
         finally { packages.Delete(packageId); }
+    }
+
+    private async Task<WebServerOperationResult> ValidateAndMarkWindowsManagedInstallationAsync(ManagedLayout layout, IWebServerOperationProgress progress, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await progress.ReportAsync("verifying_layout", cancellationToken);
+            if (!IsReusableWindowsInstallation(layout))
+                return new WebServerOperationResult("webserver.existing_installation_unsafe");
+            await progress.ReportAsync("validating_configuration", cancellationToken);
+            var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
+            if (!test.Success) return new WebServerOperationResult("webserver.config_test_failed");
+            await progress.ReportAsync("finalizing", cancellationToken);
+            await WriteManagedMarkerAsync(layout.MarkerPath, cancellationToken);
+            logger.LogInformation("Validated and marked Windows Nginx installation as RemoteOS-managed. Destination={Destination}", layout.Root);
+            return new WebServerOperationResult("");
+        }
+        catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.install_elevation_required"); }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "Failed to validate and mark a Windows Nginx installation. Destination={Destination}", layout.Root);
+            return new WebServerOperationResult("webserver.existing_installation_unsafe");
+        }
     }
 
     private bool ExtractWindowsPackage(ManagedLayout layout, string archivePath)
@@ -419,6 +475,55 @@ internal sealed partial class NginxWebServerManager(
             return false;
         }
         finally { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+    }
+
+    private static bool ManagedRootExists(ManagedLayout layout)
+        => Directory.Exists(layout.Root) || File.Exists(layout.Root) || IsSymbolicLink(layout.Root);
+
+    private static async Task WriteManagedMarkerAsync(string markerPath, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(markerPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await stream.WriteAsync(new UTF8Encoding(false).GetBytes(ManagedMarkerContent), cancellationToken);
+    }
+
+    private static bool IsReusableWindowsInstallation(ManagedLayout layout)
+    {
+        if (!Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root)
+            || !File.Exists(layout.ExecutablePath) || !File.Exists(layout.ConfigurationPath)
+            || IsSymbolicLink(layout.ExecutablePath) || IsSymbolicLink(layout.ConfigurationPath)
+            || File.Exists(layout.MarkerPath) || IsSymbolicLink(layout.MarkerPath)) return false;
+        try
+        {
+            return Directory.EnumerateFileSystemEntries(layout.Root, "*", SearchOption.AllDirectories)
+                .All(path => !IsSymbolicLink(path));
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private bool DeleteReplaceableWindowsInstallation(ManagedLayout layout)
+    {
+        if (!IsReusableWindowsInstallation(layout))
+        {
+            logger.LogWarning("Refused to replace an unsafe or incomplete existing Windows Nginx installation. Destination={Destination}", layout.Root);
+            return false;
+        }
+        try
+        {
+            Directory.Delete(layout.Root, recursive: true);
+            logger.LogInformation("Removed existing Windows Nginx installation before replacement. Destination={Destination}", layout.Root);
+            return true;
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "Failed to remove existing Windows Nginx installation. Destination={Destination}", layout.Root);
+            return false;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            logger.LogWarning(exception, "Access denied while removing existing Windows Nginx installation. Destination={Destination}", layout.Root);
+            return false;
+        }
     }
 
     private static string? FirstWindowsVersionInSection(string page, string startHeading, string endHeading)
