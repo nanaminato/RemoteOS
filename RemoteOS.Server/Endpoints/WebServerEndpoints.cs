@@ -54,6 +54,10 @@ public static class WebServerEndpoints
             {
                 return Results.BadRequest(new { problemCode = exception.ProblemCode });
             }
+            catch (Server.WebServer.NginxWebServerManager.WebServerSiteApplyException exception)
+            {
+                return Results.BadRequest(new { problemCode = exception.ProblemCode });
+            }
         });
         group.MapDelete(WebServerApiRoutes.SiteByIdPattern, async (string id, string siteId, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.DeleteSiteAsync(id, siteId, ct) switch { true => Results.NoContent(), false => Results.NotFound(), _ => Results.BadRequest(new { problemCode = "webserver.site_delete_failed" }) });

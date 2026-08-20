@@ -246,7 +246,8 @@ internal sealed partial class NginxWebServerManager(
             var sites = (await ReadSitesAsync(instance, cancellationToken)).ToList();
             var index = sites.FindIndex(item => item.Id == site.Id);
             if (index >= 0) sites[index] = site; else sites.Add(site);
-            if (!await WriteSiteConfigurationAsync(instance, site, cancellationToken)) return null;
+            var applyProblem = await WriteSiteConfigurationAsync(instance, site, cancellationToken);
+            if (applyProblem is not null) throw new WebServerSiteApplyException(applyProblem);
             await WriteSitesAsync(directory, sites, cancellationToken);
             return site;
         }
@@ -272,7 +273,7 @@ internal sealed partial class NginxWebServerManager(
             File.Move(config, backup, false);
             try
             {
-                if (!await TestAndReloadAsync(instance, cancellationToken)) { File.Move(backup, config, false); _ = await TestAndReloadAsync(instance, cancellationToken); return null; }
+                if (await ReloadAfterTestAsync(instance, cancellationToken) is not null) { File.Move(backup, config, false); _ = await ReloadAfterTestAsync(instance, cancellationToken); return null; }
                 File.Delete(backup);
                 await WriteSitesAsync(directory, sites, cancellationToken);
                 return true;
@@ -356,42 +357,50 @@ internal sealed partial class NginxWebServerManager(
         return true;
     }
 
-    private async Task<bool> WriteSiteConfigurationAsync(WebServerDto instance, WebServerSiteDto site, CancellationToken cancellationToken)
+    /// <summary>
+    /// Stages the candidate with a .conf suffix so it is in Nginx's include graph during
+    /// <c>nginx -t</c>. A .stage suffix would be skipped by the anchor's <c>*.conf</c>
+    /// pattern, which meant the old configuration—not the new site—was being tested.
+    /// </summary>
+    private async Task<string?> WriteSiteConfigurationAsync(WebServerDto instance, WebServerSiteDto site, CancellationToken cancellationToken)
     {
         var directory = GetSitesDirectory(instance);
-        if (directory is null) return false;
+        if (directory is null) return "webserver.site_save_failed";
         (string FullChainPath, string PrivateKeyPath)? certificatePaths = null;
         if (site.HttpsEnabled)
         {
             certificatePaths = await certificates.GetNginxPathsAsync(site.CertificateId!.Value, cancellationToken);
-            if (certificatePaths is null) return false;
+            if (certificatePaths is null) return "webserver.site_certificate_required";
         }
         if (site.RootPath is not null)
         {
             Directory.CreateDirectory(site.RootPath);
-            if (IsSymbolicLink(site.RootPath)) return false;
+            if (IsSymbolicLink(site.RootPath)) return "webserver.site_save_failed";
             var index = Path.Combine(site.RootPath, "index.html");
             if (!File.Exists(index)) await File.WriteAllTextAsync(index, "<h1>Welcome to RemoteOS</h1>\n", new UTF8Encoding(false), cancellationToken);
         }
         var config = Path.Combine(directory, $"{site.Id}.conf");
-        if (File.Exists(config) && !IsRemoteOsSiteConfig(config)) return false;
-        var stage = config + ".stage";
+        if (File.Exists(config) && !IsRemoteOsSiteConfig(config)) return "webserver.site_save_failed";
+        var stage = Path.Combine(directory, $"remoteos.{Guid.NewGuid():N}.conf");
         var backup = config + ".rollback";
         await File.WriteAllTextAsync(stage, RenderSiteConfiguration(site, certificatePaths), new UTF8Encoding(false), cancellationToken);
         var hadExisting = File.Exists(config);
         try
         {
+            var testProblem = await TestConfigurationAsync(instance, cancellationToken);
+            if (testProblem is not null) return testProblem;
             if (hadExisting) File.Move(config, backup, false);
             File.Move(stage, config, false);
-            if (await TestAndReloadAsync(instance, cancellationToken))
+            var reloadProblem = await ReloadAfterTestAsync(instance, cancellationToken);
+            if (reloadProblem is null)
             {
                 if (File.Exists(backup)) File.Delete(backup);
-                return true;
+                return null;
             }
             File.Delete(config);
             if (File.Exists(backup)) File.Move(backup, config, false);
-            _ = await TestAndReloadAsync(instance, cancellationToken);
-            return false;
+            _ = await ReloadAfterTestAsync(instance, cancellationToken);
+            return reloadProblem;
         }
         finally
         {
@@ -400,16 +409,28 @@ internal sealed partial class NginxWebServerManager(
         }
     }
 
-    private async Task<bool> TestAndReloadAsync(WebServerDto instance, CancellationToken cancellationToken)
+    private async Task<string?> TestConfigurationAsync(WebServerDto instance, CancellationToken cancellationToken)
     {
         var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-t"]) : new[] { "-t" };
-        if (!(await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success) return false;
+        var result = await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken);
+        if (result.Success) return null;
+        logger.LogWarning("Nginx site configuration test failed. InstanceId={InstanceId}, Output={Output}", instance.Id, CommandOutputForLog(result.Output));
+        return "webserver.site_config_test_failed";
+    }
+
+    private async Task<string?> ReloadAfterTestAsync(WebServerDto instance, CancellationToken cancellationToken)
+    {
+        var testProblem = await TestConfigurationAsync(instance, cancellationToken);
+        if (testProblem is not null) return testProblem;
         var running = instance.ManagementMode == WebServerManagementMode.Managed
             ? IsManagedNginxRunning(GetManagedLayout())
             : IsNginxRunning();
-        if (!running) return true;
-        arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
-        return (await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success;
+        if (!running) return null;
+        var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
+        var reload = await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken);
+        if (reload.Success) return null;
+        logger.LogWarning("Nginx site configuration reload failed. InstanceId={InstanceId}, Output={Output}", instance.Id, CommandOutputForLog(reload.Output));
+        return "webserver.site_reload_failed";
     }
 
     private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths)
@@ -926,6 +947,11 @@ internal sealed partial class NginxWebServerManager(
     private sealed record ManagedLayout(string Root, string ExecutablePath, string ConfigurationPath, string MarkerPath, string InstanceId);
 
     internal sealed class WebServerSiteValidationException(string problemCode) : Exception(problemCode)
+    {
+        public string ProblemCode { get; } = problemCode;
+    }
+
+    internal sealed class WebServerSiteApplyException(string problemCode) : Exception(problemCode)
     {
         public string ProblemCode { get; } = problemCode;
     }
