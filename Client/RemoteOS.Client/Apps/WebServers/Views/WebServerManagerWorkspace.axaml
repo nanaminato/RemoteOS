@@ -61,7 +61,7 @@
                                     </ComboBox>
                                 </StackPanel>
                                 <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="#163059" />
-                                <StackPanel Spacing="8">
+                                <StackPanel IsVisible="{Binding IsManagedInstallAvailable}" Spacing="8">
                                     <TextBlock Text="受管安装" FontWeight="SemiBold" Foreground="#36506F" />
                                     <StackPanel IsVisible="{Binding IsWindowsServer}" Spacing="6">
                                         <TextBlock Text="选择 Nginx 版本或上传本地 ZIP 包。" FontSize="12" Foreground="#61708B" />

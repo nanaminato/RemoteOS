@@ -62,10 +62,14 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private bool _siteHttpsEnabled;
     [ObservableProperty] private CertificateDto? _selectedSiteCertificate;
     [ObservableProperty] private string _siteStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     private bool _isLoading;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
+    // Every action uses IsOperationRunning in its CanExecute predicate. Keep the command state
+    // in sync before and after polling, otherwise controls can retain a stale disabled state.
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsManagedInstallAvailable))]
+    private bool _hasManagedInstallation;
 
     private Guid? _currentOperationId;
     private string? _localPackageId;
@@ -80,6 +84,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool IsIntegratedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Integrated;
     public bool IsManagedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Managed;
     public bool IsIntegratedOrManagedServer => IsIntegratedServer || IsManagedServer;
+    public bool IsManagedInstallAvailable => !HasManagedInstallation;
     public string ManagementHint => SelectedServer?.ManagementMode switch
     {
         WebServerManagementMode.Integrated => "此 Nginx 已集成：RemoteOS 可以管理站点配置并重载配置，但不会启动、停止或重启外部安装的 Nginx。如需完整生命周期管理，请使用受管安装。",
@@ -144,6 +149,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
+            HasManagedInstallation = false;
             StatusText = LocalizedText.Get("webservers.permission.read_required");
             return;
         }
@@ -157,6 +163,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             SelectedServer = null;
             SelectedStatusText = string.Empty;
             foreach (var server in servers) Servers.Add(server);
+            HasManagedInstallation = servers.Any(server => server.ManagementMode == WebServerManagementMode.Managed);
             StatusText = LocalizedText.Format("webservers.status.ready", servers.Count);
         }
         catch (Exception exception)
@@ -164,6 +171,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
+            HasManagedInstallation = false;
             StatusText = LocalizedText.Format("webservers.status.failed", exception.Message);
         }
         finally { IsLoading = false; }
@@ -181,6 +189,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Statuses.Clear();
             SelectedServer = null;
             foreach (var server in servers) Servers.Add(server);
+            HasManagedInstallation = servers.Any(server => server.ManagementMode == WebServerManagementMode.Managed);
             StatusText = LocalizedText.Format(servers.Count > 0 ? "webservers.discover.found" : "webservers.discover.empty", servers.Count);
         }
         catch (Exception exception)
