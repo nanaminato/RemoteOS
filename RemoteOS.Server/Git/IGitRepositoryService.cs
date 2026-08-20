@@ -5,6 +5,10 @@ namespace Server.Git;
 /// <summary>The only server boundary allowed to invoke the host's git CLI and manage repository registrations.</summary>
 public interface IGitRepositoryService
 {
+    // ── Host Git engine probe & install ──
+    Task<GitEngineStatusDto> GetEngineStatusAsync(CancellationToken cancellationToken = default);
+    Task<GitEngineInstallResult> InstallEngineAsync(CancellationToken cancellationToken = default);
+
     // ── Repository registration (persisted in SQLite, isolated by user) ──
     Task<IReadOnlyList<GitRepositoryDto>> ListRepositoriesAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<GitRepositoryDto?> GetRepositoryAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);

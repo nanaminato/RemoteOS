@@ -33,6 +33,16 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasConflicts;
 
+    // ── Host Git engine status & install flow (like DockerManagerViewModel) ──
+    [ObservableProperty] private bool _isGitAvailable = true;
+    [ObservableProperty] private bool _isGitInstallRequired;
+    [ObservableProperty] private bool _canAutoInstall;
+    [ObservableProperty] private string _engineVersion = "—";
+    [ObservableProperty] private string _enginePath = "—";
+    [ObservableProperty] private string _problemCode = string.Empty;
+    [ObservableProperty] private bool _isInstalling;
+    [ObservableProperty] private string _installMessage = string.Empty;
+
     private DispatcherTimer? _timer;
     private int _refreshing;
 
@@ -42,12 +52,24 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public Func<Task<GitPullRequest?>>? ShowPullDialogAsync { get; set; }
     public Func<Task<GitRepositoryRegistration?>>? ShowRegisterRepositoryDialogAsync { get; set; }
     public Func<string, Task<bool>>? ShowConfirmAsync { get; set; }
+    /// <summary>Assigned by the app shell so operations can surface an unavailable engine immediately.</summary>
+    public Func<Task>? ShowGitUnavailableAsync { get; set; }
 
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
 
     public async Task StartAsync()
     {
+        await RefreshEngineStatusAsync();
+        if (!IsGitAvailable)
+        {
+            IsGitInstallRequired = IsInstallRequired(IsGitAvailable, ProblemCode);
+            StatusText = "Git 未安装或不可用";
+            if (ShowGitUnavailableAsync is not null)
+                await ShowGitUnavailableAsync();
+            if (!IsGitAvailable) return; // still unavailable after dialog → stop further init
+        }
+
         try
         {
             var repos = await client.ListRepositoriesAsync();
@@ -148,6 +170,67 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         {
             Interlocked.Exchange(ref _refreshing, 0);
         }
+    }
+
+    [RelayCommand]
+    private async Task RefreshEngineStatusAsync()
+    {
+        try
+        {
+            var status = await client.GetEngineStatusAsync();
+            IsGitAvailable = status.IsAvailable;
+            ProblemCode = status.ProblemCode ?? string.Empty;
+            EngineVersion = string.IsNullOrWhiteSpace(status.Version) ? "—" : status.Version;
+            EnginePath = string.IsNullOrWhiteSpace(status.ExecutablePath) ? "—" : status.ExecutablePath;
+            CanAutoInstall = status.CanAutoInstall;
+            IsGitInstallRequired = IsInstallRequired(IsGitAvailable, ProblemCode);
+            InstallEngineCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            IsGitAvailable = false;
+            ProblemCode = "error";
+            EngineVersion = "—";
+            EnginePath = "—";
+            CanAutoInstall = false;
+            IsGitInstallRequired = false;
+            StatusText = $"检测 Git 状态失败：{ex.Message}";
+        }
+    }
+
+    private bool CanInstallEngine => !IsInstalling && CanAutoInstall && !IsGitAvailable;
+
+    [RelayCommand(CanExecute = nameof(CanInstallEngine))]
+    private async Task InstallEngineAsync()
+    {
+        if (IsInstalling) return;
+        IsInstalling = true;
+        InstallMessage = "正在安装 Git，请稍候…";
+        try
+        {
+            var result = await client.InstallEngineAsync();
+            InstallMessage = result.Success ? "安装完成，正在验证…" : (result.Message ?? "安装失败");
+            await RefreshEngineStatusAsync();
+            if (result.Success && IsGitAvailable)
+            {
+                InstallMessage = "Git 已安装，可以继续使用。";
+            }
+        }
+        catch (Exception ex)
+        {
+            InstallMessage = $"安装出错：{ex.Message}";
+        }
+        finally
+        {
+            IsInstalling = false;
+            InstallEngineCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private static bool IsInstallRequired(bool isAvailable, string problemCode)
+    {
+        if (isAvailable) return false;
+        return string.Equals(problemCode, "not_installed", StringComparison.OrdinalIgnoreCase);
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]

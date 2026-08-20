@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Layout;
+using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
 using RemoteOS.Protocol.Git;
 using RemoteOS.WindowManager;
@@ -37,6 +40,12 @@ internal static class GitClientDialogs
             new RemoteOS.Core.Primitives.Size(400, 180));
         return result ?? false;
     }
+
+    /// <summary>Show the "Git engine unavailable" dialog with install/refresh/cancel actions.</summary>
+    public static Task<bool> ShowGitUnavailableAsync(AppContext context, ManagedWindow owner, GitClientViewModel vm) =>
+        context.ShowDialogAsync<bool>(owner, "Git 未安装或不可用",
+            dialog => BuildGitUnavailableDialog(vm, dialog),
+            new RemoteOS.Core.Primitives.Size(520, 320));
 
     // ── Dialog builders (programmatic — no separate AXAML files needed) ──
 
@@ -205,6 +214,71 @@ internal static class GitClientDialogs
                     Children = { yesBtn, noBtn }
                 }
             }
+        };
+    }
+
+    private static Control BuildGitUnavailableDialog(GitClientViewModel vm, ModalDialog<bool> dialog)
+    {
+        var header = new TextBlock
+        {
+            Text = "当前服务器未检测到可用的 Git 命令行工具。\n请安装 Git 后再使用本应用。",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            FontSize = 14,
+        };
+
+        var statusBox = new TextBox
+        {
+            Margin = new Thickness(0, 8, 0, 0),
+            IsReadOnly = true,
+            MinHeight = 80,
+            AcceptsReturn = true,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+        };
+        statusBox.Bind(TextBox.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.InstallMessage),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+            FallbackValue = "",
+            TargetNullValue = "",
+        });
+
+        var installBtn = new Button
+        {
+            Content = "安装 Git",
+            Classes = { "primary" },
+            IsEnabled = !vm.IsInstalling && vm.CanAutoInstall,
+        };
+        installBtn.Click += async (_, _) =>
+        {
+            installBtn.IsEnabled = false;
+            await vm.InstallEngineCommand.ExecuteAsync(null);
+            if (vm.IsGitAvailable) dialog.Close(true);
+            installBtn.IsEnabled = !vm.IsInstalling && vm.CanAutoInstall && !vm.IsGitAvailable;
+        };
+
+        var refreshBtn = new Button { Content = "刷新检测" };
+        refreshBtn.Click += async (_, _) =>
+        {
+            await vm.RefreshEngineStatusCommand.ExecuteAsync(null);
+            if (vm.IsGitAvailable) dialog.Close(true);
+        };
+
+        var cancelBtn = new Button { Content = "取消 / 退出", Margin = new Thickness(8, 0, 0, 0) };
+        cancelBtn.Click += (_, _) => dialog.Close(false);
+
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children = { installBtn, refreshBtn, cancelBtn },
+            Spacing = 8,
+        };
+
+        return new StackPanel
+        {
+            Margin = new Thickness(20),
+            Spacing = 12,
+            Children = { header, statusBox, footer }
         };
     }
 }

@@ -140,3 +140,18 @@ public sealed record GitRevertRequest(
 public sealed record GitResolveRequest(
     [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths,
     [property: JsonPropertyName("continueMerge")] bool ContinueMerge = true);
+
+// ── Git engine (host CLI) status & install ──
+
+/// <summary>Host Git CLI availability probe result, analogous to <c>DockerStatusDto</c>.</summary>
+public sealed record GitEngineStatusDto(
+    [property: JsonPropertyName("isAvailable")] bool IsAvailable,
+    [property: JsonPropertyName("problemCode")] string ProblemCode,
+    [property: JsonPropertyName("version")] string? Version = null,
+    [property: JsonPropertyName("executablePath")] string? ExecutablePath = null,
+    [property: JsonPropertyName("canAutoInstall")] bool CanAutoInstall = false);
+
+/// <summary>Auto-install response with operation status and incremental progress.</summary>
+public sealed record GitEngineInstallResult(
+    [property: JsonPropertyName("success")] bool Success,
+    [property: JsonPropertyName("message")] string? Message = null);

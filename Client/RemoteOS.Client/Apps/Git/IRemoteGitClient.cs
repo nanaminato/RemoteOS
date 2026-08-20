@@ -5,6 +5,10 @@ namespace Client.Apps.Git;
 /// <summary>Typed JWT client for the server's Git repository facade.</summary>
 public interface IRemoteGitClient
 {
+    // ── Host Git engine probe & install ──
+    Task<GitEngineStatusDto> GetEngineStatusAsync(CancellationToken cancellationToken = default);
+    Task<GitEngineInstallResult> InstallEngineAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<GitRepositoryDto>> ListRepositoriesAsync(CancellationToken cancellationToken = default);
     Task<GitRepositoryDto?> GetRepositoryAsync(string id, CancellationToken cancellationToken = default);
     Task<GitRepositoryDto> RegisterRepositoryAsync(GitRepositoryRegistration registration, CancellationToken cancellationToken = default);

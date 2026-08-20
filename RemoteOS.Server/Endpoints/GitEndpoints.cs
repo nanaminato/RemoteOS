@@ -12,6 +12,16 @@ public static class GitEndpoints
     {
         var group = app.MapGroup("/api/v1/git").RequireAuthorization().WithTags("Git");
 
+        // ── Host Git engine probe & install (host-level, user-agnostic) ──
+        group.MapGet("/engine/status", (Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+            service.GetEngineStatusAsync(ct));
+
+        group.MapPost("/engine/install", async (Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await service.InstallEngineAsync(ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git install", type: ProblemBase + "install-failed"); }
+        });
+
         // ── Repository registration ──
         group.MapGet("/repositories", (ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
             service.ListRepositoriesAsync(GetUserId(principal), ct));

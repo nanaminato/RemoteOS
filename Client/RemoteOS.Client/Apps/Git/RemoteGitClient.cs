@@ -10,6 +10,13 @@ namespace Client.Apps.Git;
 /// Routes use <see cref="GitApiRoutes"/> constants; {id}/{name} are escaped via <see cref="Uri.EscapeDataString"/>.</summary>
 public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRemoteGitClient
 {
+    // ── Host Git engine probe & install ──
+    public Task<GitEngineStatusDto> GetEngineStatusAsync(CancellationToken cancellationToken = default)
+        => SendAsync<GitEngineStatusDto>(HttpMethod.Get, GitApiRoutes.EngineStatus, null, cancellationToken);
+
+    public Task<GitEngineInstallResult> InstallEngineAsync(CancellationToken cancellationToken = default)
+        => SendAsync<GitEngineInstallResult>(HttpMethod.Post, GitApiRoutes.EngineInstall, null, cancellationToken);
+
     public Task<IReadOnlyList<GitRepositoryDto>> ListRepositoriesAsync(CancellationToken cancellationToken = default)
         => SendAsync<IReadOnlyList<GitRepositoryDto>>(HttpMethod.Get, GitApiRoutes.Repositories, null, cancellationToken);
 

@@ -17,7 +17,6 @@ public sealed class GitClientApp : RemoteApplicationBase
         new AppId("remoteos.git"), "Git Client", "0.1.0", "\U0001f33f",
         "Manage Git repositories on the RemoteOS Server",
         [AppPermissions.ServerGitRead, AppPermissions.ServerGitManage],
-        ServerRequirements: new ApplicationServerRequirements(Capabilities: [ServerCapabilities.Git]),
         InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)
@@ -41,6 +40,15 @@ public sealed class GitClientApp : RemoteApplicationBase
         vm.ShowPullDialogAsync = () => GitClientDialogs.ShowPullDialogAsync(context, window!, vm);
         vm.ShowRegisterRepositoryDialogAsync = () => GitClientDialogs.ShowRegisterRepositoryDialogAsync(context, window!, vm);
         vm.ShowConfirmAsync = message => GitClientDialogs.ShowConfirmAsync(context, window!, message);
+        vm.ShowGitUnavailableAsync = async () =>
+        {
+            var shouldContinue = await GitClientDialogs.ShowGitUnavailableAsync(context, window!, vm);
+            if (!shouldContinue)
+            {
+                // User cancelled / exited: close the window to leave the app.
+                context.WindowManager.Close(window!);
+            }
+        };
 
         var view = GitClientWorkspace.Create(vm);
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.git.display_name"),
