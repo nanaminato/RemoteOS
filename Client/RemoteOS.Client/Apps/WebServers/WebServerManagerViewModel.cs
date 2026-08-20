@@ -616,6 +616,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.site_server_name_invalid" => "域名或 IP 地址格式无效。请逐行填写，例如 app.example.com 或 192.168.1.20。",
         "webserver.site_certificate_required" => "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
         "webserver.site_upstream_invalid" => "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
+        "webserver.site_elevation_required" => "RemoteOS Server 未以管理员权限运行，无法写入和应用 Nginx 站点配置。请查看服务端 WebServer 日志了解详情。",
         "webserver.site_config_test_failed" => "新站点配置未通过 Nginx 校验。请检查域名、代理地址、证书路径，以及现有 Nginx 配置。",
         "webserver.site_reload_failed" => "站点配置已通过校验，但 Nginx 重载失败。请检查监听端口、Nginx 运行状态和服务端权限。",
         "webserver.site_save_failed" => "Nginx 无法保存此站点配置。请确认 Nginx 已集成，且 RemoteOS Server 具有配置目录的写入权限。",

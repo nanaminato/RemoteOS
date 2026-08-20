@@ -229,30 +229,64 @@ internal sealed partial class NginxWebServerManager(
     public async Task<WebServerSiteDto?> UpsertSiteAsync(string instanceId, UpsertWebServerSiteRequest request, CancellationToken cancellationToken)
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
-        if (instance is null || !privileges.IsAdministrator || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed)) return null;
+        if (instance is null)
+        {
+            logger.LogWarning("Nginx site save rejected because the requested instance was not found. InstanceId={InstanceId}", instanceId);
+            return null;
+        }
+        if (!privileges.IsAdministrator)
+        {
+            logger.LogError("Nginx site save rejected because the RemoteOS Server process is not elevated. InstanceId={InstanceId}, ServerIdentity={ServerIdentity}, Configuration={Configuration}", instance.Id, Environment.UserName, instance.ConfigurationPath);
+            throw new WebServerSiteApplyException("webserver.site_elevation_required");
+        }
+        if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
+        {
+            logger.LogWarning("Nginx site save rejected because the instance is not integrated or managed. InstanceId={InstanceId}, ManagementMode={ManagementMode}, Configuration={Configuration}", instance.Id, instance.ManagementMode, instance.ConfigurationPath);
+            return null;
+        }
         if (!TryNormalizeSite(instance, request, out var site, out var problem))
         {
             logger.LogWarning("Rejected Nginx site definition. InstanceId={InstanceId}, Problem={Problem}", instanceId, problem);
             throw new WebServerSiteValidationException(problem);
         }
         var directory = GetSitesDirectory(instance);
-        if (directory is null) return null;
+        if (directory is null)
+        {
+            logger.LogError("Nginx site save rejected because the RemoteOS site directory could not be resolved. InstanceId={InstanceId}, Configuration={Configuration}, ManagementMode={ManagementMode}", instance.Id, instance.ConfigurationPath, instance.ManagementMode);
+            return null;
+        }
+        logger.LogInformation("Saving Nginx site. InstanceId={InstanceId}, SiteId={SiteId}, Name={Name}, Kind={Kind}, ListenPort={ListenPort}, HttpsEnabled={HttpsEnabled}, SitesDirectory={SitesDirectory}",
+            instance.Id, site.Id, site.Name, site.Kind, site.ListenPort, site.HttpsEnabled, directory);
         await IntegrationGate.WaitAsync(cancellationToken);
         try
         {
-            if (!await EnsureSiteIncludeAnchorAsync(instance, cancellationToken)) return null;
+            var anchorProblem = await EnsureSiteIncludeAnchorAsync(instance, cancellationToken);
+            if (anchorProblem is not null)
+            {
+                logger.LogError("Nginx site save rejected because the RemoteOS include anchor cannot be used. InstanceId={InstanceId}, Problem={Problem}, Configuration={Configuration}, SitesDirectory={SitesDirectory}", instance.Id, anchorProblem, instance.ConfigurationPath, directory);
+                return null;
+            }
             Directory.CreateDirectory(directory);
-            if (IsSymbolicLink(directory)) return null;
+            if (IsSymbolicLink(directory))
+            {
+                logger.LogWarning("Nginx site save rejected because the sites directory is a symbolic link. InstanceId={InstanceId}, SitesDirectory={SitesDirectory}", instance.Id, directory);
+                return null;
+            }
             var sites = (await ReadSitesAsync(instance, cancellationToken)).ToList();
             var index = sites.FindIndex(item => item.Id == site.Id);
             if (index >= 0) sites[index] = site; else sites.Add(site);
             var applyProblem = await WriteSiteConfigurationAsync(instance, site, cancellationToken);
-            if (applyProblem is not null) throw new WebServerSiteApplyException(applyProblem);
+            if (applyProblem is not null)
+            {
+                logger.LogWarning("Nginx site save failed before metadata was committed. InstanceId={InstanceId}, SiteId={SiteId}, Problem={Problem}, SitesDirectory={SitesDirectory}", instance.Id, site.Id, applyProblem, directory);
+                throw new WebServerSiteApplyException(applyProblem);
+            }
             await WriteSitesAsync(directory, sites, cancellationToken);
+            logger.LogInformation("Nginx site saved successfully. InstanceId={InstanceId}, SiteId={SiteId}, ListenPort={ListenPort}, SitesDirectory={SitesDirectory}", instance.Id, site.Id, site.ListenPort, directory);
             return site;
         }
-        catch (IOException exception) { logger.LogWarning(exception, "Unable to save Nginx site {SiteId}", site.Id); return null; }
-        catch (UnauthorizedAccessException exception) { logger.LogWarning(exception, "Access denied saving Nginx site {SiteId}", site.Id); return null; }
+        catch (IOException exception) { logger.LogError(exception, "I/O failure while saving Nginx site. InstanceId={InstanceId}, SiteId={SiteId}, SitesDirectory={SitesDirectory}", instance.Id, site.Id, directory); return null; }
+        catch (UnauthorizedAccessException exception) { logger.LogError(exception, "Access denied while saving Nginx site. InstanceId={InstanceId}, SiteId={SiteId}, SitesDirectory={SitesDirectory}", instance.Id, site.Id, directory); return null; }
         finally { IntegrationGate.Release(); }
     }
 
@@ -301,21 +335,32 @@ internal sealed partial class NginxWebServerManager(
         catch (UnauthorizedAccessException) { return []; }
     }
 
-    private static async Task<bool> EnsureSiteIncludeAnchorAsync(WebServerDto instance, CancellationToken cancellationToken)
+    private static async Task<string?> EnsureSiteIncludeAnchorAsync(WebServerDto instance, CancellationToken cancellationToken)
     {
-        if (instance.ConfigurationPath is null) return false;
+        if (instance.ConfigurationPath is null) return "configuration_path_missing";
         var include = instance.ManagementMode == WebServerManagementMode.Managed
             ? Path.Combine(Path.GetDirectoryName(instance.ConfigurationPath)!, "conf.d")
             : FindOwnedIncludeDirectory(instance.ConfigurationPath);
-        if (include is null) return false;
+        if (include is null) return "include_directory_not_found";
         var anchor = Path.Combine(include, OwnedFileName);
-        if (!IsOwnedFile(anchor)) return false;
         var expected = AnchorContent(Path.Combine(include, "remoteos.d"));
-        if (File.ReadAllText(anchor) == expected) return true;
+        if (!File.Exists(anchor))
+        {
+            // A managed installation owns the entire generated conf.d layout. Its initial
+            // configuration has no site anchor until the first site is saved, so create it
+            // atomically here. External instances must still be explicitly integrated first.
+            if (instance.ManagementMode != WebServerManagementMode.Managed) return "integration_anchor_missing";
+            var anchorStage = anchor + ".stage";
+            await File.WriteAllTextAsync(anchorStage, expected, new UTF8Encoding(false), cancellationToken);
+            File.Move(anchorStage, anchor, false);
+            return null;
+        }
+        if (!IsOwnedFile(anchor)) return "integration_anchor_not_owned";
+        if (File.ReadAllText(anchor) == expected) return null;
         var stage = anchor + ".stage";
         await File.WriteAllTextAsync(stage, expected, new UTF8Encoding(false), cancellationToken);
         File.Move(stage, anchor, true);
-        return true;
+        return null;
     }
 
     private static async Task WriteSitesAsync(string directory, IReadOnlyList<WebServerSiteDto> sites, CancellationToken cancellationToken)
@@ -370,17 +415,29 @@ internal sealed partial class NginxWebServerManager(
         if (site.HttpsEnabled)
         {
             certificatePaths = await certificates.GetNginxPathsAsync(site.CertificateId!.Value, cancellationToken);
-            if (certificatePaths is null) return "webserver.site_certificate_required";
+            if (certificatePaths is null)
+            {
+                logger.LogError("Nginx site save could not resolve the certificate material. InstanceId={InstanceId}, SiteId={SiteId}, CertificateId={CertificateId}", instance.Id, site.Id, site.CertificateId);
+                return "webserver.site_certificate_required";
+            }
         }
         if (site.RootPath is not null)
         {
             Directory.CreateDirectory(site.RootPath);
-            if (IsSymbolicLink(site.RootPath)) return "webserver.site_save_failed";
+            if (IsSymbolicLink(site.RootPath))
+            {
+                logger.LogWarning("Nginx site save rejected because the static site root is a symbolic link. InstanceId={InstanceId}, SiteId={SiteId}, RootPath={RootPath}", instance.Id, site.Id, site.RootPath);
+                return "webserver.site_save_failed";
+            }
             var index = Path.Combine(site.RootPath, "index.html");
             if (!File.Exists(index)) await File.WriteAllTextAsync(index, "<h1>Welcome to RemoteOS</h1>\n", new UTF8Encoding(false), cancellationToken);
         }
         var config = Path.Combine(directory, $"{site.Id}.conf");
-        if (File.Exists(config) && !IsRemoteOsSiteConfig(config)) return "webserver.site_save_failed";
+        if (File.Exists(config) && !IsRemoteOsSiteConfig(config))
+        {
+            logger.LogWarning("Nginx site save rejected because an existing configuration is not owned by RemoteOS. InstanceId={InstanceId}, SiteId={SiteId}, Configuration={Configuration}", instance.Id, site.Id, config);
+            return "webserver.site_save_failed";
+        }
         var stage = Path.Combine(directory, $"remoteos.{Guid.NewGuid():N}.conf");
         var backup = config + ".rollback";
         await File.WriteAllTextAsync(stage, RenderSiteConfiguration(site, certificatePaths), new UTF8Encoding(false), cancellationToken);

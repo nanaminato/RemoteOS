@@ -135,6 +135,20 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     await File.WriteAllTextAsync(outsideHttp, "include conf.d/*.conf;\nevents {}\nhttp {}\n");
     Assert(resolver.Invoke(null, [outsideHttp]) is null, "Nginx include outside http context was accepted.");
 
+    var managedRoot = Path.Combine(root, "managed-nginx");
+    var managedConfiguration = Path.Combine(managedRoot, "conf", "nginx.conf");
+    var managedConfD = Path.Combine(managedRoot, "conf", "conf.d");
+    Directory.CreateDirectory(managedConfD);
+    await File.WriteAllTextAsync(managedConfiguration, "events {}\nhttp { include conf.d/*.conf; }\n");
+    var managedInstance = new WebServerDto("managed-test", "nginx", WebServerType.Nginx, WebServerManagementMode.Managed,
+        Path.Combine(managedRoot, "sbin", "nginx"), managedConfiguration, "test", DateTimeOffset.UtcNow,
+        new WebServerCapabilities(true, true, false, false));
+    var ensureAnchor = typeof(NginxWebServerManager).GetMethod("EnsureSiteIncludeAnchorAsync", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx site anchor initializer was not found.");
+    var anchorResult = (Task<string?>)ensureAnchor.Invoke(null, [managedInstance, CancellationToken.None])!;
+    Assert(await anchorResult is null, "A managed Nginx instance did not create its first site anchor.");
+    Assert(File.Exists(Path.Combine(managedConfD, "remoteos.conf")), "The managed Nginx site anchor was not created.");
+
     var validServerName = typeof(NginxWebServerManager).GetMethod("IsValidServerName", BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Nginx server-name validator was not found.");
     Assert((bool)validServerName.Invoke(null, ["192.0.2.10"])!, "IPv4 addresses were rejected as Nginx server names.");
