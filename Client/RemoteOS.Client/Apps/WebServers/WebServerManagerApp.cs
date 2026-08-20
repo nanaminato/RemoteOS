@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using Client.Apps.WebServers.Views;
+using Client.Apps.Certificates;
 using Client.Localization;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
@@ -24,14 +25,15 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
     {
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
         var client = context.Services.GetService(typeof(IRemoteWebServerClient)) as IRemoteWebServerClient;
-        if (session is null || client is null || session.State != AuthSessionState.Authenticated)
+        var certificates = context.Services.GetService(typeof(IRemoteCertificateClient)) as IRemoteCertificateClient;
+        if (session is null || client is null || certificates is null || session.State != AuthSessionState.Authenticated)
         {
             context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
                 new WebServerLoginRequiredView(),
                 new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false);
             return;
         }
-        var viewModel = new WebServerManagerViewModel(client, session, context.Permissions);
+        var viewModel = new WebServerManagerViewModel(client, certificates, session, context.Permissions);
         var view = WebServerManagerWorkspace.Create(viewModel);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
             view, new Rect(70, 55, 1080, 680), Manifest.IconGlyph);

@@ -21,4 +21,7 @@ public interface IRemoteWebServerClient
     Task<WebServerOperationDto?> ReloadAsync(string id, CancellationToken cancellationToken = default);
     Task<WebServerOperationDto?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken = default);
     Task<WebServerOperationDto?> CancelOperationAsync(Guid operationId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string id, CancellationToken cancellationToken = default);
+    Task<WebServerSiteDto?> UpsertSiteAsync(string id, UpsertWebServerSiteRequest request, CancellationToken cancellationToken = default);
+    Task DeleteSiteAsync(string id, string siteId, CancellationToken cancellationToken = default);
 }

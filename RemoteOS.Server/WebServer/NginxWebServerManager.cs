@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.WebServers;
+using Server.Certificate;
 
 namespace Server.WebServer;
 
@@ -21,6 +23,7 @@ internal sealed partial class NginxWebServerManager(
     IHostApplicationLifetime lifetime,
     NginxManagedOptions managedOptions,
     NginxInstallPackageStore packages,
+    ICertificateStore certificates,
     ILogger<NginxWebServerManager> logger) : IWebServerProvider
 {
     private const string ProviderKey = "nginx";
@@ -28,7 +31,9 @@ internal sealed partial class NginxWebServerManager(
     private const string OwnershipMarker = "# Managed by RemoteOS. Do not edit.";
     private const string ManagedMarkerName = ".remoteos-managed";
     private const string ManagedMarkerContent = "RemoteOS owns this Nginx installation. Do not move this marker.\n";
-    private static readonly string OwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
+    private static readonly JsonSerializerOptions SiteJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private static readonly string LegacyOwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
+    private static readonly string PreviousOwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\ninclude remoteos.d/*.conf;\n";
     private static readonly string ManagedConfiguration = """
         worker_processes auto;
         error_log logs/error.log notice;
@@ -211,6 +216,225 @@ internal sealed partial class NginxWebServerManager(
             ct => UninstallManagedCoreAsync(GetManagedLayout(), ct), lifetime.ApplicationStopping);
     }
 
+    public async Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string instanceId, CancellationToken cancellationToken)
+    {
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
+        if (instance is null || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed)) return null;
+        return await ReadSitesAsync(instance, cancellationToken);
+    }
+
+    public async Task<WebServerSiteDto?> UpsertSiteAsync(string instanceId, UpsertWebServerSiteRequest request, CancellationToken cancellationToken)
+    {
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
+        if (instance is null || !privileges.IsAdministrator || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed)) return null;
+        if (!TryNormalizeSite(instance, request, out var site, out var problem))
+        {
+            logger.LogWarning("Rejected Nginx site definition. InstanceId={InstanceId}, Problem={Problem}", instanceId, problem);
+            return null;
+        }
+        var directory = GetSitesDirectory(instance);
+        if (directory is null) return null;
+        await IntegrationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!await EnsureSiteIncludeAnchorAsync(instance, cancellationToken)) return null;
+            Directory.CreateDirectory(directory);
+            if (IsSymbolicLink(directory)) return null;
+            var sites = (await ReadSitesAsync(instance, cancellationToken)).ToList();
+            var index = sites.FindIndex(item => item.Id == site.Id);
+            if (index >= 0) sites[index] = site; else sites.Add(site);
+            if (!await WriteSiteConfigurationAsync(instance, site, cancellationToken)) return null;
+            await WriteSitesAsync(directory, sites, cancellationToken);
+            return site;
+        }
+        catch (IOException exception) { logger.LogWarning(exception, "Unable to save Nginx site {SiteId}", site.Id); return null; }
+        catch (UnauthorizedAccessException exception) { logger.LogWarning(exception, "Access denied saving Nginx site {SiteId}", site.Id); return null; }
+        finally { IntegrationGate.Release(); }
+    }
+
+    public async Task<bool?> DeleteSiteAsync(string instanceId, string siteId, CancellationToken cancellationToken)
+    {
+        var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
+        if (instance is null || !privileges.IsAdministrator || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed) || !SiteIdPattern().IsMatch(siteId)) return null;
+        var directory = GetSitesDirectory(instance);
+        if (directory is null) return null;
+        await IntegrationGate.WaitAsync(cancellationToken);
+        try
+        {
+            var sites = (await ReadSitesAsync(instance, cancellationToken)).ToList();
+            if (!sites.RemoveAll(site => site.Id == siteId).Equals(1)) return false;
+            var config = Path.Combine(directory, $"{siteId}.conf");
+            if (!IsRemoteOsSiteConfig(config)) return null;
+            var backup = config + ".rollback";
+            File.Move(config, backup, false);
+            try
+            {
+                if (!await TestAndReloadAsync(instance, cancellationToken)) { File.Move(backup, config, false); _ = await TestAndReloadAsync(instance, cancellationToken); return null; }
+                File.Delete(backup);
+                await WriteSitesAsync(directory, sites, cancellationToken);
+                return true;
+            }
+            finally { if (File.Exists(backup)) File.Move(backup, config, false); }
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+        finally { IntegrationGate.Release(); }
+    }
+
+    private async Task<IReadOnlyList<WebServerSiteDto>> ReadSitesAsync(WebServerDto instance, CancellationToken cancellationToken)
+    {
+        var directory = GetSitesDirectory(instance);
+        if (directory is null || IsSymbolicLink(directory)) return [];
+        var path = Path.Combine(directory, "sites.json");
+        if (!File.Exists(path) || IsSymbolicLink(path)) return [];
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            return await JsonSerializer.DeserializeAsync<List<WebServerSiteDto>>(stream, SiteJson, cancellationToken) ?? [];
+        }
+        catch (JsonException) { return []; }
+        catch (IOException) { return []; }
+        catch (UnauthorizedAccessException) { return []; }
+    }
+
+    private static async Task<bool> EnsureSiteIncludeAnchorAsync(WebServerDto instance, CancellationToken cancellationToken)
+    {
+        if (instance.ConfigurationPath is null) return false;
+        var include = instance.ManagementMode == WebServerManagementMode.Managed
+            ? Path.Combine(Path.GetDirectoryName(instance.ConfigurationPath)!, "conf.d")
+            : FindOwnedIncludeDirectory(instance.ConfigurationPath);
+        if (include is null) return false;
+        var anchor = Path.Combine(include, OwnedFileName);
+        if (!IsOwnedFile(anchor)) return false;
+        var expected = AnchorContent(Path.Combine(include, "remoteos.d"));
+        if (File.ReadAllText(anchor) == expected) return true;
+        var stage = anchor + ".stage";
+        await File.WriteAllTextAsync(stage, expected, new UTF8Encoding(false), cancellationToken);
+        File.Move(stage, anchor, true);
+        return true;
+    }
+
+    private static async Task WriteSitesAsync(string directory, IReadOnlyList<WebServerSiteDto> sites, CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(directory, "sites.json");
+        var stage = path + ".stage";
+        await File.WriteAllTextAsync(stage, JsonSerializer.Serialize(sites.OrderBy(site => site.Name, StringComparer.OrdinalIgnoreCase), SiteJson), new UTF8Encoding(false), cancellationToken);
+        File.Move(stage, path, true);
+    }
+
+    private bool TryNormalizeSite(WebServerDto instance, UpsertWebServerSiteRequest request, out WebServerSiteDto site, out string problem)
+    {
+        site = default!;
+        problem = "webserver.site_invalid";
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80 || !Enum.IsDefined(request.Kind) || request.ListenPort is < 1 or > 65535) return false;
+        var id = string.IsNullOrWhiteSpace(request.Id) ? ToSiteId(request.Name) : request.Id.Trim().ToLowerInvariant();
+        if (!SiteIdPattern().IsMatch(id)) return false;
+        var domains = (request.Domains ?? []).Select(value => value.Trim().TrimEnd('.').ToLowerInvariant()).Where(value => value.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (domains.Length is < 1 or > 20 || domains.Any(domain => domain.Length > 253 || Uri.CheckHostName(domain) != UriHostNameType.Dns || !DomainPattern().IsMatch(domain))) return false;
+        if (request.HttpsEnabled && request.CertificateId is null) return false;
+        string? upstream = null;
+        if (request.Kind == WebServerSiteKind.ReverseProxy)
+        {
+            if (!Uri.TryCreate(request.Upstream?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return false;
+            upstream = uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.PathAndQuery, UriFormat.UriEscaped).TrimEnd('/');
+        }
+        var root = request.Kind == WebServerSiteKind.Static ? Path.Combine(GetStaticSitesRoot(instance), id) : null;
+        site = new WebServerSiteDto(id, instance.Id, request.Name.Trim(), request.Kind, domains, request.ListenPort, upstream, root, request.CertificateId, request.HttpsEnabled, DateTimeOffset.UtcNow);
+        return true;
+    }
+
+    private async Task<bool> WriteSiteConfigurationAsync(WebServerDto instance, WebServerSiteDto site, CancellationToken cancellationToken)
+    {
+        var directory = GetSitesDirectory(instance);
+        if (directory is null) return false;
+        (string FullChainPath, string PrivateKeyPath)? certificatePaths = null;
+        if (site.HttpsEnabled)
+        {
+            certificatePaths = await certificates.GetNginxPathsAsync(site.CertificateId!.Value, cancellationToken);
+            if (certificatePaths is null) return false;
+        }
+        if (site.RootPath is not null)
+        {
+            Directory.CreateDirectory(site.RootPath);
+            if (IsSymbolicLink(site.RootPath)) return false;
+            var index = Path.Combine(site.RootPath, "index.html");
+            if (!File.Exists(index)) await File.WriteAllTextAsync(index, "<h1>Welcome to RemoteOS</h1>\n", new UTF8Encoding(false), cancellationToken);
+        }
+        var config = Path.Combine(directory, $"{site.Id}.conf");
+        if (File.Exists(config) && !IsRemoteOsSiteConfig(config)) return false;
+        var stage = config + ".stage";
+        var backup = config + ".rollback";
+        await File.WriteAllTextAsync(stage, RenderSiteConfiguration(site, certificatePaths), new UTF8Encoding(false), cancellationToken);
+        var hadExisting = File.Exists(config);
+        try
+        {
+            if (hadExisting) File.Move(config, backup, false);
+            File.Move(stage, config, false);
+            if (await TestAndReloadAsync(instance, cancellationToken))
+            {
+                if (File.Exists(backup)) File.Delete(backup);
+                return true;
+            }
+            File.Delete(config);
+            if (File.Exists(backup)) File.Move(backup, config, false);
+            _ = await TestAndReloadAsync(instance, cancellationToken);
+            return false;
+        }
+        finally
+        {
+            if (File.Exists(stage)) File.Delete(stage);
+            if (File.Exists(backup) && !File.Exists(config)) File.Move(backup, config, false);
+        }
+    }
+
+    private async Task<bool> TestAndReloadAsync(WebServerDto instance, CancellationToken cancellationToken)
+    {
+        var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-t"]) : new[] { "-t" };
+        if (!(await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success) return false;
+        if (!IsNginxRunning()) return true;
+        arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
+        return (await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success;
+    }
+
+    private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths)
+    {
+        var serverNames = string.Join(' ', site.Domains);
+        var listen = site.ListenPort == 80 ? "listen 80;" : $"listen {site.ListenPort};";
+        var body = site.Kind == WebServerSiteKind.ReverseProxy
+            ? $"location / {{\n        proxy_pass {site.Upstream};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}"
+            : $"root {NginxConfigPath(site.RootPath!)};\n    index index.html;\n    location / {{ try_files $uri $uri/ =404; }}";
+        var tls = certificatePaths is null ? "" : $"\n    listen 443 ssl;\n    ssl_certificate {NginxConfigPath(certificatePaths.Value.FullChainPath)};\n    ssl_certificate_key {NginxConfigPath(certificatePaths.Value.PrivateKeyPath)};";
+        return $"# Managed by RemoteOS. Site: {site.Id}\nserver {{\n    {listen}{tls}\n    server_name {serverNames};\n    {body}\n}}\n";
+    }
+
+    private static string? GetSitesDirectory(WebServerDto instance)
+    {
+        if (instance.ConfigurationPath is null) return null;
+        var confd = instance.ManagementMode == WebServerManagementMode.Managed
+            ? Path.Combine(Path.GetDirectoryName(instance.ConfigurationPath)!, "conf.d")
+            : FindOwnedIncludeDirectory(instance.ConfigurationPath);
+        return confd is null ? null : Path.Combine(confd, "remoteos.d");
+    }
+
+    private static string GetStaticSitesRoot(WebServerDto instance)
+    {
+        var configDirectory = Path.GetDirectoryName(instance.ConfigurationPath!)!;
+        return Path.Combine(configDirectory, "remoteos-sites");
+    }
+
+    private static string ToSiteId(string name)
+    {
+        var slug = Regex.Replace(name.Trim().ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        return string.IsNullOrEmpty(slug) ? $"site-{Guid.NewGuid():N}"[..13] : slug[..Math.Min(slug.Length, 60)];
+    }
+
+    private static bool IsRemoteOsSiteConfig(string path)
+    {
+        try { return File.Exists(path) && !IsSymbolicLink(path) && File.ReadLines(path).FirstOrDefault()?.StartsWith("# Managed by RemoteOS. Site: ", StringComparison.Ordinal) == true; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
     private async Task<WebServerDto?> DetectAsync(string executable, WebServerManagementMode? forcedMode, CancellationToken cancellationToken)
     {
         var details = await RunNginxAsync(executable, ["-V"], cancellationToken);
@@ -265,7 +489,7 @@ internal sealed partial class NginxWebServerManager(
             var committed = false;
             try
             {
-                await File.WriteAllTextAsync(stage, OwnedContent, new UTF8Encoding(false), cancellationToken);
+                await File.WriteAllTextAsync(stage, AnchorContent(Path.Combine(includeDirectory, "remoteos.d")), new UTF8Encoding(false), cancellationToken);
                 if (!await metadata.IsSnapshotCurrentAsync(instance.ConfigurationPath, snapshot, cancellationToken))
                     return new WebServerOperationResult("webserver.configuration_changed", snapshot.Id);
                 var test = await RunNginxAsync(instance.ExecutablePath, ["-t"], cancellationToken);
@@ -742,7 +966,13 @@ internal sealed partial class NginxWebServerManager(
 
     private static bool IsOwnedFile(string path)
     {
-        try { return File.Exists(path) && !IsSymbolicLink(path) && File.ReadAllText(path) == OwnedContent; }
+        try
+        {
+            if (!File.Exists(path) || IsSymbolicLink(path)) return false;
+            var content = File.ReadAllText(path);
+            var expected = AnchorContent(Path.Combine(Path.GetDirectoryName(path)!, "remoteos.d"));
+            return content == expected || content == LegacyOwnedContent || content == PreviousOwnedContent;
+        }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
     }
@@ -759,6 +989,11 @@ internal sealed partial class NginxWebServerManager(
         try { return File.Exists(path) || Directory.Exists(path) ? File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint) : false; }
         catch (IOException) { return true; }
     }
+
+    private static string AnchorContent(string sitesDirectory)
+        => $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\ninclude {NginxConfigPath(sitesDirectory)}/*.conf;\n";
+
+    private static string NginxConfigPath(string path) => Path.GetFullPath(path).Replace('\\', '/');
 
     private static bool IsNginxRunning()
     {
@@ -809,6 +1044,10 @@ internal sealed partial class NginxWebServerManager(
     private static partial Regex IncludePattern();
     [GeneratedRegex("^\\s*http\\s*\\{", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex HttpBlockPattern();
+    [GeneratedRegex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", RegexOptions.CultureInvariant)]
+    private static partial Regex SiteIdPattern();
+    [GeneratedRegex("^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$", RegexOptions.CultureInvariant)]
+    private static partial Regex DomainPattern();
 
     private sealed record CommandResult(bool Success, string Output);
 }

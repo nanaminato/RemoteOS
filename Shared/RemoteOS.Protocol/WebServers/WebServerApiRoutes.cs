@@ -30,6 +30,10 @@ public static class WebServerApiRoutes
     public const string ManagedUninstallPattern = "/{id}/managed/uninstall";
     public const string Reload = $"{WebServers}/{{id}}/reload";
     public const string ReloadPattern = "/{id}/reload";
+    public const string Sites = $"{WebServers}/{{id}}/sites";
+    public const string SitesPattern = "/{id}/sites";
+    public const string SiteById = $"{WebServers}/{{id}}/sites/{{siteId}}";
+    public const string SiteByIdPattern = "/{id}/sites/{siteId}";
     public const string Operations = $"{WebServers}/operations/{{operationId}}";
     public const string OperationsPattern = "/operations/{operationId:guid}";
     public const string CancelOperation = $"{WebServers}/operations/{{operationId}}/cancel";

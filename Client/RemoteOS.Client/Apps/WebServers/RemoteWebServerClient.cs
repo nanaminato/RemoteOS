@@ -72,6 +72,22 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
     public Task<WebServerOperationDto?> CancelOperationAsync(Guid operationId, CancellationToken cancellationToken = default)
         => SendAsync<WebServerOperationDto?>(HttpMethod.Post, WebServerApiRoutes.CancelOperation.Replace("{operationId}", operationId.ToString("N")), null, NewKey(), cancellationToken);
 
+    public Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string id, CancellationToken cancellationToken = default)
+        => SendAsync<IReadOnlyList<WebServerSiteDto>?>(HttpMethod.Get, WebServerApiRoutes.Sites.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
+
+    public Task<WebServerSiteDto?> UpsertSiteAsync(string id, UpsertWebServerSiteRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<WebServerSiteDto?>(HttpMethod.Post, WebServerApiRoutes.Sites.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+
+    public async Task DeleteSiteAsync(string id, string siteId, CancellationToken cancellationToken = default)
+    {
+        if (session.State != AuthSessionState.Authenticated || session.Tokens is null || session.ServerUrl is null)
+            throw new InvalidOperationException("RemoteOS session is not authenticated.");
+        using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(new Uri(session.ServerUrl), WebServerApiRoutes.SiteById.Replace("{id}", WebUtility.UrlEncode(id)).Replace("{siteId}", WebUtility.UrlEncode(siteId)).TrimStart('/')));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Unable to delete site ({(int)response.StatusCode}).", null, response.StatusCode);
+    }
+
     private static string NewKey() => Guid.NewGuid().ToString("N");
 
     private async Task<T> SendAsync<T>(HttpMethod method, string route, object? body, string? idempotencyKey, CancellationToken cancellationToken)

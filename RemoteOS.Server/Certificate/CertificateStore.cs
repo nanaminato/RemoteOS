@@ -23,6 +23,8 @@ internal interface ICertificateStore
     Task UpdateStatusAsync(Guid certificateId, CertificateStatus status, CancellationToken cancellationToken);
     Task<X509Certificate2?> LoadCurrentAsync(Guid certificateId, CancellationToken cancellationToken);
     Task<X509Certificate2?> LoadVersionAsync(Guid certificateId, string version, CancellationToken cancellationToken);
+    /// <summary>Returns fixed, server-local PEM paths suitable for a web-server configuration.</summary>
+    Task<(string FullChainPath, string PrivateKeyPath)?> GetNginxPathsAsync(Guid certificateId, CancellationToken cancellationToken);
     Task DeleteAsync(Guid certificateId, CancellationToken cancellationToken);
 }
 
@@ -62,6 +64,11 @@ internal sealed class FileCertificateStore : ICertificateStore
             await WriteProtectedAsync(Path.Combine(versionRoot, "certificate.pem"), material.CertificatePem, cancellationToken);
             await WriteProtectedAsync(Path.Combine(versionRoot, "fullchain.pem"), material.CertificatePem, cancellationToken);
             await WriteProtectedAsync(Path.Combine(versionRoot, "private.key"), material.PrivateKeyPem, cancellationToken);
+            // Nginx sites reference these stable files rather than a version directory. Renewal
+            // can therefore prune old versions without leaving a deployed virtual host pointing
+            // at a missing PEM file.
+            await WriteAtomicallyAsync(Path.Combine(certificateRoot, "nginx-fullchain.pem"), material.CertificatePem, cancellationToken);
+            await WriteAtomicallyAsync(Path.Combine(certificateRoot, "nginx-private.key"), material.PrivateKeyPem, cancellationToken);
             var now = DateTimeOffset.UtcNow;
             var metadata = new StoredCertificate(material.Id, version, normalizedDomains[0], normalizedDomains, material.ChallengeType, material.KeyAlgorithm,
                 certificate.Issuer, certificate.SerialNumber, certificate.Thumbprint,
@@ -121,6 +128,15 @@ internal sealed class FileCertificateStore : ICertificateStore
         if (!File.Exists(certificate) || !File.Exists(privateKey)) return Task.FromResult<X509Certificate2?>(null);
         try { return Task.FromResult<X509Certificate2?>(X509Certificate2.CreateFromPemFile(certificate, privateKey)); }
         catch (CryptographicException) { return Task.FromResult<X509Certificate2?>(null); }
+    }
+
+    public async Task<(string FullChainPath, string PrivateKeyPath)?> GetNginxPathsAsync(Guid certificateId, CancellationToken cancellationToken)
+    {
+        var metadata = await GetAsync(certificateId, cancellationToken);
+        if (metadata is null || metadata.Status is CertificateStatus.Revoked or CertificateStatus.Expired || !IsSafeCertificateRoot(certificateId)) return null;
+        var fullChain = Path.Combine(CertificateRoot(certificateId), "nginx-fullchain.pem");
+        var privateKey = Path.Combine(CertificateRoot(certificateId), "nginx-private.key");
+        return File.Exists(fullChain) && File.Exists(privateKey) ? (fullChain, privateKey) : null;
     }
 
     public async Task UpdateRenewalWindowAsync(Guid certificateId, AcmeRenewalWindow? window, CancellationToken cancellationToken)

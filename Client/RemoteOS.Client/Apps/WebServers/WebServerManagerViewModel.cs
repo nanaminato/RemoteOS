@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Client.Apps.Certificates;
 using Client.Localization;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -18,13 +19,15 @@ namespace Client.Apps.WebServers;
 public sealed partial class WebServerManagerViewModel : ObservableObject
 {
     private readonly IRemoteWebServerClient _client;
+    private readonly IRemoteCertificateClient _certificates;
     private readonly IAuthSession _session;
     private readonly IAppPermissionScope _permissions;
     private CancellationTokenSource? _operationCts;
 
-    public WebServerManagerViewModel(IRemoteWebServerClient client, IAuthSession session, IAppPermissionScope permissions)
+    public WebServerManagerViewModel(IRemoteWebServerClient client, IRemoteCertificateClient certificates, IAuthSession session, IAppPermissionScope permissions)
     {
         _client = client;
+        _certificates = certificates;
         _session = session;
         _permissions = permissions;
         InstallVersion = string.Empty;
@@ -33,9 +36,14 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<WebServerDto> Servers { get; } = [];
     public ObservableCollection<WebServerStatusDto> Statuses { get; } = [];
     public ObservableCollection<string> AvailableWindowsVersions { get; } = [];
+    public ObservableCollection<WebServerSiteDto> Sites { get; } = [];
+    public ObservableCollection<CertificateDto> Certificates { get; } = [];
+    public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand))]
     private WebServerDto? _selectedServer;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand))]
+    private WebServerSiteDto? _selectedSite;
     [ObservableProperty] private string _statusText = LocalizedText.Get("webservers.status.loading");
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOperationActivity))]
     private string _operationText = string.Empty;
@@ -43,6 +51,14 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private string _selectedStatusText = string.Empty;
     [ObservableProperty] private string _installVersion = string.Empty;
     [ObservableProperty] private string _localPackageName = string.Empty;
+    [ObservableProperty] private string _siteName = string.Empty;
+    [ObservableProperty] private string _siteDomains = string.Empty;
+    [ObservableProperty] private string _siteUpstream = string.Empty;
+    [ObservableProperty] private int _siteListenPort = 80;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsReverseProxySite), nameof(IsStaticSite))] private WebServerSiteKind _selectedSiteKind = WebServerSiteKind.ReverseProxy;
+    [ObservableProperty] private bool _siteHttpsEnabled;
+    [ObservableProperty] private CertificateDto? _selectedSiteCertificate;
+    [ObservableProperty] private string _siteStatusText = string.Empty;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand))]
     private bool _isLoading;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(ReloadCommand), nameof(CancelOperationCommand))]
@@ -55,6 +71,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool IsWindowsServer => _session.CurrentServer?.Platform == PlatformKind.Windows;
     public bool IsLinuxServer => _session.CurrentServer?.Platform == PlatformKind.Linux;
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
+    public bool IsReverseProxySite => SelectedSiteKind == WebServerSiteKind.ReverseProxy;
+    public bool IsStaticSite => SelectedSiteKind == WebServerSiteKind.Static;
 
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
     public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
@@ -66,6 +84,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public async Task StartAsync()
     {
         await RefreshAsync();
+        await LoadCertificatesAsync();
         if (IsWindowsServer) await LoadWindowsVersionsAsync();
     }
 
@@ -280,6 +299,56 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    [RelayCommand]
+    private void NewSite()
+    {
+        SelectedSite = null;
+        SiteName = string.Empty;
+        SiteDomains = string.Empty;
+        SiteUpstream = string.Empty;
+        SiteListenPort = 80;
+        SelectedSiteKind = WebServerSiteKind.ReverseProxy;
+        SiteHttpsEnabled = false;
+        SelectedSiteCertificate = null;
+        SiteStatusText = "填写站点信息后保存。";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveSite))]
+    private async Task SaveSiteAsync()
+    {
+        if (SelectedServer is null || !HasManagePermission) return;
+        var domains = SiteDomains.Split(['\r', '\n', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (domains.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
+        {
+            SiteStatusText = "请填写名称、域名和必要的站点配置；启用 HTTPS 时请选择证书。";
+            return;
+        }
+        try
+        {
+            var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, SiteListenPort,
+                IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled));
+            if (saved is null) { SiteStatusText = "保存失败。请确认 Nginx 已集成、配置有效且服务端以管理员权限运行。"; return; }
+            await LoadSitesAsync();
+            SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
+            SiteStatusText = "站点已保存，Nginx 配置已验证并生效。";
+        }
+        catch (Exception exception) { SiteStatusText = $"保存站点失败：{exception.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteSite))]
+    private async Task DeleteSiteAsync()
+    {
+        if (SelectedServer is null || SelectedSite is null || !HasManagePermission) return;
+        try
+        {
+            await _client.DeleteSiteAsync(SelectedServer.Id, SelectedSite.Id);
+            NewSite();
+            await LoadSitesAsync();
+            SiteStatusText = "站点已删除，Nginx 已重载。";
+        }
+        catch (Exception exception) { SiteStatusText = $"删除站点失败：{exception.Message}"; }
+    }
+
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
     private async Task CancelOperationAsync()
     {
@@ -297,7 +366,48 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     {
         SelectedStatusText = string.Empty;
         TestResultText = string.Empty;
-        if (value is not null) _ = RefreshStatusAsync();
+        SelectedSite = null;
+        Sites.Clear();
+        if (value is not null)
+        {
+            _ = RefreshStatusAsync();
+            _ = LoadSitesAsync();
+        }
+    }
+
+    partial void OnSelectedSiteChanged(WebServerSiteDto? value)
+    {
+        if (value is null) return;
+        SiteName = value.Name;
+        SiteDomains = string.Join(Environment.NewLine, value.Domains);
+        SiteUpstream = value.Upstream ?? string.Empty;
+        SiteListenPort = value.ListenPort;
+        SelectedSiteKind = value.Kind;
+        SiteHttpsEnabled = value.HttpsEnabled;
+        SelectedSiteCertificate = Certificates.FirstOrDefault(certificate => certificate.Id == value.CertificateId);
+    }
+
+    private async Task LoadCertificatesAsync()
+    {
+        try
+        {
+            var certificates = await _certificates.ListAsync();
+            Certificates.Clear();
+            foreach (var certificate in certificates.Where(certificate => certificate.Status is CertificateStatus.Active or CertificateStatus.Issued)) Certificates.Add(certificate);
+        }
+        catch { Certificates.Clear(); }
+    }
+
+    private async Task LoadSitesAsync()
+    {
+        Sites.Clear();
+        if (SelectedServer is null) return;
+        try
+        {
+            foreach (var site in await _client.ListSitesAsync(SelectedServer.Id) ?? []) Sites.Add(site);
+            SiteStatusText = Sites.Count == 0 ? "尚未创建 RemoteOS 管理的站点。" : $"共 {Sites.Count} 个受管站点。";
+        }
+        catch (Exception exception) { SiteStatusText = $"无法加载站点：{exception.Message}"; }
     }
 
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
@@ -396,6 +506,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool CanRestart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRestart == true;
     private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanReload == true;
     private bool CanUninstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanUninstall == true;
+    private bool CanSaveSite => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.ManagementMode is WebServerManagementMode.Integrated or WebServerManagementMode.Managed;
+    private bool CanDeleteSite => CanSaveSite && SelectedSite is not null;
     private bool CanCancelOperation => IsOperationRunning;
 
     private static string OperationName(string kind) => kind switch

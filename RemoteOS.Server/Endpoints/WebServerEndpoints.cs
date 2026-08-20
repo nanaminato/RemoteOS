@@ -40,6 +40,12 @@ public static class WebServerEndpoints
             await StartAsync(context.Request, key => manager.UninstallManagedAsync(id, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.ReloadAsync(id, key, Actor(context), ct)));
+        group.MapGet(WebServerApiRoutes.SitesPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.ListSitesAsync(id, ct) is { } sites ? Results.Ok(sites) : Results.NotFound());
+        group.MapPost(WebServerApiRoutes.SitesPattern, async (string id, UpsertWebServerSiteRequest request, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.UpsertSiteAsync(id, request, ct) is { } site ? Results.Ok(site) : Results.BadRequest(new { problemCode = "webserver.site_invalid" }));
+        group.MapDelete(WebServerApiRoutes.SiteByIdPattern, async (string id, string siteId, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.DeleteSiteAsync(id, siteId, ct) switch { true => Results.NoContent(), false => Results.NotFound(), _ => Results.BadRequest(new { problemCode = "webserver.site_delete_failed" }) });
         group.MapGet(WebServerApiRoutes.OperationsPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>
             await operations.GetAsync(operationId, ct) is { } operation ? Results.Ok(operation) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.CancelOperationPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>

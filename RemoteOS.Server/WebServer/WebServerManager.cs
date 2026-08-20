@@ -65,6 +65,23 @@ internal sealed class WebServerManager(IEnumerable<IWebServerProvider> providers
     public async Task<WebServerOperationDto?> ReloadAsync(string instanceId, string idempotencyKey, string? actor, CancellationToken cancellationToken)
         => await WithProviderAsync(instanceId, (provider, ct) => provider.ReloadAsync(instanceId, idempotencyKey, actor, ct), cancellationToken);
 
+    public async Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string instanceId, CancellationToken cancellationToken)
+        => await WithProviderAsync(instanceId, (provider, ct) => provider.ListSitesAsync(instanceId, ct), cancellationToken);
+
+    public async Task<WebServerSiteDto?> UpsertSiteAsync(string instanceId, UpsertWebServerSiteRequest request, CancellationToken cancellationToken)
+        => await WithProviderAsync(instanceId, (provider, ct) => provider.UpsertSiteAsync(instanceId, request, ct), cancellationToken);
+
+    public async Task<bool?> DeleteSiteAsync(string instanceId, string siteId, CancellationToken cancellationToken)
+    {
+        foreach (var provider in _providers)
+        {
+            var instances = await provider.DiscoverAsync(cancellationToken);
+            if (instances.Any(instance => string.Equals(instance.Id, instanceId, StringComparison.Ordinal)))
+                return await provider.DeleteSiteAsync(instanceId, siteId, cancellationToken);
+        }
+        return null;
+    }
+
     private async Task<T?> WithProviderAsync<T>(string instanceId, Func<IWebServerProvider, CancellationToken, Task<T?>> operation, CancellationToken cancellationToken)
         where T : class
     {
