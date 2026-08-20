@@ -41,7 +41,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<CertificateDto> Certificates { get; } = [];
     public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [NotifyPropertyChangedFor(nameof(IsExternalServer), nameof(IsIntegratedServer), nameof(IsManagedServer), nameof(IsIntegratedOrManagedServer), nameof(ManagementHint))]
     private WebServerDto? _selectedServer;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(EditSiteCommand))]
     private WebServerSiteDto? _selectedSite;
@@ -74,6 +76,17 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
     public bool IsReverseProxySite => SelectedSiteKind == WebServerSiteKind.ReverseProxy;
     public bool IsStaticSite => SelectedSiteKind == WebServerSiteKind.Static;
+    public bool IsExternalServer => SelectedServer?.ManagementMode == WebServerManagementMode.External;
+    public bool IsIntegratedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Integrated;
+    public bool IsManagedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Managed;
+    public bool IsIntegratedOrManagedServer => IsIntegratedServer || IsManagedServer;
+    public string ManagementHint => SelectedServer?.ManagementMode switch
+    {
+        WebServerManagementMode.Integrated => "此 Nginx 已集成：RemoteOS 可以管理站点配置并重载配置，但不会启动、停止或重启外部安装的 Nginx。如需完整生命周期管理，请使用受管安装。",
+        WebServerManagementMode.Managed => "此 Nginx 由 RemoteOS 安装和管理，可使用完整的服务生命周期操作。",
+        WebServerManagementMode.External => "此 Nginx 尚未集成。集成后可由 RemoteOS 管理站点配置和重载配置。",
+        _ => "请选择一个 Nginx 实例以查看可用操作。",
+    };
 
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
     public Func<Task<bool>>? RequestIntegrationConfirmationAsync { get; set; }
@@ -383,7 +396,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     partial void OnSelectedServerChanged(WebServerDto? value)
     {
-        SelectedStatusText = string.Empty;
+        SelectedStatusText = ManagementHint;
         TestResultText = string.Empty;
         SelectedSite = null;
         Sites.Clear();
