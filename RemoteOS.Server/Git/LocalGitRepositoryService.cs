@@ -10,7 +10,7 @@ namespace Server.Git;
 /// <summary>Singleton service that invokes the host git CLI and manages repository registrations.
 /// Write operations are serialized per-repository via SemaphoreSlim to avoid index.lock conflicts.
 /// Runtime state (status/branches/log/diff) is never persisted—only GitRepository registration records.</summary>
-public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli gitCli, ILogger<LocalGitRepositoryService> logger) : IGitRepositoryService
+public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContext> dbFactory, IHostGitCli gitCli, ILogger<LocalGitRepositoryService> logger) : IGitRepositoryService
 {
     private const int MaxDiffPatchSize = 200 * 1024; // 200KB
     private static readonly TimeSpan SemaphoreTimeout = TimeSpan.FromSeconds(3);
@@ -21,6 +21,7 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<IReadOnlyList<GitRepositoryDto>> ListRepositoriesAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repos = await db.Set<GitRepository>()
             .Where(r => r.UserId == userId)
             .OrderBy(r => r.Name)
@@ -30,6 +31,7 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitRepositoryDto?> GetRepositoryAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await db.Set<GitRepository>().FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
         if (repo is null) return null;
         var (branch, upstream, ahead, behind, isDetached, uncommitted) = await GetBranchSummaryAsync(repo.Path, cancellationToken);
@@ -57,6 +59,7 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
             Path = registration.Path,
             CreatedAt = DateTimeOffset.UtcNow
         };
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         db.Set<GitRepository>().Add(repo);
         await db.SaveChangesAsync(cancellationToken);
         return repo.ToDto();
@@ -64,6 +67,7 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<bool> UnregisterRepositoryAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await db.Set<GitRepository>().FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken);
         if (repo is null) return false;
         db.Set<GitRepository>().Remove(repo);
@@ -75,7 +79,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitStatusDto> GetStatusAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         var result = await RunGitAsync(gitPath, repo.Path, ["status", "--porcelain=v2", "--branch"], cancellationToken);
         if (!result.Success)
@@ -85,7 +90,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<IReadOnlyList<GitBranchDto>> ListBranchesAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         var fmt = "%(refname:short)%09%(upstream:short)%09%(upstream:track)%09%(HEAD)";
         var result = await RunGitAsync(gitPath, repo.Path,
@@ -111,7 +117,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> CreateBranchAsync(Guid id, Guid userId, GitBranchCreateRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -125,7 +132,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> DeleteBranchAsync(Guid id, Guid userId, string name, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -139,7 +147,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> CheckoutAsync(Guid id, Guid userId, GitCheckoutRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -154,7 +163,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> CommitAsync(Guid id, Guid userId, GitCommitRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -178,7 +188,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> FetchAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -191,7 +202,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> PullAsync(Guid id, Guid userId, GitPullRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -211,7 +223,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> PushAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -224,7 +237,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(Guid id, Guid userId, int limit = 200, int skip = 0, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         var format = "%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%b%x00";
         var result = await RunGitAsync(gitPath, repo.Path,
@@ -247,7 +261,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitDiffDto> GetDiffAsync(Guid id, Guid userId, string path, bool staged = false, string? @ref = null, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         if (!IsPathSafe(repo.Path, path))
             throw new ArgumentException("Path outside repository.", nameof(path));
@@ -289,7 +304,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> RevertAsync(Guid id, Guid userId, GitRevertRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -305,7 +321,8 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
 
     public async Task<GitOperationResult> ResolveConflictsAsync(Guid id, Guid userId, GitResolveRequest request, CancellationToken cancellationToken = default)
     {
-        var repo = await GetRepoOrThrowAsync(id, userId, cancellationToken);
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
@@ -347,7 +364,7 @@ public sealed class LocalGitRepositoryService(RemoteOsDbContext db, IHostGitCli 
     private string ResolveGitPathOrThrow() => gitCli.ResolveGitPath()
         ?? throw new InvalidOperationException("Git executable not found on the host.");
 
-    private async Task<GitRepository> GetRepoOrThrowAsync(Guid id, Guid userId, CancellationToken cancellationToken)
+    private static async Task<GitRepository> GetRepoOrThrowAsync(RemoteOsDbContext db, Guid id, Guid userId, CancellationToken cancellationToken)
     {
         return await db.Set<GitRepository>().FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException($"Repository {id} not found.");
