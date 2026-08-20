@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             x:Class="Client.Apps.Git.Views.GitBranchesView"
+             x:DataType="git:GitClientViewModel">
+    <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="➕ New Branch" Command="{Binding CreateBranchCommand}" />
+            <Button Content="🔄 Checkout" Click="Checkout_Click" />
+            <Button Content="🗑 Delete" Click="Delete_Click" />
+        </StackPanel>
+        <Border Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
+            <DataGrid x:Name="BranchGrid" ItemsSource="{Binding Branches}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      SelectedItem="{Binding SelectedBranch, Mode=TwoWay}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" />
+                    <DataGridCheckBoxColumn Header="Current" Binding="{Binding IsCurrent}" IsReadOnly="True" />
+                    <DataGridCheckBoxColumn Header="Remote" Binding="{Binding IsRemote}" IsReadOnly="True" />
+                    <DataGridTextColumn Header="Upstream" Binding="{Binding Tracking}" />
+                    <DataGridTextColumn Header="Ahead" Binding="{Binding Ahead}" />
+                    <DataGridTextColumn Header="Behind" Binding="{Binding Behind}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </StackPanel>
+</UserControl>

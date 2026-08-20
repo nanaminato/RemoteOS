@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Client.Apps.Git.Views.GitLoginRequiredView">
+    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
+        <TextBlock Text="🌿" FontSize="32" HorizontalAlignment="Center" />
+        <TextBlock Text="Please log in to RemoteOS Server to use Git Client."
+                   TextWrapping="Wrap" TextAlignment="Center"
+                   FontSize="14" Foreground="#36506F" Margin="24,0" />
+    </StackPanel>
+</UserControl>

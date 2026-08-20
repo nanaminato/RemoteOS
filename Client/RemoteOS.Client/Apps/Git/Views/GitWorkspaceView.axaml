@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
+             x:Class="Client.Apps.Git.Views.GitWorkspaceView"
+             x:DataType="git:GitClientViewModel">
+    <Grid RowDefinitions="*,Auto">
+        <Grid ColumnDefinitions="*,Auto,*">
+            <!-- Unstaged / Untracked -->
+            <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="12" Margin="0,0,4,0">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Changes (unstaged)" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" />
+                    <ItemsControl ItemsSource="{Binding UnstagedFiles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="proto:GitFileChangeDto">
+                                <Button Click="StageFile_Click" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Background="Transparent" BorderThickness="0" Padding="4,3">
+                                    <TextBlock Text="{Binding Path}" FontSize="12" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Untracked" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" Margin="0,8,0,0" />
+                    <ItemsControl ItemsSource="{Binding UntrackedFiles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="proto:GitFileChangeDto">
+                                <Button Click="StageFile_Click" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Background="Transparent" BorderThickness="0" Padding="4,3">
+                                    <TextBlock Text="{Binding Path}" FontSize="12" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Staged -->
+            <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="12" Margin="4,0,0,0">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Staged" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" />
+                    <ItemsControl ItemsSource="{Binding StagedFiles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="proto:GitFileChangeDto">
+                                <TextBlock Text="{Binding Path}" FontSize="12" Padding="4,3" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Commit area -->
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="12" Margin="0,8,0,0">
+            <StackPanel Spacing="8">
+                <TextBox x:Name="CommitMessageInput" PlaceholderText="Commit message…" Text="{Binding CommitMessage}" MinHeight="32" />
+                <Button Content="✔ Commit" Command="{Binding CommitCommand}" HorizontalAlignment="Right" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

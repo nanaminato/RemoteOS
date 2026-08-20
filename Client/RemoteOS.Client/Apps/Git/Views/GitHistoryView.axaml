@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             x:Class="Client.Apps.Git.Views.GitHistoryView"
+             x:DataType="git:GitClientViewModel">
+    <Grid ColumnDefinitions="*,300">
+        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="4" Margin="0,0,4,0" BoxShadow="0 2 8 0 #10000000">
+            <DataGrid x:Name="CommitGrid" ItemsSource="{Binding Commits}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column"
+                      SelectedItem="{Binding SelectedCommit, Mode=TwoWay}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Hash" Binding="{Binding ShortSha}" Width="80" />
+                    <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="120" />
+                    <DataGridTextColumn Header="Date" Binding="{Binding AuthorDate}" Width="160" />
+                    <DataGridTextColumn Header="Message" Binding="{Binding Subject}" Width="*" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="12" Margin="4,0,0,0" BoxShadow="0 2 8 0 #10000000">
+            <StackPanel Spacing="8" IsVisible="{Binding SelectedCommit, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="Commit Details" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
+                <TextBlock Text="{Binding SelectedCommit.Sha}" FontSize="11" FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="#888" />
+                <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="13" Foreground="#36506F" />
+                <TextBlock Text="{Binding SelectedCommit.Subject}" FontSize="13" Foreground="#36506F" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="#888" TextWrapping="Wrap" />
+                <Button Content="↩ Revert" Command="{Binding RevertCommand}" CommandParameter="{Binding SelectedCommit}" Margin="0,8,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,140 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using RemoteOS.Protocol.Git;
+
+namespace Server.Endpoints;
+
+public static class GitEndpoints
+{
+    private const string ProblemBase = "https://remoteos.app/problems/git-";
+
+    public static IEndpointRouteBuilder MapGitEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/v1/git").RequireAuthorization().WithTags("Git");
+
+        // ── Repository registration ──
+        group.MapGet("/repositories", (ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+            service.ListRepositoriesAsync(GetUserId(principal), ct));
+
+        group.MapPost("/repositories", async (GitRepositoryRegistration registration, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            try
+            {
+                var dto = await service.RegisterRepositoryAsync(registration, GetUserId(principal), ct);
+                return Results.Ok(dto);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid repository", type: ProblemBase + "invalid-repository");
+            }
+        });
+
+        group.MapGet("/repositories/{id}", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            var dto = await service.GetRepositoryAsync(repoId, GetUserId(principal), ct);
+            return dto is null ? Results.NotFound() : Results.Ok(dto);
+        });
+
+        group.MapDelete("/repositories/{id}", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            var deleted = await service.UnregisterRepositoryAsync(repoId, GetUserId(principal), ct);
+            return deleted ? Results.Ok() : Results.NotFound();
+        });
+
+        // ── Real-time git operations ──
+        group.MapGet("/repositories/{id}/status", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.GetStatusAsync(repoId, GetUserId(principal), ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "status-failed"); }
+        });
+
+        group.MapGet("/repositories/{id}/branches", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.ListBranchesAsync(repoId, GetUserId(principal), ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "branches-failed"); }
+        });
+
+        group.MapPost("/repositories/{id}/branches", async (string id, GitBranchCreateRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.CreateBranchAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapDelete("/repositories/{id}/branches/{name}", async (string id, string name, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.DeleteBranchAsync(repoId, GetUserId(principal), name, ct));
+        });
+
+        group.MapPost("/repositories/{id}/checkout", async (string id, GitCheckoutRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.CheckoutAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/commit", async (string id, GitCommitRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.CommitAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/fetch", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.FetchAsync(repoId, GetUserId(principal), ct));
+        });
+
+        group.MapPost("/repositories/{id}/pull", async (string id, GitPullRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.PullAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/push", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.PushAsync(repoId, GetUserId(principal), ct));
+        });
+
+        group.MapGet("/repositories/{id}/log", async (string id, int? limit, int? skip, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.GetLogAsync(repoId, GetUserId(principal), limit ?? 200, skip ?? 0, ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "log-failed"); }
+        });
+
+        group.MapGet("/repositories/{id}/diff", async (string id, string path, bool? staged, string? @ref, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.GetDiffAsync(repoId, GetUserId(principal), path, staged ?? false, @ref, ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid path", type: ProblemBase + "invalid-path"); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "diff-failed"); }
+        });
+
+        group.MapPost("/repositories/{id}/revert", async (string id, GitRevertRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.RevertAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/resolve", async (string id, GitResolveRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.ResolveConflictsAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        return app;
+    }
+
+    private static Guid GetUserId(ClaimsPrincipal principal)
+    {
+        var sub = principal.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                  ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                  ?? throw new InvalidOperationException("JWT missing sub claim.");
+        return Guid.Parse(sub);
+    }
+}

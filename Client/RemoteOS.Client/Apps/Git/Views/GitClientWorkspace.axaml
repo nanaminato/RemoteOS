@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             x:Class="Client.Apps.Git.Views.GitClientWorkspace"
+             x:DataType="git:GitClientViewModel"
+             Background="#F4F7FB">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Top title bar -->
+        <Border Grid.Row="0" Background="#122344" Padding="24,14">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock Text="🌿" FontSize="22" VerticalAlignment="Center" />
+                    <StackPanel Spacing="1">
+                        <TextBlock Text="Git Client" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Repository version control" FontSize="11" Foreground="#B8C9E6" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ComboBox ItemsSource="{Binding Repositories}"
+                              SelectedItem="{Binding SelectedRepository}"
+                              DisplayMemberBinding="{Binding Name}"
+                              MinWidth="180" />
+                    <Border Background="#1C3765" CornerRadius="4" Padding="8,3">
+                        <TextBlock Text="{Binding Status.Branch}" Foreground="#C8F6DD" FontSize="12" />
+                    </Border>
+                    <Button Content="⟳ Refresh" Command="{Binding RefreshCommand}" Background="#1C3765" Foreground="#C8F6DD" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main content -->
+        <Grid Grid.Row="1" ColumnDefinitions="190,*">
+            <!-- Left navigation -->
+            <Border Grid.Column="0" Background="#EEF3FA">
+                <StackPanel Spacing="0" Margin="0,8">
+                    <Button Content="📋 Overview" Tag="overview" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                    <Button Content="📝 Workspace" Tag="workspace" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                    <Button Content="🌿 Branches" Tag="branches" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                    <Button Content="📜 History" Tag="history" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                    <Button Content="⚠ Conflicts" Tag="conflicts" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10"
+                            IsVisible="{Binding HasConflicts}" />
+                    <Separator Margin="8" />
+                    <Button Content="➕ Register Repo" Command="{Binding RegisterRepositoryCommand}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                </StackPanel>
+            </Border>
+
+            <!-- Right content area -->
+            <ScrollViewer Grid.Column="1" Padding="16">
+                <ContentControl x:Name="ContentHost" />
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2" Background="#122344" Padding="16,6">
+            <TextBlock Text="{Binding StatusText}" Foreground="#B8C9E6" FontSize="12" />
+        </Border>
+    </Grid>
+</UserControl>

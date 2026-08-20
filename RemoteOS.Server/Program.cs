@@ -157,6 +157,11 @@ builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Se
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
 
+// Git client: server-side git CLI service (Singleton—holds per-repo write semaphore).
+// Invokes host git CLI as the host user; credentials handled entirely by the host git credential helper.
+builder.Services.AddSingleton<Server.Git.IHostGitCli, Server.Git.HostGitCli>();
+builder.Services.AddSingleton<Server.Git.IGitRepositoryService, Server.Git.LocalGitRepositoryService>();
+
 // Firewall keeps a deliberately narrow UFW-only surface. On Linux the RemoteOS Server service
 // is the privileged host facade; on Windows the unavailable provider is retained only so all
 // endpoint wiring has one stable abstraction (the app itself is hidden by its Linux manifest).
@@ -311,6 +316,15 @@ if (storageProvider == "sqlite")
             "UpdatedAt" TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_image_mirrors_UserId_Target" ON "image_mirrors" ("UserId", "Target");
+
+        CREATE TABLE IF NOT EXISTS "git_repositories" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Path" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_git_repositories_UserId" ON "git_repositories" ("UserId");
         """);
 }
 
@@ -338,6 +352,7 @@ app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
+app.MapGitEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

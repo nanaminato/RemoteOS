@@ -87,6 +87,9 @@ public static class Bootstrapper
         services.AddHttpClient<Client.Apps.Firewall.IRemoteFirewallClient, Client.Apps.Firewall.RemoteFirewallClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "firewall"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Git.IRemoteGitClient, Client.Apps.Git.RemoteGitClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "git"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
 
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
@@ -153,6 +156,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Firewall.FirewallApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
