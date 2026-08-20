@@ -78,7 +78,9 @@ internal sealed partial class NginxWebServerManager(
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null || instance.Id != instanceId) return null;
-        var running = IsNginxRunning();
+        var running = instance.ManagementMode == WebServerManagementMode.Managed
+            ? IsManagedNginxRunning(GetManagedLayout())
+            : IsNginxRunning();
         return new WebServerStatusDto(instanceId, running ? WebServerRuntimeState.Running : WebServerRuntimeState.Stopped);
     }
 
@@ -391,7 +393,10 @@ internal sealed partial class NginxWebServerManager(
     {
         var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-t"]) : new[] { "-t" };
         if (!(await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success) return false;
-        if (!IsNginxRunning()) return true;
+        var running = instance.ManagementMode == WebServerManagementMode.Managed
+            ? IsManagedNginxRunning(GetManagedLayout())
+            : IsNginxRunning();
+        if (!running) return true;
         arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
         return (await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken)).Success;
     }
@@ -800,8 +805,12 @@ internal sealed partial class NginxWebServerManager(
 
     private async Task<CommandResult> StartManagedAsync(ManagedLayout layout, CancellationToken cancellationToken)
     {
+        if (IsManagedNginxRunning(layout)) return new CommandResult(true, "");
         var test = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-t"]), cancellationToken);
-        return !test.Success ? test : await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, []), cancellationToken);
+        if (!test.Success) return test;
+        var start = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, []), cancellationToken);
+        if (!start.Success || await WaitForManagedNginxAsync(layout, cancellationToken)) return start;
+        return new CommandResult(false, start.Output);
     }
 
     private async Task<CommandResult> RestartManagedAsync(ManagedLayout layout, CancellationToken cancellationToken)
@@ -999,6 +1008,34 @@ internal sealed partial class NginxWebServerManager(
     {
         try { return Process.GetProcessesByName("nginx").Length > 0; }
         catch { return false; }
+    }
+
+    /// <summary>Uses the PID written by the RemoteOS-owned configuration instead of a host-wide
+    /// process-name scan.  This keeps the managed instance independent from any external Nginx.</summary>
+    private static bool IsManagedNginxRunning(ManagedLayout layout)
+    {
+        var pidPath = Path.Combine(layout.Root, "logs", "nginx.pid");
+        try
+        {
+            if (!File.Exists(pidPath) || IsSymbolicLink(pidPath)
+                || !int.TryParse(File.ReadAllText(pidPath).Trim(), out var pid) || pid <= 0) return false;
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited && string.Equals(process.ProcessName, Path.GetFileNameWithoutExtension(layout.ExecutablePath), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static async Task<bool> WaitForManagedNginxAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (IsManagedNginxRunning(layout)) return true;
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+        }
+        return false;
     }
 
     private async Task<CommandResult> RunNginxAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
