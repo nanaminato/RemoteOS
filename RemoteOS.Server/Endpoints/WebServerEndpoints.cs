@@ -43,7 +43,18 @@ public static class WebServerEndpoints
         group.MapGet(WebServerApiRoutes.SitesPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.ListSitesAsync(id, ct) is { } sites ? Results.Ok(sites) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.SitesPattern, async (string id, UpsertWebServerSiteRequest request, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await manager.UpsertSiteAsync(id, request, ct) is { } site ? Results.Ok(site) : Results.BadRequest(new { problemCode = "webserver.site_invalid" }));
+        {
+            try
+            {
+                return await manager.UpsertSiteAsync(id, request, ct) is { } site
+                    ? Results.Ok(site)
+                    : Results.BadRequest(new { problemCode = "webserver.site_save_failed" });
+            }
+            catch (Server.WebServer.NginxWebServerManager.WebServerSiteValidationException exception)
+            {
+                return Results.BadRequest(new { problemCode = exception.ProblemCode });
+            }
+        });
         group.MapDelete(WebServerApiRoutes.SiteByIdPattern, async (string id, string siteId, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.DeleteSiteAsync(id, siteId, ct) switch { true => Results.NoContent(), false => Results.NotFound(), _ => Results.BadRequest(new { problemCode = "webserver.site_delete_failed" }) });
         group.MapGet(WebServerApiRoutes.OperationsPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>

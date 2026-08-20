@@ -103,6 +103,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<bool, Task>? ShowSiteEditorAsync { get; set; }
     /// <summary>Set only while the site editor dialog is open.</summary>
     public Func<Task>? CloseSiteEditorAsync { get; set; }
+    /// <summary>Set while the editor is open so validation errors can appear above the modal form.</summary>
+    public Func<string, Task>? ShowSiteSaveErrorAsync { get; set; }
 
     public async Task StartAsync()
     {
@@ -348,20 +350,21 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         var domains = SiteDomains.Split(['\r', '\n', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (domains.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
         {
-            SiteStatusText = "请填写名称、域名和必要的站点配置；启用 HTTPS 时请选择证书。";
+            await ReportSiteSaveErrorAsync("请填写站点名称、域名或 IP 以及必要的站点配置；启用 HTTPS 时请选择证书。");
             return;
         }
         try
         {
             var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, SiteListenPort,
                 IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled));
-            if (saved is null) { SiteStatusText = "保存失败。请确认 Nginx 已集成、配置有效且服务端以管理员权限运行。"; return; }
+            if (saved is null) { await ReportSiteSaveErrorAsync("保存失败。请确认 Nginx 已集成、配置有效且服务端以管理员权限运行。"); return; }
             await LoadSitesAsync();
             SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
             SiteStatusText = "站点已保存，Nginx 配置已验证并生效。";
             if (CloseSiteEditorAsync is not null) await CloseSiteEditorAsync();
         }
-        catch (Exception exception) { SiteStatusText = $"保存站点失败：{exception.Message}"; }
+        catch (WebServerApiException exception) { await ReportSiteSaveErrorAsync(SiteSaveProblemText(exception.ProblemCode)); }
+        catch (Exception exception) { await ReportSiteSaveErrorAsync($"保存站点失败：{exception.Message}"); }
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSite))]
@@ -449,6 +452,12 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             SiteStatusText = Sites.Count == 0 ? "尚未创建 RemoteOS 管理的站点。" : $"共 {Sites.Count} 个受管站点。";
         }
         catch (Exception exception) { SiteStatusText = $"无法加载站点：{exception.Message}"; }
+    }
+
+    private async Task ReportSiteSaveErrorAsync(string message)
+    {
+        SiteStatusText = message;
+        if (ShowSiteSaveErrorAsync is not null) await ShowSiteSaveErrorAsync(message);
     }
 
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
@@ -596,6 +605,19 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.package_invalid" => LocalizedText.Get("webservers.problem.package_invalid", "Nginx ZIP 包无效或不符合预期布局。"),
         "webserver.package_not_found" => LocalizedText.Get("webservers.problem.package_not_found", "离线安装包已过期，请重新选择。"),
         _ => problemCode,
+    };
+
+    private static string SiteSaveProblemText(string problemCode) => problemCode switch
+    {
+        "webserver.site_name_invalid" => "站点名称不能为空，且最多 80 个字符；仅使用字母、数字、空格、连字符或下划线。",
+        "webserver.site_kind_invalid" => "请选择有效的站点类型。",
+        "webserver.site_port_invalid" => "HTTP 端口必须介于 1 和 65535 之间。",
+        "webserver.site_server_name_required" => "请至少填写一个域名或 IP 地址。",
+        "webserver.site_server_name_invalid" => "域名或 IP 地址格式无效。请逐行填写，例如 app.example.com 或 192.168.1.20。",
+        "webserver.site_certificate_required" => "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
+        "webserver.site_upstream_invalid" => "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
+        "webserver.site_save_failed" => "Nginx 无法验证或应用此站点配置。请检查端口是否被占用，并确认服务端具有管理权限。",
+        _ => $"保存站点失败：{ProblemText(problemCode)}",
     };
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.

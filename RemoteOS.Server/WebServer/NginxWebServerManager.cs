@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -232,7 +233,7 @@ internal sealed partial class NginxWebServerManager(
         if (!TryNormalizeSite(instance, request, out var site, out var problem))
         {
             logger.LogWarning("Rejected Nginx site definition. InstanceId={InstanceId}, Problem={Problem}", instanceId, problem);
-            return null;
+            throw new WebServerSiteValidationException(problem);
         }
         var directory = GetSitesDirectory(instance);
         if (directory is null) return null;
@@ -327,16 +328,26 @@ internal sealed partial class NginxWebServerManager(
     private bool TryNormalizeSite(WebServerDto instance, UpsertWebServerSiteRequest request, out WebServerSiteDto site, out string problem)
     {
         site = default!;
-        problem = "webserver.site_invalid";
-        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80 || !Enum.IsDefined(request.Kind) || request.ListenPort is < 1 or > 65535) return false;
+        problem = "webserver.site_name_invalid";
+        if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80) return false;
+        problem = "webserver.site_kind_invalid";
+        if (!Enum.IsDefined(request.Kind)) return false;
+        problem = "webserver.site_port_invalid";
+        if (request.ListenPort is < 1 or > 65535) return false;
         var id = string.IsNullOrWhiteSpace(request.Id) ? ToSiteId(request.Name) : request.Id.Trim().ToLowerInvariant();
+        problem = "webserver.site_name_invalid";
         if (!SiteIdPattern().IsMatch(id)) return false;
         var domains = (request.Domains ?? []).Select(value => value.Trim().TrimEnd('.').ToLowerInvariant()).Where(value => value.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (domains.Length is < 1 or > 20 || domains.Any(domain => domain.Length > 253 || Uri.CheckHostName(domain) != UriHostNameType.Dns || !DomainPattern().IsMatch(domain))) return false;
+        problem = "webserver.site_server_name_required";
+        if (domains.Length is < 1 or > 20) return false;
+        problem = "webserver.site_server_name_invalid";
+        if (domains.Any(domain => !IsValidServerName(domain))) return false;
+        problem = "webserver.site_certificate_required";
         if (request.HttpsEnabled && request.CertificateId is null) return false;
         string? upstream = null;
         if (request.Kind == WebServerSiteKind.ReverseProxy)
         {
+            problem = "webserver.site_upstream_invalid";
             if (!Uri.TryCreate(request.Upstream?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment)) return false;
             upstream = uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.PathAndQuery, UriFormat.UriEscaped).TrimEnd('/');
         }
@@ -914,6 +925,11 @@ internal sealed partial class NginxWebServerManager(
 
     private sealed record ManagedLayout(string Root, string ExecutablePath, string ConfigurationPath, string MarkerPath, string InstanceId);
 
+    internal sealed class WebServerSiteValidationException(string problemCode) : Exception(problemCode)
+    {
+        public string ProblemCode { get; } = problemCode;
+    }
+
     private static IEnumerable<string> FindExternalExecutables()
     {
         var candidates = OperatingSystem.IsWindows()
@@ -1003,6 +1019,12 @@ internal sealed partial class NginxWebServerManager(
         => $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\ninclude {NginxConfigPath(sitesDirectory)}/*.conf;\n";
 
     private static string NginxConfigPath(string path) => Path.GetFullPath(path).Replace('\\', '/');
+
+    /// <summary>Allows a normal DNS name or a literal IP address for LAN and pre-DNS use.
+    /// The value is later emitted into Nginx's server_name directive, so never accept an
+    /// arbitrary host string here.</summary>
+    private static bool IsValidServerName(string value) => value.Length <= 253 &&
+        (IPAddress.TryParse(value, out _) || Uri.CheckHostName(value) == UriHostNameType.Dns && DomainPattern().IsMatch(value));
 
     private static bool IsNginxRunning()
     {

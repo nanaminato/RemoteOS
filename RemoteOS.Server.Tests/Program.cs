@@ -134,6 +134,12 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     var outsideHttp = Path.Combine(root, "outside-http.conf");
     await File.WriteAllTextAsync(outsideHttp, "include conf.d/*.conf;\nevents {}\nhttp {}\n");
     Assert(resolver.Invoke(null, [outsideHttp]) is null, "Nginx include outside http context was accepted.");
+
+    var validServerName = typeof(NginxWebServerManager).GetMethod("IsValidServerName", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx server-name validator was not found.");
+    Assert((bool)validServerName.Invoke(null, ["192.0.2.10"])!, "IPv4 addresses were rejected as Nginx server names.");
+    Assert((bool)validServerName.Invoke(null, ["2001:db8::10"])!, "IPv6 addresses were rejected as Nginx server names.");
+    Assert(!(bool)validServerName.Invoke(null, ["example.com; return 200"])!, "Unsafe Nginx server name was accepted.");
 }
 
 static async Task VerifyOperationIdempotencyAsync(string root)

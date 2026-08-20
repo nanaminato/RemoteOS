@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:webservers="clr-namespace:Client.Apps.WebServers.Views"
+             x:Class="Client.Apps.WebServers.Views.WebServerSiteSaveErrorDialogView"
+             x:DataType="webservers:WebServerSiteSaveErrorDialogView"
+             Background="White">
+    <Grid Margin="22" RowDefinitions="Auto,Auto" RowSpacing="18">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="⚠" FontSize="28" Foreground="#C97A00" VerticalAlignment="Top" />
+            <StackPanel Spacing="5">
+                <TextBlock Text="无法保存站点" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" MaxWidth="390" Foreground="#4A5D78" />
+            </StackPanel>
+        </StackPanel>
+        <Button Grid.Row="1" Classes="primary" Content="知道了" Click="Close_Click" HorizontalAlignment="Right" Padding="18,7" />
+    </Grid>
+</UserControl>

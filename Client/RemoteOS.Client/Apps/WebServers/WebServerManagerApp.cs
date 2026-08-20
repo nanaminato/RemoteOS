@@ -59,12 +59,15 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
                         dialog.Close(true);
                         return Task.CompletedTask;
                     };
+                    viewModel.ShowSiteSaveErrorAsync = message => dialog.ShowDialogAsync<bool>("无法保存站点",
+                        errorDialog => new WebServerSiteSaveErrorDialogView(message, errorDialog));
                     return new WebServerSiteDialogView(viewModel, dialog);
-                }, new Size(560, 650));
+                }, new Size(640, 670));
             }
             finally
             {
                 viewModel.CloseSiteEditorAsync = null;
+                viewModel.ShowSiteSaveErrorAsync = null;
             }
         };
         viewModel.RequestLocalNginxPackageAsync = async () =>
