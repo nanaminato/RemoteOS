@@ -19,4 +19,5 @@ public static class ServerCapabilities
     public const string Terminal = "server.terminal";
     public const string PosixPermissions = "server.posix.permissions";
     public const string Firewall = "server.firewall";
+    public const string Git = "server.git";
 }

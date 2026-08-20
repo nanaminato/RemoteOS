@@ -18,6 +18,8 @@ public static class AppPermissions
     public const string ServerGuardianManage = "server.guardian.manage";
     public const string ServerFirewallRead = "server.firewall.read";
     public const string ServerFirewallManage = "server.firewall.manage";
+    public const string ServerGitRead = "server.git.read";
+    public const string ServerGitManage = "server.git.manage";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -40,6 +42,8 @@ public static class AppPermissions
         new(ServerGuardianManage, "Manage guardian workloads", "Create and control workloads supervised by the Guardian Agent.", "server_management"),
         new(ServerFirewallRead, "Read firewall configuration", "View the Linux server firewall status, defaults, and rules.", "server_network"),
         new(ServerFirewallManage, "Manage firewall configuration", "Change the Linux server firewall status, default policies, and rules.", "server_network"),
+        new(ServerGitRead, "Read Git repositories", "View registered Git repositories, their status, branches, history, and diffs on the server.", "server_files"),
+        new(ServerGitManage, "Manage Git repositories", "Commit, pull, push, switch, create and delete branches, and revert commits in registered Git repositories on the server.", "server_files"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>
