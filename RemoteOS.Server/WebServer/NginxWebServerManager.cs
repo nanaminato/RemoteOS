@@ -1020,7 +1020,10 @@ internal sealed partial class NginxWebServerManager(
             if (!File.Exists(pidPath) || IsSymbolicLink(pidPath)
                 || !int.TryParse(File.ReadAllText(pidPath).Trim(), out var pid) || pid <= 0) return false;
             using var process = Process.GetProcessById(pid);
-            return !process.HasExited && string.Equals(process.ProcessName, Path.GetFileNameWithoutExtension(layout.ExecutablePath), StringComparison.OrdinalIgnoreCase);
+            // On Linux, Nginx changes its master-process title to "nginx: master process".
+            // ProcessName therefore is not always exactly "nginx", despite this PID belonging
+            // to the managed instance's private pid file.
+            return !process.HasExited && process.ProcessName.StartsWith(Path.GetFileNameWithoutExtension(layout.ExecutablePath), StringComparison.OrdinalIgnoreCase);
         }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
