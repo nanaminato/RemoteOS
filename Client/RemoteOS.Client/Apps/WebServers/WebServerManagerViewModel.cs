@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
+using RemoteOS.Protocol.Certificates;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.WebServers;
 
@@ -40,9 +41,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<CertificateDto> Certificates { get; } = [];
     public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     private WebServerDto? _selectedServer;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(EditSiteCommand))]
     private WebServerSiteDto? _selectedSite;
     [ObservableProperty] private string _statusText = LocalizedText.Get("webservers.status.loading");
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOperationActivity))]
@@ -80,6 +81,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<Task<ManagedInstallExistingDirectoryAction?>>? RequestExistingManagedInstallActionAsync { get; set; }
     public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
     public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
+    /// <summary>Provided by the application shell to keep the editor in a modal dialog.</summary>
+    public Func<bool, Task>? ShowSiteEditorAsync { get; set; }
+    /// <summary>Set only while the site editor dialog is open.</summary>
+    public Func<Task>? CloseSiteEditorAsync { get; set; }
 
     public async Task StartAsync()
     {
@@ -299,18 +304,19 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         await RefreshAsync();
     }
 
-    [RelayCommand]
-    private void NewSite()
+    [RelayCommand(CanExecute = nameof(CanOpenSiteEditor))]
+    private async Task NewSiteAsync()
     {
-        SelectedSite = null;
-        SiteName = string.Empty;
-        SiteDomains = string.Empty;
-        SiteUpstream = string.Empty;
-        SiteListenPort = 80;
-        SelectedSiteKind = WebServerSiteKind.ReverseProxy;
-        SiteHttpsEnabled = false;
-        SelectedSiteCertificate = null;
+        ResetSiteEditor();
         SiteStatusText = "填写站点信息后保存。";
+        if (ShowSiteEditorAsync is not null) await ShowSiteEditorAsync(false);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditSite))]
+    private async Task EditSiteAsync()
+    {
+        if (SelectedSite is null) return;
+        if (ShowSiteEditorAsync is not null) await ShowSiteEditorAsync(true);
     }
 
     [RelayCommand(CanExecute = nameof(CanSaveSite))]
@@ -331,6 +337,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             await LoadSitesAsync();
             SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
             SiteStatusText = "站点已保存，Nginx 配置已验证并生效。";
+            if (CloseSiteEditorAsync is not null) await CloseSiteEditorAsync();
         }
         catch (Exception exception) { SiteStatusText = $"保存站点失败：{exception.Message}"; }
     }
@@ -342,11 +349,23 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         try
         {
             await _client.DeleteSiteAsync(SelectedServer.Id, SelectedSite.Id);
-            NewSite();
+            ResetSiteEditor();
             await LoadSitesAsync();
             SiteStatusText = "站点已删除，Nginx 已重载。";
         }
         catch (Exception exception) { SiteStatusText = $"删除站点失败：{exception.Message}"; }
+    }
+
+    private void ResetSiteEditor()
+    {
+        SelectedSite = null;
+        SiteName = string.Empty;
+        SiteDomains = string.Empty;
+        SiteUpstream = string.Empty;
+        SiteListenPort = 80;
+        SelectedSiteKind = WebServerSiteKind.ReverseProxy;
+        SiteHttpsEnabled = false;
+        SelectedSiteCertificate = null;
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
@@ -507,6 +526,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanReload == true;
     private bool CanUninstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanUninstall == true;
     private bool CanSaveSite => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.ManagementMode is WebServerManagementMode.Integrated or WebServerManagementMode.Managed;
+    private bool CanOpenSiteEditor => CanSaveSite;
+    private bool CanEditSite => CanSaveSite && SelectedSite is not null;
     private bool CanDeleteSite => CanSaveSite && SelectedSite is not null;
     private bool CanCancelOperation => IsOperationRunning;
 

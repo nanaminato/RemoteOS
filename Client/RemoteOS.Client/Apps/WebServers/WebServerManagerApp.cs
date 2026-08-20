@@ -48,6 +48,25 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
                 DataContext = new ExistingNginxInstallationDialogViewModel(action => dialog.Close(action)),
             }, new Size(560, 260));
         viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
+        viewModel.ShowSiteEditorAsync = async isEdit =>
+        {
+            try
+            {
+                await context.ShowDialogAsync<bool>(window, isEdit ? "编辑站点" : "新建站点", dialog =>
+                {
+                    viewModel.CloseSiteEditorAsync = () =>
+                    {
+                        dialog.Close(true);
+                        return Task.CompletedTask;
+                    };
+                    return new WebServerSiteDialogView(viewModel, dialog);
+                }, new Size(560, 650));
+            }
+            finally
+            {
+                viewModel.CloseSiteEditorAsync = null;
+            }
+        };
         viewModel.RequestLocalNginxPackageAsync = async () =>
         {
             var topLevel = GetTopLevel();

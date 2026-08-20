@@ -6,142 +6,123 @@
              x:DataType="webservers:WebServerManagerViewModel"
              Background="#F4F7FB">
     <Grid RowDefinitions="Auto,Auto,*">
-        <Border Grid.Row="0" Background="#122344" Padding="28,18">
+        <Border Grid.Row="0" Background="#122344" Padding="32,22">
             <Grid ColumnDefinitions="Auto,*">
-                <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
+                <Border Width="48" Height="48" Background="#147CB8" CornerRadius="14">
                     <TextBlock Text="🌐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
-                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Spacing="3" Margin="16,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{loc:Loc application.remoteos.webservers.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="{loc:Loc webservers.subtitle}" FontSize="13" Foreground="#B8C9E6" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}"
-                Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="18,12,18,0">
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="10" Padding="14" Margin="30,16,30,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
-                <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}"
-                        IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
             </Grid>
         </Border>
 
-        <DockPanel Grid.Row="2" Margin="18,12,18,18" LastChildFill="True">
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
-                <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
-                <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
-                <ComboBox Width="250" ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer, Mode=TwoWay}" PlaceholderText="选择 Nginx 实例">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="{Binding ManagementMode}" />
-                                <TextBlock Text="{Binding ExecutablePath}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="960" HorizontalAlignment="Left" Margin="30,18,30,30" Spacing="16">
+                <Border Background="White" CornerRadius="14" Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Nginx 实例" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                            <TextBlock Text="先选择需要管理的 Nginx 实例，再执行状态检查、安装或维护操作。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                            <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="已发现的 Nginx 实例" FontSize="12" Foreground="#61708B" />
+                            <ComboBox ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer, Mode=TwoWay}" PlaceholderText="选择 Nginx 实例">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding ManagementMode}" />
+                                            <TextBlock Text="{Binding ExecutablePath}" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="#163059" />
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="受管安装" FontWeight="SemiBold" Foreground="#36506F" />
+                            <StackPanel IsVisible="{Binding IsWindowsServer}" Spacing="6">
+                                <TextBlock Text="选择 Nginx 版本或上传本地 ZIP 包。" FontSize="12" Foreground="#61708B" />
+                                <ComboBox ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" IsEditable="True" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
+                                    <Button Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding LocalPackageName}" TextWrapping="Wrap" Foreground="#61708B" />
                             </StackPanel>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <ComboBox IsVisible="{Binding IsWindowsServer}" Width="150" IsEditable="True"
-                          ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" />
-                <Button IsVisible="{Binding IsWindowsServer}" Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
-                <TextBox IsVisible="{Binding IsLinuxServer}" Width="150" Watermark="{loc:Loc webservers.managed.version}" Text="{Binding InstallVersion}" />
-                <Button IsVisible="{Binding IsWindowsServer}" Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
-                <Button Classes="primary" Content="{loc:Loc webservers.managed.install}" Command="{Binding InstallManagedCommand}" />
-            </StackPanel>
-
-            <TextBlock DockPanel.Dock="Top" Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#163059" />
-            <TextBlock DockPanel.Dock="Top" IsVisible="{Binding IsLinuxServer}" Text="{loc:Loc webservers.managed.linux_version_hint}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#61708B" />
-            <TextBlock DockPanel.Dock="Top" IsVisible="{Binding IsWindowsServer}" Text="{Binding LocalPackageName}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="#61708B" />
-
-            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14" Padding="16" Margin="0,0,0,12">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="{Binding SelectedStatusText}" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="#163059" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="{loc:Loc webservers.action.test_config}" Command="{Binding TestConfigurationCommand}" />
-                        <Button Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" />
-                        <Button Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" />
-                        <Button Content="{loc:Loc webservers.action.start}" Command="{Binding StartManagedCommand}" />
-                        <Button Content="{loc:Loc webservers.action.stop}" Command="{Binding StopCommand}" />
-                        <Button Content="{loc:Loc webservers.action.restart}" Command="{Binding RestartCommand}" />
-                        <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" />
-                        <Button Content="{loc:Loc webservers.managed.uninstall}" Command="{Binding UninstallManagedCommand}" />
+                            <StackPanel IsVisible="{Binding IsLinuxServer}" Spacing="6">
+                                <TextBox PlaceholderText="{loc:Loc webservers.managed.version}" Text="{Binding InstallVersion}" />
+                                <TextBlock Text="{loc:Loc webservers.managed.linux_version_hint}" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                            </StackPanel>
+                            <Button Classes="primary" Content="{loc:Loc webservers.managed.install}" Command="{Binding InstallManagedCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
                     </StackPanel>
-                    <TextBlock Text="{Binding TestResultText}" TextWrapping="Wrap" Foreground="#61708B" />
-                </StackPanel>
-            </Border>
+                </Border>
 
-            <Border DockPanel.Dock="Top" Background="White" CornerRadius="14" Padding="16" Margin="0,0,0,12">
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*,*" RowSpacing="10" ColumnSpacing="12">
-                    <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,Auto" Margin="0,0,0,2">
-                        <StackPanel Spacing="2">
+                <Border Background="White" CornerRadius="14" Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="实例操作" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                            <TextBlock Text="{Binding SelectedStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                            <Button Grid.Row="0" Grid.Column="0" Content="{loc:Loc webservers.action.test_config}" Command="{Binding TestConfigurationCommand}" />
+                            <Button Grid.Row="0" Grid.Column="1" Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" />
+                            <Button Grid.Row="0" Grid.Column="2" Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" />
+                            <Button Grid.Row="1" Grid.Column="0" Content="{loc:Loc webservers.action.start}" Command="{Binding StartManagedCommand}" />
+                            <Button Grid.Row="1" Grid.Column="1" Content="{loc:Loc webservers.action.stop}" Command="{Binding StopCommand}" />
+                            <Button Grid.Row="1" Grid.Column="2" Content="{loc:Loc webservers.action.restart}" Command="{Binding RestartCommand}" />
+                            <Button Grid.Row="2" Grid.Column="0" Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" />
+                            <Button Grid.Row="2" Grid.Column="1" Content="{loc:Loc webservers.managed.uninstall}" Command="{Binding UninstallManagedCommand}" />
+                        </Grid>
+                        <TextBlock Text="{Binding TestResultText}" TextWrapping="Wrap" Foreground="#61708B" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="White" CornerRadius="14" Padding="20">
+                    <StackPanel Spacing="14">
+                        <StackPanel Spacing="3">
                             <TextBlock Text="站点部署" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
-                            <TextBlock Text="选择已集成或受管的 Nginx 后，可创建并持续管理反向代理、静态网站和 HTTPS 证书绑定。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                            <TextBlock Text="创建站点会在单独的对话框中完成；选择列表中的站点后可继续编辑或删除。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Content="新建站点" Command="{Binding NewSiteCommand}" />
-                            <Button Classes="primary" Content="保存并应用" Command="{Binding SaveSiteCommand}" />
-                            <Button Content="删除" Command="{Binding DeleteSiteCommand}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="primary" Content="新建站点" Command="{Binding NewSiteCommand}" />
+                            <Button Content="编辑选中站点" Command="{Binding EditSiteCommand}" />
+                            <Button Content="删除选中站点" Command="{Binding DeleteSiteCommand}" />
                         </StackPanel>
-                    </Grid>
-                    <StackPanel Grid.Row="1" Spacing="4">
-                        <TextBlock Text="站点名称" FontSize="12" Foreground="#61708B" />
-                        <TextBox Text="{Binding SiteName, Mode=TwoWay}" Watermark="例如：my-app" />
+                        <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
-                        <TextBlock Text="类型" FontSize="12" Foreground="#61708B" />
-                        <ComboBox ItemsSource="{Binding SiteKinds}" SelectedItem="{Binding SelectedSiteKind, Mode=TwoWay}" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="2" Spacing="4">
-                        <TextBlock Text="HTTP 端口" FontSize="12" Foreground="#61708B" />
-                        <NumericUpDown Minimum="1" Maximum="65535" Value="{Binding SiteListenPort, Mode=TwoWay}" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" Spacing="4">
-                        <TextBlock Text="域名" FontSize="12" Foreground="#61708B" />
-                        <TextBox Text="{Binding SiteDomains, Mode=TwoWay}" Watermark="一行一个域名，例如 app.example.com" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4" IsVisible="{Binding IsReverseProxySite}">
-                        <TextBlock Text="代理地址" FontSize="12" Foreground="#61708B" />
-                        <TextBox Text="{Binding SiteUpstream, Mode=TwoWay}" Watermark="http://127.0.0.1:3000" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4" IsVisible="{Binding IsStaticSite}">
-                        <TextBlock Text="静态网站目录" FontSize="12" Foreground="#61708B" />
-                        <TextBlock Text="会在 RemoteOS 专用网站目录中创建，可通过文件管理器上传站点文件。" TextWrapping="Wrap" Foreground="#61708B" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="2" Spacing="4">
-                        <CheckBox Content="启用 HTTPS" IsChecked="{Binding SiteHttpsEnabled, Mode=TwoWay}" />
-                        <ComboBox ItemsSource="{Binding Certificates}" SelectedItem="{Binding SelectedSiteCertificate, Mode=TwoWay}"
-                                  DisplayMemberBinding="{ReflectionBinding PrimaryDomain}" IsEnabled="{Binding SiteHttpsEnabled}" />
-                    </StackPanel>
-                    <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
-                </Grid>
-            </Border>
+                </Border>
 
-            <Border Background="White" CornerRadius="14" Padding="16">
-                <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                    <TextBlock Text="已部署站点（选择一项即可编辑）" FontWeight="SemiBold" Foreground="#163059" />
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <DataGrid HorizontalAlignment="Left"
-                              ItemsSource="{Binding Sites}"
-                              SelectedItem="{Binding SelectedSite, Mode=TwoWay}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              CanUserReorderColumns="False"
-                              GridLinesVisibility="Horizontal"
-                              SelectionMode="Single"
-                              HorizontalScrollBarVisibility="Disabled"
-                              MinWidth="900">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="名称" Binding="{ReflectionBinding Name}" Width="160" />
-                            <DataGridTextColumn Header="类型" Binding="{ReflectionBinding Kind}" Width="110" />
-                            <DataGridTextColumn Header="域名" Binding="{ReflectionBinding Domains}" Width="260" />
-                            <DataGridTextColumn Header="代理地址" Binding="{ReflectionBinding Upstream}" Width="220" />
-                            <DataGridTextColumn Header="静态网站目录" Binding="{ReflectionBinding RootPath}" Width="260" />
-                            <DataGridCheckBoxColumn Header="HTTPS" Binding="{ReflectionBinding HttpsEnabled}" Width="90" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
-        </DockPanel>
+                <Border Background="White" CornerRadius="14" Padding="20">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                        <TextBlock Text="已部署站点" FontWeight="SemiBold" Foreground="#163059" />
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite, Mode=TwoWay}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" CanUserReorderColumns="False"
+                                  GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" MinHeight="180">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="名称" Binding="{ReflectionBinding Name}" Width="150" />
+                                <DataGridTextColumn Header="类型" Binding="{ReflectionBinding Kind}" Width="110" />
+                                <DataGridTextColumn Header="域名" Binding="{ReflectionBinding Domains}" Width="*" />
+                                <DataGridTextColumn Header="服务地址" Binding="{ReflectionBinding Upstream}" Width="240" />
+                                <DataGridCheckBoxColumn Header="HTTPS" Binding="{ReflectionBinding HttpsEnabled}" Width="90" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

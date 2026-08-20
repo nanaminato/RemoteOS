@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:webservers="clr-namespace:Client.Apps.WebServers"
+             x:Class="Client.Apps.WebServers.Views.WebServerSiteDialogView"
+             x:DataType="webservers:WebServerManagerViewModel">
+    <Grid Margin="22" RowDefinitions="*,Auto" RowSpacing="16">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14">
+                <TextBlock Text="配置会先经过 Nginx 验证，保存后立即应用。每个字段独占一行，方便逐项核对。" TextWrapping="Wrap" Foreground="#61708B" />
+
+                <StackPanel Spacing="5">
+                    <TextBlock Text="站点名称" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBox Text="{Binding SiteName, Mode=TwoWay}" PlaceholderText="例如：my-app" />
+                </StackPanel>
+
+                <StackPanel Spacing="5">
+                    <TextBlock Text="类型" FontWeight="SemiBold" Foreground="#36506F" />
+                    <ComboBox ItemsSource="{Binding SiteKinds}" SelectedItem="{Binding SelectedSiteKind, Mode=TwoWay}" />
+                </StackPanel>
+
+                <StackPanel Spacing="5">
+                    <TextBlock Text="HTTP 端口" FontWeight="SemiBold" Foreground="#36506F" />
+                    <NumericUpDown Minimum="1" Maximum="65535" Value="{Binding SiteListenPort, Mode=TwoWay}" />
+                </StackPanel>
+
+                <StackPanel Spacing="5">
+                    <TextBlock Text="域名" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="每行填写一个域名，例如 app.example.com。" FontSize="12" Foreground="#61708B" />
+                    <TextBox Text="{Binding SiteDomains, Mode=TwoWay}" PlaceholderText="app.example.com" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="72" />
+                </StackPanel>
+
+                <StackPanel Spacing="5" IsVisible="{Binding IsReverseProxySite}">
+                    <TextBlock Text="代理地址" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBox Text="{Binding SiteUpstream, Mode=TwoWay}" PlaceholderText="http://127.0.0.1:3000" />
+                </StackPanel>
+
+                <StackPanel Spacing="5" IsVisible="{Binding IsStaticSite}">
+                    <TextBlock Text="静态网站目录" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="站点会创建在 RemoteOS 专用目录中；可随后用文件管理器上传网站文件。" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                </StackPanel>
+
+                <StackPanel Spacing="7">
+                    <CheckBox Content="启用 HTTPS" IsChecked="{Binding SiteHttpsEnabled, Mode=TwoWay}" />
+                    <ComboBox ItemsSource="{Binding Certificates}" SelectedItem="{Binding SelectedSiteCertificate, Mode=TwoWay}"
+                              DisplayMemberBinding="{ReflectionBinding PrimaryDomain}" IsEnabled="{Binding SiteHttpsEnabled}" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" />
+            <Button Classes="primary" Content="保存并应用" Command="{Binding SaveSiteCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
