@@ -508,6 +508,199 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         });
     }
 
+    // ── 路径探测与初始化 ──
+
+    public async Task<GitRepositoryProbeDto> ProbeRepositoryAsync(string path, Guid userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Repository path must not be empty.", nameof(path));
+        if (!Path.IsPathRooted(path))
+            throw new ArgumentException("Repository path must be absolute.", nameof(path));
+        if (!Directory.Exists(path))
+            throw new ArgumentException("Repository path does not exist.", nameof(path));
+
+        var gitPath = gitCli.ResolveGitPath()
+            ?? throw new InvalidOperationException("Git executable not found on the host.");
+
+        // 是否是 git 仓库
+        var revParse = await RunGitAsync(gitPath, path, ["rev-parse", "--is-inside-work-tree"], cancellationToken);
+        if (!revParse.Success || !revParse.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+            return new GitRepositoryProbeDto(false);
+
+        // 是否有提交
+        var headSha = await RunGitAsync(gitPath, path, ["rev-parse", "HEAD"], cancellationToken);
+        var hasCommits = headSha.Success && !string.IsNullOrWhiteSpace(headSha.Output.Trim());
+
+        string? currentBranch = null;
+        string? defaultBranch = null;
+        if (hasCommits)
+        {
+            var branchResult = await RunGitAsync(gitPath, path, ["rev-parse", "--abbrev-ref", "HEAD"], cancellationToken);
+            if (branchResult.Success)
+            {
+                var name = branchResult.Output.Trim();
+                currentBranch = string.IsNullOrEmpty(name) || name == "HEAD" ? null : name;
+            }
+        }
+
+        var defaultBranchResult = await RunGitAsync(gitPath, path,
+            ["config", "--get", "init.defaultBranch"], cancellationToken);
+        if (defaultBranchResult.Success)
+        {
+            var db = defaultBranchResult.Output.Trim();
+            defaultBranch = string.IsNullOrEmpty(db) ? null : db;
+        }
+        defaultBranch ??= "main";
+
+        return new GitRepositoryProbeDto(true, hasCommits, currentBranch, defaultBranch,
+            await GetRemotesAsync(gitPath, path, cancellationToken));
+    }
+
+    public async Task<GitOperationResult> InitRepositoryAsync(string path, Guid userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Repository path must not be empty.", nameof(path));
+        if (!Path.IsPathRooted(path))
+            throw new ArgumentException("Repository path must be absolute.", nameof(path));
+        if (!Directory.Exists(path))
+            throw new ArgumentException("Repository path does not exist.", nameof(path));
+
+        var gitPath = gitCli.ResolveGitPath()
+            ?? throw new InvalidOperationException("Git executable not found on the host.");
+
+        var initResult = await RunGitAsync(gitPath, path, ["init"], cancellationToken);
+        if (!initResult.Success)
+            return new GitOperationResult(false, "init", Message: initResult.Error);
+        // git init 输出形如 "Initialized empty Git repository in /path/.git/"；不解析也行。
+        return new GitOperationResult(true, "init");
+    }
+
+    // ── 远程仓库（remote）管理 ──
+
+    public async Task<IReadOnlyList<GitRemoteDto>> ListRemotesAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        return await GetRemotesAsync(gitPath, repo.Path, cancellationToken);
+    }
+
+    public async Task<GitOperationResult> AddRemoteAsync(Guid id, Guid userId, GitRemoteRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Url))
+            return new GitOperationResult(false, "add-remote", Message: "Remote name and URL are required.");
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var result = await RunGitAsync(gitPath, repo.Path, ["remote", "add", request.Name, request.Url], cancellationToken);
+            if (!result.Success)
+                return new GitOperationResult(false, "add-remote", Message: result.Error);
+            if (!string.IsNullOrEmpty(request.PushUrl))
+            {
+                var pushResult = await RunGitAsync(gitPath, repo.Path,
+                    ["remote", "set-url", "--push", request.Name, request.PushUrl], cancellationToken);
+                if (!pushResult.Success)
+                    return new GitOperationResult(false, "add-remote", Message: $"Remote added but push URL update failed: {pushResult.Error}");
+            }
+            return new GitOperationResult(true, "add-remote");
+        });
+    }
+
+    public async Task<GitOperationResult> UpdateRemoteAsync(Guid id, Guid userId, string name, GitRemoteRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(request.Url))
+            return new GitOperationResult(false, "update-remote", Message: "Remote name and URL are required.");
+        return await WithWriteLockAsync(id, async () =>
+        {
+            // 若新旧名不同，先重命名；同名则只是 set-url
+            if (!string.Equals(name, request.Name, StringComparison.Ordinal))
+            {
+                var rename = await RunGitAsync(gitPath, repo.Path, ["remote", "rename", name, request.Name], cancellationToken);
+                if (!rename.Success)
+                    return new GitOperationResult(false, "update-remote", Message: rename.Error);
+                name = request.Name;
+            }
+            var setUrl = await RunGitAsync(gitPath, repo.Path, ["remote", "set-url", name, request.Url], cancellationToken);
+            if (!setUrl.Success)
+                return new GitOperationResult(false, "update-remote", Message: setUrl.Error);
+            if (!string.IsNullOrEmpty(request.PushUrl))
+            {
+                var setPush = await RunGitAsync(gitPath, repo.Path,
+                    ["remote", "set-url", "--push", name, request.PushUrl], cancellationToken);
+                if (!setPush.Success)
+                    return new GitOperationResult(false, "update-remote", Message: $"Fetch URL updated but push URL update failed: {setPush.Error}");
+            }
+            return new GitOperationResult(true, "update-remote");
+        });
+    }
+
+    public async Task<GitOperationResult> RemoveRemoteAsync(Guid id, Guid userId, string name, CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        if (string.IsNullOrWhiteSpace(name))
+            return new GitOperationResult(false, "remove-remote", Message: "Remote name is required.");
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var result = await RunGitAsync(gitPath, repo.Path, ["remote", "remove", name], cancellationToken);
+            return new GitOperationResult(result.Success, "remove-remote", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    private async Task<IReadOnlyList<GitRemoteDto>> GetRemotesAsync(string gitPath, string repoPath, CancellationToken cancellationToken)
+    {
+        var result = await RunGitAsync(gitPath, repoPath, ["remote", "-v", "--no-color"], cancellationToken);
+        if (!result.Success)
+            return Array.Empty<GitRemoteDto>();
+
+        // git remote -v 输出形如:
+        //   origin  https://example.com/repo.git (fetch)
+        //   origin  git@example.com:repo.git (push)
+        //   upstream        https://example.com/up.git (fetch)
+        //   upstream        https://example.com/up.git (push)
+        // 名字与 URL 之间用制表符或多个空格分隔；行尾的 (fetch)/(push) 表示 URL 类型
+        var remotes = new Dictionary<string, (string? Fetch, string? Push)>(StringComparer.Ordinal);
+        foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            // 行尾标记
+            const string fetchTag = "(fetch)";
+            const string pushTag = "(push)";
+            bool isPush = trimmed.EndsWith(pushTag, StringComparison.Ordinal);
+            bool isFetch = trimmed.EndsWith(fetchTag, StringComparison.Ordinal);
+            if (!isPush && !isFetch) continue;
+            var body = trimmed[..^(isPush ? pushTag.Length : fetchTag.Length)].Trim();
+            // 取第一个空白分隔
+            var sep = -1;
+            for (var i = 0; i < body.Length; i++)
+            {
+                if (char.IsWhiteSpace(body[i])) { sep = i; break; }
+            }
+            if (sep <= 0) continue;
+            var remoteName = body[..sep].Trim();
+            var url = body[sep..].Trim();
+            if (string.IsNullOrEmpty(remoteName) || string.IsNullOrEmpty(url)) continue;
+
+            if (!remotes.TryGetValue(remoteName, out var entry))
+                entry = (null, null);
+            if (isPush) entry = (entry.Fetch, url);
+            else entry = (url, entry.Push);
+            remotes[remoteName] = entry;
+        }
+
+        return remotes
+            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => new GitRemoteDto(kv.Key, kv.Value.Fetch ?? string.Empty, kv.Value.Push))
+            .ToArray();
+    }
+
     // ── Helpers ──
 
     private string ResolveGitPath() => gitCli.ResolveGitPath() ?? "";

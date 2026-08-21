@@ -1,3 +1,4 @@
+using Client.Apps.Explorer;
 using Client.Apps.Git.Views;
 using Client.Localization;
 using Client.Services.Auth;
@@ -10,14 +11,16 @@ using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.Git;
 
-/// <summary>Built-in client for managing Git repositories on the RemoteOS Server.</summary>
+/// <summary>Built-in client for managing Git repositories on the RemoteOS Server.
+/// 每个 Git Client 窗口都是一个独立项目实例（MultiWindow）——启动时显示项目选择器，
+/// 用户从已注册项目打开，或新打开一个远程文件夹作为新项目；多个项目可同时在不同窗口运行。</summary>
 public sealed class GitClientApp : RemoteApplicationBase
 {
     public override ApplicationManifest Manifest { get; } = new(
-        new AppId("remoteos.git"), "Git Client", "0.1.0", "\U0001f33f",
+        new AppId("remoteos.git"), "Git Client", "0.2.0", "\U0001f33f",
         "Manage Git repositories on the RemoteOS Server",
         [AppPermissions.ServerGitRead, AppPermissions.ServerGitManage],
-        InstancePolicy: ApplicationInstancePolicy.SingleWindow);
+        InstancePolicy: ApplicationInstancePolicy.MultiWindow);
 
     public override void Activate(AppContext context)
     {
@@ -31,6 +34,8 @@ public sealed class GitClientApp : RemoteApplicationBase
             return;
         }
 
+        // 复用 Explorer 的 IExplorerClient，用于远程文件夹选择对话框
+        var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new GitClientViewModel(client);
         ManagedWindow? window = null;
 
@@ -49,6 +54,14 @@ public sealed class GitClientApp : RemoteApplicationBase
                 context.WindowManager.Close(window!);
             }
         };
+
+        // 新增：远程路径选择器、初始化确认、远程编辑对话框
+        vm.ShowRemotePathPickerAsync = () =>
+            files is null
+                ? Task.FromResult<string?>(null)
+                : GitClientDialogs.ShowRemotePathPickerAsync(context, window!, files);
+        vm.ShowInitConfirmAsync = path => GitClientDialogs.ShowInitConfirmAsync(context, window!, path);
+        vm.ShowRemoteDialogAsync = existing => GitClientDialogs.ShowRemoteDialogAsync(context, window!, existing);
 
         var view = GitClientWorkspace.Create(vm);
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.git.display_name"),

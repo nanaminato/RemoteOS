@@ -7,9 +7,10 @@ using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git;
 
-public enum GitClientPage { Overview, Workspace, Branches, History, ConflictResolution }
+public enum GitClientPage { Overview, Workspace, Branches, History, ConflictResolution, Remotes }
 
-/// <summary>State and typed operations for the Git Client. Uses DispatcherTimer (10s) for status refresh with Interlocked reentrancy guard.</summary>
+/// <summary>State and typed operations for the Git Client. Uses DispatcherTimer (10s) for status refresh with Interlocked reentrancy guard.
+/// Each window owns its own ViewModel instance — supports multiple projects open simultaneously (MultiWindow instance policy).</summary>
 public sealed partial class GitClientViewModel(IRemoteGitClient client) : ObservableObject
 {
     public ObservableCollection<GitRepositoryDto> Repositories { get; } = [];
@@ -19,6 +20,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public ObservableCollection<GitFileChangeDto> UnstagedFiles { get; } = [];
     public ObservableCollection<GitFileChangeDto> UntrackedFiles { get; } = [];
     public ObservableCollection<GitFileChangeDto> ConflictFiles { get; } = [];
+    public ObservableCollection<GitRemoteDto> Remotes { get; } = [];
 
     [ObservableProperty] private GitRepositoryDto? _selectedRepository;
     [ObservableProperty] private GitClientPage _activePage = GitClientPage.Overview;
@@ -27,11 +29,17 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private GitCommitDto? _selectedCommit;
     [ObservableProperty] private GitFileChangeDto? _selectedFile;
     [ObservableProperty] private GitDiffDto? _fileDiff;
+    [ObservableProperty] private GitRemoteDto? _selectedRemote;
     [ObservableProperty] private string _statusText = "Loading…";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasConflicts;
+
+    // ── 项目选择器状态：IsPickerMode=true 时显示项目选择视图而非工作区 ──
+    [ObservableProperty] private bool _isPickerMode = true;
+    [ObservableProperty] private string _probeHint = string.Empty;
+    [ObservableProperty] private bool _isProbing;
 
     // ── Host Git engine status & install flow (like DockerManagerViewModel) ──
     [ObservableProperty] private bool _isGitAvailable = true;
@@ -55,8 +63,16 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Assigned by the app shell so operations can surface an unavailable engine immediately.</summary>
     public Func<Task>? ShowGitUnavailableAsync { get; set; }
 
+    /// <summary>Remote folder picker — opens an Explorer-like dialog and returns the selected server-side path, or null on cancel.</summary>
+    public Func<Task<string?>>? ShowRemotePathPickerAsync { get; set; }
+    /// <summary>Confirms with the user whether to initialize a Git repository at the supplied path.</summary>
+    public Func<string, Task<bool>>? ShowInitConfirmAsync { get; set; }
+    /// <summary>Prompts the user for new remote name + fetch URL (+ optional push URL).</summary>
+    public Func<GitRemoteDto?, Task<GitRemoteRequest?>>? ShowRemoteDialogAsync { get; set; }
+
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
+    public bool CanOpenProject => !IsBusy && IsPickerMode;
 
     public async Task StartAsync()
     {
@@ -70,32 +86,43 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             if (!IsGitAvailable) return; // still unavailable after dialog → stop further init
         }
 
-        try
-        {
-            var repos = await client.ListRepositoriesAsync();
-            Repositories.Clear();
-            foreach (var repo in repos) Repositories.Add(repo);
-            SelectedRepository = Repositories.FirstOrDefault();
-            if (SelectedRepository is not null)
-                await RefreshAllAsync();
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"Failed to load repositories: {ex.Message}";
-        }
+        await RefreshRepositoriesAsync();
+        StatusText = IsPickerMode
+            ? (Repositories.Count > 0 ? "请选择或打开一个项目" : "点击「打开文件夹」选择一个 Git 仓库")
+            : "Ready";
 
-        if (IsAutoRefresh)
-        {
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
-            _timer.Tick += async (_, _) => await RefreshStatusAsync();
-            _timer.Start();
-        }
+        if (!IsPickerMode && IsAutoRefresh)
+            StartStatusTimer();
     }
 
     public void Stop()
     {
         _timer?.Stop();
         _timer = null;
+    }
+
+    private void StartStatusTimer()
+    {
+        _timer?.Stop();
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _timer.Tick += async (_, _) => await RefreshStatusAsync();
+        _timer.Start();
+    }
+
+    /// <summary>Reloads the registered repository list (project picker source) without leaving picker mode.</summary>
+    [RelayCommand]
+    public async Task RefreshRepositoriesAsync()
+    {
+        try
+        {
+            var repos = await client.ListRepositoriesAsync();
+            Repositories.Clear();
+            foreach (var repo in repos) Repositories.Add(repo);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"加载项目列表失败：{ex.Message}";
+        }
     }
 
     private async Task RefreshAllAsync()
@@ -239,11 +266,111 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         await RefreshAllAsync();
     }
 
-    [RelayCommand]
-    private async Task SwitchRepositoryAsync()
+    /// <summary>在项目选择器中点击已注册的项目，进入工作区。</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenProject))]
+    private async Task OpenProjectAsync(GitRepositoryDto repo)
     {
-        if (SelectedRepository is null) return;
+        if (repo is null) return;
+        IsPickerMode = false;
+        SelectedRepository = repo;
+        ActivePage = GitClientPage.Overview;
+        StatusText = $"Loading {repo.Name}…";
         await RefreshAllAsync();
+        StartStatusTimer();
+        await RefreshRemotesAsync();
+    }
+
+    /// <summary>打开远程文件夹选择器；选中后探测 Git 状态：是仓库则注册并打开；否则提示初始化。</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenProject))]
+    private async Task OpenFolderAsync()
+    {
+        if (ShowRemotePathPickerAsync is null)
+        {
+            StatusText = "路径选择器不可用";
+            return;
+        }
+
+        var path = await ShowRemotePathPickerAsync();
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        await ProbeAndOpenAsync(path);
+    }
+
+    /// <summary>手动注册一个绝对路径作为 Git 项目（输入对话框形式）。</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenProject))]
+    private async Task RegisterRepositoryAsync()
+    {
+        if (ShowRegisterRepositoryDialogAsync is null) return;
+        var registration = await ShowRegisterRepositoryDialogAsync();
+        if (registration is null) return;
+        try
+        {
+            var dto = await client.RegisterRepositoryAsync(registration);
+            if (!Repositories.Contains(dto))
+                Repositories.Add(dto);
+            StatusText = $"已注册项目「{dto.Name}」，正在打开…";
+            await OpenProjectCommand.ExecuteAsync(dto);
+        }
+        catch (Exception ex) { StatusText = $"注册失败：{ex.Message}"; }
+    }
+
+    private async Task ProbeAndOpenAsync(string path)
+    {
+        IsProbing = true;
+        IsBusy = true;
+        ProbeHint = $"正在检查 {path} …";
+        try
+        {
+            var probe = await client.ProbeRepositoryAsync(path);
+            if (!probe.IsRepository)
+            {
+                ProbeHint = $"所选目录不是 Git 仓库";
+                var init = ShowInitConfirmAsync is not null && await ShowInitConfirmAsync(path);
+                if (!init)
+                {
+                    StatusText = "已取消初始化";
+                    return;
+                }
+                var initResult = await client.InitRepositoryAsync(path);
+                if (!initResult.Success)
+                {
+                    StatusText = $"git init 失败：{initResult.Message}";
+                    return;
+                }
+                StatusText = "Git 仓库已初始化";
+                // 重新探测以获取最新状态（如 defaultBranch）
+                probe = await client.ProbeRepositoryAsync(path);
+            }
+
+            // 已是 Git 仓库：检查是否已注册
+            var existing = Repositories.FirstOrDefault(r =>
+                string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                StatusText = $"项目已存在：{existing.Name}";
+                await OpenProjectCommand.ExecuteAsync(existing);
+                return;
+            }
+
+            // 未注册：自动注册（名称取路径末段）
+            var name = System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(name)) name = path;
+            var dto = await client.RegisterRepositoryAsync(new GitRepositoryRegistration(name, path));
+            if (!Repositories.Contains(dto))
+                Repositories.Add(dto);
+            StatusText = $"项目「{dto.Name}」已注册";
+            await OpenProjectCommand.ExecuteAsync(dto);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"探测失败：{ex.Message}";
+            ProbeHint = $"探测失败：{ex.Message}";
+        }
+        finally
+        {
+            IsProbing = false;
+            IsBusy = false;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -432,22 +559,74 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     }
 
     [RelayCommand]
-    private async Task RegisterRepositoryAsync()
+    private void NavigateTo(GitClientPage page)
     {
-        if (ShowRegisterRepositoryDialogAsync is null) return;
-        var registration = await ShowRegisterRepositoryDialogAsync();
-        if (registration is null) return;
-        try
-        {
-            var dto = await client.RegisterRepositoryAsync(registration);
-            Repositories.Add(dto);
-            SelectedRepository = dto;
-            StatusText = $"Repository '{dto.Name}' registered";
-            await RefreshAllAsync();
-        }
-        catch (Exception ex) { StatusText = $"Registration failed: {ex.Message}"; }
+        ActivePage = page;
+        if (page == GitClientPage.Remotes)
+            _ = RefreshRemotesAsync();
     }
 
-    [RelayCommand]
-    private void NavigateTo(GitClientPage page) => ActivePage = page;
+    // ── 远程（remote）管理 ──
+
+    private bool CanManageRemotes => SelectedRepository is not null && !IsBusy;
+
+    [RelayCommand(CanExecute = nameof(CanManageRemotes))]
+    private async Task RefreshRemotesAsync()
+    {
+        if (SelectedRepository is null) return;
+        try
+        {
+            var remotes = await client.ListRemotesAsync(SelectedRepository.Id);
+            Remotes.Clear();
+            foreach (var r in remotes) Remotes.Add(r);
+            if (Remotes.Count > 0) SelectedRemote = Remotes[0];
+            else SelectedRemote = null;
+        }
+        catch (Exception ex) { StatusText = $"加载远程列表失败：{ex.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRemotes))]
+    private async Task AddRemoteAsync()
+    {
+        if (SelectedRepository is null || ShowRemoteDialogAsync is null) return;
+        var request = await ShowRemoteDialogAsync(null);
+        if (request is null) return;
+        try
+        {
+            var result = await client.AddRemoteAsync(SelectedRepository.Id, request);
+            StatusText = result.Success ? $"远程「{request.Name}」已添加" : $"添加失败：{result.Message}";
+            await RefreshRemotesAsync();
+        }
+        catch (Exception ex) { StatusText = $"添加失败：{ex.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRemotes))]
+    private async Task EditRemoteAsync(GitRemoteDto remote)
+    {
+        if (SelectedRepository is null || remote is null || ShowRemoteDialogAsync is null) return;
+        var request = await ShowRemoteDialogAsync(remote);
+        if (request is null) return;
+        try
+        {
+            var result = await client.UpdateRemoteAsync(SelectedRepository.Id, remote.Name, request);
+            StatusText = result.Success ? $"远程「{request.Name}」已更新" : $"更新失败：{result.Message}";
+            await RefreshRemotesAsync();
+        }
+        catch (Exception ex) { StatusText = $"更新失败：{ex.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageRemotes))]
+    private async Task RemoveRemoteAsync(GitRemoteDto remote)
+    {
+        if (SelectedRepository is null || remote is null) return;
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"删除远程「{remote.Name}」？"))
+            return;
+        try
+        {
+            var result = await client.RemoveRemoteAsync(SelectedRepository.Id, remote.Name);
+            StatusText = result.Success ? $"远程「{remote.Name}」已删除" : $"删除失败：{result.Message}";
+            await RefreshRemotesAsync();
+        }
+        catch (Exception ex) { StatusText = $"删除失败：{ex.Message}"; }
+    }
 }

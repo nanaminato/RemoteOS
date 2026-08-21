@@ -137,6 +137,47 @@ public static class GitEndpoints
             return Results.Ok(await service.ResolveConflictsAsync(repoId, GetUserId(principal), request, ct));
         });
 
+        // ── 路径探测与初始化（不依赖已注册仓库）──
+        group.MapGet("/probe", async (string path, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await service.ProbeRepositoryAsync(path, GetUserId(principal), ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid path", type: ProblemBase + "invalid-path"); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "probe-failed"); }
+        });
+
+        group.MapPost("/init", async (string path, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await service.InitRepositoryAsync(path, GetUserId(principal), ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid path", type: ProblemBase + "invalid-path"); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "init-failed"); }
+        });
+
+        // ── 远程（remote）管理 ──
+        group.MapGet("/repositories/{id}/remotes", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.ListRemotesAsync(repoId, GetUserId(principal), ct)); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "remotes-failed"); }
+        });
+
+        group.MapPost("/repositories/{id}/remotes", async (string id, GitRemoteRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.AddRemoteAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPut("/repositories/{id}/remotes/{name}", async (string id, string name, GitRemoteRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.UpdateRemoteAsync(repoId, GetUserId(principal), name, request, ct));
+        });
+
+        group.MapDelete("/repositories/{id}/remotes/{name}", async (string id, string name, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.RemoveRemoteAsync(repoId, GetUserId(principal), name, ct));
+        });
+
         return app;
     }
 

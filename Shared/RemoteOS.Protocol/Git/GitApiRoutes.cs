@@ -22,4 +22,12 @@ public static class GitApiRoutes
     public const string Revert = $"/{V1}/git/repositories/{{id}}/revert";
     public const string Resolve = $"/{V1}/git/repositories/{{id}}/resolve";
     public const string Fetch = $"/{V1}/git/repositories/{{id}}/fetch";
+
+    // ── 路径探测与初始化（不依赖已注册仓库）──
+    public const string Probe = $"/{V1}/git/probe";
+    public const string Init = $"/{V1}/git/init";
+
+    // ── 远程仓库（remote）管理 ──
+    public const string Remotes = $"/{V1}/git/repositories/{{id}}/remotes";
+    public const string RemoteByName = $"/{V1}/git/repositories/{{id}}/remotes/{{name}}";
 }

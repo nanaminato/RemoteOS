@@ -80,6 +80,28 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<GitOperationResult> ResolveConflictsAsync(string id, GitResolveRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Resolve.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
+    public Task<GitRepositoryProbeDto> ProbeRepositoryAsync(string path, CancellationToken cancellationToken = default)
+        => SendAsync<GitRepositoryProbeDto>(HttpMethod.Get, $"{GitApiRoutes.Probe}?path={Uri.EscapeDataString(path)}", null, cancellationToken);
+
+    public Task<GitOperationResult> InitRepositoryAsync(string path, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, $"{GitApiRoutes.Init}?path={Uri.EscapeDataString(path)}", null, cancellationToken);
+
+    public Task<IReadOnlyList<GitRemoteDto>> ListRemotesAsync(string id, CancellationToken cancellationToken = default)
+        => SendAsync<IReadOnlyList<GitRemoteDto>>(HttpMethod.Get, GitApiRoutes.Remotes.Replace("{id}", Uri.EscapeDataString(id)), null, cancellationToken);
+
+    public Task<GitOperationResult> AddRemoteAsync(string id, GitRemoteRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Remotes.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
+    public Task<GitOperationResult> UpdateRemoteAsync(string id, string name, GitRemoteRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Put,
+            GitApiRoutes.RemoteByName.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)),
+            request, cancellationToken);
+
+    public Task<GitOperationResult> RemoveRemoteAsync(string id, string name, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Delete,
+            GitApiRoutes.RemoteByName.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)),
+            null, cancellationToken);
+
     // ── HTTP helpers (same pattern as RemoteDockerClient / RemoteFirewallClient) ──
 
     private async Task<T?> TrySendAsync<T>(string route, CancellationToken cancellationToken) where T : class

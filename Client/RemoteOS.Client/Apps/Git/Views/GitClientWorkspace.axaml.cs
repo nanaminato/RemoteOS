@@ -4,7 +4,8 @@ using Avalonia.Media;
 
 namespace Client.Apps.Git.Views;
 
-/// <summary>Git Client shell. Layout lives in AXAML; this class switches pages and handles navigation.</summary>
+/// <summary>Git Client shell. Layout lives in AXAML; this class switches pages and handles navigation.
+/// 支持两种显示模式：IsPickerMode=true 时显示项目选择器；否则显示当前仓库的工作区。</summary>
 internal partial class GitClientWorkspace : UserControl
 {
     private readonly GitClientViewModel _viewModel;
@@ -48,6 +49,7 @@ internal partial class GitClientWorkspace : UserControl
             "workspace" => new GitWorkspaceView(_viewModel),
             "branches" => new GitBranchesView(_viewModel),
             "history" => new GitHistoryView(_viewModel),
+            "remotes" => new GitRemotesView(_viewModel),
             "conflicts" => new GitConflictResolutionView(_viewModel),
             _ => new GitOverviewView(_viewModel)
         };

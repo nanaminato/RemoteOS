@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
+             x:Class="Client.Apps.Git.Views.GitRemotesView"
+             x:DataType="git:GitClientViewModel">
+    <StackPanel Spacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="➕ 添加远程" Command="{Binding AddRemoteCommand}" />
+            <Button Content="⟳ 刷新" Command="{Binding RefreshRemotesCommand}" />
+        </StackPanel>
+
+        <Border Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
+            <DataGrid x:Name="RemoteGrid" ItemsSource="{Binding Remotes}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                      SelectedItem="{Binding SelectedRemote, Mode=TwoWay}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="140" />
+                    <DataGridTextColumn Header="Fetch URL" Binding="{Binding FetchUrl}" Width="*" />
+                    <DataGridTextColumn Header="Push URL" Binding="{Binding PushUrl}" Width="*" />
+                    <DataGridTemplateColumn Header="操作" Width="160">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate x:DataType="proto:GitRemoteDto">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="✎ 编辑" Click="Edit_Click" Tag="{Binding}"
+                                            Padding="6,2" Background="Transparent" Foreground="#36506F" />
+                                    <Button Content="✕ 删除" Click="Remove_Click" Tag="{Binding}"
+                                            Padding="6,2" Background="Transparent" Foreground="#D44" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <TextBlock Text="还没有配置任何远程仓库（remote）。"
+                   FontSize="12" Foreground="#999" Margin="4,8"
+                   IsVisible="{Binding Remotes.Count, Converter={x:Static git:GitPickerConverters.IsZeroToVisible}}" />
+    </StackPanel>
+</UserControl>

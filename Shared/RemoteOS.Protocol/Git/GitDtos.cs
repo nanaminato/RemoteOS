@@ -101,6 +101,27 @@ public sealed record GitConflictFileDto(
     [property: JsonPropertyName("oursVersion")] string? OursVersion = null,
     [property: JsonPropertyName("theirsVersion")] string? TheirsVersion = null);
 
+/// <summary>Single Git remote entry (origin/upstream/...).</summary>
+public sealed record GitRemoteDto(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("fetchUrl")] string FetchUrl,
+    [property: JsonPropertyName("pushUrl")] string? PushUrl = null);
+
+/// <summary>Probe result for an arbitrary path: is it a Git repo, current branch, configured remotes.</summary>
+public sealed record GitRepositoryProbeDto(
+    [property: JsonPropertyName("isRepository")] bool IsRepository,
+    [property: JsonPropertyName("hasCommits")] bool HasCommits = false,
+    [property: JsonPropertyName("currentBranch")] string? CurrentBranch = null,
+    [property: JsonPropertyName("defaultBranch")] string? DefaultBranch = null,
+    [property: JsonPropertyName("remotes")] IReadOnlyList<GitRemoteDto>? Remotes = null);
+
+/// <summary>Add or update a Git remote. <c>Name</c> is the remote name (origin/upstream/...);
+/// <c>Url</c> is the fetch URL; <c>PushUrl</c> overrides the push URL if non-null.</summary>
+public sealed record GitRemoteRequest(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("url")] string Url,
+    [property: JsonPropertyName("pushUrl")] string? PushUrl = null);
+
 // ── Request bodies ──
 
 /// <summary>Register a new repository.</summary>

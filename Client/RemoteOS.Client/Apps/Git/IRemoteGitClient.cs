@@ -26,4 +26,14 @@ public interface IRemoteGitClient
     Task<GitDiffDto> GetDiffAsync(string id, string path, bool staged = false, string? @ref = null, CancellationToken cancellationToken = default);
     Task<GitOperationResult> RevertAsync(string id, GitRevertRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> ResolveConflictsAsync(string id, GitResolveRequest request, CancellationToken cancellationToken = default);
+
+    // ── 路径探测与初始化（不依赖已注册仓库）──
+    Task<GitRepositoryProbeDto> ProbeRepositoryAsync(string path, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> InitRepositoryAsync(string path, CancellationToken cancellationToken = default);
+
+    // ── 远程（remote）管理 ──
+    Task<IReadOnlyList<GitRemoteDto>> ListRemotesAsync(string id, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> AddRemoteAsync(string id, GitRemoteRequest request, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> UpdateRemoteAsync(string id, string name, GitRemoteRequest request, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> RemoveRemoteAsync(string id, string name, CancellationToken cancellationToken = default);
 }

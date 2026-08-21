@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:views="clr-namespace:Client.Apps.Git.Views"
              x:Class="Client.Apps.Git.Views.GitClientWorkspace"
              x:DataType="git:GitClientViewModel"
              Background="#F4F7FB">
@@ -15,11 +16,8 @@
                         <TextBlock Text="Repository version control" FontSize="11" Foreground="#B8C9E6" />
                     </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ComboBox ItemsSource="{Binding Repositories}"
-                              SelectedItem="{Binding SelectedRepository}"
-                              DisplayMemberBinding="{Binding Name}"
-                              MinWidth="180" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                            IsVisible="{Binding !IsPickerMode}">
                     <Border Background="#1C3765" CornerRadius="4" Padding="8,3">
                         <TextBlock Text="{Binding Status.Branch}" Foreground="#C8F6DD" FontSize="12" />
                     </Border>
@@ -29,30 +27,29 @@
         </Border>
 
         <!-- Main content -->
-        <Grid Grid.Row="1" ColumnDefinitions="190,*">
+        <Grid Grid.Row="1" ColumnDefinitions="190,*" IsVisible="{Binding !IsPickerMode}">
             <!-- Left navigation -->
             <Border Grid.Column="0" Background="#EEF3FA">
                 <StackPanel Spacing="0" Margin="0,8">
-                    <Button Content="📋 Overview" Tag="overview" Click="NavigationButton_Click"
+                    <Button Content="📋 概览" Tag="overview" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="📝 Workspace" Tag="workspace" Click="NavigationButton_Click"
+                    <Button Content="📝 工作区" Tag="workspace" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="🌿 Branches" Tag="branches" Click="NavigationButton_Click"
+                    <Button Content="🌿 分支" Tag="branches" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="📜 History" Tag="history" Click="NavigationButton_Click"
+                    <Button Content="📜 历史" Tag="history" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="⚠ Conflicts" Tag="conflicts" Click="NavigationButton_Click"
+                    <Button Content="🌐 远程仓库" Tag="remotes" Click="NavigationButton_Click"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
+                    <Button Content="⚠ 冲突" Tag="conflicts" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10"
                             IsVisible="{Binding HasConflicts}" />
-                    <Separator Margin="8" />
-                    <Button Content="➕ Register Repo" Command="{Binding RegisterRepositoryCommand}"
-                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
                 </StackPanel>
             </Border>
 
@@ -61,6 +58,9 @@
                 <ContentControl x:Name="ContentHost" />
             </ScrollViewer>
         </Grid>
+
+        <!-- 项目选择视图：IsPickerMode=true 时显示 -->
+        <views:GitProjectPickerView Grid.Row="1" IsVisible="{Binding IsPickerMode}" x:Name="PickerHost" />
 
         <!-- Status bar -->
         <Border Grid.Row="2" Background="#122344" Padding="16,6">
