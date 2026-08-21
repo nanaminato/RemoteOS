@@ -48,6 +48,13 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
                 DataContext = new ExistingNginxInstallationDialogViewModel(action => dialog.Close(action)),
             }, new Size(560, 260));
         viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
+        viewModel.OpenFileBrowserAtPathAsync = path =>
+        {
+            var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));
+            if (!activation.Succeeded && !activation.IsPendingUserChoice)
+                viewModel.SiteStatusText = "无法打开内置文件浏览器。";
+            return Task.CompletedTask;
+        };
         viewModel.ShowSiteEditorAsync = async isEdit =>
         {
             try

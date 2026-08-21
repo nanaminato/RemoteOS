@@ -39,6 +39,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<string> AvailableWindowsVersions { get; } = [];
     public ObservableCollection<WebServerSiteDto> Sites { get; } = [];
     public ObservableCollection<CertificateDto> Certificates { get; } = [];
+    public ObservableCollection<WebServerSiteBindingEditor> SiteBindings { get; } = [];
     public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
 
     [ObservableProperty]
@@ -55,9 +56,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private string _installVersion = string.Empty;
     [ObservableProperty] private string _localPackageName = string.Empty;
     [ObservableProperty] private string _siteName = string.Empty;
-    [ObservableProperty] private string _siteDomains = string.Empty;
+    [ObservableProperty] private string _siteBindingsBatch = string.Empty;
     [ObservableProperty] private string _siteUpstream = string.Empty;
-    [ObservableProperty] private int _siteListenPort = 80;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsReverseProxySite), nameof(IsStaticSite))] private WebServerSiteKind _selectedSiteKind = WebServerSiteKind.ReverseProxy;
     [ObservableProperty] private bool _siteHttpsEnabled;
     [ObservableProperty] private CertificateDto? _selectedSiteCertificate;
@@ -99,6 +99,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<Task<ManagedInstallExistingDirectoryAction?>>? RequestExistingManagedInstallActionAsync { get; set; }
     public Func<Task<bool>>? RequestManagedUninstallConfirmationAsync { get; set; }
     public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
+    /// <summary>Routes a known static-site directory into RemoteExplorer.</summary>
+    public Func<string, Task>? OpenFileBrowserAtPathAsync { get; set; }
     /// <summary>Provided by the application shell to keep the editor in a modal dialog.</summary>
     public Func<bool, Task>? ShowSiteEditorAsync { get; set; }
     /// <summary>Set only while the site editor dialog is open.</summary>
@@ -347,16 +349,20 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task SaveSiteAsync()
     {
         if (SelectedServer is null || !HasManagePermission) return;
-        var domains = SiteDomains.Split(['\r', '\n', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (domains.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
+        var bindings = SiteBindings
+            .Select(binding => new WebServerSiteBindingDto(binding.Domain.Trim(), binding.Port))
+            .Where(binding => !string.IsNullOrWhiteSpace(binding.Domain))
+            .ToArray();
+        if (bindings.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
         {
-            await ReportSiteSaveErrorAsync("请填写站点名称、域名或 IP 以及必要的站点配置；启用 HTTPS 时请选择证书。");
+            await ReportSiteSaveErrorAsync("请至少填写一组域名或 IP 与端口，并完成必要的站点配置；启用 HTTPS 时请选择证书。");
             return;
         }
         try
         {
-            var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, SiteListenPort,
-                IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled));
+            var domains = bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, bindings[0].Port,
+                IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled, bindings));
             if (saved is null) { await ReportSiteSaveErrorAsync("保存失败。请确认 Nginx 已集成、配置有效且服务端以管理员权限运行。"); return; }
             await LoadSitesAsync();
             SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
@@ -385,9 +391,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     {
         SelectedSite = null;
         SiteName = string.Empty;
-        SiteDomains = string.Empty;
+        SiteBindingsBatch = string.Empty;
+        SiteBindings.Clear();
+        SiteBindings.Add(new WebServerSiteBindingEditor());
         SiteUpstream = string.Empty;
-        SiteListenPort = 80;
         SelectedSiteKind = WebServerSiteKind.ReverseProxy;
         SiteHttpsEnabled = false;
         SelectedSiteCertificate = null;
@@ -423,9 +430,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     {
         if (value is null) return;
         SiteName = value.Name;
-        SiteDomains = string.Join(Environment.NewLine, value.Domains);
+        SiteBindingsBatch = string.Empty;
+        SiteBindings.Clear();
+        foreach (var binding in value.EffectiveBindings)
+            SiteBindings.Add(new WebServerSiteBindingEditor(binding.Domain, binding.Port));
         SiteUpstream = value.Upstream ?? string.Empty;
-        SiteListenPort = value.ListenPort;
         SelectedSiteKind = value.Kind;
         SiteHttpsEnabled = value.HttpsEnabled;
         SelectedSiteCertificate = Certificates.FirstOrDefault(certificate => certificate.Id == value.CertificateId);
@@ -458,6 +467,50 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     {
         SiteStatusText = message;
         if (ShowSiteSaveErrorAsync is not null) await ShowSiteSaveErrorAsync(message);
+    }
+
+    [RelayCommand]
+    private void AddSiteBinding() => SiteBindings.Add(new WebServerSiteBindingEditor());
+
+    [RelayCommand]
+    private void RemoveSiteBinding(WebServerSiteBindingEditor? binding)
+    {
+        if (binding is not null && SiteBindings.Count > 1) SiteBindings.Remove(binding);
+    }
+
+    /// <summary>Converts pasted <c>domain:port</c> rows into independently editable binding pairs.</summary>
+    [RelayCommand]
+    private void GenerateSiteBindings()
+    {
+        var generated = SiteBindingsBatch
+            .Split(['\r', '\n', ',', ';', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(ParseSiteBinding)
+            .ToArray();
+        if (generated.Length == 0) return;
+        SiteBindings.Clear();
+        foreach (var binding in generated) SiteBindings.Add(binding);
+    }
+
+    public async Task OpenSiteDirectoryAsync(string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && OpenFileBrowserAtPathAsync is not null)
+            await OpenFileBrowserAtPathAsync(path);
+    }
+
+    private static WebServerSiteBindingEditor ParseSiteBinding(string value)
+    {
+        var domain = value;
+        var port = 80;
+        var separator = value.LastIndexOf(':');
+        // Bracketed IPv6 can be pasted as [2001:db8::1]:5000. Bare IPv6 remains a domain
+        // value and is subsequently validated by the server without guessing a port.
+        if (separator > 0 && int.TryParse(value[(separator + 1)..], out var parsedPort)
+            && (value[0] != '[' || value.IndexOf(']') < separator))
+        {
+            domain = value[..separator].Trim('[', ']');
+            port = parsedPort;
+        }
+        return new WebServerSiteBindingEditor(domain, port);
     }
 
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
@@ -614,6 +667,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.site_port_invalid" => "HTTP 端口必须介于 1 和 65535 之间。",
         "webserver.site_server_name_required" => "请至少填写一个域名或 IP 地址。",
         "webserver.site_server_name_invalid" => "域名或 IP 地址格式无效。请逐行填写，例如 app.example.com 或 192.168.1.20。",
+        "webserver.site_already_exists" => "已存在同名站点。请关闭此对话框，在列表中选择该站点后进行编辑；新建操作不会覆盖已有站点。",
+        "webserver.site_binding_conflict" => "该站点的某个域名/IP 与监听端口已由另一个站点使用。当前站点的所有域名都会监听所有填写的端口，请调整域名或端口。",
         "webserver.site_certificate_required" => "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
         "webserver.site_upstream_invalid" => "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
         "webserver.site_elevation_required" => "RemoteOS Server 未以管理员权限运行，无法写入和应用 Nginx 站点配置。请查看服务端 WebServer 日志了解详情。",
@@ -625,4 +680,17 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);
+}
+
+/// <summary>Editable, UI-local representation of one domain and HTTP-port pair.</summary>
+public sealed partial class WebServerSiteBindingEditor : ObservableObject
+{
+    public WebServerSiteBindingEditor(string domain = "", int port = 80)
+    {
+        Domain = domain;
+        Port = port;
+    }
+
+    [ObservableProperty] private string _domain = string.Empty;
+    [ObservableProperty] private int _port = 80;
 }

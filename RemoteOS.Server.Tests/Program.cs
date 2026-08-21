@@ -154,6 +154,31 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     Assert((bool)validServerName.Invoke(null, ["192.0.2.10"])!, "IPv4 addresses were rejected as Nginx server names.");
     Assert((bool)validServerName.Invoke(null, ["2001:db8::10"])!, "IPv6 addresses were rejected as Nginx server names.");
     Assert(!(bool)validServerName.Invoke(null, ["example.com; return 200"])!, "Unsafe Nginx server name was accepted.");
+
+    var multiPortSite = new WebServerSiteDto("multi-port", "nginx-test", "multi-port", WebServerSiteKind.Static,
+        ["app.example.test", "admin.example.test"], 5000, null, "/srv/remoteos-sites/multi-port", null, false, DateTimeOffset.UtcNow,
+        [new WebServerSiteBindingDto("app.example.test", 5000), new WebServerSiteBindingDto("admin.example.test", 6000)]);
+    Assert(multiPortSite.DomainsDisplay == "app.example.test:5000, admin.example.test:6000", "Multi-port bindings were not formatted for the site table.");
+    var renderSite = typeof(NginxWebServerManager).GetMethod("RenderSiteConfiguration", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx site renderer was not found.");
+    var rendered = (string)renderSite.Invoke(null, [multiPortSite, null])!;
+    Assert(rendered.Split("server {", StringSplitOptions.None).Length == 2 && rendered.Contains("listen 5000;") && rendered.Contains("listen 6000;")
+        && rendered.Contains("server_name app.example.test admin.example.test;"), "A multi-port site was not rendered as one Nginx server with all listeners and names.");
+
+    var findRoutingConflict = typeof(NginxWebServerManager).GetMethod("FindRoutingConflict", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx site conflict detector was not found.");
+    var existingSite = new WebServerSiteDto("existing", "nginx-test", "existing", WebServerSiteKind.Static,
+        ["app.example.test"], 5000, null, "/srv/remoteos-sites/existing", null, false, DateTimeOffset.UtcNow,
+        [new WebServerSiteBindingDto("app.example.test", 5000)]);
+    var conflictingSite = new WebServerSiteDto("new-site", "nginx-test", "new-site", WebServerSiteKind.Static,
+        ["app.example.test"], 5000, null, "/srv/remoteos-sites/new-site", null, false, DateTimeOffset.UtcNow,
+        [new WebServerSiteBindingDto("app.example.test", 5000)]);
+    Assert(findRoutingConflict.Invoke(null, [new[] { existingSite }, conflictingSite]) is not null, "Duplicate domain and port bindings were not rejected.");
+    var tlsSite = existingSite with { Id = "tls-site", HttpsEnabled = true };
+    var port443Site = conflictingSite with { Id = "port-443-site", Bindings = [new WebServerSiteBindingDto("app.example.test", 443)] };
+    Assert(findRoutingConflict.Invoke(null, [new[] { tlsSite }, port443Site]) is not null, "The implicit HTTPS listener was not checked for conflicts.");
+    var crossProductSite = conflictingSite with { Id = "cross-product-site", Bindings = [new WebServerSiteBindingDto("other.example.test", 5000), new WebServerSiteBindingDto("app.example.test", 6000)] };
+    Assert(findRoutingConflict.Invoke(null, [new[] { existingSite }, crossProductSite]) is not null, "All site names were not checked against every configured listener.");
 }
 
 static async Task VerifyOperationIdempotencyAsync(string root)

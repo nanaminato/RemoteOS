@@ -274,6 +274,16 @@ internal sealed partial class NginxWebServerManager(
             }
             var sites = (await ReadSitesAsync(instance, cancellationToken)).ToList();
             var index = sites.FindIndex(item => item.Id == site.Id);
+            if (string.IsNullOrWhiteSpace(request.Id) && index >= 0)
+            {
+                logger.LogInformation("Nginx site creation rejected because its generated ID is already in use. InstanceId={InstanceId}, SiteId={SiteId}, Name={Name}", instance.Id, site.Id, site.Name);
+                throw new WebServerSiteConflictException("webserver.site_already_exists");
+            }
+            if (FindRoutingConflict(sites, site) is { } conflict)
+            {
+                logger.LogInformation("Nginx site save rejected because a domain and port are already assigned. InstanceId={InstanceId}, SiteId={SiteId}, ConflictingSiteId={ConflictingSiteId}, Domain={Domain}, Port={Port}", instance.Id, site.Id, conflict.SiteId, conflict.Domain, conflict.Port);
+                throw new WebServerSiteConflictException("webserver.site_binding_conflict");
+            }
             if (index >= 0) sites[index] = site; else sites.Add(site);
             var applyProblem = await WriteSiteConfigurationAsync(instance, site, cancellationToken);
             if (applyProblem is not null)
@@ -378,16 +388,23 @@ internal sealed partial class NginxWebServerManager(
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 80) return false;
         problem = "webserver.site_kind_invalid";
         if (!Enum.IsDefined(request.Kind)) return false;
-        problem = "webserver.site_port_invalid";
-        if (request.ListenPort is < 1 or > 65535) return false;
         var id = string.IsNullOrWhiteSpace(request.Id) ? ToSiteId(request.Name) : request.Id.Trim().ToLowerInvariant();
         problem = "webserver.site_name_invalid";
         if (!SiteIdPattern().IsMatch(id)) return false;
-        var domains = (request.Domains ?? []).Select(value => value.Trim().TrimEnd('.').ToLowerInvariant()).Where(value => value.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var requestedBindings = request.Bindings is { Count: > 0 }
+            ? request.Bindings
+            : (request.Domains ?? []).Select(domain => new WebServerSiteBindingDto(domain, request.ListenPort)).ToArray();
+        var bindings = requestedBindings
+            .Select(binding => new WebServerSiteBindingDto(binding.Domain.Trim().TrimEnd('.').ToLowerInvariant(), binding.Port))
+            .Where(binding => binding.Domain.Length > 0)
+            .DistinctBy(binding => (binding.Domain, binding.Port))
+            .ToArray();
         problem = "webserver.site_server_name_required";
-        if (domains.Length is < 1 or > 20) return false;
+        if (bindings.Length is < 1 or > 20) return false;
+        problem = "webserver.site_port_invalid";
+        if (bindings.Any(binding => binding.Port is < 1 or > 65535)) return false;
         problem = "webserver.site_server_name_invalid";
-        if (domains.Any(domain => !IsValidServerName(domain))) return false;
+        if (bindings.Any(binding => !IsValidServerName(binding.Domain))) return false;
         problem = "webserver.site_certificate_required";
         if (request.HttpsEnabled && request.CertificateId is null) return false;
         string? upstream = null;
@@ -398,9 +415,49 @@ internal sealed partial class NginxWebServerManager(
             upstream = uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.PathAndQuery, UriFormat.UriEscaped).TrimEnd('/');
         }
         var root = request.Kind == WebServerSiteKind.Static ? Path.Combine(GetStaticSitesRoot(instance), id) : null;
-        site = new WebServerSiteDto(id, instance.Id, request.Name.Trim(), request.Kind, domains, request.ListenPort, upstream, root, request.CertificateId, request.HttpsEnabled, DateTimeOffset.UtcNow);
+        var domains = bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        site = new WebServerSiteDto(id, instance.Id, request.Name.Trim(), request.Kind, domains, bindings[0].Port, upstream, root, request.CertificateId, request.HttpsEnabled, DateTimeOffset.UtcNow, bindings);
         return true;
     }
+
+    /// <summary>
+    /// Nginx accepts duplicate server names on a listener with only a warning, then silently
+    /// ignores one of the declarations. A site's names are emitted on every one of its listeners,
+    /// so treat any overlapping name/listener pair as an explicit conflict instead.
+    /// </summary>
+    private static SiteRoutingConflict? FindRoutingConflict(IEnumerable<WebServerSiteDto> sites, WebServerSiteDto candidate)
+    {
+        var candidateBindings = GetRoutingBindings(candidate).ToHashSet();
+        foreach (var existing in sites)
+        {
+            if (string.Equals(existing.Id, candidate.Id, StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (var binding in GetRoutingBindings(existing))
+            {
+                if (candidateBindings.Contains(binding))
+                    return new SiteRoutingConflict(existing.Id, binding.Domain, binding.Port);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Includes the implicit TLS listener emitted for every HTTPS-enabled site.</summary>
+    private static IEnumerable<SiteRoutingBinding> GetRoutingBindings(WebServerSiteDto site)
+    {
+        var domains = site.EffectiveBindings
+            .Select(binding => binding.Domain.Trim().TrimEnd('.').ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var ports = site.EffectiveBindings.Select(binding => binding.Port).Distinct().ToArray();
+        foreach (var domain in domains)
+        foreach (var port in ports)
+            yield return new SiteRoutingBinding(domain, port);
+        if (!site.HttpsEnabled) yield break;
+        foreach (var domain in domains)
+            yield return new SiteRoutingBinding(domain, 443);
+    }
+
+    private sealed record SiteRoutingBinding(string Domain, int Port);
+    private sealed record SiteRoutingConflict(string SiteId, string Domain, int Port);
 
     /// <summary>
     /// Stages the candidate with a .conf suffix so it is in Nginx's include graph during
@@ -492,13 +549,20 @@ internal sealed partial class NginxWebServerManager(
 
     private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths)
     {
-        var serverNames = string.Join(' ', site.Domains);
-        var listen = site.ListenPort == 80 ? "listen 80;" : $"listen {site.ListenPort};";
         var body = site.Kind == WebServerSiteKind.ReverseProxy
             ? $"location / {{\n        proxy_pass {site.Upstream};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}"
             : $"root {NginxConfigPath(site.RootPath!)};\n    index index.html;\n    location / {{ try_files $uri $uri/ =404; }}";
-        var tls = certificatePaths is null ? "" : $"\n    listen 443 ssl;\n    ssl_certificate {NginxConfigPath(certificatePaths.Value.FullChainPath)};\n    ssl_certificate_key {NginxConfigPath(certificatePaths.Value.PrivateKeyPath)};";
-        return $"# Managed by RemoteOS. Site: {site.Id}\nserver {{\n    {listen}{tls}\n    server_name {serverNames};\n    {body}\n}}\n";
+        var bindings = site.EffectiveBindings;
+        var serverNames = string.Join(' ', bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase));
+        var listens = bindings.Select(binding => binding.Port).Distinct()
+            .Where(port => certificatePaths is null || port != 443)
+            .Select(port => $"listen {port};")
+            .ToList();
+        if (certificatePaths is not null)
+        {
+            listens.Add($"listen 443 ssl;\n    ssl_certificate {NginxConfigPath(certificatePaths.Value.FullChainPath)};\n    ssl_certificate_key {NginxConfigPath(certificatePaths.Value.PrivateKeyPath)};");
+        }
+        return $"# Managed by RemoteOS. Site: {site.Id}\nserver {{\n    {string.Join("\n    ", listens)}\n    server_name {serverNames};\n    {body}\n}}\n";
     }
 
     private static string? GetSitesDirectory(WebServerDto instance)
@@ -1004,6 +1068,11 @@ internal sealed partial class NginxWebServerManager(
     private sealed record ManagedLayout(string Root, string ExecutablePath, string ConfigurationPath, string MarkerPath, string InstanceId);
 
     internal sealed class WebServerSiteValidationException(string problemCode) : Exception(problemCode)
+    {
+        public string ProblemCode { get; } = problemCode;
+    }
+
+    internal sealed class WebServerSiteConflictException(string problemCode) : Exception(problemCode)
     {
         public string ProblemCode { get; } = problemCode;
     }

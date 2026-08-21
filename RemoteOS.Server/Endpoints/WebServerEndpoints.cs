@@ -54,6 +54,10 @@ public static class WebServerEndpoints
             {
                 return Results.BadRequest(new { problemCode = exception.ProblemCode });
             }
+            catch (Server.WebServer.NginxWebServerManager.WebServerSiteConflictException exception)
+            {
+                return Results.Conflict(new { problemCode = exception.ProblemCode });
+            }
             catch (Server.WebServer.NginxWebServerManager.WebServerSiteApplyException exception)
             {
                 return Results.BadRequest(new { problemCode = exception.ProblemCode });

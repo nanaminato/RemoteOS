@@ -22,14 +22,29 @@
                 </StackPanel>
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="HTTP 端口" FontWeight="SemiBold" Foreground="#36506F" />
-                    <NumericUpDown Minimum="1" Maximum="65535" Value="{Binding SiteListenPort, Mode=TwoWay}" />
+                    <TextBlock Text="批量添加域名和端口" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="每行或用逗号输入一项，例如 app.example.com:5000。未写端口时默认为 80；点击生成后可逐项修改。当前站点的所有域名/IP 会同时监听所有填写的端口。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Text="{Binding SiteBindingsBatch, Mode=TwoWay}" PlaceholderText="app.example.com:5000&#10;app.example.com:6000" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" />
+                        <Button Grid.Column="1" Content="生成" Command="{Binding GenerateSiteBindingsCommand}" VerticalAlignment="Top" />
+                    </Grid>
                 </StackPanel>
 
-                <StackPanel Spacing="4">
-                    <TextBlock Text="域名或 IP" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="每行填写一个域名或 IP，例如 app.example.com 或 192.0.2.10。使用 IP 时建议先关闭 HTTPS。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
-                    <TextBox Text="{Binding SiteDomains, Mode=TwoWay}" PlaceholderText="app.example.com 或 192.0.2.10" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" />
+                <StackPanel Spacing="6">
+                    <TextBlock Text="域名 / IP 与监听端口" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="所有行会合并为同一个 Nginx server：每个域名/IP 都可通过每个列出的端口访问。使用 IP 时建议关闭 HTTPS。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding SiteBindings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="webservers:WebServerSiteBindingEditor">
+                                <Grid ColumnDefinitions="*,130,Auto" ColumnSpacing="8" Margin="0,0,0,4">
+                                    <TextBox Text="{Binding Domain, Mode=TwoWay}" PlaceholderText="app.example.com 或 192.0.2.10" />
+                                    <NumericUpDown Grid.Column="1" Minimum="1" Maximum="65535" Value="{Binding Port, Mode=TwoWay}" />
+                                    <Button Grid.Column="2" Content="删除" Tag="{Binding}" Click="RemoveBinding_Click" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Content="添加域名或端口" Command="{Binding AddSiteBindingCommand}" HorizontalAlignment="Left" />
                 </StackPanel>
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsReverseProxySite}">
@@ -39,7 +54,7 @@
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsStaticSite}">
                     <TextBlock Text="静态网站目录" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="站点会创建在 RemoteOS 专用目录中；可随后用文件管理器上传网站文件。" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                    <TextBlock Text="站点会创建在 RemoteOS 专用目录中；保存后可在站点列表的“服务地址”列点击打开该目录并上传网站文件。" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
                 </StackPanel>
 
                 <StackPanel Spacing="6">

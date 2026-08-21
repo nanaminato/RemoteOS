@@ -38,4 +38,11 @@ internal partial class WebServerManagerWorkspace : UserControl
         InstancesPage.IsVisible = page == "instances";
         SitesPage.IsVisible = page == "sites";
     }
+
+    private async void ServiceAddress_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: string path }
+            && DataContext is WebServerManagerViewModel viewModel)
+            await viewModel.OpenSiteDirectoryAsync(path);
+    }
 }

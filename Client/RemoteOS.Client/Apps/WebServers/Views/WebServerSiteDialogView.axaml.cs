@@ -16,4 +16,11 @@ internal partial class WebServerSiteDialogView : UserControl
     }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e) => _dialog.Cancel();
+
+    private void RemoveBinding_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { Tag: WebServerSiteBindingEditor binding }
+            && DataContext is WebServerManagerViewModel viewModel)
+            viewModel.RemoveSiteBindingCommand.Execute(binding);
+    }
 }
