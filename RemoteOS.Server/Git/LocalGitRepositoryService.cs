@@ -390,30 +390,31 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
-        var format = "%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%b%x00";
+        // tformat 会在每条 commit 后自动追加换行（不含最后一条尾部多余空行）；字段间用 \x01(SOH) 分隔，避免与 subject/body 中的制表符/空格冲突
+        var format = "%H%x01%h%x01%an%x01%ae%x01%aI%x01%s%x01%b";
         var result = await RunGitAsync(gitPath, repo.Path,
-            ["log", $"--pretty=format:{format}", "--date=iso-strict", $"-n {limit}", $"--skip={skip}"],
+            ["log", $"--pretty=tformat:{format}", "--date=iso-strict", $"-n {limit}", $"--skip={skip}"],
             cancellationToken);
         if (!result.Success)
             throw new InvalidOperationException($"git log failed: {result.Error}");
 
         var commits = new List<GitCommitDto>();
-        // 每条 commit 由 %x00 分隔（含尾部分隔符），拆分后再按单条 commit 的字段切分
-        var entries = result.Output.Split('\0', StringSplitOptions.RemoveEmptyEntries);
-        // 每个 commit 记录包含 %H %h %an %ae %aI %s %b 共 7 个字段，记录之间和内部用 %x00 分隔
-        // 所以整段 output 其实是一组 7 字段的平铺序列：SHA,short,author,email,date,subject,body[,SHA,short,...]
-        var allFields = new List<string>();
-        foreach (var e in entries) allFields.Add(e);
-        // 每条 commit 7 个字段
-        for (int i = 0; i + 5 < allFields.Count; i += 7)
+        // 先按行拆分每条 commit，再对单条 commit 按 SOH(\x01) 拆 7 个字段 — body 为空也不会丢失字段占位
+        var lines = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var raw in lines)
         {
-            var sha = allFields[i].Trim();
-            var shortSha = allFields[i + 1].Trim();
-            var author = allFields[i + 2];
-            var email = allFields[i + 3];
-            var date = allFields[i + 4];
-            var subject = allFields[i + 5];
-            var body = (i + 6 < allFields.Count) ? allFields[i + 6] : null;
+            var line = raw.TrimEnd('\r');
+            if (string.IsNullOrEmpty(line)) continue;
+            // 限制最多拆 7 段，第 7 段(body)可包含后续的分隔符字符
+            var parts = line.Split('\x01', 7, StringSplitOptions.None);
+            if (parts.Length < 6) continue;
+            var sha = parts[0].Trim();
+            var shortSha = parts[1].Trim();
+            var author = parts[2];
+            var email = parts[3];
+            var date = parts[4];
+            var subject = parts[5];
+            var body = parts.Length > 6 ? parts[6] : null;
             if (string.IsNullOrEmpty(body)) body = null;
             if (string.IsNullOrEmpty(sha)) continue;
             commits.Add(new GitCommitDto(sha, shortSha, author, email, date, subject, body));

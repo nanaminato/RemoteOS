@@ -3,59 +3,61 @@
              xmlns:git="clr-namespace:Client.Apps.Git"
              x:Class="Client.Apps.Git.Views.GitOverviewView"
              x:DataType="git:GitClientViewModel">
-    <StackPanel Spacing="12" Margin="8">
-        <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
-            <StackPanel Spacing="6">
-                <TextBlock Text="Repository" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
-                <TextBlock Text="{Binding SelectedRepository.Name}" FontSize="16" Foreground="#36506F" />
-                <TextBlock Text="{Binding SelectedRepository.Path}" FontSize="12" Foreground="#888" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Branch" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding Status.Branch}" FontSize="13" Foreground="#36506F" />
-                    </StackPanel>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Upstream" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding Status.Upstream}" FontSize="13" Foreground="#36506F" />
-                    </StackPanel>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Ahead/Behind" FontSize="11" Foreground="#888" />
-                        <TextBlock FontSize="13" Foreground="#36506F">
-                            <Run Text="{Binding Status.Ahead}" /> / <Run Text="{Binding Status.Behind}" />
-                        </TextBlock>
-                    </StackPanel>
-                </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
-            <StackPanel Spacing="6">
-                <TextBlock Text="Working Tree" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
-                <StackPanel Orientation="Horizontal" Spacing="24" Margin="0,8,0,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Staged" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding StagedFiles.Count}" FontSize="13" Foreground="#36506F" />
-                    </StackPanel>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Unstaged" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding UnstagedFiles.Count}" FontSize="13" Foreground="#36506F" />
-                    </StackPanel>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Untracked" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding UntrackedFiles.Count}" FontSize="13" Foreground="#36506F" />
-                    </StackPanel>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="Conflicts" FontSize="11" Foreground="#888" />
-                        <TextBlock Text="{Binding ConflictFiles.Count}" FontSize="13" Foreground="#D44" />
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="12">
+            <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Repository" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
+                    <TextBlock Text="{Binding SelectedRepository.Name}" FontSize="16" Foreground="#36506F" />
+                    <TextBlock Text="{Binding SelectedRepository.Path}" FontSize="12" Foreground="#888" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Branch" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding Status.Branch}" FontSize="13" Foreground="#36506F" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Upstream" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding Status.Upstream}" FontSize="13" Foreground="#36506F" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Ahead/Behind" FontSize="11" Foreground="#888" />
+                            <TextBlock FontSize="13" Foreground="#36506F">
+                                <Run Text="{Binding Status.Ahead}" /> / <Run Text="{Binding Status.Behind}" />
+                            </TextBlock>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
-            </StackPanel>
-        </Border>
+            </Border>
 
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <Button Content="⬇ Pull" Command="{Binding PullCommand}" />
-            <Button Content="⬆ Push" Command="{Binding PushCommand}" />
-            <Button Content="📥 Fetch" Command="{Binding FetchCommand}" />
+            <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Working Tree" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
+                    <StackPanel Orientation="Horizontal" Spacing="24" Margin="0,8,0,0">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Staged" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding StagedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Unstaged" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding UnstagedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Untracked" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding UntrackedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Conflicts" FontSize="11" Foreground="#888" />
+                            <TextBlock Text="{Binding ConflictFiles.Count}" FontSize="13" Foreground="#D44" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                <Button Content="⬇ Pull" Command="{Binding PullCommand}" />
+                <Button Content="⬆ Push" Command="{Binding PushCommand}" />
+                <Button Content="📥 Fetch" Command="{Binding FetchCommand}" />
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </ScrollViewer>
 </UserControl>

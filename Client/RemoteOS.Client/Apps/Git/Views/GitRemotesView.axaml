@@ -4,23 +4,23 @@
              xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Git.Views.GitRemotesView"
              x:DataType="git:GitClientViewModel">
-    <StackPanel Spacing="10">
-        <StackPanel Orientation="Horizontal" Spacing="8">
+    <Grid RowDefinitions="Auto,*,Auto" MinHeight="300">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
             <Button Content="➕ 添加远程" Command="{Binding AddRemoteCommand}" />
             <Button Content="⟳ 刷新" Command="{Binding RefreshRemotesCommand}" />
         </StackPanel>
 
-        <Border Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
             <DataGrid x:Name="RemoteGrid" ItemsSource="{Binding Remotes}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                       SelectedItem="{Binding SelectedRemote, Mode=TwoWay}"
                       CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="160" CanUserResize="True" />
+                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="130" CanUserResize="True" />
                     <DataGridTextColumn Header="Fetch URL" Binding="{Binding FetchUrl}" Width="2*" CanUserResize="True" />
                     <DataGridTextColumn Header="Push URL" Binding="{Binding PushUrl}" Width="2*" CanUserResize="True" />
-                    <DataGridTemplateColumn Header="操作" Width="160" CanUserResize="False">
+                    <DataGridTemplateColumn Header="操作" Width="130" CanUserResize="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="proto:GitRemoteDto">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -36,8 +36,9 @@
             </DataGrid>
         </Border>
 
-        <TextBlock Text="还没有配置任何远程仓库（remote）。"
+        <TextBlock Grid.Row="2"
+                   Text="还没有配置任何远程仓库（remote）。"
                    FontSize="12" Foreground="#999" Margin="4,8"
                    IsVisible="{Binding Remotes.Count, Converter={x:Static git:GitPickerConverters.IsZeroToVisible}}" />
-    </StackPanel>
+    </Grid>
 </UserControl>

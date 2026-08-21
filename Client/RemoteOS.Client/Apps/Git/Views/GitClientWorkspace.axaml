@@ -53,10 +53,11 @@
                 </StackPanel>
             </Border>
 
-            <!-- Right content area -->
-            <ScrollViewer Grid.Column="1" Padding="16">
-                <ContentControl x:Name="ContentHost" />
-            </ScrollViewer>
+            <!-- Right content area: 不使用外层 ScrollViewer，避免给子元素无限宽高；
+                 横向滚动与列表纵向滚动统一交给内部 DataGrid 自带的 ScrollViewer -->
+            <Border Grid.Column="1" Padding="16">
+                <ContentControl x:Name="ContentHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+            </Border>
         </Grid>
 
         <!-- 项目选择视图：IsPickerMode=true 时显示 -->
