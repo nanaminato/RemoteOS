@@ -86,7 +86,7 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
         {
             // A 409 is the API's conflict status for site creation. Keep the user-facing error
             // useful even if an intermediary stripped the server's JSON problemCode body.
-            throw new WebServerApiException("webserver.site_conflict", exception.StatusCode);
+            throw new WebServerApiException("webserver.site_conflict", exception.StatusCode??HttpStatusCode.NoContent);
         }
     }
 

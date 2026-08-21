@@ -550,7 +550,7 @@ internal sealed partial class NginxWebServerManager(
     private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths)
     {
         var body = site.Kind == WebServerSiteKind.ReverseProxy
-            ? $"location / {{\n        proxy_pass {site.Upstream};\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}"
+            ? $"location / {{\n        proxy_pass {site.Upstream};\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection \"upgrade\";\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}"
             : $"root {NginxConfigPath(site.RootPath!)};\n    index index.html;\n    location / {{ try_files $uri $uri/ =404; }}";
         var bindings = site.EffectiveBindings;
         var serverNames = string.Join(' ', bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase));
