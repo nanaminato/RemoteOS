@@ -398,13 +398,25 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
             throw new InvalidOperationException($"git log failed: {result.Error}");
 
         var commits = new List<GitCommitDto>();
-        foreach (var entry in result.Output.Split('\0', StringSplitOptions.RemoveEmptyEntries))
+        // 每条 commit 由 %x00 分隔（含尾部分隔符），拆分后再按单条 commit 的字段切分
+        var entries = result.Output.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        // 每个 commit 记录包含 %H %h %an %ae %aI %s %b 共 7 个字段，记录之间和内部用 %x00 分隔
+        // 所以整段 output 其实是一组 7 字段的平铺序列：SHA,short,author,email,date,subject,body[,SHA,short,...]
+        var allFields = new List<string>();
+        foreach (var e in entries) allFields.Add(e);
+        // 每条 commit 7 个字段
+        for (int i = 0; i + 5 < allFields.Count; i += 7)
         {
-            var fields = entry.Split('\n', 2);
-            var parts = fields[0].Split('\t');
-            if (parts.Length < 6) continue;
-            var body = fields.Length > 1 ? fields[1].TrimEnd('\0') : null;
-            commits.Add(new GitCommitDto(parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], body));
+            var sha = allFields[i].Trim();
+            var shortSha = allFields[i + 1].Trim();
+            var author = allFields[i + 2];
+            var email = allFields[i + 3];
+            var date = allFields[i + 4];
+            var subject = allFields[i + 5];
+            var body = (i + 6 < allFields.Count) ? allFields[i + 6] : null;
+            if (string.IsNullOrEmpty(body)) body = null;
+            if (string.IsNullOrEmpty(sha)) continue;
+            commits.Add(new GitCommitDto(sha, shortSha, author, email, date, subject, body));
         }
         return commits;
     }
@@ -735,21 +747,23 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         var untracked = new List<GitFileChangeDto>();
         var conflicts = new List<GitFileChangeDto>();
 
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var rawLine in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
+            var line = rawLine.TrimEnd('\r');
             if (line.StartsWith("# branch.head"))
             {
-                branch = line.Substring("# branch.head".Length).Trim();
+                branch = line["# branch.head".Length..].Trim();
                 if (branch == "(detached)") { isDetached = true; branch = "HEAD (detached)"; }
             }
             else if (line.StartsWith("# branch.upstream"))
             {
-                upstream = line.Substring("# branch.upstream".Length).Trim();
+                upstream = line["# branch.upstream".Length..].Trim();
                 if (string.IsNullOrEmpty(upstream)) upstream = null;
             }
             else if (line.StartsWith("# branch.ab"))
             {
-                var abParts = line.Substring("# branch.ab".Length).Trim().Split(' ');
+                var abPart = line["# branch.ab".Length..].Trim();
+                var abParts = abPart.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (abParts.Length >= 2)
                 {
                     ahead = int.TryParse(abParts[0].TrimStart('+'), out var a) ? a : 0;
@@ -758,32 +772,67 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
             }
             else if (line.StartsWith("u "))
             {
-                var parts = line.Split(' ');
-                if (parts.Length >= 11)
-                    conflicts.Add(new GitFileChangeDto(parts[10], Staged: false, Status: "conflicted"));
+                // Unmerged entry: "u XY sub mH mI mW hH hI path" — path 仍为最后一段
+                var (path, _) = TakePathAfterNSpaces(line, 10);
+                if (!string.IsNullOrEmpty(path))
+                    conflicts.Add(new GitFileChangeDto(path, Staged: false, Status: "conflicted"));
             }
             else if (line.StartsWith("1 ") || line.StartsWith("2 "))
             {
-                var parts = line.Split(' ');
-                var xy = parts.Length > 1 ? parts[1] : "  ";
-                var pathIndex = line.StartsWith("1 ") ? 8 : 9;
-                var filePath = parts.Length > pathIndex ? parts[pathIndex] : "";
-                var x = xy.Length > 0 ? xy[0] : ' ';
-                var y = xy.Length > 1 ? xy[1] : ' ';
-                var status = MapStatusChar(y != ' ' ? y : x);
-                if (x != ' ' && x != '?')
-                    staged.Add(new GitFileChangeDto(filePath, Staged: true, Status: status));
-                if (y != ' ' && y != '?')
-                    unstaged.Add(new GitFileChangeDto(filePath, Staged: false, Status: status));
+                // Type 1: "1 XY sub mH mI mW hH hI path" — 8 个空格字段 + 路径
+                // Type 2: "2 XY sub mH mI mW hH hI score path⇥orig_path" — 9 个空格字段 + 路径(可能 TAB+原始路径)
+                var isRename = line[0] == '2';
+                var (path, origPath) = TakePathAfterNSpaces(line, isRename ? 9 : 8);
+                if (string.IsNullOrEmpty(path)) continue;
+
+                var xyText = line.Length > 3 ? line[2..4] : "  ";
+                var x = xyText[0]; // staged side
+                var y = xyText[1]; // unstaged side
+
+                var status = MapStatusChar(y != '.' && y != ' ' ? y : x);
+
+                // X = staged status: ' ' 无、'.' 无 之外的字母表示 staged 改动
+                if (x != ' ' && x != '.' && x != '?')
+                    staged.Add(new GitFileChangeDto(path, Staged: true, Status: MapStatusChar(x), OldPath: origPath));
+                // Y = unstaged status: ' ' 无、'.' 无
+                if (y != ' ' && y != '.' && y != '?')
+                    unstaged.Add(new GitFileChangeDto(path, Staged: false, Status: MapStatusChar(y), OldPath: origPath));
             }
             else if (line.StartsWith("? "))
             {
-                var parts = line.Split(' ', 2);
-                if (parts.Length > 1)
-                    untracked.Add(new GitFileChangeDto(parts[1].Trim(), Staged: false, Status: "untracked"));
+                var filePath = line[2..].Trim();
+                if (!string.IsNullOrEmpty(filePath))
+                    untracked.Add(new GitFileChangeDto(filePath, Staged: false, Status: "untracked"));
             }
         }
         return new GitStatusDto(branch, staged, unstaged, untracked, conflicts, upstream, ahead, behind, isDetached);
+    }
+
+    /// <summary>从 porcelain v2 状态行取最后一段路径（可能含空格）：跳过前 n 个空格分隔的字段，剩余即路径。
+    /// Type 2（rename/copy）里路径字段格式为 path⇥orig_path，用 TAB 分隔；返回 (path, origPath_or_null)。</summary>
+    private static (string Path, string? OrigPath) TakePathAfterNSpaces(string line, int spaceFieldCount)
+    {
+        var remaining = line.AsSpan();
+        for (int i = 0; i < spaceFieldCount; i++)
+        {
+            // 跳过一个字段：直到空格
+            var sp = remaining.IndexOf(' ');
+            if (sp < 0) return ("", null); // 字段不足
+            remaining = remaining[(sp + 1)..];
+            // 跳过连续空格（通常只有一个）
+            while (remaining.Length > 0 && remaining[0] == ' ') remaining = remaining[1..];
+        }
+
+        var tail = remaining.ToString();
+        // type 2 的 rename/copy 行：路径部分是 path⇥orig_path（TAB 分隔）
+        var tab = tail.IndexOf('\t');
+        if (tab >= 0)
+        {
+            var path = tail[..tab].Trim();
+            var orig = tail[(tab + 1)..].Trim();
+            return (path, string.IsNullOrEmpty(orig) ? null : orig);
+        }
+        return (tail.Trim(), null);
     }
 
     private static string MapStatusChar(char c) => c switch
