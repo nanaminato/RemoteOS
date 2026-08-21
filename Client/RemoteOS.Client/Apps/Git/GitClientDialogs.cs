@@ -3,10 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Client.Apps.Explorer;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
-using RemoteOS.Protocol.Files;
 using RemoteOS.Protocol.Git;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
@@ -52,13 +50,6 @@ internal static class GitClientDialogs
 
     // ── 项目选择 / 探测 / 远程管理 ──
 
-    /// <summary>Browses the remote file system (via IExplorerClient) and lets the user pick a server-side folder.
-    /// Returns the absolute path, or null if cancelled.</summary>
-    public static Task<string?> ShowRemotePathPickerAsync(AppContext context, ManagedWindow owner, IExplorerClient files)
-        => context.ShowDialogAsync<string?>(owner, "选择项目文件夹",
-            dialog => BuildRemotePathPicker(files, dialog),
-            new RemoteOS.Core.Primitives.Size(640, 460));
-
     /// <summary>Confirms whether to initialize a Git repository at the supplied path.</summary>
     public static async Task<bool> ShowInitConfirmAsync(AppContext context, ManagedWindow owner, string path)
     {
@@ -75,163 +66,6 @@ internal static class GitClientDialogs
             new RemoteOS.Core.Primitives.Size(480, 240));
 
     // ── Dialog builders (programmatic — no separate AXAML files needed) ──
-
-    private static Control BuildRemotePathPicker(IExplorerClient files, ModalDialog<string?> dialog)
-    {
-        var pathBox = new TextBox
-        {
-            PlaceholderText = "/absolute/path/to/folder",
-            MinHeight = 32,
-        };
-        var status = new TextBlock { FontSize = 11, Foreground = Brush.Parse("#888"), Text = "正在加载根目录…" };
-
-        var list = new ListBox { MinHeight = 240, MaxHeight = 320 };
-        list.DoubleTapped += async (_, _) =>
-        {
-            if (list.SelectedItem is RemoteFolderEntry entry)
-            {
-                pathBox.Text = entry.Path;
-                await LoadDirectoryAsync(files, pathBox, status, list);
-            }
-        };
-
-        var goBtn = new Button { Content = "进入", Padding = new(8, 2) };
-        goBtn.Click += async (_, _) => await LoadDirectoryAsync(files, pathBox, status, list);
-
-        var upBtn = new Button { Content = "↑ 上级", Padding = new(8, 2) };
-        upBtn.Click += async (_, _) =>
-        {
-            if (string.IsNullOrWhiteSpace(pathBox.Text))
-            {
-                await LoadDrivesAsync(files, list, status, pathBox);
-                return;
-            }
-            // 计算上级目录：用平台无关的字符串处理
-            var current = pathBox.Text.TrimEnd('\\').TrimEnd('/');
-            var idx = current.LastIndexOfAny(['\\', '/']);
-            var parent = idx < 0 ? null : current[..idx];
-            if (string.IsNullOrEmpty(parent) || parent == current)
-            {
-                // 已到根：显示盘符列表
-                await LoadDrivesAsync(files, list, status, pathBox);
-                return;
-            }
-            pathBox.Text = parent;
-            await LoadDirectoryAsync(files, pathBox, status, list);
-        };
-
-        var refreshBtn = new Button { Content = "⟳ 刷新", Padding = new(8, 2) };
-        refreshBtn.Click += async (_, _) => await LoadDirectoryAsync(files, pathBox, status, list);
-
-        var selectBtn = new Button { Content = "选择此文件夹", Background = Brush.Parse("#1C3765"), Foreground = Brushes.White, Padding = new(14, 6) };
-        selectBtn.Click += (_, _) =>
-        {
-            if (!string.IsNullOrWhiteSpace(pathBox.Text))
-                dialog.Close(pathBox.Text!.Trim());
-        };
-
-        var cancelBtn = new Button { Content = "取消", Padding = new(14, 6), Margin = new(8, 0, 0, 0) };
-        cancelBtn.Click += (_, _) => dialog.Cancel();
-
-        // 初始加载：默认进入用户家目录
-        _ = InitializePickerAsync(files, pathBox, status, list);
-
-        var addressBar = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            Children = { pathBox, goBtn, upBtn, refreshBtn },
-        };
-        addressBar.SetValue(Grid.RowProperty, 0);
-
-        status.SetValue(Grid.RowProperty, 1);
-        status.Margin = new(0, 4, 0, 4);
-
-        list.SetValue(Grid.RowProperty, 2);
-        list.Margin = new(0, 4, 0, 4);
-
-        var footer = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new(0, 10, 0, 0),
-            Spacing = 4,
-            Children = { selectBtn, cancelBtn },
-        };
-        footer.SetValue(Grid.RowProperty, 3);
-
-        return new Grid
-        {
-            Margin = new(16),
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"),
-            Children = { addressBar, status, list, footer },
-        };
-    }
-
-    private static async Task InitializePickerAsync(IExplorerClient files, TextBox pathBox, TextBlock status, ListBox list)
-    {
-        try
-        {
-            var specials = await files.GetSpecialLocationsAsync();
-            var home = specials.FirstOrDefault(s => s.Kind == SpecialFolderKind.Home)
-                       ?? specials.FirstOrDefault();
-            if (home is not null)
-                pathBox.Text = home.Path;
-            await LoadDirectoryAsync(files, pathBox, status, list);
-        }
-        catch (Exception ex)
-        {
-            status.Text = $"加载家目录失败：{ex.Message}";
-            await LoadDrivesAsync(files, list, status, pathBox);
-        }
-    }
-
-    private static async Task LoadDirectoryAsync(IExplorerClient files, TextBox pathBox, TextBlock status, ListBox? list = null)
-    {
-        var path = pathBox.Text?.Trim();
-        if (string.IsNullOrEmpty(path))
-        {
-            if (list is not null) await LoadDrivesAsync(files, list, status, pathBox);
-            return;
-        }
-        status.Text = $"正在加载 {path} …";
-        try
-        {
-            var dir = await files.GetDirectoryAsync(path);
-            list ??= new ListBox();
-            // 只显示子目录（项目只允许选目录）；驱动器根也走 GetDirectoryAsync 时返回的 Directories 是子目录列表
-            var folders = dir.Directories
-                .Select(e => new RemoteFolderEntry(e.Name, e.Path))
-                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            list.ItemsSource = folders;
-            status.Text = $"共 {folders.Count} 个子目录";
-        }
-        catch (Exception ex)
-        {
-            status.Text = $"加载失败：{ex.Message}";
-        }
-    }
-
-    private static async Task LoadDrivesAsync(IExplorerClient files, ListBox list, TextBlock status, TextBox pathBox)
-    {
-        status.Text = "正在加载驱动器列表…";
-        try
-        {
-            var drives = await files.GetDrivesAsync();
-            var entries = drives
-                .Where(d => !string.IsNullOrEmpty(d.Path))
-                .Select(d => new RemoteFolderEntry(d.Name, d.Path!))
-                .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            list.ItemsSource = entries;
-            status.Text = $"共 {entries.Count} 个驱动器";
-        }
-        catch (Exception ex)
-        {
-            status.Text = $"加载驱动器失败：{ex.Message}";
-        }
-    }
 
     private static Control BuildInitConfirmDialog(string path, ModalDialog<bool?> dialog)
     {
