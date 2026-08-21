@@ -669,6 +669,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.site_server_name_invalid" => "域名或 IP 地址格式无效。请逐行填写，例如 app.example.com 或 192.168.1.20。",
         "webserver.site_already_exists" => "已存在同名站点。请关闭此对话框，在列表中选择该站点后进行编辑；新建操作不会覆盖已有站点。",
         "webserver.site_binding_conflict" => "该站点的某个域名/IP 与监听端口已由另一个站点使用。当前站点的所有域名都会监听所有填写的端口，请调整域名或端口。",
+        "webserver.site_conflict" => "站点与现有配置冲突，但服务器未提供具体冲突项。请检查站点名称、域名/IP 和监听端口后重试。",
         "webserver.site_certificate_required" => "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
         "webserver.site_upstream_invalid" => "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
         "webserver.site_elevation_required" => "RemoteOS Server 未以管理员权限运行，无法写入和应用 Nginx 站点配置。请查看服务端 WebServer 日志了解详情。",

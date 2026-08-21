@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Client.Services.Auth;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.WebServers;
@@ -45,8 +46,8 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         if (!response.IsSuccessStatusCode)
         {
-            var problem = await response.Content.ReadFromJsonAsync<WebServerProblemDetails>(RemoteOsJsonOptions.Default, cancellationToken);
-            throw new WebServerApiException(problem?.ProblemCode ?? $"webserver.http_{(int)response.StatusCode}", response.StatusCode);
+            throw new WebServerApiException(await ReadProblemCodeAsync(response, cancellationToken)
+                ?? FallbackProblemCode(response.StatusCode), response.StatusCode);
         }
         return await response.Content.ReadFromJsonAsync<WebServerInstallPackageDto>(RemoteOsJsonOptions.Default, cancellationToken);
     }
@@ -75,8 +76,19 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
     public Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string id, CancellationToken cancellationToken = default)
         => SendAsync<IReadOnlyList<WebServerSiteDto>?>(HttpMethod.Get, WebServerApiRoutes.Sites.Replace("{id}", WebUtility.UrlEncode(id)), null, null, cancellationToken);
 
-    public Task<WebServerSiteDto?> UpsertSiteAsync(string id, UpsertWebServerSiteRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<WebServerSiteDto?>(HttpMethod.Post, WebServerApiRoutes.Sites.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+    public async Task<WebServerSiteDto?> UpsertSiteAsync(string id, UpsertWebServerSiteRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await SendAsync<WebServerSiteDto?>(HttpMethod.Post, WebServerApiRoutes.Sites.Replace("{id}", WebUtility.UrlEncode(id)), request, NewKey(), cancellationToken);
+        }
+        catch (WebServerApiException exception) when (exception.StatusCode == HttpStatusCode.Conflict && exception.ProblemCode == "webserver.http_409")
+        {
+            // A 409 is the API's conflict status for site creation. Keep the user-facing error
+            // useful even if an intermediary stripped the server's JSON problemCode body.
+            throw new WebServerApiException("webserver.site_conflict", exception.StatusCode);
+        }
+    }
 
     public async Task DeleteSiteAsync(string id, string siteId, CancellationToken cancellationToken = default)
     {
@@ -106,12 +118,34 @@ public sealed class RemoteWebServerClient(HttpClient http, IAuthSession session)
             return default!;
         if (!response.IsSuccessStatusCode)
         {
-            var problem = await response.Content.ReadFromJsonAsync<WebServerProblemDetails>(RemoteOsJsonOptions.Default, cancellationToken);
-            throw new WebServerApiException(problem?.ProblemCode ?? $"webserver.http_{(int)response.StatusCode}", response.StatusCode);
+            throw new WebServerApiException(await ReadProblemCodeAsync(response, cancellationToken)
+                ?? FallbackProblemCode(response.StatusCode), response.StatusCode);
         }
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken)
             ?? throw new InvalidOperationException("RemoteOS returned an empty response.");
     }
+
+    /// <summary>
+    /// Error responses normally carry a problemCode JSON object. A proxy, an older server, or a
+    /// connection aborted after the status line can still yield an empty/non-JSON error body; that
+    /// must not hide the original HTTP failure behind a JSON parsing exception.
+    /// </summary>
+    private static async Task<string?> ReadProblemCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<WebServerProblemDetails>(payload, RemoteOsJsonOptions.Default)?.ProblemCode;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string FallbackProblemCode(HttpStatusCode statusCode)
+        => $"webserver.http_{(int)statusCode}";
 
     private sealed record WebServerProblemDetails(string? ProblemCode);
 }
