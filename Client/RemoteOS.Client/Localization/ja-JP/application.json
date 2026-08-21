@@ -28,6 +28,8 @@
         "application.remoteos.port-forwarding.display_name": "ポート フォワーディング",
         "application.remoteos.port-forwarding.description": "RemoteOS Server の loopback サービスへのローカル SSH トンネルを管理します",
         "application.remoteos.firewall.display_name": "ファイアウォール",
-        "application.remoteos.firewall.description": "Linux Server の UFW ファイアウォールルールを管理します"
+        "application.remoteos.firewall.description": "Linux Server の UFW ファイアウォールルールを管理します",
+        "application.remoteos.git.display_name": "Git クライアント",
+        "application.remoteos.git.description": "RemoteOS Server 上の Git リポジトリを管理します"
     }
 }

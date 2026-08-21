@@ -14,12 +14,13 @@
             <DataGrid x:Name="RemoteGrid" ItemsSource="{Binding Remotes}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      SelectedItem="{Binding SelectedRemote, Mode=TwoWay}">
+                      SelectedItem="{Binding SelectedRemote, Mode=TwoWay}"
+                      CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="140" />
-                    <DataGridTextColumn Header="Fetch URL" Binding="{Binding FetchUrl}" Width="*" />
-                    <DataGridTextColumn Header="Push URL" Binding="{Binding PushUrl}" Width="*" />
-                    <DataGridTemplateColumn Header="操作" Width="160">
+                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="160" CanUserResize="True" />
+                    <DataGridTextColumn Header="Fetch URL" Binding="{Binding FetchUrl}" Width="2*" CanUserResize="True" />
+                    <DataGridTextColumn Header="Push URL" Binding="{Binding PushUrl}" Width="2*" CanUserResize="True" />
+                    <DataGridTemplateColumn Header="操作" Width="160" CanUserResize="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="proto:GitRemoteDto">
                                 <StackPanel Orientation="Horizontal" Spacing="6">

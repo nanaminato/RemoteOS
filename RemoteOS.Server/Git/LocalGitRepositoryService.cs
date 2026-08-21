@@ -667,7 +667,9 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
 
     private async Task<IReadOnlyList<GitRemoteDto>> GetRemotesAsync(string gitPath, string repoPath, CancellationToken cancellationToken)
     {
-        var result = await RunGitAsync(gitPath, repoPath, ["remote", "-v", "--no-color"], cancellationToken);
+        // 注意：--no-color 是 git 全局选项，必须放在子命令之前；而 git 在 stdout 重定向
+        // 时会自动禁用彩色输出，所以这里直接省略即可，避免子命令不认该参数导致命令失败。
+        var result = await RunGitAsync(gitPath, repoPath, ["remote", "-v"], cancellationToken);
         if (!result.Success)
             return Array.Empty<GitRemoteDto>();
 

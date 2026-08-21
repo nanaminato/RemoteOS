@@ -8,12 +8,13 @@
             <DataGrid x:Name="CommitGrid" ItemsSource="{Binding Commits}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column"
-                      SelectedItem="{Binding SelectedCommit, Mode=TwoWay}">
+                      SelectedItem="{Binding SelectedCommit, Mode=TwoWay}"
+                      CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Hash" Binding="{Binding ShortSha}" Width="80" />
-                    <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="120" />
-                    <DataGridTextColumn Header="Date" Binding="{Binding AuthorDate}" Width="160" />
-                    <DataGridTextColumn Header="Message" Binding="{Binding Subject}" Width="*" />
+                    <DataGridTextColumn Header="Hash" Binding="{Binding ShortSha}" Width="90" CanUserResize="True" />
+                    <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="140" CanUserResize="True" />
+                    <DataGridTextColumn Header="Date" Binding="{Binding AuthorDate}" Width="180" CanUserResize="True" />
+                    <DataGridTextColumn Header="Message" Binding="{Binding Subject}" Width="*" CanUserResize="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

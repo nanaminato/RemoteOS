@@ -13,14 +13,15 @@
             <DataGrid x:Name="BranchGrid" ItemsSource="{Binding Branches}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      SelectedItem="{Binding SelectedBranch, Mode=TwoWay}">
+                      SelectedItem="{Binding SelectedBranch, Mode=TwoWay}"
+                      CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" />
-                    <DataGridCheckBoxColumn Header="Current" Binding="{Binding IsCurrent}" IsReadOnly="True" />
-                    <DataGridCheckBoxColumn Header="Remote" Binding="{Binding IsRemote}" IsReadOnly="True" />
-                    <DataGridTextColumn Header="Upstream" Binding="{Binding Tracking}" />
-                    <DataGridTextColumn Header="Ahead" Binding="{Binding Ahead}" />
-                    <DataGridTextColumn Header="Behind" Binding="{Binding Behind}" />
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180" CanUserResize="True" />
+                    <DataGridCheckBoxColumn Header="Current" Binding="{Binding IsCurrent}" IsReadOnly="True" Width="80" CanUserResize="True" />
+                    <DataGridCheckBoxColumn Header="Remote" Binding="{Binding IsRemote}" IsReadOnly="True" Width="80" CanUserResize="True" />
+                    <DataGridTextColumn Header="Upstream" Binding="{Binding Tracking}" Width="*" CanUserResize="True" />
+                    <DataGridTextColumn Header="Ahead" Binding="{Binding Ahead}" Width="80" CanUserResize="True" />
+                    <DataGridTextColumn Header="Behind" Binding="{Binding Behind}" Width="80" CanUserResize="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
