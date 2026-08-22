@@ -26,6 +26,7 @@ internal partial class GitPushDialog : UserControl
 
     private async void AllCommits_Click(object? sender, RoutedEventArgs e)
     {
+        CommitList.SelectedIndex = -1;
         await _viewModel.SelectAllPushCommitsCommand.ExecuteAsync(null);
     }
 

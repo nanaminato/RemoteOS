@@ -64,6 +64,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     // ── Push dialog state ──
     public ObservableCollection<GitCommitDto> PushCommits { get; } = [];
     public ObservableCollection<GitFileChangeDto> PushChangedFiles { get; } = [];
+    public ObservableCollection<PushFileTreeNode> PushFileTree { get; } = [];
 
     [ObservableProperty] private GitCommitDto? _pushSelectedCommit;
     [ObservableProperty] private string _pushSelectedRemote = string.Empty;
@@ -72,7 +73,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private bool _pushIsLoading;
     [ObservableProperty] private string _pushStatusMessage = string.Empty;
 
-    public bool PushSingleCommitMode => PushSelectedCommit is not null || PushCommits.Count <= 1;
+    private int _pushSelectionVersion;
+
+    /// <summary>Whether the preview is focused on a concrete commit rather than the aggregate "all commits" item.</summary>
+    public bool PushHasSelectedCommit => PushSelectedCommit is not null;
+    public bool PushAllCommitsActive => !PushHasSelectedCommit;
     public string PushBranchLineText => string.IsNullOrWhiteSpace(PushSelectedRemote) || string.IsNullOrWhiteSpace(PushSelectedBranch)
         ? string.Empty
         : LocalizedText.Format("git.dialog.push.branch_line_format", PushLocalBranchName, PushSelectedRemote, PushSelectedBranch);
@@ -993,7 +998,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             PushCommits.Clear();
-            PushChangedFiles.Clear();
+            ClearPushFilePreview();
             PushSelectedCommit = null;
 
             PushLocalBranchName = Status.Branch;
@@ -1030,13 +1035,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 ? LocalizedText.Get("git.dialog.push.no_commits_ahead")
                 : LocalizedText.Format("git.vm.push_n_commits_ahead_format", PushCommits.Count);
 
-            if (PushCommits.Count > 0)
-            {
-                PushSelectedCommit = PushCommits[0];
-                await LoadPushCommitFilesAsync(PushSelectedCommit);
-            }
+            var selectionVersion = BeginPushSelection();
+            await LoadAllPushChangesAsync(selectionVersion);
 
-            OnPropertyChanged(nameof(PushSingleCommitMode));
             OnPropertyChanged(nameof(PushBranchLineText));
             OnPropertyChanged(nameof(PushFileCount));
             OnPropertyChanged(nameof(PushCommitCount));
@@ -1054,15 +1055,14 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     }
 
     /// <summary>Loads changed files for a single commit to display in the push dialog.</summary>
-    private async Task LoadPushCommitFilesAsync(GitCommitDto? commit)
+    private async Task LoadPushCommitFilesAsync(GitCommitDto? commit, int selectionVersion)
     {
-        PushChangedFiles.Clear();
         if (commit is null || SelectedRepository is null) return;
         try
         {
             var detail = await client.GetCommitDetailAsync(SelectedRepository.Id, commit.Sha);
-            foreach (var f in detail.ChangedFiles) PushChangedFiles.Add(f);
-            OnPropertyChanged(nameof(PushFileCount));
+            if (selectionVersion != Volatile.Read(ref _pushSelectionVersion)) return;
+            SetPushFilePreview(detail.ChangedFiles);
         }
         catch (Exception ex)
         {
@@ -1071,9 +1071,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     }
 
     /// <summary>Loads combined file changes for all ahead commits (when user clicks the branch line).</summary>
-    private async Task LoadAllPushChangesAsync()
+    private async Task LoadAllPushChangesAsync(int selectionVersion)
     {
-        PushChangedFiles.Clear();
         if (SelectedRepository is null || PushCommits.Count == 0) return;
 
         var allPaths = new HashSet<string>();
@@ -1093,8 +1092,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             catch { /* skip failed commits */ }
         }
 
-        foreach (var f in firstCommitFiles) PushChangedFiles.Add(f);
-        OnPropertyChanged(nameof(PushFileCount));
+        if (selectionVersion != Volatile.Read(ref _pushSelectionVersion)) return;
+        SetPushFilePreview(firstCommitFiles);
     }
 
     /// <summary>Called when user selects a commit in the push dialog's left panel.</summary>
@@ -1103,8 +1102,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (commit is null) return;
         PushSelectedCommit = commit;
-        OnPropertyChanged(nameof(PushSingleCommitMode));
-        await LoadPushCommitFilesAsync(commit);
+        var selectionVersion = BeginPushSelection();
+        ClearPushFilePreview();
+        await LoadPushCommitFilesAsync(commit, selectionVersion);
     }
 
     /// <summary>Called when user clicks the branch line to view all changes combined.</summary>
@@ -1112,8 +1112,65 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task SelectAllPushCommitsAsync()
     {
         PushSelectedCommit = null;
-        OnPropertyChanged(nameof(PushSingleCommitMode));
-        await LoadAllPushChangesAsync();
+        var selectionVersion = BeginPushSelection();
+        ClearPushFilePreview();
+        await LoadAllPushChangesAsync(selectionVersion);
+    }
+
+    partial void OnPushSelectedCommitChanged(GitCommitDto? value)
+    {
+        OnPropertyChanged(nameof(PushHasSelectedCommit));
+        OnPropertyChanged(nameof(PushAllCommitsActive));
+    }
+
+    private int BeginPushSelection() => Interlocked.Increment(ref _pushSelectionVersion);
+
+    private void ClearPushFilePreview()
+    {
+        PushChangedFiles.Clear();
+        PushFileTree.Clear();
+        OnPropertyChanged(nameof(PushFileCount));
+    }
+
+    private void SetPushFilePreview(IEnumerable<GitFileChangeDto> files)
+    {
+        PushChangedFiles.Clear();
+        foreach (var file in files) PushChangedFiles.Add(file);
+
+        PushFileTree.Clear();
+        foreach (var file in PushChangedFiles)
+        {
+            var parts = file.Path.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) continue;
+
+            var current = PushFileTree;
+            for (var index = 0; index < parts.Length; index++)
+            {
+                var isFile = index == parts.Length - 1;
+                var node = current.FirstOrDefault(candidate =>
+                    candidate.Name == parts[index] && candidate.IsFile == isFile);
+                if (node is null)
+                {
+                    node = new PushFileTreeNode(parts[index], isFile, isFile ? file.Status : null);
+                    current.Add(node);
+                }
+                current = node.Children;
+            }
+        }
+
+        SortPushFileTree(PushFileTree);
+        OnPropertyChanged(nameof(PushFileCount));
+    }
+
+    private static void SortPushFileTree(ObservableCollection<PushFileTreeNode> nodes)
+    {
+        var ordered = nodes.OrderBy(node => node.IsFile).ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        nodes.Clear();
+        foreach (var node in ordered)
+        {
+            SortPushFileTree(node.Children);
+            nodes.Add(node);
+        }
     }
 
     /// <summary>Opens the remote/branch picker dialog for the push target.</summary>
