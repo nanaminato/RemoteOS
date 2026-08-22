@@ -161,6 +161,8 @@
         "git.dialog.pull.title": "Pull",
         "git.dialog.register.title": "Register Repository",
         "git.dialog.confirm": "Confirm",
+        "git.dialog.notice": "Notice",
+        "git.dialog.notice.ok": "OK",
         "git.dialog.git_unavailable.title": "Git not installed or unavailable",
         "git.dialog.init.title": "Initialize Git Repository",
         "git.dialog.add_remote.title": "Add Remote",

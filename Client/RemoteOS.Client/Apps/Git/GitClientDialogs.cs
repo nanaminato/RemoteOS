@@ -44,6 +44,15 @@ internal static class GitClientDialogs
         return result ?? false;
     }
 
+    /// <summary>Single-button modal notice. Use this for validation/errors that must grab the user's
+    /// attention (e.g. "commit message required", "commit failed: …") instead of writing to StatusText.</summary>
+    public static async Task ShowMessageAsync(AppContext context, ManagedWindow owner, string message)
+    {
+        _ = await context.ShowDialogAsync<bool?>(owner, LocalizedText.Get("git.dialog.notice"),
+            dialog => BuildMessageDialog(message, dialog),
+            new RemoteOS.Core.Primitives.Size(420, 200));
+    }
+
     /// <summary>Show the "Git engine unavailable" dialog with install/refresh/cancel actions.</summary>
     public static Task<bool> ShowGitUnavailableAsync(AppContext context, ManagedWindow owner, GitClientViewModel vm) =>
         context.ShowDialogAsync<bool>(owner, LocalizedText.Get("git.dialog.git_unavailable.title"),
@@ -371,6 +380,40 @@ internal static class GitClientDialogs
                     Children = { yesBtn, noBtn }
                 }
             }
+        };
+    }
+
+    private static Control BuildMessageDialog(string message, ModalDialog<bool?> dialog)
+    {
+        var okBtn = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.notice.ok"),
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new(20, 6),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        okBtn.Click += (_, _) => dialog.Close(true);
+
+        return new StackPanel
+        {
+            Margin = new(16),
+            Spacing = 16,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = message,
+                    TextWrapping = TextWrapping.Wrap,
+                    FontSize = 14,
+                },
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { okBtn },
+                },
+            },
         };
     }
 

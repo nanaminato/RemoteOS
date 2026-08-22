@@ -6,6 +6,35 @@
              x:Class="Client.Apps.Git.Views.GitClientWorkspace"
              x:DataType="git:GitClientViewModel"
              Background="#F4F7FB">
+    <!-- 顶部标题栏次级按钮：保留显式深色 Background，
+         hover/pressed 时仅微调亮度，避免被默认 Button:pointerover 样式覆盖成浅色背景导致浅色文字不可辨识 -->
+    <UserControl.Styles>
+        <!-- 基础状态 -->
+        <Style Selector="Button.titlebarAction">
+            <Setter Property="Background" Value="#1C3765" />
+            <Setter Property="BorderBrush" Value="#2C568D" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#C8F6DD" />
+        </Style>
+
+        <!-- 悬停状态 (使用 /template/ 穿透默认模板防线) -->
+        <Style Selector="Button.titlebarAction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2B78C0" />
+            <Setter Property="BorderBrush" Value="#8BC7FF" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+
+        <!-- 禁用状态 -->
+        <Style Selector="Button.titlebarAction:disabled">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+
+        <Style Selector="Button.titlebarAction:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1C3765" />
+            <Setter Property="BorderBrush" Value="#2C568D" />
+            <Setter Property="Foreground" Value="#C8F6DD" />
+        </Style>
+    </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
         <!-- Top title bar -->
         <Border Grid.Row="0" Background="#122344" Padding="24,14">
@@ -22,7 +51,7 @@
                     <Border Background="#1C3765" CornerRadius="4" Padding="8,3">
                         <TextBlock Text="{Binding Status.Branch}" Foreground="#C8F6DD" FontSize="12" />
                     </Border>
-                    <Button Content="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}" Background="#1C3765" Foreground="#C8F6DD" />
+                    <Button Content="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}" Classes="titlebarAction" Background="#1C3765" Foreground="#C8F6DD" />
                 </StackPanel>
             </Grid>
         </Border>

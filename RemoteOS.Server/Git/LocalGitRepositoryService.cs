@@ -934,41 +934,62 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
     }
 
     /// <summary>Unquote a git path that was quoted because it contains special characters.
-    /// Git uses C-style quoting with backslash escapes.</summary>
+    /// Git uses C-style quoting with backslash escapes, and (when core.quotePath=true, the default)
+    /// encodes each non-ASCII byte as a 3-digit octal escape, e.g. the en-dash in "Jaya – Cross Plat.pptx"
+    /// (U+2013, UTF-8 bytes E2 80 93) is emitted as "Jaya \342\200\223 Cross Plat.pptx".
+    /// We therefore collect raw bytes (resolving \a \b \f \n \r \t \\ \" and \nnn octal), then decode the
+    /// resulting byte array as UTF-8 — this correctly reconstructs paths with en-dash, em-dash, CJK, emoji, etc.</summary>
     private static string UnquotePath(string path)
     {
         if (!path.StartsWith('"') || !path.EndsWith('"'))
             return path;
-        
-        // Remove surrounding quotes
+
         var inner = path[1..^1];
-        
-        // Handle backslash escapes (Git uses C-style quoting)
-        // \a, \b, \f, \n, \r, \t, \\, \"
-        var result = new System.Text.StringBuilder(inner.Length);
-        for (int i = 0; i < inner.Length; i++)
+        var bytes = new List<byte>(inner.Length);
+        int i = 0;
+        while (i < inner.Length)
         {
             if (inner[i] == '\\' && i + 1 < inner.Length)
             {
-                switch (inner[i + 1])
+                var next = inner[i + 1];
+                switch (next)
                 {
-                    case 'a': result.Append('\a'); i++; break;
-                    case 'b': result.Append('\b'); i++; break;
-                    case 'f': result.Append('\f'); i++; break;
-                    case 'n': result.Append('\n'); i++; break;
-                    case 'r': result.Append('\r'); i++; break;
-                    case 't': result.Append('\t'); i++; break;
-                    case '\\': result.Append('\\'); i++; break;
-                    case '"': result.Append('"'); i++; break;
-                    default: result.Append(inner[i]); break;
+                    case 'a': bytes.Add(0x07); i += 2; break;
+                    case 'b': bytes.Add(0x08); i += 2; break;
+                    case 'f': bytes.Add(0x0C); i += 2; break;
+                    case 'n': bytes.Add(0x0A); i += 2; break;
+                    case 'r': bytes.Add(0x0D); i += 2; break;
+                    case 't': bytes.Add(0x09); i += 2; break;
+                    case '\\': bytes.Add(0x5C); i += 2; break;
+                    case '"': bytes.Add(0x22); i += 2; break;
+                    default:
+                        // 3-digit octal escape \nnn (each n in 0..7) → single byte
+                        if (IsOctDigit(next) && i + 3 < inner.Length
+                            && IsOctDigit(inner[i + 2]) && IsOctDigit(inner[i + 3]))
+                        {
+                            bytes.Add((byte)((OctValue(next) << 6) | (OctValue(inner[i + 2]) << 3) | OctValue(inner[i + 3])));
+                            i += 4;
+                        }
+                        else
+                        {
+                            // Unknown escape: keep the backslash literally
+                            bytes.Add(0x5C);
+                            i++;
+                        }
+                        break;
                 }
             }
             else
             {
-                result.Append(inner[i]);
+                // Plain char: emit its UTF-8 byte sequence
+                bytes.AddRange(System.Text.Encoding.UTF8.GetBytes(new[] { inner[i] }));
+                i++;
             }
         }
-        return result.ToString();
+        return System.Text.Encoding.UTF8.GetString(bytes.ToArray());
+
+        static bool IsOctDigit(char c) => c >= '0' && c <= '7';
+        static int OctValue(char c) => c - '0';
     }
 
     private static string MapStatusChar(char c) => c switch

@@ -47,6 +47,7 @@ public sealed class GitClientApp : RemoteApplicationBase
         vm.ShowPullDialogAsync = () => GitClientDialogs.ShowPullDialogAsync(context, window!, vm);
         vm.ShowRegisterRepositoryDialogAsync = () => GitClientDialogs.ShowRegisterRepositoryDialogAsync(context, window!, vm);
         vm.ShowConfirmAsync = message => GitClientDialogs.ShowConfirmAsync(context, window!, message);
+        vm.ShowMessageAsync = message => GitClientDialogs.ShowMessageAsync(context, window!, message);
         vm.ShowGitUnavailableAsync = async () =>
         {
             var shouldContinue = await GitClientDialogs.ShowGitUnavailableAsync(context, window!, vm);

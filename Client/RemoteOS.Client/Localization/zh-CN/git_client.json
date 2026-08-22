@@ -161,6 +161,8 @@
         "git.dialog.pull.title": "拉取",
         "git.dialog.register.title": "注册仓库",
         "git.dialog.confirm": "确认",
+        "git.dialog.notice": "提示",
+        "git.dialog.notice.ok": "确定",
         "git.dialog.git_unavailable.title": "Git 未安装或不可用",
         "git.dialog.init.title": "初始化 Git 仓库",
         "git.dialog.add_remote.title": "添加远程仓库",

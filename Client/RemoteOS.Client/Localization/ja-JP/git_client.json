@@ -161,6 +161,8 @@
         "git.dialog.pull.title": "プル",
         "git.dialog.register.title": "リポジトリを登録",
         "git.dialog.confirm": "確認",
+        "git.dialog.notice": "お知らせ",
+        "git.dialog.notice.ok": "OK",
         "git.dialog.git_unavailable.title": "Git がインストールされていないか利用できません",
         "git.dialog.init.title": "Git リポジトリを初期化",
         "git.dialog.add_remote.title": "リモートを追加",
