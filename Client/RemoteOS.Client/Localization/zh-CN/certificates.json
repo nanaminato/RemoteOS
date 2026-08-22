@@ -11,6 +11,8 @@
     "certificates.validation.terms_required": "申请证书前必须接受证书提供商的服务条款。",
     "certificates.validation.email_required": "需要联系邮箱以接收到期通知。",
     "certificates.validation.domains_required": "请至少输入一个域名，多个域名用逗号分隔。",
+    "certificates.validation.challenge_required": "请选择验证方式。",
+    "certificates.validation.key_algorithm_required": "请选择密钥算法。",
     "certificates.request.title": "申请新证书",
     "certificates.request.help": "输入主域名以及任意使用者可选名称（SAN），用逗号分隔。HTTP-01 验证要求 80 端口可公网访问；DNS-01 要求服务器配置了受支持的 DNS 提供商。",
     "certificates.request.domains": "域名",

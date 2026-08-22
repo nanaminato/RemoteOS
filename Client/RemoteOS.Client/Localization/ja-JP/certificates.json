@@ -11,6 +11,8 @@
     "certificates.validation.terms_required": "証明書を要求する前に、プロバイダーの利用規約に同意する必要があります。",
     "certificates.validation.email_required": "有効期限通知用の連絡先メールアドレスが必要です。",
     "certificates.validation.domains_required": "少なくとも 1 つのドメインをカンマ区切りで入力してください。",
+    "certificates.validation.challenge_required": "チャレンジの種類を選択してください。",
+    "certificates.validation.key_algorithm_required": "鍵アルゴリズムを選択してください。",
     "certificates.request.title": "新しい証明書を要求",
     "certificates.request.help": "プライマリドメインと、カンマ区切りのサブジェクト代替名 (SAN) を入力してください。HTTP-01 チャレンジではポート 80 の公開到達性が必要です。DNS-01 はサーバー上の対応 DNS プロバイダーが必要です。",
     "certificates.request.domains": "ドメイン",

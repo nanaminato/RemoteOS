@@ -11,6 +11,8 @@
     "certificates.validation.terms_required": "You must accept the provider terms of service before requesting a certificate.",
     "certificates.validation.email_required": "A contact email is required for expiration notices.",
     "certificates.validation.domains_required": "Enter at least one domain, separated by commas.",
+    "certificates.validation.challenge_required": "Select a challenge type.",
+    "certificates.validation.key_algorithm_required": "Select a key algorithm.",
     "certificates.request.title": "Request a new certificate",
     "certificates.request.help": "Enter the primary domain and any subject alternative names separated by commas. HTTP-01 challenges require port 80 to be publicly reachable; DNS-01 requires a supported DNS provider on the server.",
     "certificates.request.domains": "Domains",

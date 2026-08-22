@@ -102,11 +102,16 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private async Task PreflightAsync()
     {
         if (!TryParseDomains(out var domains)) return;
+        if (SelectedChallengeType is not { } challengeType)
+        {
+            PreflightText = LocalizedText.Get("certificates.validation.challenge_required");
+            return;
+        }
         IsLoading = true;
         PreflightText = LocalizedText.Get("certificates.preflight.running");
         try
         {
-            var result = await _client.PreflightAsync(new CertificatePreflightRequest(domains, SelectedChallengeType!.Value));
+            var result = await _client.PreflightAsync(new CertificatePreflightRequest(domains, challengeType.Value));
             PreflightText = FormatPreflight(result);
         }
         catch (Exception exception)
@@ -123,6 +128,16 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     public async Task<bool> TryRequestCertificateAsync()
     {
         if (!TryParseDomains(out var domains)) return false;
+        if (SelectedChallengeType is not { } challengeType)
+        {
+            StatusText = LocalizedText.Get("certificates.validation.challenge_required");
+            return false;
+        }
+        if (SelectedKeyAlgorithm is not { } keyAlgorithm)
+        {
+            StatusText = LocalizedText.Get("certificates.validation.key_algorithm_required");
+            return false;
+        }
         if (!AcceptedTerms)
         {
             StatusText = LocalizedText.Get("certificates.validation.terms_required");
@@ -136,10 +151,10 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
 
         var request = new RequestCertificateRequest(
             domains,
-            SelectedChallengeType!.Value,
+            challengeType.Value,
             ContactEmail.Trim(),
             AcceptedTerms,
-            SelectedKeyAlgorithm!.Value,
+            keyAlgorithm.Value,
             PublicReachabilityConfirmed);
         return await RunOperationAsync(
             LocalizedText.Get("certificates.operation.request"),

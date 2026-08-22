@@ -25,7 +25,7 @@ internal interface IAcmeRenewalInfoProvider
 
 /// <summary>ACME v2 adapter. Anvil types are confined here so the manager and API remain SDK-independent.</summary>
 internal sealed class AnvilAcmeService(FileHttp01ChallengeStore webRootChallenges, DirectHttp01ChallengeStore directChallenges, CertificateOptions options,
-    CertificateMetadataRepository metadata) : IAcmeService, IAcmeRenewalInfoProvider
+    CertificateMetadataRepository metadata, ILogger<AnvilAcmeService> logger) : IAcmeService, IAcmeRenewalInfoProvider
 {
     private readonly SemaphoreSlim _accountGate = new(1, 1);
     public async Task RevokeAsync(X509Certificate2 certificate, string contactEmail, CancellationToken cancellationToken)
@@ -112,7 +112,20 @@ internal sealed class AnvilAcmeService(FileHttp01ChallengeStore webRootChallenge
         }
         catch (CertificateOperationException) { throw; }
         catch (OperationCanceledException) { throw; }
-        catch { throw new CertificateOperationException("certificate.acme_request_failed"); }
+        catch (NullReferenceException exception)
+        {
+            // Anvil 3.x can surface an incomplete account/directory response as a null reference.
+            // Keep the implementation detail out of the API, but retain the stack for diagnosis.
+            logger.LogError(exception, "The ACME client returned an incomplete response while issuing certificate {CertificateId} for {Domains}.",
+                certificateId, string.Join(",", domains));
+            throw new CertificateOperationException("certificate.acme_response_invalid");
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "ACME certificate issuance failed for certificate {CertificateId} and domains {Domains}.",
+                certificateId, string.Join(",", domains));
+            throw new CertificateOperationException("certificate.acme_request_failed");
+        }
         finally
         {
             foreach (var challenge in challenges)
