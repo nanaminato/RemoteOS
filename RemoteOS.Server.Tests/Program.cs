@@ -158,6 +158,12 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     Assert(await anchorResult is null, "A managed Nginx instance did not create its first site anchor.");
     Assert(File.Exists(Path.Combine(managedConfD, "remoteos.conf")), "The managed Nginx site anchor was not created.");
 
+    var resolveManagedExecutable = typeof(NginxWebServerManager).GetMethod("ResolveManagedExecutablePath", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Managed Nginx executable resolver was not found.");
+    var managedExecutable = (string)resolveManagedExecutable.Invoke(null, [managedRoot, true])!;
+    if (OperatingSystem.IsLinux())
+        Assert(managedExecutable == "/usr/sbin/nginx", "Built-in Linux installation must use the package executable instead of creating a second copy.");
+
     var validServerName = typeof(NginxWebServerManager).GetMethod("IsValidServerName", BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Nginx server-name validator was not found.");
     Assert((bool)validServerName.Invoke(null, ["192.0.2.10"])!, "IPv4 addresses were rejected as Nginx server names.");

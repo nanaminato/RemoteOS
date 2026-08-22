@@ -132,6 +132,12 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
+        // The built-in Linux installer owns the distribution package it installs.  Do not
+        // turn an existing system Nginx into a managed instance: it may already serve user
+        // traffic and, more importantly, using a second configuration would create two Nginx
+        // processes that compete for the same listeners.
+        if (UsesSystemPackageManagedExecutable() && File.Exists(layout.ExecutablePath))
+            return Rejected(layout.InstanceId, "install", "webserver.system_nginx_already_installed");
         if (OperatingSystem.IsWindows() && string.IsNullOrWhiteSpace(request.PackageId) && string.IsNullOrWhiteSpace(request.Version))
             return Rejected(layout.InstanceId, "install", "webserver.version_required");
         if (OperatingSystem.IsWindows() && ManagedRootExists(layout)
@@ -1015,6 +1021,12 @@ internal sealed partial class NginxWebServerManager(
         _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
         try
         {
+            if (UsesSystemPackageManagedExecutable()
+                && !await RunProcessAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], cancellationToken))
+            {
+                logger.LogWarning("Could not remove the APT-installed Nginx package for a managed installation. Executable={Executable}", layout.ExecutablePath);
+                return new WebServerOperationResult("webserver.uninstall_failed");
+            }
             Directory.Delete(layout.Root, recursive: true);
             return new WebServerOperationResult("");
         }
@@ -1069,20 +1081,31 @@ internal sealed partial class NginxWebServerManager(
         if (!await RunProcessAsync("/usr/bin/apt-get", ["update"], cancellationToken)) return false;
         var package = string.IsNullOrWhiteSpace(version) ? "nginx" : $"nginx={version.Trim()}";
         if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", package], cancellationToken)) return false;
-        const string systemExecutable = "/usr/sbin/nginx";
-        if (!File.Exists(systemExecutable) || IsSymbolicLink(systemExecutable)) return false;
+        if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath)) return false;
         try
         {
             if (IsSymbolicLink(layout.Root)) return false;
-            Directory.CreateDirectory(Path.Combine(layout.Root, "sbin"));
             Directory.CreateDirectory(Path.Combine(layout.Root, "conf", "conf.d"));
             Directory.CreateDirectory(Path.Combine(layout.Root, "logs"));
-            File.Copy(systemExecutable, layout.ExecutablePath, overwrite: true);
             await File.WriteAllTextAsync(layout.ConfigurationPath, ManagedConfiguration, new UTF8Encoding(false), cancellationToken);
-            return true;
+            // Debian-family packages normally start nginx after installation.  RemoteOS uses
+            // the package's one executable with its own configuration, so stop and disable the
+            // package service before the managed instance is ever started.
+            return await StopDistributionNginxServiceAsync(layout.ExecutablePath, cancellationToken);
         }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private async Task<bool> StopDistributionNginxServiceAsync(string executable, CancellationToken cancellationToken)
+    {
+        if (File.Exists("/usr/bin/systemctl"))
+            _ = await RunProcessAsync("/usr/bin/systemctl", ["disable", "--now", "nginx.service"], cancellationToken);
+        if (IsNginxRunning(executable))
+            _ = await RunNginxAsync(executable, ["-s", "quit"], cancellationToken);
+        for (var attempt = 0; attempt < 20 && IsNginxRunning(executable); attempt++)
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+        return !IsNginxRunning(executable);
     }
 
     private static async Task<bool> RunProcessAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
@@ -1110,9 +1133,20 @@ internal sealed partial class NginxWebServerManager(
                 : "/var/lib/remoteos/webserver/nginx"
             : managedOptions.InstallationRoot;
         root = Path.GetFullPath(root);
-        var executable = OperatingSystem.IsWindows() ? Path.Combine(root, "nginx.exe") : Path.Combine(root, "sbin", "nginx");
+        // APT owns the Linux executable at /usr/sbin/nginx.  The old implementation copied
+        // it into the RemoteOS data directory after installing the package, which produced a
+        // second Nginx installation and a second discovered instance.
+        var executable = ResolveManagedExecutablePath(root, UsesSystemPackageManagedExecutable());
         return new ManagedLayout(root, executable, Path.Combine(root, "conf", "nginx.conf"), Path.Combine(root, ManagedMarkerName), InstanceId(executable));
     }
+
+    private bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux() && !IsConfiguredInstaller();
+
+    private static string ResolveManagedExecutablePath(string root, bool useSystemPackageExecutable) => OperatingSystem.IsWindows()
+        ? Path.Combine(root, "nginx.exe")
+        : useSystemPackageExecutable
+            ? "/usr/sbin/nginx"
+            : Path.Combine(root, "sbin", "nginx");
 
     private static bool IsManagedInstallation(ManagedLayout layout)
     {
@@ -1274,7 +1308,14 @@ internal sealed partial class NginxWebServerManager(
             if (!File.Exists(pidPath) || IsSymbolicLink(pidPath)
                 || !int.TryParse(File.ReadAllText(pidPath).Trim(), out var pid) || pid <= 0) return false;
             using var process = Process.GetProcessById(pid);
-            return IsNginxProcess(process, layout.ExecutablePath);
+            if (IsNginxProcess(process, layout.ExecutablePath)) return true;
+            // Upgrade compatibility: old Linux builds copied the package executable into the
+            // managed root.  Treat that still-running process as managed so stop/restart can
+            // transition it cleanly to the one package executable.
+            var legacyExecutable = Path.Combine(layout.Root, "sbin", "nginx");
+            return OperatingSystem.IsLinux()
+                && !string.Equals(legacyExecutable, layout.ExecutablePath, StringComparison.Ordinal)
+                && IsNginxProcess(process, legacyExecutable);
         }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
