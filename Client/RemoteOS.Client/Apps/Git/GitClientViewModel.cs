@@ -71,7 +71,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private bool _pushIsLoading;
     [ObservableProperty] private string _pushStatusMessage = string.Empty;
 
-    public bool PushSingleCommitMode => PushCommits.Count <= 1;
+    public bool PushSingleCommitMode => PushSelectedCommit is not null || PushCommits.Count <= 1;
     public string PushBranchLineText => string.IsNullOrWhiteSpace(PushSelectedRemote) || string.IsNullOrWhiteSpace(PushSelectedBranch)
         ? string.Empty
         : LocalizedText.Format("git.dialog.push.branch_line_format", PushLocalBranchName, PushSelectedRemote, PushSelectedBranch);
@@ -1096,6 +1096,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (commit is null) return;
         PushSelectedCommit = commit;
+        OnPropertyChanged(nameof(PushSingleCommitMode));
         await LoadPushCommitFilesAsync(commit);
     }
 
@@ -1104,6 +1105,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task SelectAllPushCommitsAsync()
     {
         PushSelectedCommit = null;
+        OnPropertyChanged(nameof(PushSingleCommitMode));
         await LoadAllPushChangesAsync();
     }
 

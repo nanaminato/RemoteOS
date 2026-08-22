@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
+             x:Class="Client.Apps.Git.Views.GitPushDialog"
+             x:DataType="git:GitClientViewModel">
+    <Grid Margin="12" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+        <!-- Row 0: Branch line + commit count -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock x:Name="BranchLineText"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="#1C3765"
+                       Cursor="Hand"
+                       Text="{Binding PushBranchLineText}"
+                       PointerPressed="BranchLine_PointerPressed"/>
+            <TextBlock FontSize="12"
+                       Foreground="#666"
+                       Margin="8,0,0,0"
+                       Text="{Binding PushCommitCount, StringFormat={loc:Loc git.dialog.push.n_commits_format}}"/>
+        </StackPanel>
+
+        <!-- Row 1: Two-column layout -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: commit list -->
+            <StackPanel Grid.Column="0">
+                <Button Content="{loc:Loc git.dialog.push.all_commits}"
+                        FontSize="12"
+                        Padding="8,6"
+                        Background="#E8EEF8"
+                        Foreground="#1C3765"
+                        BorderThickness="0"
+                        HorizontalAlignment="Stretch"
+                        Margin="0,0,0,4"
+                        Click="AllCommits_Click"/>
+                <Border Background="#F4F7FB" CornerRadius="6" Padding="4">
+                    <ListBox Background="Transparent"
+                             BorderThickness="0"
+                             Padding="0"
+                             ItemsSource="{Binding PushCommits}"
+                             SelectionChanged="CommitList_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="proto:GitCommitDto">
+                                <Border Padding="8,6">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontSize="12"
+                                                   Foreground="#122344"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding Subject}"/>
+                                        <TextBlock FontSize="10"
+                                                   Foreground="#888"
+                                                   Text="{Binding Author}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </StackPanel>
+
+            <!-- Right: file changes -->
+            <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="8">
+                <StackPanel Spacing="4">
+                    <TextBlock FontSize="11"
+                               Foreground="#666"
+                               Margin="0,4,0,0"
+                               Text="{Binding PushFileCount, StringFormat={loc:Loc git.dialog.push.n_files_format}}"/>
+
+                    <TreeView Background="Transparent"
+                              BorderThickness="0"
+                              Padding="4"
+                              ItemsSource="{Binding PushChangedFiles}">
+                        <TreeView.ItemTemplate>
+                            <DataTemplate x:DataType="proto:GitFileChangeDto">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📄" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock FontSize="12"
+                                               Foreground="#122344"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding Path}"/>
+                                    <Border CornerRadius="3"
+                                            Padding="4,0"
+                                            Margin="4,0,0,0"
+                                            Background="#0078D4">
+                                        <TextBlock FontSize="10"
+                                                   Foreground="White"
+                                                   Text="{Binding Status}"/>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+
+                    <!-- Commit info panel (shown when single commit is selected) -->
+                    <Border x:Name="CommitInfoBorder"
+                            Background="#F8FAFC"
+                            CornerRadius="4"
+                            Padding="8"
+                            Margin="0,8,0,0"
+                            IsVisible="{Binding PushSingleCommitMode}">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#122344"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding PushSelectedCommit.Subject}"/>
+                            <TextBlock FontSize="11"
+                                       Foreground="#666"
+                                       Margin="0,4,0,0"
+                                       Text="{Binding PushSelectedCommit, Converter={x:Static git:GitPickerConverters.CommitMeta}}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Row 2: Push button + Cancel -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="{loc:Loc git.dialog.push.push}"
+                    Background="#1C3765"
+                    Foreground="White"
+                    Padding="20,6"
+                    Click="Push_Click"/>
+            <Button Content="{loc:Loc git.dialog.push.cancel}"
+                    Padding="14,6"
+                    Margin="8,0,0,0"
+                    Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

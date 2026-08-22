@@ -14,6 +14,9 @@ public static class GitPickerConverters
     /// 用法：Text="{Binding Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter=git.workspace.file_count_format}"。
     /// 注意：仅在绑定值变化时重新计算；语言切换后需触发源属性变更才会刷新文案。</summary>
     public static readonly IValueConverter LocalizedFormat = new LocalizedFormatConverter();
+
+    /// <summary>将 GitCommitDto 转换为提交元信息字符串（短SHA + 作者 + 日期）。</summary>
+    public static readonly IValueConverter CommitMeta = new CommitMetaConverter();
 }
 
 /// <summary>当输入为整数 0 时返回 true，否则返回 false（适用于 Avalonia 的 IsVisible 绑定）。</summary>
