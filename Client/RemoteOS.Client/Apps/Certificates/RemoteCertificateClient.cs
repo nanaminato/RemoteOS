@@ -16,38 +16,39 @@ namespace Client.Apps.Certificates;
 public sealed class RemoteCertificateClient(HttpClient http, IAuthSession session) : IRemoteCertificateClient
 {
     public Task<IReadOnlyList<CertificateDto>> ListAsync(CancellationToken cancellationToken = default)
-        => SendAsync<IReadOnlyList<CertificateDto>>(HttpMethod.Get, CertificateApiRoutes.CollectionPattern, null, null, cancellationToken);
+        => SendAsync<IReadOnlyList<CertificateDto>>(HttpMethod.Get, CertificateApiRoutes.Certificates, null, null, cancellationToken);
 
     public Task<CertificateDto?> GetAsync(Guid id, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateDto?>(HttpMethod.Get, CertificateApiRoutes.ByIdPattern.Replace("{id:guid}", id.ToString("N")), null, null, cancellationToken);
+        => SendAsync<CertificateDto?>(HttpMethod.Get, CertificateApiRoutes.ById.Replace("{id}", id.ToString("N")), null, null, cancellationToken, returnNullOnNotFound: true);
 
     public Task<CertificatePreflightResultDto> PreflightAsync(CertificatePreflightRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<CertificatePreflightResultDto>(HttpMethod.Post, CertificateApiRoutes.PreflightPattern, request, null, cancellationToken);
+        => SendAsync<CertificatePreflightResultDto>(HttpMethod.Post, CertificateApiRoutes.Preflight, request, null, cancellationToken);
 
     public Task<CertificateOperationDto> RequestAsync(RequestCertificateRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.CollectionPattern, request, NewKey(), cancellationToken);
+        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Request, request, NewKey(), cancellationToken);
 
     public Task<CertificateOperationDto> DeployKestrelAsync(Guid id, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.DeployPattern.Replace("{id:guid}", id.ToString("N")), null, NewKey(), cancellationToken);
+        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Deploy.Replace("{id}", id.ToString("N")), null, NewKey(), cancellationToken);
 
     public Task<CertificateOperationDto> RenewAsync(Guid id, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.RenewPattern.Replace("{id:guid}", id.ToString("N")), null, NewKey(), cancellationToken);
+        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Renew.Replace("{id}", id.ToString("N")), null, NewKey(), cancellationToken);
 
     public Task<CertificateOperationDto> RevokeAsync(Guid id, RevokeCertificateRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.RevokePattern.Replace("{id:guid}", id.ToString("N")), request, NewKey(), cancellationToken);
+        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Revoke.Replace("{id}", id.ToString("N")), request, NewKey(), cancellationToken);
 
     public Task<CertificateOperationDto> DeleteAsync(Guid id, DeleteCertificateRequest request, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto>(HttpMethod.Delete, CertificateApiRoutes.DeletePattern.Replace("{id:guid}", id.ToString("N")), request, NewKey(), cancellationToken);
+        => SendAsync<CertificateOperationDto>(HttpMethod.Delete, CertificateApiRoutes.ById.Replace("{id}", id.ToString("N")), request, NewKey(), cancellationToken);
 
     public Task<CertificateOperationDto?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto?>(HttpMethod.Get, CertificateApiRoutes.OperationsPattern.Replace("{operationId:guid}", operationId.ToString("N")), null, null, cancellationToken);
+        => SendAsync<CertificateOperationDto?>(HttpMethod.Get, CertificateApiRoutes.Operations.Replace("{operationId}", operationId.ToString("N")), null, null, cancellationToken, returnNullOnNotFound: true);
 
     public Task<CertificateOperationDto?> CancelOperationAsync(Guid operationId, CancellationToken cancellationToken = default)
-        => SendAsync<CertificateOperationDto?>(HttpMethod.Post, CertificateApiRoutes.CancelOperationPattern.Replace("{operationId:guid}", operationId.ToString("N")), null, null, cancellationToken);
+        => SendAsync<CertificateOperationDto?>(HttpMethod.Post, CertificateApiRoutes.CancelOperation.Replace("{operationId}", operationId.ToString("N")), null, null, cancellationToken, returnNullOnNotFound: true);
 
     private static string NewKey() => Guid.NewGuid().ToString("N");
 
-    private async Task<T> SendAsync<T>(HttpMethod method, string route, object? body, string? idempotencyKey, CancellationToken cancellationToken)
+    private async Task<T> SendAsync<T>(HttpMethod method, string route, object? body, string? idempotencyKey, CancellationToken cancellationToken,
+        bool returnNullOnNotFound = false)
     {
         if (session.State != AuthSessionState.Authenticated || session.Tokens is null || session.ServerUrl is null)
             throw new InvalidOperationException("RemoteOS session is not authenticated.");
@@ -59,8 +60,9 @@ public sealed class RemoteCertificateClient(HttpClient http, IAuthSession sessio
         if (idempotencyKey is not null)
             request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
         using var response = await http.SendAsync(request, cancellationToken);
-        // 404 maps to default(T) so callers can distinguish "not found" from a transport error.
-        if (response.StatusCode == HttpStatusCode.NotFound && default(T) is null)
+        // Only lookup endpoints opt into a null result. Treating a collection or mutation 404 as
+        // null hides a bad API route and leads to secondary null-reference failures in the UI.
+        if (response.StatusCode == HttpStatusCode.NotFound && returnNullOnNotFound)
             return default!;
         if (!response.IsSuccessStatusCode)
         {

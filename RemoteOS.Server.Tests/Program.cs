@@ -16,6 +16,7 @@ Directory.CreateDirectory(root);
 try
 {
     await VerifyCertificateStoreAndSniAsync(root);
+    VerifyCertificateApiRoutes();
     await VerifyRenewalRetryAsync(root);
     await VerifyHostGlobalMigrationAsync(root);
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
@@ -67,6 +68,13 @@ static async Task VerifyCertificateStoreAndSniAsync(string root)
     Assert(registry.Select("two.example.test") == secondSni, "Second SNI binding was not selected.");
     Assert(registry.Deactivate(secondId), "Second SNI binding did not deactivate.");
     Assert(registry.Select("one.example.test") == firstSni, "Unrelated SNI binding changed during deactivation.");
+}
+
+static void VerifyCertificateApiRoutes()
+{
+    Assert(CertificateApiRoutes.Certificates == "/api/v1/certificates", "Certificate collection route changed unexpectedly.");
+    Assert(CertificateApiRoutes.Request == CertificateApiRoutes.Certificates, "Certificate request route must use the collection endpoint.");
+    Assert(CertificateApiRoutes.CollectionPattern.Length == 0, "Certificate collection pattern must remain group-relative.");
 }
 
 static async Task VerifyRenewalRetryAsync(string root)

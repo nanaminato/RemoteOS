@@ -83,7 +83,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         IsLoading = true;
         try
         {
-            var certificates = await _client.ListAsync();
+            var certificates = await _client.ListAsync() ?? [];
             Certificates.Clear();
             SelectedCertificate = null;
             foreach (var certificate in certificates) Certificates.Add(certificate);
