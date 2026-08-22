@@ -67,6 +67,22 @@ internal partial class GitWorkspaceView : UserControl
         _vm.CommitCommand.Execute(null);
     }
 
+    private void CommitAndPush_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_vm is null) return;
+        if (_vm.SelectedCount == 0)
+        {
+            _vm.StatusText = LocalizedText.Get("git.status.no_files_selected");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_vm.CommitMessage))
+        {
+            _vm.StatusText = LocalizedText.Get("git.status.commit_message_required");
+            return;
+        }
+        _vm.CommitAndPushCommand.Execute(null);
+    }
+
     private void ClearSelection_Click(object? sender, RoutedEventArgs e)
     {
         _vm?.ClearSelectionCommand.Execute(null);

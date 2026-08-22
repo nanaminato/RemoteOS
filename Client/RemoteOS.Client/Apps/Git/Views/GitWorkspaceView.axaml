@@ -123,6 +123,12 @@
                             <TextBlock Text="{loc:Loc git.workspace.commit}" />
                         </StackPanel>
                     </Button>
+                    <Button Click="CommitAndPush_Click" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="⬆" />
+                            <TextBlock Text="{loc:Loc git.workspace.commit_and_push}" />
+                        </StackPanel>
+                    </Button>
                     <Button Content="{loc:Loc git.workspace.clear_selection}" Click="ClearSelection_Click"/>
                 </StackPanel>
             </StackPanel>

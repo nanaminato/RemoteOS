@@ -1,5 +1,6 @@
 using Avalonia.Data.Converters;
 using Client.Localization;
+using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git;
 
@@ -33,6 +34,24 @@ public sealed class LocalizedFormatConverter : IValueConverter
         var key = parameter as string ?? string.Empty;
         if (string.IsNullOrEmpty(key)) return value?.ToString() ?? string.Empty;
         return LocalizedText.Format(key, value);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+        => throw new NotSupportedException();
+}
+
+/// <summary>将 GitCommitDto 转换为提交元信息字符串（作者 + 日期）。</summary>
+public sealed class CommitMetaConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
+    {
+        if (value is not GitCommitDto commit) return string.Empty;
+        var author = string.IsNullOrWhiteSpace(commit.Author) ? "unknown" : commit.Author;
+        var date = string.IsNullOrWhiteSpace(commit.AuthorDate) ? string.Empty : commit.AuthorDate;
+        var shortSha = string.IsNullOrWhiteSpace(commit.ShortSha) ? string.Empty : commit.ShortSha;
+        var result = $"{shortSha} {author}";
+        if (!string.IsNullOrEmpty(date)) result += $", {date}";
+        return result;
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)

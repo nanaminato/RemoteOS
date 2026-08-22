@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <RootNamespace>RemoteOS.UI</RootNamespace>
+        <AvaloniaBuildTelemetryOptOut>true</AvaloniaBuildTelemetryOptOut>
     </PropertyGroup>
 
     <ItemGroup>

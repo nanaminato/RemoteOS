@@ -78,6 +78,8 @@ public sealed class GitClientApp : RemoteApplicationBase
         vm.ShowRenameBranchDialogAsync = branch => GitClientDialogs.ShowRenameBranchDialogAsync(context, window!, branch);
         vm.ShowMergeDialogAsync = branch => GitClientDialogs.ShowMergeDialogAsync(context, window!, branch, vm);
         vm.ShowSetTrackingDialogAsync = branch => GitClientDialogs.ShowSetTrackingDialogAsync(context, window!, branch, vm);
+        vm.ShowPushDialogAsync = () => GitClientDialogs.ShowPushDialogAsync(context, window!, vm);
+        vm.ShowRemoteBranchPickerDialogAsync = (remote, branch) => GitClientDialogs.ShowRemoteBranchPickerDialogAsync(context, window!, remote, branch, vm);
 
         var view = GitClientWorkspace.Create(vm);
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.git.display_name"),

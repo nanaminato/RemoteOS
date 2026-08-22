@@ -725,4 +725,448 @@ internal static class GitClientDialogs
             },
         };
     }
+
+    // ── Push dialog ──
+
+    public static Task<bool> ShowPushDialogAsync(AppContext context, ManagedWindow owner, GitClientViewModel vm)
+        => context.ShowDialogAsync<bool>(owner,
+            LocalizedText.Format("git.dialog.push.title", vm.SelectedRepository?.Name ?? string.Empty),
+            dialog => BuildPushDialog(vm, dialog),
+            new RemoteOS.Core.Primitives.Size(820, 580));
+
+    private static Control BuildPushDialog(GitClientViewModel vm, ModalDialog<bool> dialog)
+    {
+        var rootGrid = new Grid
+        {
+            RowDefinitions =
+            {
+                new GridRowDefinition(GridLength.Auto),
+                new GridRowDefinition(new GridLength(1, GridUnitType.Star)),
+                new GridRowDefinition(GridLength.Auto),
+            },
+            Margin = new Thickness(12),
+            Spacing = new Thickness(0, 8),
+        };
+
+        // Row 0: Branch line + commit count
+        var branchLine = new TextBlock
+        {
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush.Parse("#1C3765"),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Text = vm.PushBranchLineText,
+        };
+        branchLine.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.PushBranchLineText),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+        });
+        branchLine.PointerPressed += async (_, _) =>
+        {
+            if (vm.SelectPushRemoteBranchCommand.IsRunning) return;
+            await vm.SelectPushRemoteBranchCommand.ExecuteAsync(null);
+        };
+
+        var commitCountText = new TextBlock
+        {
+            FontSize = 12,
+            Foreground = Brush.Parse("#666"),
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        commitCountText.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.PushCommitCount),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+            StringFormat = LocalizedText.Get("git.dialog.push.n_commits_format"),
+        });
+
+        var headerPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { branchLine, commitCountText },
+        };
+
+        // Row 1: Two-column layout (commits | files)
+        var mainSplit = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new GridColumnDefinition(new GridLength(200)),
+                new GridColumnDefinition(new GridLength(1, GridUnitType.Star)),
+            },
+        };
+
+        // Left: commit list
+        var commitList = new ListBox
+        {
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(0),
+            ItemsSource = vm.PushCommits,
+        };
+        commitList.SelectionChanged += async (_, _) =>
+        {
+            if (commitList.SelectedItem is GitCommitDto commit)
+                await vm.SelectPushCommitCommand.ExecuteAsync(commit);
+        };
+
+        var commitItemTemplate = new DataTemplate(() =>
+        {
+            var subject = new TextBlock
+            {
+                FontSize = 12,
+                Foreground = Brush.Parse("#122344"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            subject.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+            {
+                Path = nameof(GitCommitDto.Subject),
+                Mode = Avalonia.Data.BindingMode.OneWay,
+            });
+
+            var author = new TextBlock
+            {
+                FontSize = 10,
+                Foreground = Brush.Parse("#888"),
+            };
+            author.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+            {
+                Path = nameof(GitCommitDto.Author),
+                Mode = Avalonia.Data.BindingMode.OneWay,
+            });
+
+            var itemPanel = new StackPanel
+            {
+                Spacing = 2,
+                Padding = new Thickness(8, 6),
+                Children = { subject, author },
+            };
+            return itemPanel;
+        });
+        commitList.ItemTemplate = commitItemTemplate;
+
+        var leftBorder = new Border
+        {
+            Background = Brush.Parse("#F4F7FB"),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(4),
+            Child = commitList,
+        };
+        Grid.SetColumn(leftBorder, 0);
+
+        // Add "All commits" as first selectable item
+        var allCommitsItem = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.push.all_commits"),
+            FontSize = 12,
+            Padding = new Thickness(8, 6),
+            Background = Brush.Parse("#E8EEF8"),
+            Foreground = Brush.Parse("#1C3765"),
+            BorderThickness = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 0, 4),
+        };
+        allCommitsItem.Click += async (_, _) =>
+        {
+            commitList.SelectedIndex = -1;
+            await vm.SelectAllPushCommitsCommand.ExecuteAsync(null);
+        };
+
+        var leftPanel = new StackPanel
+        {
+            Children = { allCommitsItem, leftBorder },
+        };
+        Grid.SetColumn(leftPanel, 0);
+
+        // Right: file changes
+        var fileTree = new TreeView
+        {
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(4),
+            ItemsSource = vm.PushChangedFiles,
+        };
+
+        var fileItemTemplate = new DataTemplate(() =>
+        {
+            var icon = new TextBlock
+            {
+                Text = "📄",
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 6, 0),
+            };
+            var path = new TextBlock
+            {
+                FontSize = 12,
+                Foreground = Brush.Parse("#122344"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            path.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+            {
+                Path = nameof(GitFileChangeDto.Path),
+                Mode = Avalonia.Data.BindingMode.OneWay,
+            });
+
+            var statusBorder = new Border
+            {
+                CornerRadius = new CornerRadius(3),
+                Padding = new Thickness(4, 0),
+                Margin = new Thickness(4, 0, 0, 0),
+                Background = Brush.Parse("#0078D4"),
+            };
+            var statusText = new TextBlock
+            {
+                FontSize = 10,
+                Foreground = Brushes.White,
+            };
+            statusText.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+            {
+                Path = nameof(GitFileChangeDto.Status),
+                Mode = Avalonia.Data.BindingMode.OneWay,
+            });
+            statusBorder.Child = statusText;
+
+            var panel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children = { icon, path, statusBorder },
+            };
+            return panel;
+        });
+        fileTree.ItemTemplate = fileItemTemplate;
+
+        var fileCountText = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = Brush.Parse("#666"),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        fileCountText.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.PushFileCount),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+            StringFormat = LocalizedText.Get("git.dialog.push.n_files_format"),
+        });
+
+        // Commit info panel (shown when single commit is selected)
+        var commitInfoBorder = new Border
+        {
+            Background = Brush.Parse("#F8FAFC"),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8),
+            Margin = new Thickness(0, 8, 0, 0),
+            IsVisible = false,
+        };
+        commitInfoBorder.Bind(IsVisibleProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.PushSingleCommitMode),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+        });
+
+        var commitSubject = new TextBlock
+        {
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = Brush.Parse("#122344"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        commitSubject.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = $"{nameof(GitClientViewModel.PushSelectedCommit)}.{nameof(GitCommitDto.Subject)}",
+            Mode = Avalonia.Data.BindingMode.OneWay,
+        });
+
+        var commitMeta = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = Brush.Parse("#666"),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        commitMeta.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding
+        {
+            Path = nameof(GitClientViewModel.PushSelectedCommit),
+            Mode = Avalonia.Data.BindingMode.OneWay,
+            Converter = new CommitMetaConverter(),
+        });
+
+        var commitInfoPanel = new StackPanel
+        {
+            Spacing = 2,
+            Children = { commitSubject, commitMeta },
+        };
+        commitInfoBorder.Child = commitInfoPanel;
+
+        var rightPanel = new StackPanel
+        {
+            Background = Brushes.White,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8),
+            Spacing = 4,
+            Children =
+            {
+                fileCountText,
+                fileTree,
+                commitInfoBorder,
+            },
+        };
+        Grid.SetColumn(rightPanel, 1);
+
+        mainSplit.Children.Add(leftPanel);
+        mainSplit.Children.Add(rightPanel);
+
+        // Row 2: Push button + Cancel
+        var pushBtn = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.push.push"),
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new Thickness(20, 6),
+        };
+        pushBtn.Click += (_, _) => dialog.Close(true);
+
+        var cancelBtn = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.push.cancel"),
+            Padding = new Thickness(14, 6),
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        cancelBtn.Click += (_, _) => dialog.Cancel();
+
+        var footer = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Children = { pushBtn, cancelBtn },
+        };
+
+        rootGrid.Children.Add(headerPanel);
+        Grid.SetRow(headerPanel, 0);
+        rootGrid.Children.Add(mainSplit);
+        Grid.SetRow(mainSplit, 1);
+        rootGrid.Children.Add(footer);
+        Grid.SetRow(footer, 2);
+
+        return rootGrid;
+    }
+
+    // ── Remote / Branch picker dialog ──
+
+    public static Task<(string Remote, string Branch)?> ShowRemoteBranchPickerDialogAsync(
+        AppContext context, ManagedWindow owner, string? currentRemote, string? currentBranch, GitClientViewModel vm)
+        => context.ShowDialogAsync<(string Remote, string Branch)?>(owner,
+            LocalizedText.Format("git.dialog.push.dialog_title_format", currentRemote ?? LocalizedText.Get("git.dialog.push.not_selected")),
+            dialog => BuildRemoteBranchPickerDialog(currentRemote, currentBranch, vm, dialog),
+            new RemoteOS.Core.Primitives.Size(460, 320));
+
+    private static Control BuildRemoteBranchPickerDialog(string? currentRemote, string? currentBranch,
+        GitClientViewModel vm, ModalDialog<(string Remote, string Branch)?> dialog)
+    {
+        var remoteBox = new ComboBox
+        {
+            PlaceholderText = LocalizedText.Get("git.dialog.push.remote_placeholder"),
+            ItemsSource = vm.Remotes.Select(r => r.Name).ToList(),
+        };
+        if (!string.IsNullOrWhiteSpace(currentRemote))
+        {
+            var match = vm.Remotes.FirstOrDefault(r => r.Name == currentRemote);
+            if (match is not null) remoteBox.SelectedItem = match.Name;
+            else remoteBox.Text = currentRemote;
+        }
+        else if (vm.Remotes.Count > 0)
+        {
+            remoteBox.SelectedIndex = 0;
+        }
+
+        var branchBox = new TextBox
+        {
+            PlaceholderText = LocalizedText.Get("git.dialog.push.branch_placeholder"),
+            Text = currentBranch ?? string.Empty,
+        };
+
+        var statusText = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = Brush.Parse("#888"),
+            Text = LocalizedText.Get("git.dialog.push.load_branches_failed"),
+            IsVisible = false,
+        };
+
+        // Try to load remote branches
+        _ = LoadRemoteBranchesAsync(vm, remoteBox, branchBox, statusText);
+
+        var confirmBtn = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.tracking.set_btn"),
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new Thickness(14, 6),
+        };
+        confirmBtn.Click += (_, _) =>
+        {
+            var remote = remoteBox.SelectedItem as string ?? remoteBox.Text;
+            var branch = branchBox.Text;
+            if (string.IsNullOrWhiteSpace(remote) || string.IsNullOrWhiteSpace(branch)) return;
+            dialog.Close((remote.Trim(), branch.Trim()));
+        };
+
+        var cancelBtn = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.tracking.cancel"),
+            Padding = new Thickness(14, 6),
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        cancelBtn.Click += (_, _) => dialog.Cancel();
+
+        var result = new StackPanel
+        {
+            Margin = new Thickness(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = LocalizedText.Get("git.dialog.push.select_remote"),
+                    FontSize = 13,
+                },
+                remoteBox,
+                new TextBlock
+                {
+                    Text = LocalizedText.Get("git.dialog.push.select_branch"),
+                    FontSize = 13,
+                },
+                branchBox,
+                statusText,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { confirmBtn, cancelBtn },
+                },
+            },
+        };
+
+        return result;
+    }
+
+    private static async Task LoadRemoteBranchesAsync(GitClientViewModel vm, ComboBox remoteBox, TextBox branchBox, TextBlock statusText)
+    {
+        if (vm.SelectedRepository is null) return;
+        try
+        {
+            var branches = await vm.GetRemoteBranchNamesAsync();
+            if (branches.Count > 0)
+            {
+                branchBox.ItemsSource = branches;
+                branchBox.IsReadOnly = false;
+                statusText.IsVisible = false;
+            }
+        }
+        catch
+        {
+            statusText.IsVisible = true;
+        }
+    }
 }

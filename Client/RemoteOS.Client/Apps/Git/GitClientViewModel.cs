@@ -60,6 +60,25 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private string _commitSearchText = string.Empty;
     [ObservableProperty] private GitFileChangeDto? _selectedCommitFile;
 
+    // ── Push dialog state ──
+    public ObservableCollection<GitCommitDto> PushCommits { get; } = [];
+    public ObservableCollection<GitFileChangeDto> PushChangedFiles { get; } = [];
+
+    [ObservableProperty] private GitCommitDto? _pushSelectedCommit;
+    [ObservableProperty] private string _pushSelectedRemote = string.Empty;
+    [ObservableProperty] private string _pushSelectedBranch = string.Empty;
+    [ObservableProperty] private string _pushLocalBranchName = string.Empty;
+    [ObservableProperty] private bool _pushIsLoading;
+    [ObservableProperty] private string _pushStatusMessage = string.Empty;
+
+    public bool PushSingleCommitMode => PushCommits.Count <= 1;
+    public string PushBranchLineText => string.IsNullOrWhiteSpace(PushSelectedRemote) || string.IsNullOrWhiteSpace(PushSelectedBranch)
+        ? string.Empty
+        : LocalizedText.Format("git.dialog.push.branch_line_format", PushLocalBranchName, PushSelectedRemote, PushSelectedBranch);
+    public int PushFileCount => PushChangedFiles.Count;
+    public int PushCommitCount => PushCommits.Count;
+    public bool PushHasCommits => PushCommits.Count > 0;
+
     // ── 项目选择器状态：IsPickerMode=true 时显示项目选择视图而非工作区 ──
     [ObservableProperty] private bool _isPickerMode = true;
     [ObservableProperty] private string _probeHint = string.Empty;
@@ -105,6 +124,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Displays a modal message box with a single OK button. Used for error/validation
     /// reminders that must grab the user's attention (rather than being silently tucked into StatusText).</summary>
     public Func<string, Task>? ShowMessageAsync { get; set; }
+
+    /// <summary>Shows the push preview dialog with commit list and file changes.
+    /// Returns true if user confirms push, false if cancelled.</summary>
+    public Func<Task<bool>>? ShowPushDialogAsync { get; set; }
+
+    /// <summary>Shows the remote/branch picker dialog for push target selection.
+    /// Input: current remote name (may be null), current branch name.
+    /// Returns: (remoteName, branchName) tuple or null on cancel.</summary>
+    public Func<string?, string?, Task<(string Remote, string Branch)?>>? ShowRemoteBranchPickerDialogAsync { get; set; }
 
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
@@ -537,14 +565,13 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         if (SelectedRepository is null) return;
 
         // 工作区已勾选文件且输入了提交消息 → 直接提交，不再弹对话框
-        // （对话框会要求用户再次输入消息和确认文件，体验割裂，且容易让用户误以为"点了 Commit 就提交了"）
         if (SelectedCount > 0 && !string.IsNullOrWhiteSpace(CommitMessage))
         {
             await CommitDirectAsync(amend: false);
             return;
         }
 
-        // 兜底：工作区没输入消息或没勾选文件时，回退到对话框（保留 amend 等高级选项入口）
+        // 兜底：工作区没输入消息或没勾选文件时，回退到对话框
         if (ShowCommitDialogAsync is not null)
         {
             var request = await ShowCommitDialogAsync();
@@ -557,19 +584,19 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 {
                     StatusText = LocalizedText.Get("git.status.committed");
                     CommitMessage = string.Empty;
+                    await RefreshAllAsync();
+                    await ShowPushDialogAfterCommitAsync();
                 }
                 else
                 {
                     await NotifyAsync(LocalizedText.Format("git.status.commit_failed_format", result.Message));
                 }
-                await RefreshAllAsync();
             }
             catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
             finally { IsBusy = false; }
         }
         else
         {
-            // 无对话框委托时给出明确提示，避免静默失败
             if (SelectedCount == 0)
                 await NotifyAsync(LocalizedText.Get("git.status.no_files_selected"));
             else if (string.IsNullOrWhiteSpace(CommitMessage))
@@ -600,13 +627,14 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             if (result.Success)
             {
                 StatusText = LocalizedText.Get("git.status.committed");
-                CommitMessage = string.Empty; // 提交成功后清空输入框，给用户明确反馈
+                CommitMessage = string.Empty;
+                await RefreshAllAsync();
+                await ShowPushDialogAfterCommitAsync();
             }
             else
             {
                 await NotifyAsync(LocalizedText.Format("git.status.commit_failed_format", result.Message));
             }
-            await RefreshAllAsync();
         }
         catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
         finally { IsBusy = false; }
@@ -942,6 +970,262 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             // 服务端尚未实现该端点时，降级为仅展示提交信息，不崩溃
             StatusText = LocalizedText.Format("git.vm.load_commit_detail_failed_format", ex.Message);
         }
+    }
+
+    // ── Push dialog state management ──
+
+    /// <summary>Prepares the push dialog state by loading ahead commits and setting defaults.
+    /// Called before showing the push dialog, or when navigating the dialog.</summary>
+    public async Task PreparePushPreviewAsync()
+    {
+        if (SelectedRepository is null || Status is null) return;
+
+        PushIsLoading = true;
+        PushStatusMessage = LocalizedText.Get("git.dialog.push.loading_commits");
+
+        try
+        {
+            PushCommits.Clear();
+            PushChangedFiles.Clear();
+            PushSelectedCommit = null;
+
+            PushLocalBranchName = Status.Branch;
+
+            var upstream = Status.Upstream;
+            if (!string.IsNullOrWhiteSpace(upstream))
+            {
+                var parts = upstream.Split('/');
+                if (parts.Length >= 2)
+                {
+                    PushSelectedRemote = parts[0];
+                    PushSelectedBranch = string.Join("/", parts.Skip(1));
+                }
+                else
+                {
+                    PushSelectedRemote = "origin";
+                    PushSelectedBranch = upstream;
+                }
+            }
+            else
+            {
+                PushSelectedRemote = Remotes.Count > 0 ? Remotes[0].Name : "origin";
+                PushSelectedBranch = Status.Branch;
+            }
+
+            if (Status.Ahead > 0)
+            {
+                var commits = await client.GetLogAsync(SelectedRepository.Id, limit: Status.Ahead + 50);
+                var ahead = commits.Take(Status.Ahead).ToList();
+                foreach (var c in ahead) PushCommits.Add(c);
+            }
+
+            PushStatusMessage = PushCommits.Count == 0
+                ? LocalizedText.Get("git.dialog.push.no_commits_ahead")
+                : LocalizedText.Format("git.vm.push_n_commits_ahead_format", PushCommits.Count);
+
+            if (PushCommits.Count > 0)
+            {
+                PushSelectedCommit = PushCommits[0];
+                await LoadPushCommitFilesAsync(PushSelectedCommit);
+            }
+
+            OnPropertyChanged(nameof(PushSingleCommitMode));
+            OnPropertyChanged(nameof(PushBranchLineText));
+            OnPropertyChanged(nameof(PushFileCount));
+            OnPropertyChanged(nameof(PushCommitCount));
+            OnPropertyChanged(nameof(PushHasCommits));
+        }
+        catch (Exception ex)
+        {
+            PushStatusMessage = LocalizedText.Format("git.vm.push_dialog_prepare_failed", ex.Message);
+            Log($"PreparePushPreviewAsync 异常：{ex.GetType().Name} {ex.Message}");
+        }
+        finally
+        {
+            PushIsLoading = false;
+        }
+    }
+
+    /// <summary>Loads changed files for a single commit to display in the push dialog.</summary>
+    private async Task LoadPushCommitFilesAsync(GitCommitDto? commit)
+    {
+        PushChangedFiles.Clear();
+        if (commit is null || SelectedRepository is null) return;
+        try
+        {
+            var detail = await client.GetCommitDetailAsync(SelectedRepository.Id, commit.Sha);
+            foreach (var f in detail.ChangedFiles) PushChangedFiles.Add(f);
+            OnPropertyChanged(nameof(PushFileCount));
+        }
+        catch (Exception ex)
+        {
+            Log($"LoadPushCommitFilesAsync 异常：{ex.Message}");
+        }
+    }
+
+    /// <summary>Loads combined file changes for all ahead commits (when user clicks the branch line).</summary>
+    private async Task LoadAllPushChangesAsync()
+    {
+        PushChangedFiles.Clear();
+        if (SelectedRepository is null || PushCommits.Count == 0) return;
+
+        var allPaths = new HashSet<string>();
+        var firstCommitFiles = new List<GitFileChangeDto>();
+
+        foreach (var commit in PushCommits)
+        {
+            try
+            {
+                var detail = await client.GetCommitDetailAsync(SelectedRepository.Id, commit.Sha);
+                foreach (var f in detail.ChangedFiles)
+                {
+                    if (allPaths.Add(f.Path))
+                        firstCommitFiles.Add(f);
+                }
+            }
+            catch { /* skip failed commits */ }
+        }
+
+        foreach (var f in firstCommitFiles) PushChangedFiles.Add(f);
+        OnPropertyChanged(nameof(PushFileCount));
+    }
+
+    /// <summary>Called when user selects a commit in the push dialog's left panel.</summary>
+    [RelayCommand]
+    private async Task SelectPushCommitAsync(GitCommitDto? commit)
+    {
+        if (commit is null) return;
+        PushSelectedCommit = commit;
+        await LoadPushCommitFilesAsync(commit);
+    }
+
+    /// <summary>Called when user clicks the branch line to view all changes combined.</summary>
+    [RelayCommand]
+    private async Task SelectAllPushCommitsAsync()
+    {
+        PushSelectedCommit = null;
+        await LoadAllPushChangesAsync();
+    }
+
+    /// <summary>Opens the remote/branch picker dialog for the push target.</summary>
+    [RelayCommand]
+    private async Task SelectPushRemoteBranchAsync()
+    {
+        if (ShowRemoteBranchPickerDialogAsync is null) return;
+        var result = await ShowRemoteBranchPickerDialogAsync(PushSelectedRemote, PushSelectedBranch);
+        if (result.HasValue)
+        {
+            PushSelectedRemote = result.Value.Remote;
+            PushSelectedBranch = result.Value.Branch;
+            OnPropertyChanged(nameof(PushBranchLineText));
+        }
+    }
+
+    /// <summary>Commits with the intention of pushing afterwards.
+    /// Same as CommitAsync but auto-opens the push dialog on success.</summary>
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CommitAndPushAsync()
+    {
+        if (SelectedRepository is null) return;
+        if (SelectedCount == 0)
+        {
+            await NotifyAsync(LocalizedText.Get("git.status.no_files_selected"));
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(CommitMessage))
+        {
+            await NotifyAsync(LocalizedText.Get("git.status.commit_message_required"));
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var request = new GitCommitRequest(CommitMessage, SelectedFilePaths.ToArray(), false);
+            var result = await client.CommitAsync(SelectedRepository.Id, request);
+            if (result.Success)
+            {
+                StatusText = LocalizedText.Get("git.status.committed");
+                CommitMessage = string.Empty;
+                await RefreshAllAsync();
+
+                await PreparePushPreviewAsync();
+
+                if (ShowPushDialogAsync is not null)
+                {
+                    var confirmed = await ShowPushDialogAsync();
+                    if (confirmed)
+                        await ExecutePushNowAsync();
+                }
+            }
+            else
+            {
+                await NotifyAsync(LocalizedText.Format("git.status.commit_failed_format", result.Message));
+                await RefreshAllAsync();
+            }
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>Shows the push dialog for preview/confirmation after a regular commit.
+    /// Called from CommitAsync after successful commit.</summary>
+    public async Task ShowPushDialogAfterCommitAsync()
+    {
+        await PreparePushPreviewAsync();
+        if (ShowPushDialogAsync is not null)
+        {
+            var confirmed = await ShowPushDialogAsync();
+            if (confirmed)
+                await ExecutePushNowAsync();
+        }
+    }
+
+    /// <summary>Executes the actual push operation with current dialog settings.</summary>
+    private async Task ExecutePushNowAsync()
+    {
+        if (SelectedRepository is null) return;
+        IsBusy = true;
+        StatusText = LocalizedText.Get("git.vm.push_progress");
+        try
+        {
+            var result = await client.PushAsync(SelectedRepository.Id);
+            if (result.RequiresCredentials)
+                await NotifyAsync(LocalizedText.Get("git.vm.credentials_required"));
+            else
+            {
+                if (result.Success)
+                    StatusText = LocalizedText.Get("git.vm.pushed");
+                else
+                    await NotifyAsync(LocalizedText.Format("git.vm.push_failed_format", result.Message));
+                await RefreshAllAsync();
+            }
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>获取远程分支名称列表（从已加载的 Branches 中过滤 IsRemote=true）。
+    /// 如分支列表未加载则触发一次加载。</summary>
+    public async Task<IReadOnlyList<string>> GetRemoteBranchNamesAsync()
+    {
+        if (SelectedRepository is null) return Array.Empty<string>();
+        if (Branches.Count == 0)
+        {
+            try
+            {
+                var branches = await client.ListBranchesAsync(SelectedRepository.Id);
+                Branches.Clear();
+                foreach (var b in branches) Branches.Add(b);
+            }
+            catch { /* silent */ }
+        }
+        return Branches.Where(b => b.IsRemote).Select(b =>
+        {
+            // Strip remote prefix (e.g., "origin/master" → "master")
+            var slashIdx = b.Name.IndexOf('/');
+            return slashIdx >= 0 ? b.Name.Substring(slashIdx + 1) : b.Name;
+        }).Distinct().ToList();
     }
 
     // ── 分支右键菜单命令 ──
