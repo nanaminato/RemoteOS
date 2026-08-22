@@ -4,7 +4,7 @@ using Avalonia.Media;
 
 namespace Client.Apps.WebServers.Views;
 
-/// <summary>Web Server Manager shell with separate instance and site workspaces.</summary>
+/// <summary>Web Server Manager shell. Layout lives in AXAML; this class only switches pages.</summary>
 internal partial class WebServerManagerWorkspace : UserControl
 {
     private Button? _selectedButton;
@@ -35,14 +35,8 @@ internal partial class WebServerManagerWorkspace : UserControl
         _selectedButton = button;
         button.Background = Brush.Parse("#DCEBFF");
         button.Foreground = Brush.Parse("#1769D9");
-        InstancesPage.IsVisible = page == "instances";
-        SitesPage.IsVisible = page == "sites";
-    }
-
-    private async void ServiceAddress_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { Tag: string path }
-            && DataContext is WebServerManagerViewModel viewModel)
-            await viewModel.OpenSiteDirectoryAsync(path);
+        ContentHost.Content = page == "sites"
+            ? new WebServerSitesPageView()
+            : new WebServerInstancesPageView();
     }
 }
