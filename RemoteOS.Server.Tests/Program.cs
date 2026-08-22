@@ -4,6 +4,7 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using RemoteOS.Protocol.Certificates;
 using RemoteOS.Protocol.WebServers;
 using Server.Certificate;
@@ -194,7 +195,7 @@ static async Task VerifyOperationIdempotencyAsync(string root)
     var certificates = new FileCertificateStore(environment, options, new CertificateMetadataRepository(environment, configuration));
     var retries = new CertificateRenewalAttemptRepository(environment, configuration, options);
     var journal = new HostOperationJournal(environment, configuration);
-    var certificateOperations = new CertificateOperationStore(environment, journal, certificates, retries);
+    var certificateOperations = new CertificateOperationStore(environment, journal, certificates, retries, NullLogger<CertificateOperationStore>.Instance);
     var certificateId = Guid.NewGuid();
     var first = await certificateOperations.StartAsync("same-key", certificateId, "issue", "test", _ => Task.FromResult(""), CancellationToken.None);
     var duplicate = await certificateOperations.StartAsync("same-key", certificateId, "issue", "test", _ => Task.FromResult("certificate.should_not_run"), CancellationToken.None);

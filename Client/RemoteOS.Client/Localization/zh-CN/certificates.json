@@ -51,6 +51,7 @@
     "certificates.operation.failed": "{0}失败：{1}",
     "certificates.operation.progress": "{0} — {1}",
     "certificates.operation.exception": "{0}失败：{1}",
+    "certificates.operation.not_found": "服务器未返回证书操作状态。请刷新后重试。",
     "certificates.action.deploy": "部署到 Kestrel",
     "certificates.action.renew": "续期",
     "certificates.action.revoke": "吊销",

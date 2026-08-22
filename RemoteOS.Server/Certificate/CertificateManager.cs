@@ -22,7 +22,8 @@ internal interface ICertificateManager
 }
 
 internal sealed class CertificateManager(ICertificateStore certificates, IAcmeService acme, IAcmeRenewalInfoProvider renewalInfo, CertificateOperationStore operations,
-    KestrelCertificateRegistry kestrel, CertificateDeploymentRepository deployments, IServer server, IHostPrivilegeService privileges, IHostApplicationLifetime lifetime) : ICertificateManager
+    KestrelCertificateRegistry kestrel, CertificateDeploymentRepository deployments, IServer server, IHostPrivilegeService privileges, IHostApplicationLifetime lifetime,
+    ILogger<CertificateManager> logger) : ICertificateManager
 {
     public async Task<IReadOnlyList<CertificateDto>> ListAsync(CancellationToken cancellationToken)
         => (await certificates.ListAsync(cancellationToken)).Select(ToDto).ToArray();
@@ -65,6 +66,10 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
 
     public async Task<CertificateOperationDto> RequestAsync(string idempotencyKey, RequestCertificateRequest request, string? actor, CancellationToken cancellationToken)
     {
+        logger.LogInformation("Certificate issuance requested. Actor={Actor} ChallengeType={ChallengeType} KeyAlgorithm={KeyAlgorithm} DomainCount={DomainCount}",
+            actor, request?.ChallengeType, request?.KeyAlgorithm, request?.Domains?.Count ?? 0);
+        if (request is null)
+            return Failure("issue", "certificate.request_invalid");
         if (!privileges.IsAdministrator)
             return Failure("issue", "certificate.admin_required");
         if (!request.AcceptedTerms)
@@ -78,15 +83,24 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         if (!IsValidEmail(request.ContactEmail))
             return Failure("issue", "certificate.contact_invalid");
         var preflight = await PreflightAsync(new CertificatePreflightRequest(domains, request.ChallengeType), cancellationToken);
-        if (!preflight.CanProceed) return Failure("issue", preflight.ProblemCode);
+        if (!preflight.CanProceed)
+        {
+            logger.LogWarning("Certificate issuance preflight failed. ChallengeType={ChallengeType} Domains={Domains} ProblemCode={ProblemCode}",
+                request.ChallengeType, string.Join(',', domains), preflight.ProblemCode);
+            return Failure("issue", preflight.ProblemCode);
+        }
         if (preflight.RequiresPublicReachabilityConfirmation && !request.PublicReachabilityConfirmed)
             return Failure("issue", "certificate.public_reachability_confirmation_required");
 
         var certificateId = Guid.NewGuid();
+        logger.LogInformation("Certificate issuance accepted. CertificateId={CertificateId} ChallengeType={ChallengeType} KeyAlgorithm={KeyAlgorithm} Domains={Domains}",
+            certificateId, request.ChallengeType, request.KeyAlgorithm, string.Join(',', domains));
         return await operations.StartAsync(idempotencyKey, certificateId, "issue", actor, async ct =>
         {
+            logger.LogInformation("Certificate issuance ACME step started. CertificateId={CertificateId}", certificateId);
             var material = await acme.IssueAsync(certificateId, domains, request.ChallengeType, request.KeyAlgorithm, request.ContactEmail, ct);
             await certificates.SaveAsync(material, ct);
+            logger.LogInformation("Certificate issuance material saved. CertificateId={CertificateId}", certificateId);
             return "";
         }, lifetime.ApplicationStopping);
     }

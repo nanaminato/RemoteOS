@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Client.Services.Auth;
 using RemoteOS.Protocol.Certificates;
 using RemoteOS.Protocol.Common;
@@ -61,8 +62,31 @@ public sealed class RemoteCertificateClient(HttpClient http, IAuthSession sessio
         // 404 maps to default(T) so callers can distinguish "not found" from a transport error.
         if (response.StatusCode == HttpStatusCode.NotFound && default(T) is null)
             return default!;
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new CertificateApiException(await ReadProblemCodeAsync(response, cancellationToken)
+                ?? FallbackProblemCode(response.StatusCode), response.StatusCode);
+        }
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken)
             ?? throw new InvalidOperationException("RemoteOS returned an empty response.");
     }
+
+    private static async Task<string?> ReadProblemCodeAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(payload)) return null;
+        try { return JsonSerializer.Deserialize<CertificateProblemDetails>(payload, RemoteOsJsonOptions.Default)?.ProblemCode; }
+        catch (JsonException) { return null; }
+    }
+
+    private static string FallbackProblemCode(HttpStatusCode statusCode) => $"certificate.http_{(int)statusCode}";
+
+    private sealed record CertificateProblemDetails(string? ProblemCode);
+}
+
+/// <summary>Structured certificate API failure exposed to the view model as a stable problem code.</summary>
+internal sealed class CertificateApiException(string problemCode, HttpStatusCode statusCode)
+    : HttpRequestException(problemCode, null, statusCode)
+{
+    public string ProblemCode { get; } = problemCode;
 }

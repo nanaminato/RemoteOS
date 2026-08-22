@@ -19,13 +19,16 @@ internal sealed class CertificateOperationStore
     private readonly CertificateRenewalAttemptRepository _renewalAttempts;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
+    private readonly ILogger<CertificateOperationStore> _logger;
+
     public CertificateOperationStore(IHostEnvironment environment, HostOperationJournal journal, ICertificateStore certificates,
-        CertificateRenewalAttemptRepository renewalAttempts)
+        CertificateRenewalAttemptRepository renewalAttempts, ILogger<CertificateOperationStore> logger)
     {
         _path = Path.Combine(environment.ContentRootPath, "data", "certificate-operations.json");
         _journal = journal;
         _certificates = certificates;
         _renewalAttempts = renewalAttempts;
+        _logger = logger;
         LoadAndRecover();
     }
 
@@ -37,11 +40,18 @@ internal sealed class CertificateOperationStore
         await _gate.WaitAsync(applicationStopping);
         try
         {
-            if (_byIdempotency.TryGetValue(key, out var existing)) return _operations[existing].ToDto();
+            if (_byIdempotency.TryGetValue(key, out var existing))
+            {
+                _logger.LogInformation("Certificate operation request reused. OperationId={OperationId} CertificateId={CertificateId} Kind={Kind}",
+                    existing, certificateId, kind);
+                return _operations[existing].ToDto();
+            }
             operation = new PersistedOperation(Guid.NewGuid(), key, certificateId, kind, actor, CertificateOperationState.Queued, "queued", "", null, null);
             _operations.Add(operation.OperationId, operation);
             _byIdempotency.Add(key, operation.OperationId);
             await SaveAsync(applicationStopping);
+            _logger.LogInformation("Certificate operation queued. OperationId={OperationId} CertificateId={CertificateId} Kind={Kind} Actor={Actor}",
+                operation.OperationId, certificateId, kind, actor);
         }
         finally { _gate.Release(); }
         _ = RunAsync(operation.OperationId, operation.CertificateId, action, applicationStopping);
@@ -78,6 +88,7 @@ internal sealed class CertificateOperationStore
         try
         {
             if (!await MarkRunningAsync(id, stopping)) return;
+            _logger.LogInformation("Certificate operation started. OperationId={OperationId} CertificateId={CertificateId}", id, certificateId);
             var certificateGate = _certificateGates.GetOrAdd(certificateId, static _ => new SemaphoreSlim(1, 1));
             await certificateGate.WaitAsync(linked.Token);
             string problem;
@@ -86,9 +97,22 @@ internal sealed class CertificateOperationStore
             await CompleteAsync(id, linked.IsCancellationRequested ? CertificateOperationState.Cancelled : string.IsNullOrEmpty(problem) ? CertificateOperationState.Succeeded : CertificateOperationState.Failed,
                 linked.IsCancellationRequested ? "certificate.operation_cancelled" : problem, stopping);
         }
-        catch (CertificateOperationException error) { await CompleteAsync(id, CertificateOperationState.Failed, error.ProblemCode, CancellationToken.None); }
-        catch (OperationCanceledException) { await CompleteAsync(id, CertificateOperationState.Cancelled, "certificate.operation_cancelled", CancellationToken.None); }
-        catch { await CompleteAsync(id, CertificateOperationState.Failed, "certificate.operation_failed", CancellationToken.None); }
+        catch (CertificateOperationException error)
+        {
+            _logger.LogWarning(error, "Certificate operation failed. OperationId={OperationId} CertificateId={CertificateId} ProblemCode={ProblemCode}",
+                id, certificateId, error.ProblemCode);
+            await CompleteAsync(id, CertificateOperationState.Failed, error.ProblemCode, CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Certificate operation cancelled. OperationId={OperationId} CertificateId={CertificateId}", id, certificateId);
+            await CompleteAsync(id, CertificateOperationState.Cancelled, "certificate.operation_cancelled", CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            _logger.LogError(error, "Certificate operation failed unexpectedly. OperationId={OperationId} CertificateId={CertificateId}", id, certificateId);
+            await CompleteAsync(id, CertificateOperationState.Failed, "certificate.operation_failed", CancellationToken.None);
+        }
         finally { _cancellations.TryRemove(id, out _); }
     }
 
@@ -116,6 +140,8 @@ internal sealed class CertificateOperationStore
             var completed = operation with { State = state, Stage = state.ToString().ToLowerInvariant(), ProblemCode = problemCode, CompletedAt = DateTimeOffset.UtcNow };
             _operations[id] = completed;
             await SaveAsync(ct);
+            _logger.LogInformation("Certificate operation completed. OperationId={OperationId} CertificateId={CertificateId} Kind={Kind} State={State} ProblemCode={ProblemCode}",
+                id, completed.CertificateId, completed.Kind, state, problemCode);
             if (completed.Kind == "renew")
             {
                 if (state == CertificateOperationState.Failed)

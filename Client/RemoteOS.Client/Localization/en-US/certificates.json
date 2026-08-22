@@ -51,6 +51,7 @@
     "certificates.operation.failed": "{0} failed: {1}",
     "certificates.operation.progress": "{0} — {1}",
     "certificates.operation.exception": "{0} failed: {1}",
+    "certificates.operation.not_found": "The server did not return a certificate operation status. Refresh and try again.",
     "certificates.action.deploy": "Deploy to Kestrel",
     "certificates.action.renew": "Renew",
     "certificates.action.revoke": "Revoke",

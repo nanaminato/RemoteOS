@@ -114,6 +114,10 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             var result = await _client.PreflightAsync(new CertificatePreflightRequest(domains, challengeType.Value));
             PreflightText = FormatPreflight(result);
         }
+        catch (CertificateApiException exception)
+        {
+            PreflightText = LocalizedText.Format("certificates.preflight.failed", ProblemText(exception.ProblemCode));
+        }
         catch (Exception exception)
         {
             PreflightText = LocalizedText.Format("certificates.preflight.failed", exception.Message);
@@ -224,9 +228,14 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         try
         {
             var operation = await start(token);
+            if (operation is null)
+            {
+                OperationText = LocalizedText.Get("certificates.operation.not_found");
+                return false;
+            }
             if (operation.OperationId == Guid.Empty)
             {
-                OperationText = LocalizedText.Format("certificates.operation.rejected", operation.ProblemCode);
+                OperationText = LocalizedText.Format("certificates.operation.rejected", ProblemText(operation.ProblemCode));
                 return false;
             }
             _activeOperationId = operation.OperationId;
@@ -241,12 +250,17 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             else if (operation.State == CertificateOperationState.Cancelled)
                 OperationText = LocalizedText.Get("certificates.operation.cancelled");
             else
-                OperationText = LocalizedText.Format("certificates.operation.failed", label, operation.ProblemCode);
+                OperationText = LocalizedText.Format("certificates.operation.failed", label, ProblemText(operation.ProblemCode));
             return false;
         }
         catch (OperationCanceledException)
         {
             OperationText = LocalizedText.Get("certificates.operation.cancelled");
+            return false;
+        }
+        catch (CertificateApiException exception)
+        {
+            OperationText = LocalizedText.Format("certificates.operation.failed", label, ProblemText(exception.ProblemCode));
             return false;
         }
         catch (Exception exception)
@@ -267,7 +281,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     {
         while (operation.State is CertificateOperationState.Queued or CertificateOperationState.Running)
         {
-            OperationText = LocalizedText.Format("certificates.operation.progress", operation.Kind, operation.Stage);
+            OperationText = LocalizedText.Format("certificates.operation.progress", operation.Kind ?? "", operation.Stage ?? "");
             await Task.Delay(PollInterval, cancellationToken);
             var updated = await _client.GetOperationAsync(operation.OperationId, cancellationToken);
             if (updated is null) break;
@@ -313,7 +327,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             lines.Add(LocalizedText.Get(port80 ? "certificates.preflight.port80_available" : "certificates.preflight.port80_unavailable"));
         if (result.RequiresAdministrator)
             lines.Add(LocalizedText.Get("certificates.preflight.requires_admin"));
-        foreach (var domain in result.Domains)
+        foreach (var domain in result.Domains ?? [])
         {
             if (!string.IsNullOrEmpty(domain.ProblemCode))
                 lines.Add(LocalizedText.Format("certificates.preflight.domain_problem", domain.Domain, domain.ProblemCode));
@@ -330,6 +344,18 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private bool CanRequest => CanManage;
     private bool CanActOnSelected => CanManage && SelectedCertificate is not null;
     private bool CanCancelOperation => IsOperationRunning;
+
+    private static string ProblemText(string? problemCode) => problemCode switch
+    {
+        "certificate.acme_response_invalid" => "ACME 服务返回了不完整的响应。请查看 RemoteOS Server 的证书日志。",
+        "certificate.acme_request_failed" => "ACME 请求失败。请查看 RemoteOS Server 的证书日志以获取具体原因。",
+        "certificate.operation_failed" => "证书操作发生了未预期的错误。请查看 RemoteOS Server 的证书日志。",
+        "certificate.request_invalid" => "证书申请数据无效。",
+        "certificate.validation_failed" => "域名验证失败。请确认 80 端口可从公网访问且挑战文件可被读取。",
+        "certificate.validation_timeout" => "域名验证超时。请确认 DNS 和 80 端口配置后重试。",
+        "certificate.http01_not_offered" => "证书颁发机构没有为该域名提供 HTTP-01 验证。",
+        _ => string.IsNullOrWhiteSpace(problemCode) ? "certificate.operation_failed" : problemCode,
+    };
 
     private static CertificateOption<TValue> Option<TValue>(TValue value, string labelKey) where TValue : struct => new(value, LocalizedText.Get(labelKey));
 

@@ -51,6 +51,7 @@
     "certificates.operation.failed": "{0}が失敗しました: {1}",
     "certificates.operation.progress": "{0} — {1}",
     "certificates.operation.exception": "{0}が失敗しました: {1}",
+    "certificates.operation.not_found": "サーバーから証明書操作の状態が返されませんでした。更新して再試行してください。",
     "certificates.action.deploy": "Kestrel にデプロイ",
     "certificates.action.renew": "更新",
     "certificates.action.revoke": "失効",
