@@ -1328,6 +1328,25 @@ internal sealed partial class NginxWebServerManager(
         try
         {
             if (process.HasExited || !IsNginxProcessName(process.ProcessName)) return false;
+        }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { return false; }
+        catch (NotSupportedException) { return false; }
+
+        // Process.MainModule is not consistently readable for a daemon started by a Linux
+        // service, even when the PID file is readable.  /proc/<pid>/exe identifies the same
+        // executable without relying on that API, so a successfully started managed Nginx is
+        // not reported as stopped after the two-second readiness check.
+        if (OperatingSystem.IsLinux())
+        {
+            try { return ExecutablePathsMatch($"/proc/{process.Id}/exe", executablePath); }
+            catch (InvalidOperationException) { return false; }
+            catch (System.ComponentModel.Win32Exception) { return false; }
+            catch (NotSupportedException) { return false; }
+        }
+
+        try
+        {
             var processExecutable = process.MainModule?.FileName;
             return !string.IsNullOrWhiteSpace(processExecutable) && ExecutablePathsMatch(processExecutable, executablePath);
         }
