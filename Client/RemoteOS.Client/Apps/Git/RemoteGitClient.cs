@@ -45,11 +45,24 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<GitOperationResult> DeleteBranchAsync(string id, string name, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Delete, GitApiRoutes.BranchByName.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)), null, cancellationToken);
 
+    public Task<GitOperationResult> RenameBranchAsync(string id, string name, GitBranchRenameRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post,
+            GitApiRoutes.RenameBranch.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)),
+            request, cancellationToken);
+
+    public Task<GitOperationResult> SetBranchTrackingAsync(string id, string name, GitBranchTrackingRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Put,
+            GitApiRoutes.BranchTracking.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)),
+            request, cancellationToken);
+
     public Task<GitOperationResult> CheckoutAsync(string id, GitCheckoutRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Checkout.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
     public Task<GitOperationResult> CommitAsync(string id, GitCommitRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Commit.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
+    public Task<GitOperationResult> MergeBranchAsync(string id, GitMergeRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Merge.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
     public Task<GitOperationResult> FetchAsync(string id, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Fetch.Replace("{id}", Uri.EscapeDataString(id)), null, cancellationToken);

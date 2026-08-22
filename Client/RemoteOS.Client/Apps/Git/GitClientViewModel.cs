@@ -77,6 +77,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public Func<string, Task<bool>>? ShowInitConfirmAsync { get; set; }
     /// <summary>Prompts the user for new remote name + fetch URL (+ optional push URL).</summary>
     public Func<GitRemoteDto?, Task<GitRemoteRequest?>>? ShowRemoteDialogAsync { get; set; }
+    /// <summary>Prompts the user for a new branch name when renaming. Returns null if user cancels.</summary>
+    public Func<GitBranchDto, Task<string?>>? ShowRenameBranchDialogAsync { get; set; }
+    /// <summary>Prompts the user for merge strategy (merge/no-ff/ff-only/squash) + optional message.
+    /// The <paramref name="sourceBranch"/> argument is pre-filled so the dialog can show context.
+    /// Returns null if user cancels.</summary>
+    public Func<GitBranchDto, Task<GitMergeRequest?>>? ShowMergeDialogAsync { get; set; }
+    /// <summary>Prompts the user for an upstream (remote/branch) to track, or choose "Unset" / auto <c>origin/{branch}</c>.
+    /// Returns null if user cancels.</summary>
+    public Func<GitBranchDto, Task<GitBranchTrackingRequest?>>? ShowSetTrackingDialogAsync { get; set; }
 
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
@@ -764,14 +773,43 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         await DeleteBranchAsync(branch);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task RenameBranchAsync(GitBranchDto? branch)
     {
         branch ??= SelectedBranch;
-        if (branch is null) return;
-        // TODO: 服务端尚未实现 git branch -m 端点，占位提示
-        StatusText = $"重命名分支「{branch.Name}」：功能待实现（需新增 rename-branch 端点）";
-        await Task.CompletedTask;
+        if (branch is null || SelectedRepository is null) return;
+        if (branch.IsRemote) { StatusText = "不能直接重命名远程分支，请先在本地重命名后推送。"; return; }
+
+        // 弹输入框取新名称；对话框未接入壳时走二次确认+占位提示（服务端接口已就绪）
+        string? newName = null;
+        if (ShowRenameBranchDialogAsync is not null)
+            newName = await ShowRenameBranchDialogAsync(branch);
+        else if (ShowConfirmAsync is not null)
+        {
+            // 壳暂未注入重命名输入对话框时，降级为直接尝试一个合理默认行为：追加 "-2" 后缀（便于先跑通接口链路）
+            if (!await ShowConfirmAsync($"重命名分支「{branch.Name}」？（壳暂未接入输入对话框，将自动追加 \"-2\" 后缀，如需自定义名称请稍后重试）"))
+                return;
+            newName = $"{branch.Name}-2";
+        }
+
+        if (string.IsNullOrWhiteSpace(newName)) return;
+        IsBusy = true;
+        try
+        {
+            var result = await client.RenameBranchAsync(SelectedRepository.Id, branch.Name,
+                new GitBranchRenameRequest(newName));
+            if (result.Success)
+            {
+                StatusText = $"已将「{branch.Name}」重命名为「{newName}」";
+                await RefreshAllAsync();
+            }
+            else
+            {
+                StatusText = $"重命名失败：{result.Message}";
+            }
+        }
+        catch (Exception ex) { StatusText = $"重命名失败：{ex.Message}"; }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -779,9 +817,45 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null || SelectedRepository is null) return;
-        // TODO: 服务端尚未实现 git merge 端点，占位提示
-        StatusText = $"合并分支「{branch.Name}」到当前：功能待实现（需新增 merge 端点）";
-        await Task.CompletedTask;
+
+        GitMergeRequest? request;
+        if (ShowMergeDialogAsync is not null)
+        {
+            request = await ShowMergeDialogAsync(branch);
+            if (request is null) return;
+        }
+        else
+        {
+            // 默认策略：普通 merge（非 ff-only / squash），让 git 根据仓库配置决定是否生成合并提交
+            request = new GitMergeRequest(branch.Name);
+            if (ShowConfirmAsync is not null
+                && !await ShowConfirmAsync($"将分支「{branch.Name}」合并到当前（使用默认 merge 策略）？"))
+                return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await client.MergeBranchAsync(SelectedRepository.Id, request);
+            if (result.Conflicts is not null && result.Conflicts.Count > 0)
+            {
+                StatusText = $"合并产生 {result.Conflicts.Count} 个冲突，请先解决。";
+                HasConflicts = true;
+                ActivePage = GitClientPage.ConflictResolution;
+                await RefreshAllAsync();
+            }
+            else if (result.Success)
+            {
+                StatusText = $"已合并「{request.Source}」";
+                await RefreshAllAsync();
+            }
+            else
+            {
+                StatusText = $"合并失败：{result.Message}";
+            }
+        }
+        catch (Exception ex) { StatusText = $"合并失败：{ex.Message}"; }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -813,13 +887,49 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task FetchBranchAsync(GitBranchDto? _) => await FetchAsync();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task SetUpstreamBranchAsync(GitBranchDto? branch)
     {
         branch ??= SelectedBranch;
-        if (branch is null) return;
-        StatusText = $"设置分支「{branch.Name}」跟踪：功能待实现（需新增 set-upstream 端点）";
-        await Task.CompletedTask;
+        if (branch is null || SelectedRepository is null) return;
+        if (branch.IsRemote) { StatusText = "不能为远程分支对象设置跟踪；请选择本地分支。"; return; }
+
+        GitBranchTrackingRequest? request;
+        if (ShowSetTrackingDialogAsync is not null)
+        {
+            request = await ShowSetTrackingDialogAsync(branch);
+            if (request is null) return;
+        }
+        else
+        {
+            // 默认：若分支名形式为 "origin/foo" 则尝试匹配远程分支；否则自动绑定 origin/<same-name>
+            var prompt = $"为本地分支「{branch.Name}」设置跟踪远程 origin/{branch.Name}？";
+            if (ShowConfirmAsync is not null && !await ShowConfirmAsync(prompt + "（如存在则绑定成功，不存在会返回错误，稍后可在对话框中自定义）"))
+                return;
+            request = new GitBranchTrackingRequest(Remote: "origin", Branch: branch.Name);
+        }
+
+        IsBusy = true;
+        try
+        {
+            var result = await client.SetBranchTrackingAsync(SelectedRepository.Id, branch.Name, request);
+            if (result.Success)
+            {
+                var unset = string.IsNullOrWhiteSpace(request.Upstream)
+                            && string.IsNullOrWhiteSpace(request.Remote)
+                            && string.IsNullOrWhiteSpace(request.Branch);
+                StatusText = unset
+                    ? $"已取消「{branch.Name}」的跟踪分支"
+                    : $"已设置「{branch.Name}」跟踪 {(string.IsNullOrWhiteSpace(request.Upstream) ? $"{request.Remote}/{request.Branch}" : request.Upstream)}";
+                await RefreshAllAsync();
+            }
+            else
+            {
+                StatusText = $"设置跟踪失败：{result.Message}";
+            }
+        }
+        catch (Exception ex) { StatusText = $"设置跟踪失败：{ex.Message}"; }
+        finally { IsBusy = false; }
     }
 
     // ── 提交右键菜单命令 ──

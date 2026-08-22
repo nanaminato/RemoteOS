@@ -80,6 +80,18 @@ public static class GitEndpoints
             return Results.Ok(await service.DeleteBranchAsync(repoId, GetUserId(principal), name, ct));
         });
 
+        group.MapPost("/repositories/{id}/branches/{name}/rename", async (string id, string name, GitBranchRenameRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.RenameBranchAsync(repoId, GetUserId(principal), name, request, ct));
+        });
+
+        group.MapPut("/repositories/{id}/branches/{name}/tracking", async (string id, string name, GitBranchTrackingRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.SetBranchTrackingAsync(repoId, GetUserId(principal), name, request, ct));
+        });
+
         group.MapPost("/repositories/{id}/checkout", async (string id, GitCheckoutRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
@@ -90,6 +102,12 @@ public static class GitEndpoints
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
             return Results.Ok(await service.CommitAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/merge", async (string id, GitMergeRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.MergeBranchAsync(repoId, GetUserId(principal), request, ct));
         });
 
         group.MapPost("/repositories/{id}/fetch", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>

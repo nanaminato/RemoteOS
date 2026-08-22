@@ -13,8 +13,11 @@ public static class GitApiRoutes
     public const string Status = $"/{V1}/git/repositories/{{id}}/status";
     public const string Branches = $"/{V1}/git/repositories/{{id}}/branches";
     public const string BranchByName = $"/{V1}/git/repositories/{{id}}/branches/{{name}}";
+    public const string RenameBranch = $"/{V1}/git/repositories/{{id}}/branches/{{name}}/rename";
+    public const string BranchTracking = $"/{V1}/git/repositories/{{id}}/branches/{{name}}/tracking";
     public const string Checkout = $"/{V1}/git/repositories/{{id}}/checkout";
     public const string Commit = $"/{V1}/git/repositories/{{id}}/commit";
+    public const string Merge = $"/{V1}/git/repositories/{{id}}/merge";
     public const string Pull = $"/{V1}/git/repositories/{{id}}/pull";
     public const string Push = $"/{V1}/git/repositories/{{id}}/push";
     public const string Log = $"/{V1}/git/repositories/{{id}}/log";

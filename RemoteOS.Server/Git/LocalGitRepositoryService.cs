@@ -295,6 +295,52 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         });
     }
 
+    public async Task<GitOperationResult> RenameBranchAsync(Guid id, Guid userId, string name, GitBranchRenameRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return new GitOperationResult(false, "rename-branch", Message: "Source branch name is required.");
+        if (string.IsNullOrWhiteSpace(request.NewName))
+            return new GitOperationResult(false, "rename-branch", Message: "New branch name is required.");
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var result = await RunGitAsync(gitPath, repo.Path, ["branch", "-m", name, request.NewName], cancellationToken);
+            return new GitOperationResult(result.Success, "rename-branch", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    public async Task<GitOperationResult> SetBranchTrackingAsync(Guid id, Guid userId, string name, GitBranchTrackingRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return new GitOperationResult(false, "set-upstream", Message: "Branch name is required.");
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            // 解绑：upstream = null 或 空字符串
+            if (string.IsNullOrWhiteSpace(request.Upstream) && string.IsNullOrWhiteSpace(request.Remote) && string.IsNullOrWhiteSpace(request.Branch))
+            {
+                var unsetResult = await RunGitAsync(gitPath, repo.Path, ["branch", "--unset-upstream", name], cancellationToken);
+                return new GitOperationResult(unsetResult.Success, "set-upstream", Message: unsetResult.Success ? null : unsetResult.Error);
+            }
+
+            // 解析最终 upstream：优先用 Upstream；否则用 Remote/Branch 合成
+            var upstream = request.Upstream;
+            if (string.IsNullOrWhiteSpace(upstream))
+            {
+                if (string.IsNullOrWhiteSpace(request.Remote) || string.IsNullOrWhiteSpace(request.Branch))
+                    return new GitOperationResult(false, "set-upstream", Message: "Either Upstream or both Remote+Branch must be provided.");
+                upstream = $"{request.Remote}/{request.Branch}";
+            }
+
+            var setResult = await RunGitAsync(gitPath, repo.Path, ["branch", "-u", upstream, name], cancellationToken);
+            return new GitOperationResult(setResult.Success, "set-upstream", Message: setResult.Success ? null : setResult.Error);
+        });
+    }
+
     public async Task<GitOperationResult> CheckoutAsync(Guid id, Guid userId, GitCheckoutRequest request, CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -333,6 +379,46 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
             if (request.Amend) args.Add("--amend");
             var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
             return new GitOperationResult(result.Success, "commit", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    public async Task<GitOperationResult> MergeBranchAsync(Guid id, Guid userId, GitMergeRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Source))
+            return new GitOperationResult(false, "merge", Message: "Source branch is required.");
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var args = new List<string> { "merge" };
+            switch ((request.Strategy ?? "merge").Trim().ToLowerInvariant())
+            {
+                case "no-ff":
+                    args.Add("--no-ff");
+                    break;
+                case "ff-only":
+                    args.Add("--ff-only");
+                    break;
+                case "squash":
+                    args.Add("--squash");
+                    break;
+                // "merge" (default) 不附加策略参数，让 git 尊重仓库 merge.ff 配置
+            }
+            if (request.NoCommit) args.Add("--no-commit");
+            if (!string.IsNullOrWhiteSpace(request.Message))
+            {
+                args.Add("-m");
+                args.Add(request.Message);
+            }
+            args.Add(request.Source);
+
+            var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
+            var conflicts = await TryGetConflictPathsAsync(gitPath, repo.Path, cancellationToken);
+            // 与 pull/revert 同语义：即使 git exit != 0，只要检测到冲突文件就仍然返回 Success=false 但带 Conflicts 负载
+            return new GitOperationResult(result.Success || conflicts is not null, "merge",
+                Conflicts: conflicts,
+                Message: result.Success ? null : result.Error);
         });
     }
 

@@ -162,6 +162,29 @@ public sealed record GitResolveRequest(
     [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths,
     [property: JsonPropertyName("continueMerge")] bool ContinueMerge = true);
 
+/// <summary>Merge a source branch into the current branch. <c>Strategy</c> values:
+/// <c>merge</c> (default, respects repo config merge.ff), <c>no-ff</c> (always create merge commit),
+/// <c>ff-only</c> (refuse to create merge commit), <c>squash</c> (squash changes into worktree, no commit).</summary>
+public sealed record GitMergeRequest(
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("strategy")] string Strategy = "merge",
+    [property: JsonPropertyName("noCommit")] bool NoCommit = false,
+    [property: JsonPropertyName("message")] string? Message = null);
+
+/// <summary>Rename a branch. Equivalent to <c>git branch -m &lt;old&gt; &lt;newName&gt;</c>.
+/// If renaming the current branch, the repository's current branch record is refreshed automatically.</summary>
+public sealed record GitBranchRenameRequest(
+    [property: JsonPropertyName("newName")] string NewName);
+
+/// <summary>Set or unset the upstream tracking branch for a local branch.
+/// Pass <c>Upstream = null</c> to remove the upstream (same as <c>git branch --unset-upstream &lt;name&gt;</c>).
+/// Non-null <c>Upstream</c> accepts both <c>origin/foo</c> short form and <c>refs/remotes/origin/foo</c> full ref;
+/// if <c>Remote</c> is provided a new upstream association will be built as <c>Remote/Branch</c> if that format is missing.</summary>
+public sealed record GitBranchTrackingRequest(
+    [property: JsonPropertyName("upstream")] string? Upstream = null,
+    [property: JsonPropertyName("remote")] string? Remote = null,
+    [property: JsonPropertyName("branch")] string? Branch = null);
+
 // ── Git engine (host CLI) status & install ──
 
 /// <summary>Host Git CLI availability probe result, analogous to <c>DockerStatusDto</c>.</summary>

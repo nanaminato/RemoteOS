@@ -17,8 +17,11 @@ public interface IRemoteGitClient
     Task<IReadOnlyList<GitBranchDto>> ListBranchesAsync(string id, CancellationToken cancellationToken = default);
     Task<GitOperationResult> CreateBranchAsync(string id, GitBranchCreateRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> DeleteBranchAsync(string id, string name, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> RenameBranchAsync(string id, string name, GitBranchRenameRequest request, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> SetBranchTrackingAsync(string id, string name, GitBranchTrackingRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> CheckoutAsync(string id, GitCheckoutRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> CommitAsync(string id, GitCommitRequest request, CancellationToken cancellationToken = default);
+    Task<GitOperationResult> MergeBranchAsync(string id, GitMergeRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> FetchAsync(string id, CancellationToken cancellationToken = default);
     Task<GitOperationResult> PullAsync(string id, GitPullRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> PushAsync(string id, CancellationToken cancellationToken = default);
