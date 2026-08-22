@@ -537,8 +537,13 @@ internal sealed partial class NginxWebServerManager(
         var result = await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken);
         if (result.Success) return null;
         logger.LogWarning("Nginx site configuration test failed. InstanceId={InstanceId}, Output={Output}", instance.Id, CommandOutputForLog(result.Output));
-        return "webserver.site_config_test_failed";
+        return ConfigurationTestProblem(result.Output);
     }
+
+    private static string ConfigurationTestProblem(string output) =>
+        output.Contains("host not found in upstream", StringComparison.OrdinalIgnoreCase)
+            ? "webserver.site_upstream_unresolvable"
+            : "webserver.site_config_test_failed";
 
     private async Task<string?> ReloadAfterTestAsync(WebServerDto instance, CancellationToken cancellationToken)
     {

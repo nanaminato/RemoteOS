@@ -193,6 +193,7 @@
     "webservers.problem.site_conflict": "サイトが既存の構成と競合しています。サイト名、ドメイン/IP アドレス、待受ポートを確認して再試行してください。",
     "webservers.problem.site_certificate_required": "HTTPS を有効にする場合は有効な証明書を選択してください。IP アドレスを使用する場合は通常 HTTPS を無効にしてください。",
     "webservers.problem.site_upstream_invalid": "アップストリームアドレスは http://127.0.0.1:3000 のような完全な HTTP または HTTPS URL である必要があります。",
+    "webservers.problem.site_upstream_unresolvable": "アップストリームのホスト名をこのサーバーで解決できません。スペルを確認してください。ローカルサービスには http://127.0.0.1:port または http://localhost:port を使用できます。",
     "webservers.problem.site_elevation_required": "Nginx サイト構成の書き込みと適用には、RemoteOS Server の管理者権限が必要です。詳細はサーバーログを確認してください。",
     "webservers.problem.site_config_test_failed": "新しいサイト構成は Nginx 検証に合格しませんでした。ドメイン、アップストリームアドレス、証明書パス、既存の Nginx 構成を確認してください。",
     "webservers.problem.site_reload_failed": "サイト構成は検証に合格しましたが、Nginx を再読み込みできませんでした。待受ポート、Nginx の実行状態、サーバー権限を確認してください。",

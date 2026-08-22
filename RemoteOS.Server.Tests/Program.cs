@@ -205,6 +205,12 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     Assert(renderedProxy.Contains("proxy_http_version 1.1;")
         && renderedProxy.Contains("proxy_set_header Upgrade $http_upgrade;")
         && renderedProxy.Contains("proxy_set_header Connection \"upgrade\";"), "A reverse-proxy site did not preserve WebSocket upgrades for SignalR.");
+    var configurationTestProblem = typeof(NginxWebServerManager).GetMethod("ConfigurationTestProblem", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Nginx configuration-test problem classifier was not found.");
+    Assert((string)configurationTestProblem.Invoke(null, ["[emerg] host not found in upstream \"locahost\""])! == "webserver.site_upstream_unresolvable",
+        "An unresolvable reverse-proxy upstream was not given a specific error.");
+    Assert((string)configurationTestProblem.Invoke(null, ["[emerg] unexpected \"}\""])! == "webserver.site_config_test_failed",
+        "An unrelated Nginx configuration error was misclassified as an upstream-resolution error.");
     var renderWithAcme = typeof(NginxWebServerManager).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
         .Single(method => method.Name == "RenderSiteConfiguration" && method.GetParameters().Length == 3);
     var renderedWithAcme = (string)renderWithAcme.Invoke(null, [proxySite, null, "/var/lib/remoteos/acme-challenge"])!;

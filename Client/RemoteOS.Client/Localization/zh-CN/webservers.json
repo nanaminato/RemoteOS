@@ -193,6 +193,7 @@
     "webservers.problem.site_conflict": "站点与现有配置冲突。请检查站点名称、域名/IP 和监听端口后重试。",
     "webservers.problem.site_certificate_required": "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
     "webservers.problem.site_upstream_invalid": "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
+    "webservers.problem.site_upstream_unresolvable": "代理地址中的主机名无法由此服务器解析。请检查拼写；代理本机服务时可使用 http://127.0.0.1:端口 或 http://localhost:端口。",
     "webservers.problem.site_elevation_required": "RemoteOS Server 需要管理员权限才能写入和应用 Nginx 站点配置。请查看服务端日志了解详情。",
     "webservers.problem.site_config_test_failed": "新站点配置未通过 Nginx 校验。请检查域名、代理地址、证书路径以及现有 Nginx 配置。",
     "webservers.problem.site_reload_failed": "站点配置已通过校验，但 Nginx 重载失败。请检查监听端口、Nginx 运行状态和服务端权限。",
