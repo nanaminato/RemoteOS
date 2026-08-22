@@ -69,6 +69,7 @@ public partial class TerminalView : UserControl
         try { await vm.AttachAsync(_terminal, _transportFactory); }
         catch { /* keep the window usable if the first connection fails */ }
         ApplyAppearance(vm.Appearance);
+        EnsureScrollback();
         FocusTerminal();
     }
 
@@ -132,7 +133,14 @@ public partial class TerminalView : UserControl
 
     private void OnClearClicked(object? sender, RoutedEventArgs e)
     {
-        try { _terminal.ClearScrollback(); }
+        try
+        {
+            // ClearScrollback() alone keeps the active viewport intact, so the screen
+            // would still look full. ClearHistory() drops the visible rows first,
+            // then ClearScrollback() drops the history above the viewport.
+            _terminal.ClearHistory();
+            _terminal.ClearScrollback();
+        }
         catch { /* best effort */ }
     }
 
@@ -157,6 +165,20 @@ public partial class TerminalView : UserControl
         ApplyColor(_terminal.Theme, "BackgroundColor", appearance.BackgroundColor);
         ApplyColor(_terminal.Theme, "ForegroundColor", appearance.ForegroundColor);
         ApplyColor(_terminal.Theme, "CursorColor", appearance.CursorColor);
+    }
+
+    /// <summary>
+    /// The terminal screen is (re)created inside StartSessionAsync, and the
+    /// ScrollbackLimit StyledProperty set in the constructor does not always
+    /// propagate to the freshly built screen. Re-assert it on both the control
+    /// and the screen so the user can actually scroll back through the buffer.
+    /// </summary>
+    private void EnsureScrollback()
+    {
+        const int limit = 10000;
+        _terminal.ScrollbackLimit = limit;
+        if (_terminal.Screen is { } screen)
+            screen.ScrollbackLimit = limit;
     }
 
     private static string ResolveFontFamily(string requested)
