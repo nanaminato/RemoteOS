@@ -9,56 +9,56 @@
             <!-- Fluent scrollbars overlay their content. Reserve a gutter so they never cover
                  NumericUpDown arrows or the right edge of text fields. -->
             <StackPanel Margin="0,0,20,0" MinWidth="0" Spacing="10">
-                <TextBlock Text="配置会先经过 Nginx 验证，保存后立即应用。每个字段独占一行，方便逐项核对。" TextWrapping="Wrap" Foreground="#61708B" />
+                <TextBlock Text="{loc:Loc webservers.site.dialog.help}" TextWrapping="Wrap" Foreground="#61708B" />
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="站点名称" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBox Text="{Binding SiteName, Mode=TwoWay}" PlaceholderText="例如：my-app" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.name}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBox Text="{Binding SiteName, Mode=TwoWay}" PlaceholderText="{loc:Loc webservers.site.dialog.name_hint}" />
                 </StackPanel>
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="类型" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.kind}" FontWeight="SemiBold" Foreground="#36506F" />
                     <ComboBox ItemsSource="{Binding SiteKinds}" SelectedItem="{Binding SelectedSiteKind, Mode=TwoWay}" />
                 </StackPanel>
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="批量添加域名和端口" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="每行或用逗号输入一项，例如 app.example.com:5000。未写端口时默认为 80；点击生成后可逐项修改。当前站点的所有域名/IP 会同时监听所有填写的端口。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch_help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox Text="{Binding SiteBindingsBatch, Mode=TwoWay}" PlaceholderText="app.example.com:5000&#10;app.example.com:6000" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" />
-                        <Button Grid.Column="1" Content="生成" Command="{Binding GenerateSiteBindingsCommand}" VerticalAlignment="Top" />
+                        <Button Grid.Column="1" Content="{loc:Loc webservers.site.dialog.generate}" Command="{Binding GenerateSiteBindingsCommand}" VerticalAlignment="Top" />
                     </Grid>
                 </StackPanel>
 
                 <StackPanel Spacing="6">
-                    <TextBlock Text="域名 / IP 与监听端口" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="所有行会合并为同一个 Nginx server：每个域名/IP 都可通过每个列出的端口访问。使用 IP 时建议关闭 HTTPS。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding SiteBindings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="webservers:WebServerSiteBindingEditor">
                                 <Grid ColumnDefinitions="*,130,Auto" ColumnSpacing="8" Margin="0,0,0,4">
-                                    <TextBox Text="{Binding Domain, Mode=TwoWay}" PlaceholderText="app.example.com 或 192.0.2.10" />
+                                    <TextBox Text="{Binding Domain, Mode=TwoWay}" PlaceholderText="{loc:Loc webservers.site.dialog.domain_hint}" />
                                     <NumericUpDown Grid.Column="1" Minimum="1" Maximum="65535" Value="{Binding Port, Mode=TwoWay}" />
-                                    <Button Grid.Column="2" Content="删除" Tag="{Binding}" Click="RemoveBinding_Click" />
+                                    <Button Grid.Column="2" Content="{loc:Loc webservers.site.dialog.remove_binding}" Tag="{Binding}" Click="RemoveBinding_Click" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Button Content="添加域名或端口" Command="{Binding AddSiteBindingCommand}" HorizontalAlignment="Left" />
+                    <Button Content="{loc:Loc webservers.site.dialog.add_binding}" Command="{Binding AddSiteBindingCommand}" HorizontalAlignment="Left" />
                 </StackPanel>
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsReverseProxySite}">
-                    <TextBlock Text="代理地址" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.upstream}" FontWeight="SemiBold" Foreground="#36506F" />
                     <TextBox Text="{Binding SiteUpstream, Mode=TwoWay}" PlaceholderText="http://127.0.0.1:3000" />
                 </StackPanel>
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsStaticSite}">
-                    <TextBlock Text="静态网站目录" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="站点会创建在 RemoteOS 专用目录中；保存后可在站点列表的“服务地址”列点击打开该目录并上传网站文件。" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root_help}" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
                 </StackPanel>
 
                 <StackPanel Spacing="6">
-                    <CheckBox Content="启用 HTTPS" IsChecked="{Binding SiteHttpsEnabled, Mode=TwoWay}" />
+                    <CheckBox Content="{loc:Loc webservers.site.dialog.enable_https}" IsChecked="{Binding SiteHttpsEnabled, Mode=TwoWay}" />
                     <ComboBox ItemsSource="{Binding Certificates}" SelectedItem="{Binding SelectedSiteCertificate, Mode=TwoWay}"
                               DisplayMemberBinding="{ReflectionBinding PrimaryDomain}" IsEnabled="{Binding SiteHttpsEnabled}" />
                 </StackPanel>
@@ -69,7 +69,7 @@
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" />
-            <Button Classes="primary" Content="保存并应用" Command="{Binding SaveSiteCommand}" />
+            <Button Classes="primary" Content="{loc:Loc webservers.site.dialog.save_apply}" Command="{Binding SaveSiteCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

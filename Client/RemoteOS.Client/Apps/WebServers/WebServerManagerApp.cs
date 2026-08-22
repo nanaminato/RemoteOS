@@ -52,21 +52,21 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         {
             var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));
             if (!activation.Succeeded && !activation.IsPendingUserChoice)
-                viewModel.SiteStatusText = "无法打开内置文件浏览器。";
+                viewModel.SiteStatusText = LocalizedText.Get("webservers.site.file_browser_failed");
             return Task.CompletedTask;
         };
         viewModel.ShowSiteEditorAsync = async isEdit =>
         {
             try
             {
-                await context.ShowDialogAsync<bool>(window, isEdit ? "编辑站点" : "新建站点", dialog =>
+                await context.ShowDialogAsync<bool>(window, LocalizedText.Get(isEdit ? "webservers.site.edit" : "webservers.site.new"), dialog =>
                 {
                     viewModel.CloseSiteEditorAsync = () =>
                     {
                         dialog.Close(true);
                         return Task.CompletedTask;
                     };
-                    viewModel.ShowSiteSaveErrorAsync = message => dialog.ShowDialogAsync<bool>("无法保存站点",
+                    viewModel.ShowSiteSaveErrorAsync = message => dialog.ShowDialogAsync<bool>(LocalizedText.Get("webservers.site.save_error.title"),
                         errorDialog => new WebServerSiteSaveErrorDialogView(message, errorDialog));
                     return new WebServerSiteDialogView(viewModel, dialog);
                 }, new Size(640, 670));

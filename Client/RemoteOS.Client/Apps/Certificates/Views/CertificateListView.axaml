@@ -28,8 +28,8 @@
                           MinWidth="900">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="{loc:Loc certificates.column.domain}" Binding="{ReflectionBinding PrimaryDomain}" Width="220" />
-                        <DataGridTextColumn Header="{loc:Loc certificates.column.status}" Binding="{ReflectionBinding Status}" Width="110" />
-                        <DataGridTextColumn Header="{loc:Loc certificates.column.challenge}" Binding="{ReflectionBinding ChallengeType}" Width="130" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.status}" Binding="{ReflectionBinding Status, Converter={x:Static certificates:CertificateEnumTextConverter.Instance}}" Width="110" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.challenge}" Binding="{ReflectionBinding ChallengeType, Converter={x:Static certificates:CertificateEnumTextConverter.Instance}}" Width="130" />
                         <DataGridTextColumn Header="{loc:Loc certificates.column.issuer}" Binding="{ReflectionBinding Issuer}" Width="180" />
                         <DataGridTextColumn Header="{loc:Loc certificates.column.not_before}" Binding="{ReflectionBinding NotBefore}" Width="180" />
                         <DataGridTextColumn Header="{loc:Loc certificates.column.not_after}" Binding="{ReflectionBinding NotAfter}" Width="180" />

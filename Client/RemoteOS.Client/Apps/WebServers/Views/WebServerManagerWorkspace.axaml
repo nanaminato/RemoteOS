@@ -30,9 +30,9 @@
         <Grid Grid.Row="2" ColumnDefinitions="190,*" MinWidth="0" MinHeight="0">
             <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
-                    <TextBlock Text="工作区" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="实例管理" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="sites" Click="NavigationButton_Click" Content="站点部署" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <Button Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
                 </StackPanel>
             </Border>
 

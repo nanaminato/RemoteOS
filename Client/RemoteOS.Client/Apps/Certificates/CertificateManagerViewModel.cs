@@ -89,11 +89,11 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             foreach (var certificate in certificates) Certificates.Add(certificate);
             StatusText = LocalizedText.Format("certificates.status.ready", certificates.Count);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             Certificates.Clear();
             SelectedCertificate = null;
-            StatusText = LocalizedText.Format("certificates.status.failed", exception.Message);
+            StatusText = LocalizedText.Format("certificates.status.failed", LocalizedText.Get("certificates.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -118,9 +118,9 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         {
             PreflightText = LocalizedText.Format("certificates.preflight.failed", ProblemText(exception.ProblemCode));
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            PreflightText = LocalizedText.Format("certificates.preflight.failed", exception.Message);
+            PreflightText = LocalizedText.Format("certificates.preflight.failed", LocalizedText.Get("certificates.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -263,9 +263,9 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             OperationText = LocalizedText.Format("certificates.operation.failed", label, ProblemText(exception.ProblemCode));
             return false;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            OperationText = LocalizedText.Format("certificates.operation.exception", label, exception.Message);
+            OperationText = LocalizedText.Format("certificates.operation.exception", label, LocalizedText.Get("certificates.error.request_failed"));
             return false;
         }
         finally
@@ -281,7 +281,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     {
         while (operation.State is CertificateOperationState.Queued or CertificateOperationState.Running)
         {
-            OperationText = LocalizedText.Format("certificates.operation.progress", operation.Kind ?? "", operation.Stage ?? "");
+            OperationText = LocalizedText.Format("certificates.operation.progress", OperationName(operation.Kind), OperationStage(operation.Stage));
             await Task.Delay(PollInterval, cancellationToken);
             var updated = await _client.GetOperationAsync(operation.OperationId, cancellationToken);
             if (updated is null) break;
@@ -321,7 +321,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private static string FormatPreflight(CertificatePreflightResultDto result)
     {
         if (!result.CanProceed)
-            return LocalizedText.Format("certificates.preflight.cannot_proceed", result.ProblemCode);
+            return LocalizedText.Format("certificates.preflight.cannot_proceed", ProblemText(result.ProblemCode));
         var lines = new List<string> { LocalizedText.Get("certificates.preflight.can_proceed") };
         if (result.Port80Available is { } port80)
             lines.Add(LocalizedText.Get(port80 ? "certificates.preflight.port80_available" : "certificates.preflight.port80_unavailable"));
@@ -330,7 +330,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         foreach (var domain in result.Domains ?? [])
         {
             if (!string.IsNullOrEmpty(domain.ProblemCode))
-                lines.Add(LocalizedText.Format("certificates.preflight.domain_problem", domain.Domain, domain.ProblemCode));
+                lines.Add(LocalizedText.Format("certificates.preflight.domain_problem", domain.Domain, ProblemText(domain.ProblemCode)));
         }
         if (result.RequiresPublicReachabilityConfirmation)
             lines.Add(LocalizedText.Get("certificates.preflight.confirm_reachability"));
@@ -345,17 +345,36 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private bool CanActOnSelected => CanManage && SelectedCertificate is not null;
     private bool CanCancelOperation => IsOperationRunning;
 
-    private static string ProblemText(string? problemCode) => problemCode switch
+    private static string OperationName(string? kind) => kind switch
     {
-        "certificate.acme_response_invalid" => "ACME 服务返回了不完整的响应。请查看 RemoteOS Server 的证书日志。",
-        "certificate.acme_request_failed" => "ACME 请求失败。请查看 RemoteOS Server 的证书日志以获取具体原因。",
-        "certificate.operation_failed" => "证书操作发生了未预期的错误。请查看 RemoteOS Server 的证书日志。",
-        "certificate.request_invalid" => "证书申请数据无效。",
-        "certificate.validation_failed" => "域名验证失败。请确认 80 端口可从公网访问且挑战文件可被读取。",
-        "certificate.validation_timeout" => "域名验证超时。请确认 DNS 和 80 端口配置后重试。",
-        "certificate.http01_not_offered" => "证书颁发机构没有为该域名提供 HTTP-01 验证。",
-        _ => string.IsNullOrWhiteSpace(problemCode) ? "certificate.operation_failed" : problemCode,
+        "issue" or "request" => LocalizedText.Get("certificates.operation.request"),
+        "deploy-kestrel" or "deploy" => LocalizedText.Get("certificates.operation.deploy"),
+        "renew" => LocalizedText.Get("certificates.operation.renew"),
+        "revoke" => LocalizedText.Get("certificates.operation.revoke"),
+        "delete" => LocalizedText.Get("certificates.operation.delete"),
+        _ => LocalizedText.Get("certificates.operation.unknown"),
     };
+
+    private static string OperationStage(string? stage) => stage switch
+    {
+        "queued" => LocalizedText.Get("certificates.operation.stage.queued"),
+        "running" => LocalizedText.Get("certificates.operation.stage.running"),
+        "issue" => LocalizedText.Get("certificates.operation.stage.issuing"),
+        "deploy-kestrel" => LocalizedText.Get("certificates.operation.stage.deploying"),
+        "renew" => LocalizedText.Get("certificates.operation.stage.renewing"),
+        "revoke" => LocalizedText.Get("certificates.operation.stage.revoking"),
+        "delete" => LocalizedText.Get("certificates.operation.stage.deleting"),
+        "cancelled" => LocalizedText.Get("certificates.operation.stage.cancelled"),
+        "interrupted" => LocalizedText.Get("certificates.operation.stage.interrupted"),
+        _ => LocalizedText.Get("certificates.operation.stage.unknown"),
+    };
+
+    private static string ProblemText(string? problemCode)
+    {
+        if (string.IsNullOrWhiteSpace(problemCode) || !problemCode.StartsWith("certificate.", StringComparison.Ordinal))
+            return LocalizedText.Get("certificates.problem.unknown");
+        return LocalizedText.Get($"certificates.problem.{problemCode["certificate.".Length..]}", LocalizedText.Get("certificates.problem.unknown"));
+    }
 
     private static CertificateOption<TValue> Option<TValue>(TValue value, string labelKey) where TValue : struct => new(value, LocalizedText.Get(labelKey));
 

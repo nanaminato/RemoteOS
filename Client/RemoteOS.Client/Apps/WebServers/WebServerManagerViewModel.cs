@@ -87,10 +87,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool IsManagedInstallAvailable => !HasManagedInstallation;
     public string ManagementHint => SelectedServer?.ManagementMode switch
     {
-        WebServerManagementMode.Integrated => "此 Nginx 已集成：RemoteOS 可以管理站点配置并重载配置，但不会启动、停止或重启外部安装的 Nginx。如需完整生命周期管理，请使用受管安装。",
-        WebServerManagementMode.Managed => "此 Nginx 由 RemoteOS 安装和管理，可使用完整的服务生命周期操作。",
-        WebServerManagementMode.External => "此 Nginx 尚未集成。集成后可由 RemoteOS 管理站点配置和重载配置。",
-        _ => "请选择一个 Nginx 实例以查看可用操作。",
+        WebServerManagementMode.Integrated => LocalizedText.Get("webservers.management_hint.integrated"),
+        WebServerManagementMode.Managed => LocalizedText.Get("webservers.management_hint.managed"),
+        WebServerManagementMode.External => LocalizedText.Get("webservers.management_hint.external"),
+        _ => LocalizedText.Get("webservers.management_hint.none"),
     };
 
     /// <summary>Supplied by the application shell so the view model never constructs UI directly.</summary>
@@ -170,13 +170,13 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             HasManagedInstallation = servers.Any(server => server.ManagementMode == WebServerManagementMode.Managed);
             StatusText = LocalizedText.Format("webservers.status.ready", servers.Count);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
             HasManagedInstallation = false;
-            StatusText = LocalizedText.Format("webservers.status.failed", exception.Message);
+            StatusText = LocalizedText.Format("webservers.status.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -196,9 +196,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             HasManagedInstallation = servers.Any(server => server.ManagementMode == WebServerManagementMode.Managed);
             StatusText = LocalizedText.Format(servers.Count > 0 ? "webservers.discover.found" : "webservers.discover.empty", servers.Count);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            StatusText = LocalizedText.Format("webservers.discover.failed", exception.Message);
+            StatusText = LocalizedText.Format("webservers.discover.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -213,11 +213,12 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             var status = await _client.GetStatusAsync(SelectedServer.Id);
             SelectedStatusText = status is null
                 ? LocalizedText.Get("webservers.status.unavailable")
-                : LocalizedText.Format("webservers.status.detail", status.RuntimeState, status.ProblemCode);
+                : LocalizedText.Format("webservers.status.detail", RuntimeStateText(status.RuntimeState),
+                    string.IsNullOrWhiteSpace(status.ProblemCode) ? string.Empty : ProblemText(status.ProblemCode));
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            SelectedStatusText = LocalizedText.Format("webservers.status.failed", exception.Message);
+            SelectedStatusText = LocalizedText.Format("webservers.status.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -235,11 +236,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
                 ? LocalizedText.Get("webservers.test.unavailable")
                 : result.Valid
                     ? LocalizedText.Get("webservers.test.valid")
-                    : LocalizedText.Format("webservers.test.invalid", result.ProblemCode);
+                    : LocalizedText.Format("webservers.test.invalid", ProblemText(result.ProblemCode));
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            TestResultText = LocalizedText.Format("webservers.test.failed", exception.Message);
+            TestResultText = LocalizedText.Format("webservers.test.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
         finally { IsLoading = false; }
     }
@@ -307,9 +308,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         {
             StatusText = LocalizedText.Format("webservers.package.failed", ProblemText(exception.ProblemCode));
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            StatusText = LocalizedText.Format("webservers.package.failed", exception.Message);
+            StatusText = LocalizedText.Format("webservers.package.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
     }
 
@@ -337,7 +338,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task NewSiteAsync()
     {
         ResetSiteEditor();
-        SiteStatusText = "填写站点信息后保存。";
+        SiteStatusText = LocalizedText.Get("webservers.site.new_status");
         if (ShowSiteEditorAsync is not null) await ShowSiteEditorAsync(false);
     }
 
@@ -358,7 +359,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             .ToArray();
         if (bindings.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
         {
-            await ReportSiteSaveErrorAsync("请至少填写一组域名或 IP 与端口，并完成必要的站点配置；启用 HTTPS 时请选择证书。");
+            await ReportSiteSaveErrorAsync(LocalizedText.Get("webservers.site.validation_required"));
             return;
         }
         try
@@ -366,14 +367,14 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             var domains = bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, bindings[0].Port,
                 IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled, bindings));
-            if (saved is null) { await ReportSiteSaveErrorAsync("保存失败。请确认 Nginx 已集成、配置有效且服务端以管理员权限运行。"); return; }
+            if (saved is null) { await ReportSiteSaveErrorAsync(LocalizedText.Get("webservers.site.save_failed")); return; }
             await LoadSitesAsync();
             SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
-            SiteStatusText = "站点已保存，Nginx 配置已验证并生效。";
+            SiteStatusText = LocalizedText.Get("webservers.site.save_succeeded");
             if (CloseSiteEditorAsync is not null) await CloseSiteEditorAsync();
         }
         catch (WebServerApiException exception) { await ReportSiteSaveErrorAsync(SiteSaveProblemText(exception.ProblemCode)); }
-        catch (Exception exception) { await ReportSiteSaveErrorAsync($"保存站点失败：{exception.Message}"); }
+        catch (Exception) { await ReportSiteSaveErrorAsync(LocalizedText.Get("webservers.site.save_failed")); }
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSite))]
@@ -385,9 +386,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             await _client.DeleteSiteAsync(SelectedServer.Id, SelectedSite.Id);
             ResetSiteEditor();
             await LoadSitesAsync();
-            SiteStatusText = "站点已删除，Nginx 已重载。";
+            SiteStatusText = LocalizedText.Get("webservers.site.delete_succeeded");
         }
-        catch (Exception exception) { SiteStatusText = $"删除站点失败：{exception.Message}"; }
+        catch (Exception) { SiteStatusText = LocalizedText.Get("webservers.site.delete_failed"); }
     }
 
     private void ResetSiteEditor()
@@ -461,9 +462,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         try
         {
             foreach (var site in await _client.ListSitesAsync(SelectedServer.Id) ?? []) Sites.Add(site);
-            SiteStatusText = Sites.Count == 0 ? "尚未创建 RemoteOS 管理的站点。" : $"共 {Sites.Count} 个受管站点。";
+            SiteStatusText = Sites.Count == 0
+                ? LocalizedText.Get("webservers.site.list_empty")
+                : LocalizedText.Format("webservers.site.list_ready", Sites.Count);
         }
-        catch (Exception exception) { SiteStatusText = $"无法加载站点：{exception.Message}"; }
+        catch (Exception) { SiteStatusText = LocalizedText.Get("webservers.site.list_failed"); }
     }
 
     private async Task ReportSiteSaveErrorAsync(string message)
@@ -569,9 +572,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         {
             OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), ProblemText(exception.ProblemCode));
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            OperationText = LocalizedText.Format("webservers.operation.exception", OperationName(kindKey), exception.Message);
+            OperationText = LocalizedText.Format("webservers.operation.exception", OperationName(kindKey), LocalizedText.Get("webservers.error.request_failed"));
         }
         finally
         {
@@ -621,70 +624,47 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     private static string OperationName(string kind) => kind switch
     {
-        "install" => LocalizedText.Get("webservers.operation.kind.install", "安装 Nginx"),
-        "integrate" => LocalizedText.Get("webservers.operation.kind.integrate", "集成 Nginx"),
-        "uninstall" => LocalizedText.Get("webservers.operation.kind.uninstall", "卸载 Nginx"),
-        "start" => LocalizedText.Get("webservers.operation.kind.start", "启动 Nginx"),
-        "stop" => LocalizedText.Get("webservers.operation.kind.stop", "停止 Nginx"),
-        "restart" => LocalizedText.Get("webservers.operation.kind.restart", "重启 Nginx"),
-        "reload" => LocalizedText.Get("webservers.operation.kind.reload", "重载 Nginx"),
-        "enable-acme-http01" => LocalizedText.Get("webservers.operation.kind.enable_acme_http01", "启用 ACME HTTP-01 验证"),
-        _ => kind,
+        "install" => LocalizedText.Get("webservers.operation.kind.install"),
+        "integrate" => LocalizedText.Get("webservers.operation.kind.integrate"),
+        "uninstall" => LocalizedText.Get("webservers.operation.kind.uninstall"),
+        "start" => LocalizedText.Get("webservers.operation.kind.start"),
+        "stop" => LocalizedText.Get("webservers.operation.kind.stop"),
+        "restart" => LocalizedText.Get("webservers.operation.kind.restart"),
+        "reload" => LocalizedText.Get("webservers.operation.kind.reload"),
+        "enable-acme-http01" => LocalizedText.Get("webservers.operation.kind.enable_acme_http01"),
+        _ => LocalizedText.Get("webservers.operation.kind.unknown"),
+    };
+
+    private static string RuntimeStateText(WebServerRuntimeState state) => state switch
+    {
+        WebServerRuntimeState.Running => LocalizedText.Get("webservers.enum.runtime.running"),
+        WebServerRuntimeState.Stopped => LocalizedText.Get("webservers.enum.runtime.stopped"),
+        _ => LocalizedText.Get("webservers.enum.runtime.unknown"),
     };
 
     private static string OperationStage(string kind, string stage) => (kind, stage) switch
     {
-        (_, "queued") => LocalizedText.Get("webservers.operation.stage.queued", "等待执行"),
-        (_, "running") => LocalizedText.Get("webservers.operation.stage.running", "正在执行"),
-        ("install", "installer_running") => LocalizedText.Get("webservers.operation.stage.installer_running", "正在运行安装程序"),
-        ("install", "installing_package") => LocalizedText.Get("webservers.operation.stage.installing_package", "正在通过系统软件源安装 Nginx"),
-        ("install", "downloading") => LocalizedText.Get("webservers.operation.stage.downloading", "正在从 Nginx 官方站点下载"),
-        ("install", "extracting") => LocalizedText.Get("webservers.operation.stage.extracting", "正在验证并解压 Nginx 包"),
-        ("install", "removing_existing_installation") => LocalizedText.Get("webservers.operation.stage.removing_existing_installation", "正在删除现有 Nginx 安装"),
-        ("install", "verifying_layout") => LocalizedText.Get("webservers.operation.stage.verifying_layout", "正在验证安装目录"),
-        ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration", "正在验证 Nginx 配置"),
-        ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing", "正在完成安装"),
-        _ => stage,
+        (_, "queued") => LocalizedText.Get("webservers.operation.stage.queued"),
+        (_, "running") => LocalizedText.Get("webservers.operation.stage.running"),
+        ("install", "installer_running") => LocalizedText.Get("webservers.operation.stage.installer_running"),
+        ("install", "installing_package") => LocalizedText.Get("webservers.operation.stage.installing_package"),
+        ("install", "downloading") => LocalizedText.Get("webservers.operation.stage.downloading"),
+        ("install", "extracting") => LocalizedText.Get("webservers.operation.stage.extracting"),
+        ("install", "removing_existing_installation") => LocalizedText.Get("webservers.operation.stage.removing_existing_installation"),
+        ("install", "verifying_layout") => LocalizedText.Get("webservers.operation.stage.verifying_layout"),
+        ("install", "validating_configuration") => LocalizedText.Get("webservers.operation.stage.validating_configuration"),
+        ("install", "finalizing") => LocalizedText.Get("webservers.operation.stage.finalizing"),
+        _ => LocalizedText.Get("webservers.operation.stage.unknown"),
     };
 
-    private static string ProblemText(string problemCode) => problemCode switch
+    private static string ProblemText(string? problemCode)
     {
-        "webserver.install_elevation_required" => LocalizedText.Get("webservers.problem.install_elevation_required", "安装需要 RemoteOS Server 以管理员权限运行。"),
-        "webserver.config_elevation_required" => LocalizedText.Get("webservers.problem.config_elevation_required", "此配置操作需要 RemoteOS Server 以管理员权限运行。"),
-        "webserver.lifecycle_elevation_required" => LocalizedText.Get("webservers.problem.lifecycle_elevation_required", "此服务操作需要 RemoteOS Server 以管理员权限运行。"),
-        "webserver.install_not_configured" => LocalizedText.Get("webservers.problem.install_not_configured", "服务器管理员尚未配置 Nginx 安装程序。"),
-        "webserver.install_unsupported_platform" => LocalizedText.Get("webservers.problem.install_unsupported_platform", "当前平台不支持内置安装；请配置受管安装程序。"),
-        "webserver.version_invalid" => LocalizedText.Get("webservers.problem.version_invalid", "请输入 Nginx 版本号，例如 1.31.3。"),
-        "webserver.version_required" => LocalizedText.Get("webservers.problem.version_required", "请选择或输入 Nginx 版本，或选择本地 ZIP 包。"),
-        "webserver.version_catalog_unavailable" => LocalizedText.Get("webservers.version_catalog.unavailable", "无法加载 Nginx Windows 版本列表。请刷新后重试，或选择本地 ZIP 包。"),
-        "webserver.download_failed" => LocalizedText.Get("webservers.problem.download_failed", "无法从 Nginx 官方站点下载该版本。"),
-        "webserver.managed_installation_exists" => LocalizedText.Get("webservers.problem.managed_installation_exists", "RemoteOS 的 Nginx 安装目录已存在。"),
-        "webserver.existing_installation_unsafe" => LocalizedText.Get("webservers.problem.existing_installation_unsafe", "现有安装目录不完整或包含不安全链接，无法复用或删除。"),
-        "webserver.package_invalid" => LocalizedText.Get("webservers.problem.package_invalid", "Nginx ZIP 包无效或不符合预期布局。"),
-        "webserver.package_not_found" => LocalizedText.Get("webservers.problem.package_not_found", "离线安装包已过期，请重新选择。"),
-        "webserver.acme_integration_required" => LocalizedText.Get("webservers.problem.acme_integration_required", "请先集成或使用受管 Nginx，然后再启用 ACME HTTP-01。"),
-        "webserver.acme_no_managed_sites" => LocalizedText.Get("webservers.problem.acme_no_managed_sites", "请先创建至少一个由 RemoteOS 管理、且域名与证书申请一致的 Nginx 站点。"),
-        _ => problemCode,
-    };
+        if (string.IsNullOrWhiteSpace(problemCode) || !problemCode.StartsWith("webserver.", StringComparison.Ordinal))
+            return LocalizedText.Get("webservers.problem.unknown");
+        return LocalizedText.Get($"webservers.problem.{problemCode["webserver.".Length..]}", LocalizedText.Get("webservers.problem.unknown"));
+    }
 
-    private static string SiteSaveProblemText(string problemCode) => problemCode switch
-    {
-        "webserver.site_name_invalid" => "站点名称不能为空，且最多 80 个字符；仅使用字母、数字、空格、连字符或下划线。",
-        "webserver.site_kind_invalid" => "请选择有效的站点类型。",
-        "webserver.site_port_invalid" => "HTTP 端口必须介于 1 和 65535 之间。",
-        "webserver.site_server_name_required" => "请至少填写一个域名或 IP 地址。",
-        "webserver.site_server_name_invalid" => "域名或 IP 地址格式无效。请逐行填写，例如 app.example.com 或 192.168.1.20。",
-        "webserver.site_already_exists" => "已存在同名站点。请关闭此对话框，在列表中选择该站点后进行编辑；新建操作不会覆盖已有站点。",
-        "webserver.site_binding_conflict" => "该站点的某个域名/IP 与监听端口已由另一个站点使用。当前站点的所有域名都会监听所有填写的端口，请调整域名或端口。",
-        "webserver.site_conflict" => "站点与现有配置冲突，但服务器未提供具体冲突项。请检查站点名称、域名/IP 和监听端口后重试。",
-        "webserver.site_certificate_required" => "启用 HTTPS 时必须选择一个可用证书。使用 IP 时通常应先关闭 HTTPS。",
-        "webserver.site_upstream_invalid" => "代理地址必须是完整的 HTTP 或 HTTPS 地址，例如 http://127.0.0.1:3000。",
-        "webserver.site_elevation_required" => "RemoteOS Server 未以管理员权限运行，无法写入和应用 Nginx 站点配置。请查看服务端 WebServer 日志了解详情。",
-        "webserver.site_config_test_failed" => "新站点配置未通过 Nginx 校验。请检查域名、代理地址、证书路径，以及现有 Nginx 配置。",
-        "webserver.site_reload_failed" => "站点配置已通过校验，但 Nginx 重载失败。请检查监听端口、Nginx 运行状态和服务端权限。",
-        "webserver.site_save_failed" => "Nginx 无法保存此站点配置。请确认 Nginx 已集成，且 RemoteOS Server 具有配置目录的写入权限。",
-        _ => $"保存站点失败：{ProblemText(problemCode)}",
-    };
+    private static string SiteSaveProblemText(string problemCode) => ProblemText(problemCode);
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);

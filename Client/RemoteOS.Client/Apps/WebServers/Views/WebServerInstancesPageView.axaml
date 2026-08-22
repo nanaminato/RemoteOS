@@ -9,20 +9,20 @@
             <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="24">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="Nginx 实例" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
-                        <TextBlock Text="先选择需要管理的 Nginx 实例，再执行状态检查、安装或维护操作。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Loc webservers.instances.title}" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                        <TextBlock Text="{loc:Loc webservers.instances.subtitle}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
                         <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
                     </StackPanel>
                     <StackPanel Spacing="4">
-                        <TextBlock Text="已发现的 Nginx 实例" FontSize="12" Foreground="#61708B" />
-                        <ComboBox ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer, Mode=TwoWay}" PlaceholderText="选择 Nginx 实例">
+                        <TextBlock Text="{loc:Loc webservers.instances.discovered}" FontSize="12" Foreground="#61708B" />
+                        <ComboBox ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer, Mode=TwoWay}" PlaceholderText="{loc:Loc webservers.instances.placeholder}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{Binding ManagementMode}" />
+                                        <TextBlock Text="{Binding ManagementMode, Converter={x:Static webservers:WebServerEnumTextConverter.Instance}, ConverterParameter=management}" />
                                         <TextBlock Text="{Binding ExecutablePath}" TextTrimming="CharacterEllipsis" MaxWidth="420" />
                                     </StackPanel>
                                 </DataTemplate>
@@ -31,9 +31,9 @@
                     </StackPanel>
                     <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="#163059" />
                     <StackPanel IsVisible="{Binding IsManagedInstallAvailable}" Spacing="8">
-                        <TextBlock Text="受管安装" FontWeight="SemiBold" Foreground="#36506F" />
+                        <TextBlock Text="{loc:Loc webservers.managed.installation}" FontWeight="SemiBold" Foreground="#36506F" />
                         <StackPanel IsVisible="{Binding IsWindowsServer}" Spacing="6">
-                            <TextBlock Text="选择 Nginx 版本或上传本地 ZIP 包。" FontSize="12" Foreground="#61708B" />
+                            <TextBlock Text="{loc:Loc webservers.managed.installation_help}" FontSize="12" Foreground="#61708B" />
                             <ComboBox ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" IsEditable="True" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
@@ -52,12 +52,12 @@
             <Border Grid.Column="1" Background="White" CornerRadius="14" Padding="24">
                 <StackPanel Spacing="16">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="实例操作" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                        <TextBlock Text="{loc:Loc webservers.actions.title}" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
                         <TextBlock Text="{Binding ManagementHint}" TextWrapping="Wrap" Foreground="#61708B" />
                     </StackPanel>
                     <Border Background="#F5F8FD" CornerRadius="10" Padding="14,10">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="运行状态" FontSize="11" FontWeight="SemiBold" Foreground="#61708B" />
+                            <TextBlock Text="{loc:Loc webservers.runtime_status}" FontSize="11" FontWeight="SemiBold" Foreground="#61708B" />
                             <TextBlock Text="{Binding SelectedStatusText}" TextWrapping="Wrap" Foreground="#163059" />
                         </StackPanel>
                     </Border>
@@ -66,19 +66,19 @@
                         <Button Grid.Column="1" Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" HorizontalContentAlignment="Center" />
                     </Grid>
                     <StackPanel IsVisible="{Binding IsExternalServer}" Spacing="8">
-                        <TextBlock Text="外部实例只能在符合条件时集成；集成后不会由 RemoteOS 接管进程生命周期。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Loc webservers.external.help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                         <Button Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
                     <StackPanel IsVisible="{Binding IsIntegratedServer}" Spacing="8">
-                        <TextBlock Text="已集成实例可重载配置，以应用站点变更。" FontSize="12" Foreground="#61708B" />
+                        <TextBlock Text="{loc:Loc webservers.integrated.help}" FontSize="12" Foreground="#61708B" />
                         <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
                     <StackPanel IsVisible="{Binding IsIntegratedOrManagedServer}" Spacing="6">
-                        <TextBlock Text="为所有由 RemoteOS 管理的站点添加 /.well-known/acme-challenge/ 路由。站点须绑定证书域名和 80 端口；启用后，请在证书管理器选择“HTTP-01（Web Root）”。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <TextBlock Text="{loc:Loc webservers.acme.help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                         <Button Content="{loc:Loc webservers.action.enable_acme_http01}" Command="{Binding EnableAcmeHttp01Command}" HorizontalAlignment="Left" />
                     </StackPanel>
                     <StackPanel IsVisible="{Binding IsManagedServer}" Spacing="10">
-                        <TextBlock Text="服务控制" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" />
+                        <TextBlock Text="{loc:Loc webservers.service_controls}" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" />
                         <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
                             <Button Grid.Column="0" Classes="primary" Content="{loc:Loc webservers.action.start}" Command="{Binding StartManagedCommand}" HorizontalContentAlignment="Center" />
                             <Button Grid.Column="1" Content="{loc:Loc webservers.action.stop}" Command="{Binding StopCommand}" HorizontalContentAlignment="Center" />
@@ -87,7 +87,7 @@
                         </Grid>
                         <Border Background="#FFF7F7" BorderBrush="#F4D2D2" BorderThickness="1" CornerRadius="10" Padding="12,9">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                <TextBlock Text="卸载会停止并删除由 RemoteOS 管理的 Nginx。" FontSize="12" Foreground="#8A4B4B" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <TextBlock Text="{loc:Loc webservers.managed.uninstall_hint}" FontSize="12" Foreground="#8A4B4B" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <Button Grid.Column="1" Content="{loc:Loc webservers.managed.uninstall}" Command="{Binding UninstallManagedCommand}" />
                             </Grid>
                         </Border>

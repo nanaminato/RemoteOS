@@ -12,12 +12,12 @@
 
                 <StackPanel Spacing="4">
                     <TextBlock Text="{loc:Loc certificates.request.domains}" Foreground="#36506F" />
-                    <TextBox Text="{Binding Domains, Mode=TwoWay}" PlaceholderText="example.com, www.example.com" />
+                    <TextBox Text="{Binding Domains, Mode=TwoWay}" PlaceholderText="{loc:Loc certificates.request.domains_hint}" />
                 </StackPanel>
 
                 <StackPanel Spacing="4">
                     <TextBlock Text="{loc:Loc certificates.request.contact_email}" Foreground="#36506F" />
-                    <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" PlaceholderText="admin@example.com" />
+                    <TextBox Text="{Binding ContactEmail, Mode=TwoWay}" PlaceholderText="{loc:Loc certificates.request.contact_email_hint}" />
                 </StackPanel>
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
