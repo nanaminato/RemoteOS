@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Client.Localization;
 using RoyalTerminal.Avalonia.Controls;
 using RoyalTerminal.Avalonia.Services;
 using RoyalTerminal.Terminal;
@@ -20,6 +21,7 @@ public partial class TerminalView : UserControl
     private const int InitialRows = 24;
     private readonly SignalRTransportFactory _transportFactory;
     private readonly TerminalControl _terminal;
+    private readonly MenuItem _copyItem;
 
     public TerminalView()
     {
@@ -28,6 +30,9 @@ public partial class TerminalView : UserControl
         _terminal = CreateTerminalControl(_transportFactory);
         TerminalHost.Children.Add(_terminal);
         _terminal.PointerPressed += OnTerminalPressed;
+        _copyItem = new MenuItem { Header = LocalizedText.Get("terminal.context.copy"), IsEnabled = false };
+        _terminal.ContextMenu = BuildContextMenu();
+        _terminal.SelectionFinalized += OnSelectionFinalized;
     }
 
     private static TerminalControl CreateTerminalControl(ITerminalTransportFactory transportFactory)
@@ -77,8 +82,59 @@ public partial class TerminalView : UserControl
         base.OnUnloaded(e);
     }
 
-    private void OnTerminalPressed(object? sender, PointerPressedEventArgs e) =>
+    private void OnTerminalPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _copyItem.IsEnabled = _terminal.HasSelection;
         Dispatcher.UIThread.Post(FocusTerminal);
+    }
+
+    private void OnSelectionFinalized(object? sender, EventArgs e) =>
+        _copyItem.IsEnabled = _terminal.HasSelection;
+
+    private ContextMenu BuildContextMenu()
+    {
+        var paste = new MenuItem { Header = LocalizedText.Get("terminal.context.paste") };
+        var selectAll = new MenuItem { Header = LocalizedText.Get("terminal.context.select_all") };
+        var clear = new MenuItem { Header = LocalizedText.Get("terminal.context.clear") };
+
+        _copyItem.Click += OnCopyClicked;
+        paste.Click += OnPasteClicked;
+        selectAll.Click += OnSelectAllClicked;
+        clear.Click += OnClearClicked;
+
+        var menu = new ContextMenu();
+        menu.Items.Add(_copyItem);
+        menu.Items.Add(paste);
+        menu.Items.Add(selectAll);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(clear);
+        return menu;
+    }
+
+    private async void OnCopyClicked(object? sender, RoutedEventArgs e)
+    {
+        try { await _terminal.CopySelectionAsync(); }
+        catch { /* clipboard may be unavailable */ }
+    }
+
+    private async void OnPasteClicked(object? sender, RoutedEventArgs e)
+    {
+        try { await _terminal.PasteAsync(); }
+        catch { /* clipboard may be unavailable */ }
+    }
+
+    private void OnSelectAllClicked(object? sender, RoutedEventArgs e)
+    {
+        try { _terminal.SelectAll(); }
+        catch { /* best effort */ }
+        _copyItem.IsEnabled = _terminal.HasSelection;
+    }
+
+    private void OnClearClicked(object? sender, RoutedEventArgs e)
+    {
+        try { _terminal.ClearScrollback(); }
+        catch { /* best effort */ }
+    }
 
     private void FocusTerminal() => _terminal.Focus();
 
