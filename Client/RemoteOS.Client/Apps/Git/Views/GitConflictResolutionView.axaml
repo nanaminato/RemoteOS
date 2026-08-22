@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Git.Views.GitConflictResolutionView"
              x:DataType="git:GitClientViewModel">
@@ -8,8 +9,8 @@
         <StackPanel Spacing="12">
             <Border Background="#FFF3E0" CornerRadius="8" Padding="16">
                 <StackPanel Spacing="4">
-                    <TextBlock Text="⚠ Merge Conflicts" FontSize="14" FontWeight="SemiBold" Foreground="#D44" />
-                    <TextBlock Text="Resolve conflicts below, then continue the merge." FontSize="12" Foreground="#744" />
+                    <TextBlock Text="{loc:Loc git.conflicts.title}" FontSize="14" FontWeight="SemiBold" Foreground="#D44" />
+                    <TextBlock Text="{loc:Loc git.conflicts.message}" FontSize="12" Foreground="#744" />
                 </StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" BoxShadow="0 2 8 0 #10000000">

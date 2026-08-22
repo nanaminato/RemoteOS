@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:views="clr-namespace:Client.Apps.Git.Views"
              x:Class="Client.Apps.Git.Views.GitClientWorkspace"
              x:DataType="git:GitClientViewModel"
@@ -12,8 +13,8 @@
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <TextBlock Text="🌿" FontSize="22" VerticalAlignment="Center" />
                     <StackPanel Spacing="1">
-                        <TextBlock Text="Git Client" FontSize="18" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Repository version control" FontSize="11" Foreground="#B8C9E6" />
+                        <TextBlock Text="{loc:Loc git.title}" FontSize="18" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="{loc:Loc git.subtitle}" FontSize="11" Foreground="#B8C9E6" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
@@ -21,7 +22,7 @@
                     <Border Background="#1C3765" CornerRadius="4" Padding="8,3">
                         <TextBlock Text="{Binding Status.Branch}" Foreground="#C8F6DD" FontSize="12" />
                     </Border>
-                    <Button Content="⟳ Refresh" Command="{Binding RefreshCommand}" Background="#1C3765" Foreground="#C8F6DD" />
+                    <Button Content="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}" Background="#1C3765" Foreground="#C8F6DD" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -31,22 +32,47 @@
             <!-- Left navigation -->
             <Border Grid.Column="0" Background="#EEF3FA">
                 <StackPanel Spacing="0" Margin="0,8">
-                    <Button Content="📋 概览" Tag="overview" Click="NavigationButton_Click"
+                    <Button Tag="overview" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="📝 工作区" Tag="workspace" Click="NavigationButton_Click"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📋" />
+                            <TextBlock Text="{loc:Loc git.page.overview}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="workspace" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="📜 日志" Tag="log" Click="NavigationButton_Click"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📝" />
+                            <TextBlock Text="{loc:Loc git.page.workspace}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="log" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="🌐 远程仓库" Tag="remotes" Click="NavigationButton_Click"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📜" />
+                            <TextBlock Text="{loc:Loc git.page.log}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="remotes" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="⚠ 冲突" Tag="conflicts" Click="NavigationButton_Click"
+                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="🌐" />
+                            <TextBlock Text="{loc:Loc git.page.remotes}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="conflicts" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10"
-                            IsVisible="{Binding HasConflicts}" />
+                            IsVisible="{Binding HasConflicts}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="⚠" />
+                            <TextBlock Text="{loc:Loc git.page.conflicts}" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
 

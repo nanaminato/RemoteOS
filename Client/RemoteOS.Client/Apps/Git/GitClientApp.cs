@@ -61,7 +61,7 @@ public sealed class GitClientApp : RemoteApplicationBase
         // 与 Code Editor 的 RequestFolderAsync 完全一致；不再自实现一个简陋的目录浏览对话框。
         vm.ShowRemotePathPickerAsync = () => files is null
             ? Task.FromResult<string?>(null)
-            : context.ShowDialogAsync<string?>(window!, "选择项目文件夹", dialog =>
+            : context.ShowDialogAsync<string?>(window!, LocalizedText.Get("git.dialog.select_folder.title"), dialog =>
             {
                 var picker = new ExplorerViewModel(files,
                     new ExplorerPickerOptions(ExplorerPickerMode.SelectFolder),

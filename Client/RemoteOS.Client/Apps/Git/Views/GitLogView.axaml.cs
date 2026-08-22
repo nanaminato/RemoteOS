@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Client.Localization;
 using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git.Views;
@@ -85,8 +86,8 @@ internal partial class GitLogView : UserControl
         {
             BranchTreeRoots.Add(new BranchTreeNode(
                 displayName: string.IsNullOrEmpty(currentBranchName)
-                    ? $"HEAD ({head.Name})"
-                    : $"HEAD ({head.Name} 当前分支)",
+                    ? LocalizedText.Format("git.log.head_format", head.Name)
+                    : LocalizedText.Format("git.log.head_current_branch_format", head.Name),
                 icon: "⭐",
                 foreground: "#122344",
                 fontWeight: FontWeight.SemiBold,
@@ -97,7 +98,7 @@ internal partial class GitLogView : UserControl
         else if (!string.IsNullOrEmpty(currentBranchName))
         {
             BranchTreeRoots.Add(new BranchTreeNode(
-                displayName: $"HEAD ({currentBranchName} 当前分支)",
+                displayName: LocalizedText.Format("git.log.head_current_branch_format", currentBranchName),
                 icon: "⭐",
                 foreground: "#122344",
                 fontWeight: FontWeight.SemiBold,
@@ -106,7 +107,7 @@ internal partial class GitLogView : UserControl
 
         // 2. 本地分支分组
         var locals = all.Where(b => !b.IsRemote).ToList();
-        var localGroup = new BranchTreeNode("本地", icon: "📁", nodeKind: BranchNodeKind.Group, isExpanded: true);
+        var localGroup = new BranchTreeNode(LocalizedText.Get("git.log.branch_tree_local"), icon: "📁", nodeKind: BranchNodeKind.Group, isExpanded: true);
         foreach (var b in locals)
         {
             if (!Pass(b.Name)) continue;
@@ -131,7 +132,7 @@ internal partial class GitLogView : UserControl
 
         // 3. 远程分组：按 remote 名（remote/name 中 slash 前）分组
         var remotes = all.Where(b => b.IsRemote).ToList();
-        var remoteRoot = new BranchTreeNode("远程", icon: "🌐", nodeKind: BranchNodeKind.Group, isExpanded: true);
+        var remoteRoot = new BranchTreeNode(LocalizedText.Get("git.log.branch_tree_remote"), icon: "🌐", nodeKind: BranchNodeKind.Group, isExpanded: true);
         var remoteGroups = new Dictionary<string, BranchTreeNode>(StringComparer.OrdinalIgnoreCase);
         foreach (var b in remotes)
         {

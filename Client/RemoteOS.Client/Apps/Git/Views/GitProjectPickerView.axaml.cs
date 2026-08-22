@@ -23,10 +23,11 @@ internal partial class GitProjectPickerView : UserControl
         return null;
     }
 
+    /// <summary>Writes [GitPicker] logs to Debug Output only — does not touch user-facing StatusText.
+    /// StatusText is owned by the ViewModel and set via LocalizedText.Get/Format for localization.</summary>
     private static void Log(GitClientViewModel? vm, string message)
     {
-        if (vm is not null) vm.StatusText = $"[TRACE] {message}";
-        // 同时写入 Debug，方便用户在 IDE 的 Output 窗口也能看到
+        _ = vm; // parameter retained for call-site stability; intentionally not used.
         System.Diagnostics.Debug.WriteLine($"[GitPicker] {message}");
     }
 

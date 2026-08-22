@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:gitViews="clr-namespace:Client.Apps.Git.Views"
              x:Class="Client.Apps.Git.Views.GitLogView"
              x:Name="LogViewRoot"
@@ -19,7 +20,7 @@
                 <Border Grid.Row="0" Background="#EEF3FA" CornerRadius="6" Padding="8,4" Margin="0,0,0,6">
                     <Grid ColumnDefinitions="Auto,*">
                         <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <TextBox Grid.Column="1" Watermark="分支或标签" BorderThickness="0" Background="Transparent"
+                        <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.branch_search_watermark}" BorderThickness="0" Background="Transparent"
                                  Text="{Binding BranchSearchText, Mode=TwoWay}"
                                  FontSize="12" Foreground="#122344" Padding="0" />
                     </Grid>
@@ -28,11 +29,11 @@
                 <!-- 快捷操作按钮栏 -->
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
                     <Button Content="➕" Command="{Binding CreateBranchCommand}"
-                            ToolTip.Tip="新建分支" FontSize="12" Padding="6,2" />
+                            ToolTip.Tip="{loc:Loc git.branches.new_branch}" FontSize="12" Padding="6,2" />
                     <Button Content="⬇" Command="{Binding FetchCommand}"
-                            ToolTip.Tip="抓取所有远程" FontSize="12" Padding="6,2" />
+                            ToolTip.Tip="{loc:Loc git.log.menu.fetch_all}" FontSize="12" Padding="6,2" />
                     <Button Content="⟳" Command="{Binding RefreshCommand}"
-                            ToolTip.Tip="刷新" FontSize="12" Padding="6,2" />
+                            ToolTip.Tip="{loc:Loc git.refresh}" FontSize="12" Padding="6,2" />
                 </StackPanel>
 
                 <!-- 分支 TreeView -->
@@ -58,47 +59,47 @@
                         <Style Selector="TreeViewItem">
                             <Setter Property="ContextMenu">
                                 <ContextMenu>
-                                    <MenuItem Header="从此处新建分支…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.create_branch_here}"
                                               Command="{Binding $parent[UserControl].DataContext.CreateBranchFromHereCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="🌿" />
-                                    <MenuItem Header="显示与工作树的差异"
+                                    <MenuItem Header="{loc:Loc git.log.menu.diff_working_tree}"
                                               Command="{Binding $parent[UserControl].DataContext.MergeBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="↔"
                                               IsVisible="{Binding IsBranch}" />
-                                    <MenuItem Header="从该分支新建工作树…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.new_worktree}"
                                               Command="{Binding $parent[UserControl].DataContext.RebaseBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="🏗"
                                               IsVisible="{Binding IsBranch}" />
                                     <Separator IsVisible="{Binding IsBranch}" />
-                                    <MenuItem Header="更新"
+                                    <MenuItem Header="{loc:Loc git.log.menu.update}"
                                               Command="{Binding $parent[UserControl].DataContext.FetchBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="🔄" />
-                                    <MenuItem Header="推送…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.push}"
                                               Command="{Binding $parent[UserControl].DataContext.PushBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="⬆"
                                               IsVisible="{Binding IsLocalBranch}" />
-                                    <MenuItem Header="跟踪的分支"
+                                    <MenuItem Header="{loc:Loc git.log.menu.tracked_branch}"
                                               Command="{Binding $parent[UserControl].DataContext.SetUpstreamBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="🔗"
                                               IsVisible="{Binding IsLocalBranch}" />
                                     <Separator IsVisible="{Binding IsBranch}" />
-                                    <MenuItem Header="重命名…  [F2]"
+                                    <MenuItem Header="{loc:Loc git.log.menu.rename}"
                                               Command="{Binding $parent[UserControl].DataContext.RenameBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="✏"
                                               IsVisible="{Binding IsLocalBranch}" />
-                                    <MenuItem Header="切换到该分支"
+                                    <MenuItem Header="{loc:Loc git.log.menu.checkout}"
                                               Command="{Binding $parent[UserControl].DataContext.CheckoutBranchCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="👉"
                                               IsVisible="{Binding IsBranchAndNotCurrent}" />
-                                    <MenuItem Header="删除该分支"
+                                    <MenuItem Header="{loc:Loc git.log.menu.delete_branch}"
                                               Command="{Binding $parent[UserControl].DataContext.DeleteBranchContextCommand}"
                                               CommandParameter="{Binding Branch}"
                                               Icon="🗑"
@@ -128,36 +129,36 @@
                             <Border Background="White" CornerRadius="6" Padding="8,3" MinWidth="260">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                                     <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                    <TextBox Grid.Column="1" Watermark="文本或哈希" BorderThickness="0" Background="Transparent"
+                                    <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.commit_search_watermark}" BorderThickness="0" Background="Transparent"
                                              Text="{Binding CommitSearchText, Mode=TwoWay}"
                                              FontSize="12" Foreground="#122344" Padding="0" />
-                                    <Button Grid.Column="2" Content=".*" ToolTip.Tip="正则" FontSize="11" Padding="6,0"
+                                    <Button Grid.Column="2" Content=".*" ToolTip.Tip="{loc:Loc git.log.regex}" FontSize="11" Padding="6,0"
                                             Background="Transparent" Foreground="#668" BorderThickness="0" />
-                                    <Button Grid.Column="3" Content="Cc" ToolTip.Tip="大小写敏感" FontSize="11" Padding="4,0"
+                                    <Button Grid.Column="3" Content="Cc" ToolTip.Tip="{loc:Loc git.log.case_sensitive}" FontSize="11" Padding="4,0"
                                             Background="Transparent" Foreground="#668" BorderThickness="0" />
                                 </Grid>
                             </Border>
                             <!-- 筛选下拉 -->
-                            <Button Content="分支: HEAD ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                            <Button Content="{loc:Loc git.log.filter_branch}" FontSize="12" Padding="8,3" Background="#DCE6F4"
                                     Foreground="#122344" BorderThickness="0" />
-                            <Button Content="用户 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                            <Button Content="{loc:Loc git.log.filter_user}" FontSize="12" Padding="8,3" Background="#DCE6F4"
                                     Foreground="#122344" BorderThickness="0" />
-                            <Button Content="日期 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                            <Button Content="{loc:Loc git.log.filter_date}" FontSize="12" Padding="8,3" Background="#DCE6F4"
                                     Foreground="#122344" BorderThickness="0" />
-                            <Button Content="路径 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                            <Button Content="{loc:Loc git.log.filter_path}" FontSize="12" Padding="8,3" Background="#DCE6F4"
                                     Foreground="#122344" BorderThickness="0" />
-                            <Button Content="↓↑" ToolTip.Tip="排序" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                            <Button Content="↓↑" ToolTip.Tip="{loc:Loc git.log.sort}" FontSize="12" Padding="8,3" Background="#DCE6F4"
                                     Foreground="#122344" BorderThickness="0" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                            <Button Content="↶" ToolTip.Tip="上一个" FontSize="13" Padding="8,2" Background="Transparent"
+                            <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous}" FontSize="13" Padding="8,2" Background="Transparent"
                                     Foreground="#567" BorderThickness="0" />
-                            <Button Content="⟳" ToolTip.Tip="刷新" Command="{Binding RefreshCommand}"
+                            <Button Content="⟳" ToolTip.Tip="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}"
                                     FontSize="13" Padding="8,2" Background="Transparent"
                                     Foreground="#567" BorderThickness="0" />
-                            <Button Content="👁" ToolTip.Tip="查看选项" FontSize="13" Padding="8,2" Background="Transparent"
+                            <Button Content="👁" ToolTip.Tip="{loc:Loc git.log.view_options}" FontSize="13" Padding="8,2" Background="Transparent"
                                     Foreground="#567" BorderThickness="0" />
-                            <Button Content="🔍" ToolTip.Tip="在历史中搜索" FontSize="13" Padding="8,2" Background="Transparent"
+                            <Button Content="🔍" ToolTip.Tip="{loc:Loc git.log.search_history}" FontSize="13" Padding="8,2" Background="Transparent"
                                     Foreground="#567" BorderThickness="0" />
                         </StackPanel>
                     </Grid>
@@ -221,61 +222,61 @@
                         <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                             <Setter Property="ContextMenu">
                                 <ContextMenu>
-                                    <MenuItem Header="复制修订号   Ctrl+Alt+Shift+C"
+                                    <MenuItem Header="{loc:Loc git.log.menu.copy_sha}"
                                               Command="{Binding $parent[UserControl].DataContext.CopyShaCommand}"
                                               CommandParameter="{Binding}" Icon="📋" />
-                                    <MenuItem Header="创建补丁…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.create_patch}"
                                               Command="{Binding $parent[UserControl].DataContext.CreatePatchFromCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🧵" />
                                     <Separator />
-                                    <MenuItem Header="优选" IsEnabled="False" Foreground="#666">
-                                        <MenuItem Header="签出修订"
+                                    <MenuItem Header="{loc:Loc git.log.menu.cherry_pick}" IsEnabled="False" Foreground="#666">
+                                        <MenuItem Header="{loc:Loc git.log.menu.checkout_revision}"
                                                   Command="{Binding $parent[UserControl].DataContext.CheckoutCommitCommand}"
                                                   CommandParameter="{Binding}" Icon="👉" />
-                                        <MenuItem Header="在修订版中显示仓库"
+                                        <MenuItem Header="{loc:Loc git.log.menu.show_in_revision}"
                                                   Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
                                                   CommandParameter="{Binding}" Icon="📁" />
-                                        <MenuItem Header="与本地比较"
+                                        <MenuItem Header="{loc:Loc git.log.menu.compare_local}"
                                                   Command="{Binding $parent[UserControl].DataContext.ResetToCommitCommand}"
                                                   CommandParameter="{Binding}" Icon="↔" />
                                     </MenuItem>
                                     <Separator />
-                                    <MenuItem Header="将当前分支重置到此处…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.reset_to_here}"
                                               Command="{Binding $parent[UserControl].DataContext.ResetToCommitCommand}"
                                               CommandParameter="{Binding}" Icon="↺" />
-                                    <MenuItem Header="还原提交"
+                                    <MenuItem Header="{loc:Loc git.log.menu.revert_commit}"
                                               Command="{Binding $parent[UserControl].DataContext.RevertCommitContextCommand}"
                                               CommandParameter="{Binding}" Icon="↩" />
-                                    <MenuItem Header="撤销提交…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.undo_commit}"
                                               Command="{Binding $parent[UserControl].DataContext.UndoCommitCommand}"
                                               CommandParameter="{Binding}" Icon="⏪" />
-                                    <MenuItem Header="编辑提交消息…   [F2]"
+                                    <MenuItem Header="{loc:Loc git.log.menu.edit_message}"
                                               Command="{Binding $parent[UserControl].DataContext.EditCommitMessageCommand}"
                                               CommandParameter="{Binding}" Icon="✏" />
-                                    <MenuItem Header="Fixup…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.fixup}"
                                               Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
                                               CommandParameter="{Binding}" Icon="🔧" />
-                                    <MenuItem Header="压缩到…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.squash_into}"
                                               Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
                                               CommandParameter="{Binding}" Icon="📦" />
-                                    <MenuItem Header="删除提交"
+                                    <MenuItem Header="{loc:Loc git.log.menu.delete_commit}"
                                               Command="{Binding $parent[UserControl].DataContext.UndoCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🗑" />
-                                    <MenuItem Header="压缩提交…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.squash_commits}"
                                               Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
                                               CommandParameter="{Binding}" Icon="🗃" />
-                                    <MenuItem Header="从这里进行交互式变基…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.rebase_interactive}"
                                               Command="{Binding $parent[UserControl].DataContext.RebaseInteractiveFromHereCommand}"
                                               CommandParameter="{Binding}" Icon="♻" />
-                                    <MenuItem Header="推送此前所有提交…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.push_all_before}"
                                               Command="{Binding $parent[UserControl].DataContext.PushAllBeforeCommand}"
                                               CommandParameter="{Binding}" Icon="⬆" />
                                     <Separator />
-                                    <MenuItem Header="分支 “origin/master”  ▸" IsEnabled="False" Foreground="#666" />
-                                    <MenuItem Header="新建分支…   Ctrl+Alt+N"
+                                    <MenuItem Header="{loc:Loc git.log.menu.branch_origin_master}" IsEnabled="False" Foreground="#666" />
+                                    <MenuItem Header="{loc:Loc git.log.menu.new_branch}"
                                               Command="{Binding $parent[UserControl].DataContext.CreateBranchAtCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🌿" />
-                                    <MenuItem Header="新建标记…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.new_tag}"
                                               Command="{Binding $parent[UserControl].DataContext.CreateTagFromCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🏷" />
                                 </ContextMenu>
@@ -300,14 +301,14 @@
                         <TextBlock FontSize="12" Foreground="#122344">
                             <Run Text="📁" />
                             <Run Text="  " />
-                            <Run Text="{Binding CommitChangedFiles.Count, StringFormat='{}{0} 个文件', FallbackValue='0 个文件'}" />
+                            <Run Text="{Binding CommitChangedFiles.Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.log.file_count_format'}" />
                         </TextBlock>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-                            <Button Content="↶" ToolTip.Tip="上一文件" FontSize="12" Padding="6,1"
+                            <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous_file}" FontSize="12" Padding="6,1"
                                     Background="Transparent" Foreground="#567" BorderThickness="0" />
-                            <Button Content="↷" ToolTip.Tip="下一文件" FontSize="12" Padding="6,1"
+                            <Button Content="↷" ToolTip.Tip="{loc:Loc git.log.next_file}" FontSize="12" Padding="6,1"
                                     Background="Transparent" Foreground="#567" BorderThickness="0" />
-                            <Button Content="👁" ToolTip.Tip="查看选项" FontSize="12" Padding="6,1"
+                            <Button Content="👁" ToolTip.Tip="{loc:Loc git.log.view_options}" FontSize="12" Padding="6,1"
                                     Background="Transparent" Foreground="#567" BorderThickness="0" />
                         </StackPanel>
                     </Grid>
@@ -338,49 +339,49 @@
                         <Style Selector="TreeViewItem">
                             <Setter Property="ContextMenu">
                                 <ContextMenu>
-                                    <MenuItem Header="显示差异   Ctrl+D"
+                                    <MenuItem Header="{loc:Loc git.log.menu.show_diff}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
                                               CommandParameter="{Binding}" Icon="↔" />
-                                    <MenuItem Header="在新标签页中显示差异"
+                                    <MenuItem Header="{loc:Loc git.log.menu.diff_new_tab}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
                                               CommandParameter="{Binding}" Icon="🗐" />
-                                    <MenuItem Header="与本地比较"
+                                    <MenuItem Header="{loc:Loc git.log.menu.compare_with_local}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowFileDiffContextCommand}"
                                               CommandParameter="{Binding}" Icon="🆚" />
-                                    <MenuItem Header="将之前版本与本地版本进行比较"
+                                    <MenuItem Header="{loc:Loc git.log.menu.compare_previous_local}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
                                               CommandParameter="{Binding}" Icon="⏳" />
                                     <Separator />
-                                    <MenuItem Header="编辑源   [F4]"
+                                    <MenuItem Header="{loc:Loc git.log.menu.edit_source}"
                                               Command="{Binding $parent[UserControl].DataContext.OpenFileInEditorCommand}"
                                               CommandParameter="{Binding}" Icon="📝" />
-                                    <MenuItem Header="打开仓库版本"
+                                    <MenuItem Header="{loc:Loc git.log.menu.open_repo_version}"
                                               Command="{Binding $parent[UserControl].DataContext.OpenFileInEditorCommand}"
                                               CommandParameter="{Binding}" Icon="📂" />
                                     <Separator />
-                                    <MenuItem Header="还原所选更改"
+                                    <MenuItem Header="{loc:Loc git.log.menu.revert_selected}"
                                               Command="{Binding $parent[UserControl].DataContext.RevertFileChangeCommand}"
                                               CommandParameter="{Binding}" Icon="↺" />
-                                    <MenuItem Header="优选所选更改"
+                                    <MenuItem Header="{loc:Loc git.log.menu.cherry_pick_selected}"
                                               Command="{Binding $parent[UserControl].DataContext.StageFileContextCommand}"
                                               CommandParameter="{Binding}" Icon="✅" />
-                                    <MenuItem Header="将所选更改提取到单独的提交…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.extract_to_commit}"
                                               Command="{Binding $parent[UserControl].DataContext.CreatePatchFromFileCommand}"
                                               CommandParameter="{Binding}" Icon="✂" />
-                                    <MenuItem Header="删除所选更改"
+                                    <MenuItem Header="{loc:Loc git.log.menu.delete_selected}"
                                               Command="{Binding $parent[UserControl].DataContext.RevertFileChangeCommand}"
                                               CommandParameter="{Binding}" Icon="🗑" />
                                     <Separator />
-                                    <MenuItem Header="创建补丁…"
+                                    <MenuItem Header="{loc:Loc git.log.menu.create_patch}"
                                               Command="{Binding $parent[UserControl].DataContext.CreatePatchFromFileCommand}"
                                               CommandParameter="{Binding}" Icon="🧵" />
-                                    <MenuItem Header="从修订中获取"
+                                    <MenuItem Header="{loc:Loc git.log.menu.get_from_revision}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
                                               CommandParameter="{Binding}" Icon="⬇" />
-                                    <MenuItem Header="迄今为止的历史记录"
+                                    <MenuItem Header="{loc:Loc git.log.menu.history_so_far}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
                                               CommandParameter="{Binding}" Icon="📜" />
-                                    <MenuItem Header="显示对父项的更改"
+                                    <MenuItem Header="{loc:Loc git.log.menu.show_changes_to_parent}"
                                               Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
                                               CommandParameter="{Binding}" Icon="↔" />
                                 </ContextMenu>
@@ -401,7 +402,7 @@
                                 <TextBlock Text="{Binding SelectedCommit.ShortSha}" FontSize="11"
                                            FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="#888" />
                                 <TextBlock Text="·" FontSize="11" Foreground="#8899B8" />
-                                <TextBlock Text="作者" FontSize="11" Foreground="#8899B8" />
+                                <TextBlock Text="{loc:Loc git.log.author}" FontSize="11" Foreground="#8899B8" />
                                 <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="11"
                                            Foreground="#36506F" />
                                 <TextBlock Text="&lt;" FontSize="11" Foreground="#567" />
@@ -415,9 +416,9 @@
                             <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="#567"
                                        TextWrapping="Wrap" IsVisible="{Binding SelectedCommit.Body, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                                <TextBlock Text="🟡 HEAD" FontSize="11" Foreground="#D19A00" />
-                                <TextBlock Text="🟣 master" FontSize="11" Foreground="#9855CC" />
-                                <TextBlock Text="🔷 origin/master" FontSize="11" Foreground="#2E6BCC" />
+                                <TextBlock Text="{loc:Loc git.log.head_badge}" FontSize="11" Foreground="#D19A00" />
+                                <TextBlock Text="{loc:Loc git.log.master_badge}" FontSize="11" Foreground="#9855CC" />
+                                <TextBlock Text="{loc:Loc git.log.origin_master_badge}" FontSize="11" Foreground="#2E6BCC" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

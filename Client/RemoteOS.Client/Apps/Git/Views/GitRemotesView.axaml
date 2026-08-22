@@ -1,13 +1,24 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
              xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Git.Views.GitRemotesView"
              x:DataType="git:GitClientViewModel">
     <Grid RowDefinitions="Auto,*,Auto" MinHeight="300">
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-            <Button Content="➕ 添加远程" Command="{Binding AddRemoteCommand}" />
-            <Button Content="⟳ 刷新" Command="{Binding RefreshRemotesCommand}" />
+            <Button Command="{Binding AddRemoteCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="➕" />
+                    <TextBlock Text="{loc:Loc git.remotes.add}" />
+                </StackPanel>
+            </Button>
+            <Button Command="{Binding RefreshRemotesCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="⟳" />
+                    <TextBlock Text="{loc:Loc git.remotes.refresh}" />
+                </StackPanel>
+            </Button>
         </StackPanel>
 
         <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
@@ -17,17 +28,27 @@
                       SelectedItem="{Binding SelectedRemote, Mode=TwoWay}"
                       CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="130" CanUserResize="True" />
-                    <DataGridTextColumn Header="Fetch URL" Binding="{Binding FetchUrl}" Width="2*" CanUserResize="True" />
-                    <DataGridTextColumn Header="Push URL" Binding="{Binding PushUrl}" Width="2*" CanUserResize="True" />
-                    <DataGridTemplateColumn Header="操作" Width="130" CanUserResize="False">
+                    <DataGridTextColumn Header="{loc:Loc git.remotes.col_name}" Binding="{Binding Name}" Width="130" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.remotes.col_fetch_url}" Binding="{Binding FetchUrl}" Width="2*" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.remotes.col_push_url}" Binding="{Binding PushUrl}" Width="2*" CanUserResize="True" />
+                    <DataGridTemplateColumn Header="{loc:Loc git.remotes.col_actions}" Width="130" CanUserResize="False">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate x:DataType="proto:GitRemoteDto">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Button Content="✎ 编辑" Click="Edit_Click" Tag="{Binding}"
-                                            Padding="6,2" Background="Transparent" Foreground="#36506F" />
-                                    <Button Content="✕ 删除" Click="Remove_Click" Tag="{Binding}"
-                                            Padding="6,2" Background="Transparent" Foreground="#D44" />
+                                    <Button Click="Edit_Click" Tag="{Binding}"
+                                            Padding="6,2" Background="Transparent" Foreground="#36506F">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="✎" />
+                                            <TextBlock Text="{loc:Loc git.remotes.edit}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Click="Remove_Click" Tag="{Binding}"
+                                            Padding="6,2" Background="Transparent" Foreground="#D44">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="✕" />
+                                            <TextBlock Text="{loc:Loc git.remotes.delete}" />
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
@@ -37,7 +58,7 @@
         </Border>
 
         <TextBlock Grid.Row="2"
-                   Text="还没有配置任何远程仓库（remote）。"
+                   Text="{loc:Loc git.remotes.empty}"
                    FontSize="12" Foreground="#999" Margin="4,8"
                    IsVisible="{Binding Remotes.Count, Converter={x:Static git:GitPickerConverters.IsZeroToVisible}}" />
     </Grid>

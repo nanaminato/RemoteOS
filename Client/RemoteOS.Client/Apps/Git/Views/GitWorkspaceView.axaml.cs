@@ -1,6 +1,7 @@
 using System.Collections.Specialized;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Client.Localization;
 using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git.Views;
@@ -21,7 +22,7 @@ internal partial class GitWorkspaceView : UserControl
     private void AttachCollectionHandlers()
     {
         if (_vm is null) return;
-        
+
         _vm.TrackedChanges.CollectionChanged += (s, e) => UpdateGroupVisibility();
         _vm.UntrackedChanges.CollectionChanged += (s, e) => UpdateGroupVisibility();
         _vm.Changes.CollectionChanged += (s, e) => UpdateGroupVisibility();
@@ -30,13 +31,13 @@ internal partial class GitWorkspaceView : UserControl
     private void UpdateGroupVisibility()
     {
         if (_vm is null) return;
-        
+
         TrackedSection.IsVisible = _vm.TrackedChanges.Count > 0;
         UntrackedSection.IsVisible = _vm.UntrackedChanges.Count > 0;
         EmptyState.IsVisible = _vm.Changes.Count == 0;
-        
-        TrackedCountText.Text = $"{_vm.TrackedChanges.Count} 个文件";
-        UntrackedCountText.Text = $"{_vm.UntrackedChanges.Count} 个文件";
+
+        TrackedCountText.Text = LocalizedText.Format("git.workspace.file_count_short_format", _vm.TrackedChanges.Count);
+        UntrackedCountText.Text = LocalizedText.Format("git.workspace.file_count_short_format", _vm.UntrackedChanges.Count);
     }
 
     private void StageFile_Click(object? sender, RoutedEventArgs e)
@@ -55,12 +56,12 @@ internal partial class GitWorkspaceView : UserControl
         if (_vm is null) return;
         if (_vm.SelectedCount == 0)
         {
-            _vm.StatusText = "请先选择要提交的文件";
+            _vm.StatusText = LocalizedText.Get("git.status.no_files_selected");
             return;
         }
         if (string.IsNullOrWhiteSpace(_vm.CommitMessage))
         {
-            _vm.StatusText = "请输入提交消息";
+            _vm.StatusText = LocalizedText.Get("git.status.commit_message_required");
             return;
         }
         _vm.CommitCommand.Execute(null);

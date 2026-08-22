@@ -1,13 +1,29 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:loc="clr-namespace:Client.Localization"
              x:Class="Client.Apps.Git.Views.GitBranchesView"
              x:DataType="git:GitClientViewModel">
     <Grid RowDefinitions="Auto,*" MinHeight="300">
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-            <Button Content="➕ New Branch" Command="{Binding CreateBranchCommand}" />
-            <Button Content="🔄 Checkout" Click="Checkout_Click" />
-            <Button Content="🗑 Delete" Click="Delete_Click" />
+            <Button Command="{Binding CreateBranchCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="➕" />
+                    <TextBlock Text="{loc:Loc git.branches.new_branch}" />
+                </StackPanel>
+            </Button>
+            <Button Click="Checkout_Click">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="🔄" />
+                    <TextBlock Text="{loc:Loc git.branches.checkout}" />
+                </StackPanel>
+            </Button>
+            <Button Click="Delete_Click">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="🗑" />
+                    <TextBlock Text="{loc:Loc git.branches.delete}" />
+                </StackPanel>
+            </Button>
         </StackPanel>
         <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
             <DataGrid x:Name="BranchGrid" ItemsSource="{Binding Branches}"
@@ -16,12 +32,12 @@
                       SelectedItem="{Binding SelectedBranch, Mode=TwoWay}"
                       CanUserResizeColumns="True" CanUserSortColumns="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160" CanUserResize="True" />
-                    <DataGridCheckBoxColumn Header="Current" Binding="{Binding IsCurrent}" IsReadOnly="True" Width="70" CanUserResize="True" />
-                    <DataGridCheckBoxColumn Header="Remote" Binding="{Binding IsRemote}" IsReadOnly="True" Width="70" CanUserResize="True" />
-                    <DataGridTextColumn Header="Upstream" Binding="{Binding Tracking}" Width="*" CanUserResize="True" />
-                    <DataGridTextColumn Header="Ahead" Binding="{Binding Ahead}" Width="70" CanUserResize="True" />
-                    <DataGridTextColumn Header="Behind" Binding="{Binding Behind}" Width="70" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.branches.col_name}" Binding="{Binding Name}" Width="160" CanUserResize="True" />
+                    <DataGridCheckBoxColumn Header="{loc:Loc git.branches.col_current}" Binding="{Binding IsCurrent}" IsReadOnly="True" Width="70" CanUserResize="True" />
+                    <DataGridCheckBoxColumn Header="{loc:Loc git.branches.col_remote}" Binding="{Binding IsRemote}" IsReadOnly="True" Width="70" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.branches.col_upstream}" Binding="{Binding Tracking}" Width="*" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.branches.col_ahead}" Binding="{Binding Ahead}" Width="70" CanUserResize="True" />
+                    <DataGridTextColumn Header="{loc:Loc git.branches.col_behind}" Binding="{Binding Behind}" Width="70" CanUserResize="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

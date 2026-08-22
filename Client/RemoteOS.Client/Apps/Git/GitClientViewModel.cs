@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Threading;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Git;
@@ -49,7 +50,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private GitFileChangeDto? _selectedFile;
     [ObservableProperty] private GitDiffDto? _fileDiff;
     [ObservableProperty] private GitRemoteDto? _selectedRemote;
-    [ObservableProperty] private string _statusText = "Loading…";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("git.status.loading");
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private string _commitMessage = string.Empty;
@@ -114,7 +115,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         if (!IsGitAvailable)
         {
             IsGitInstallRequired = IsInstallRequired(IsGitAvailable, ProblemCode);
-            StatusText = "Git 未安装或不可用";
+            StatusText = LocalizedText.Get("git.vm.git_unavailable");
             if (ShowGitUnavailableAsync is not null)
                 await ShowGitUnavailableAsync();
             if (!IsGitAvailable) return; // still unavailable after dialog → stop further init
@@ -123,8 +124,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         await RefreshRepositoriesAsync();
         Log($"项目列表: Repositories.Count={Repositories.Count} IsPickerMode={IsPickerMode}");
         StatusText = IsPickerMode
-            ? (Repositories.Count > 0 ? "请选择或打开一个项目" : "点击「打开文件夹」选择一个 Git 仓库")
-            : "Ready";
+            ? (Repositories.Count > 0 ? LocalizedText.Get("git.status.select_project") : LocalizedText.Get("git.status.click_open_folder"))
+            : LocalizedText.Get("git.status.ready");
 
         if (!IsPickerMode && IsAutoRefresh)
             StartStatusTimer();
@@ -158,7 +159,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         }
         catch (Exception ex)
         {
-            StatusText = $"加载项目列表失败：{ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.load_repositories_failed_format", ex.Message);
             Log($"RefreshRepositoriesAsync 异常：{ex.GetType().Name} {ex.Message}\n{ex.StackTrace}");
         }
     }
@@ -207,11 +208,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             }
 
             RebuildChangesList();
-            StatusText = $"Ready — {Status?.Branch ?? "unknown"}";
+            StatusText = LocalizedText.Format("git.status.ready_branch_format", Status?.Branch ?? LocalizedText.Get("git.status.unknown_branch"));
         }
         catch (Exception ex)
         {
-            StatusText = $"Refresh failed: {ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.refresh_failed_format", ex.Message);
             Log($"RefreshAllAsync 异常：{ex.GetType().Name} {ex.Message}\n{ex.StackTrace}");
         }
         finally
@@ -270,7 +271,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             EnginePath = "—";
             CanAutoInstall = false;
             IsGitInstallRequired = false;
-            StatusText = $"检测 Git 状态失败：{ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.engine_check_failed_format", ex.Message);
         }
     }
 
@@ -281,20 +282,20 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (IsInstalling) return;
         IsInstalling = true;
-        InstallMessage = "正在安装 Git，请稍候…";
+        InstallMessage = LocalizedText.Get("git.vm.install_in_progress");
         try
         {
             var result = await client.InstallEngineAsync();
-            InstallMessage = result.Success ? "安装完成，正在验证…" : (result.Message ?? "安装失败");
+            InstallMessage = result.Success ? LocalizedText.Get("git.vm.install_verifying") : (result.Message ?? LocalizedText.Get("git.vm.install_failed"));
             await RefreshEngineStatusAsync();
             if (result.Success && IsGitAvailable)
             {
-                InstallMessage = "Git 已安装，可以继续使用。";
+                InstallMessage = LocalizedText.Get("git.vm.installed");
             }
         }
         catch (Exception ex)
         {
-            InstallMessage = $"安装出错：{ex.Message}";
+            InstallMessage = LocalizedText.Format("git.vm.install_error_format", ex.Message);
         }
         finally
         {
@@ -327,7 +328,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             IsPickerMode = false;
             SelectedRepository = repo;
             ActivePage = GitClientPage.Overview;
-            StatusText = $"Loading {repo.Name}…";
+            StatusText = LocalizedText.Format("git.vm.loading_project_format", repo.Name);
 
             Log("调用 RefreshAllAsync（并行 status/branches/log）…");
             await RefreshAllAsync();
@@ -340,11 +341,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             Log("调用 RefreshRemotesAsync…");
             await RefreshRemotesAsync();
             Log($"OpenProjectAsync 结束，Remotes={Remotes.Count}，Ready");
-            StatusText = $"Ready — {repo.Name} @ {Status?.Branch ?? "unknown"}";
+            StatusText = LocalizedText.Format("git.vm.ready_project_branch_format", repo.Name, Status?.Branch ?? LocalizedText.Get("git.status.unknown_branch"));
         }
         catch (Exception ex)
         {
-            StatusText = $"打开项目失败：{ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.open_project_failed_format", ex.Message);
             Log($"OpenProjectAsync 异常：{ex.GetType().Name} {ex.Message}\n{ex.StackTrace}");
         }
     }
@@ -356,7 +357,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         Log("OpenFolderAsync 开始");
         if (ShowRemotePathPickerAsync is null)
         {
-            StatusText = "路径选择器不可用（ShowRemotePathPickerAsync=null）";
+            StatusText = LocalizedText.Get("git.vm.path_picker_unavailable");
             Log("ShowRemotePathPickerAsync 委托未设置");
             return;
         }
@@ -382,10 +383,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             var dto = await client.RegisterRepositoryAsync(registration);
             if (!Repositories.Contains(dto))
                 Repositories.Add(dto);
-            StatusText = $"已注册项目「{dto.Name}」，正在打开…";
+            StatusText = LocalizedText.Format("git.vm.registered_format", dto.Name);
             await OpenProjectCommand.ExecuteAsync(dto);
         }
-        catch (Exception ex) { StatusText = $"注册失败：{ex.Message}"; Log(ex.ToString()); }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.register_failed_format", ex.Message); Log(ex.ToString()); }
     }
 
     private async Task ProbeAndOpenAsync(string path)
@@ -393,7 +394,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         Log($"ProbeAndOpenAsync path={path}");
         IsProbing = true;
         IsBusy = true;
-        ProbeHint = $"正在检查 {path} …";
+        ProbeHint = LocalizedText.Format("git.picker.probing_format", path);
         try
         {
             Log("调用 client.ProbeRepositoryAsync …");
@@ -401,22 +402,22 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             Log($"Probe 返回: IsRepository={probe.IsRepository} HasCommits={probe.HasCommits} Branch={probe.CurrentBranch} Remotes={probe.Remotes?.Count ?? 0}");
             if (!probe.IsRepository)
             {
-                ProbeHint = $"所选目录不是 Git 仓库";
+                ProbeHint = LocalizedText.Get("git.vm.not_repo");
                 var init = ShowInitConfirmAsync is not null && await ShowInitConfirmAsync(path);
                 Log($"ShowInitConfirm 返回: {init}");
                 if (!init)
                 {
-                    StatusText = "已取消初始化";
+                    StatusText = LocalizedText.Get("git.vm.init_cancelled");
                     return;
                 }
                 var initResult = await client.InitRepositoryAsync(path);
                 Log($"git init 返回: Success={initResult.Success} Message={initResult.Message}");
                 if (!initResult.Success)
                 {
-                    StatusText = $"git init 失败：{initResult.Message}";
+                    StatusText = LocalizedText.Format("git.vm.init_failed_format", initResult.Message);
                     return;
                 }
-                StatusText = "Git 仓库已初始化";
+                StatusText = LocalizedText.Get("git.vm.initialized");
                 probe = await client.ProbeRepositoryAsync(path);
                 Log($"重探测后: IsRepository={probe.IsRepository} DefaultBranch={probe.DefaultBranch}");
             }
@@ -427,7 +428,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             if (existing is not null)
             {
                 Log($"路径已注册为「{existing.Name}」，直接打开");
-                StatusText = $"项目已存在：{existing.Name}";
+                StatusText = LocalizedText.Format("git.vm.project_exists_format", existing.Name);
                 await OpenProjectCommand.ExecuteAsync(existing);
                 return;
             }
@@ -439,13 +440,13 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             var dto = await client.RegisterRepositoryAsync(new GitRepositoryRegistration(name, path));
             if (!Repositories.Contains(dto))
                 Repositories.Add(dto);
-            StatusText = $"项目「{dto.Name}」已注册";
+            StatusText = LocalizedText.Format("git.vm.project_registered_format", dto.Name);
             await OpenProjectCommand.ExecuteAsync(dto);
         }
         catch (Exception ex)
         {
-            StatusText = $"探测失败：{ex.Message}";
-            ProbeHint = $"探测失败：{ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.probe_failed_format", ex.Message);
+            ProbeHint = LocalizedText.Format("git.vm.probe_failed_format", ex.Message);
             Log($"ProbeAndOpenAsync 异常：{ex.GetType().Name} {ex.Message}\n{ex.StackTrace}");
         }
         finally
@@ -455,12 +456,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         }
     }
 
-    /// <summary>写入 [TRACE] 日志到状态栏（便于用户从 UI 直接看到执行路径）与 Debug Output 窗口。</summary>
+    /// <summary>Writes [TRACE] logs to the Debug Output window only — does not touch user-facing StatusText.
+    /// StatusText should be set via LocalizedText.Get/Format so it remains localized and stable.</summary>
     private void Log(string message)
     {
-        var line = $"[TRACE] {message}";
-        StatusText = line;
-        System.Diagnostics.Debug.WriteLine(line);
+        System.Diagnostics.Debug.WriteLine($"[TRACE] {message}");
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -468,23 +468,23 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (SelectedRepository is null || branch is null) return;
         IsBusy = true;
-        StatusText = $"Checking out {branch.Name}…";
+        StatusText = LocalizedText.Format("git.vm.checkout_progress_format", branch.Name);
         try
         {
             var result = await client.CheckoutAsync(SelectedRepository.Id, new GitCheckoutRequest(branch.Name));
             if (result.Success)
             {
-                StatusText = $"Switched to {branch.Name}";
+                StatusText = LocalizedText.Format("git.vm.switched_to_format", branch.Name);
                 await RefreshAllAsync();
             }
             else
             {
-                StatusText = $"Checkout failed: {result.Message}";
+                StatusText = LocalizedText.Format("git.vm.checkout_failed_format", result.Message);
                 if (result.Conflicts is not null && result.Conflicts.Count > 0)
                     ActivePage = GitClientPage.ConflictResolution;
             }
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -498,10 +498,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.CreateBranchAsync(SelectedRepository.Id, request);
-            StatusText = result.Success ? $"Branch '{request.Name}' created" : $"Failed: {result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.branch_created_format", request.Name) : LocalizedText.Format("git.vm.failed_format", result.Message);
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -509,16 +509,16 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task DeleteBranchAsync(GitBranchDto branch)
     {
         if (SelectedRepository is null || branch is null || branch.IsCurrent) return;
-        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"Delete branch '{branch.Name}'?"))
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.delete_confirm_format", branch.Name)))
             return;
         IsBusy = true;
         try
         {
             var result = await client.DeleteBranchAsync(SelectedRepository.Id, branch.Name);
-            StatusText = result.Success ? $"Branch '{branch.Name}' deleted" : $"Failed: {result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.branch_deleted_format", branch.Name) : LocalizedText.Format("git.vm.failed_format", result.Message);
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -526,7 +526,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task CommitAsync()
     {
         if (SelectedRepository is null) return;
-        
+
         // If a commit dialog is assigned, use it (for amend option etc.)
         if (ShowCommitDialogAsync is not null)
         {
@@ -536,10 +536,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             try
             {
                 var result = await client.CommitAsync(SelectedRepository.Id, request);
-                StatusText = result.Success ? "Committed" : $"Commit failed: {result.Message}";
+                StatusText = result.Success ? LocalizedText.Get("git.status.committed") : LocalizedText.Format("git.status.commit_failed_format", result.Message);
                 await RefreshAllAsync();
             }
-            catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+            catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
             finally { IsBusy = false; }
         }
         else
@@ -547,12 +547,12 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             // Direct commit from workspace: use selected files
             if (SelectedCount == 0)
             {
-                StatusText = "请先选择要提交的文件";
+                StatusText = LocalizedText.Get("git.status.no_files_selected");
                 return;
             }
             if (string.IsNullOrWhiteSpace(CommitMessage))
             {
-                StatusText = "请输入提交消息";
+                StatusText = LocalizedText.Get("git.status.commit_message_required");
                 return;
             }
             IsBusy = true;
@@ -560,12 +560,12 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             {
                 var request = new GitCommitRequest(CommitMessage, SelectedFilePaths.ToArray());
                 var result = await client.CommitAsync(SelectedRepository.Id, request);
-                StatusText = result.Success ? "Committed" : $"Commit failed: {result.Message}";
+                StatusText = result.Success ? LocalizedText.Get("git.status.committed") : LocalizedText.Format("git.status.commit_failed_format", result.Message);
                 if (result.Success)
                     CommitMessage = string.Empty;
                 await RefreshAllAsync();
             }
-            catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+            catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
             finally { IsBusy = false; }
         }
     }
@@ -579,25 +579,25 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             request = await ShowPullDialogAsync();
         if (request is null) return;
         IsBusy = true;
-        StatusText = "Pulling…";
+        StatusText = LocalizedText.Get("git.vm.pull_progress");
         try
         {
             var result = await client.PullAsync(SelectedRepository.Id, request);
             if (result.RequiresCredentials)
-                StatusText = "Git credentials required — configure on the host OS";
+                StatusText = LocalizedText.Get("git.vm.credentials_required");
             else if (result.Success)
             {
-                StatusText = "Pulled successfully";
+                StatusText = LocalizedText.Get("git.vm.pulled");
                 await RefreshAllAsync();
             }
             else
             {
-                StatusText = $"Pull failed: {result.Message}";
+                StatusText = LocalizedText.Format("git.vm.pull_failed_format", result.Message);
                 if (result.Conflicts is not null && result.Conflicts.Count > 0)
                     ActivePage = GitClientPage.ConflictResolution;
             }
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -606,19 +606,19 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (SelectedRepository is null) return;
         IsBusy = true;
-        StatusText = "Pushing…";
+        StatusText = LocalizedText.Get("git.vm.push_progress");
         try
         {
             var result = await client.PushAsync(SelectedRepository.Id);
             if (result.RequiresCredentials)
-                StatusText = "Git credentials required — configure on the host OS";
+                StatusText = LocalizedText.Get("git.vm.credentials_required");
             else
             {
-                StatusText = result.Success ? "Pushed successfully" : $"Push failed: {result.Message}";
+                StatusText = result.Success ? LocalizedText.Get("git.vm.pushed") : LocalizedText.Format("git.vm.push_failed_format", result.Message);
                 await RefreshAllAsync();
             }
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -630,10 +630,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.FetchAsync(SelectedRepository.Id);
-            StatusText = result.Success ? "Fetched" : (result.RequiresCredentials ? "Credentials required" : $"Failed: {result.Message}");
+            StatusText = result.Success ? LocalizedText.Get("git.vm.fetched") : (result.RequiresCredentials ? LocalizedText.Get("git.vm.credentials_required_short") : LocalizedText.Format("git.vm.failed_format", result.Message));
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -645,25 +645,25 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         {
             FileDiff = await client.GetDiffAsync(SelectedRepository.Id, file.Path, file.Staged);
         }
-        catch (Exception ex) { StatusText = $"Diff failed: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.diff_failed_format", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task RevertAsync(GitCommitDto commit)
     {
         if (SelectedRepository is null || commit is null) return;
-        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"Revert commit {commit.ShortSha}?"))
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.revert_confirm_format", commit.ShortSha)))
             return;
         IsBusy = true;
         try
         {
             var result = await client.RevertAsync(SelectedRepository.Id, new GitRevertRequest(commit.Sha));
-            StatusText = result.Success ? "Reverted" : $"Revert failed: {result.Message}";
+            StatusText = result.Success ? LocalizedText.Get("git.vm.reverted") : LocalizedText.Format("git.vm.revert_failed_format", result.Message);
             if (result.Conflicts is not null && result.Conflicts.Count > 0)
                 ActivePage = GitClientPage.ConflictResolution;
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.status.error_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -676,7 +676,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             await client.CommitAsync(SelectedRepository.Id, new GitCommitRequest("", [file.Path]));
             await RefreshStatusAsync();
         }
-        catch (Exception ex) { StatusText = $"Stage failed: {ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.stage_failed_format", ex.Message); }
     }
 
     // ── 工作区变更选择管理 ──
@@ -723,7 +723,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task RefreshChangesAsync()
     {
         await RefreshStatusAsync();
-        StatusText = $"已刷新变更列表，共 {Changes.Count} 个文件";
+        StatusText = LocalizedText.Format("git.status.refreshed_changes", Changes.Count);
     }
 
     /// <summary>Rebuilds the Changes list from UnstagedFiles + UntrackedFiles, preserving selection state.</summary>
@@ -799,7 +799,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         }
         catch (Exception ex)
         {
-            StatusText = $"加载远程列表失败：{ex.Message}";
+            StatusText = LocalizedText.Format("git.vm.load_remotes_failed_format", ex.Message);
             Log($"RefreshRemotesAsync 异常：{ex.GetType().Name} {ex.Message}\n{ex.StackTrace}");
         }
     }
@@ -813,10 +813,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.AddRemoteAsync(SelectedRepository.Id, request);
-            StatusText = result.Success ? $"远程「{request.Name}」已添加" : $"添加失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.add_remote_format", request.Name) : LocalizedText.Format("git.vm.add_remote_failed_format", result.Message);
             await RefreshRemotesAsync();
         }
-        catch (Exception ex) { StatusText = $"添加失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.add_remote_failed_format", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(CanManageRemotes))]
@@ -828,25 +828,25 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.UpdateRemoteAsync(SelectedRepository.Id, remote.Name, request);
-            StatusText = result.Success ? $"远程「{request.Name}」已更新" : $"更新失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.update_remote_format", request.Name) : LocalizedText.Format("git.vm.update_remote_failed_format", result.Message);
             await RefreshRemotesAsync();
         }
-        catch (Exception ex) { StatusText = $"更新失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.update_remote_failed_format", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(CanManageRemotes))]
     private async Task RemoveRemoteAsync(GitRemoteDto remote)
     {
         if (SelectedRepository is null || remote is null) return;
-        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"删除远程「{remote.Name}」？"))
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.delete_remote_confirm_format", remote.Name)))
             return;
         try
         {
             var result = await client.RemoveRemoteAsync(SelectedRepository.Id, remote.Name);
-            StatusText = result.Success ? $"远程「{remote.Name}」已删除" : $"删除失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.delete_remote_format", remote.Name) : LocalizedText.Format("git.vm.delete_remote_failed_format", result.Message);
             await RefreshRemotesAsync();
         }
-        catch (Exception ex) { StatusText = $"删除失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.delete_remote_failed_format", ex.Message); }
     }
 
     // ── 选中提交变化：加载提交详情（含变更文件列表）──
@@ -869,7 +869,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         catch (Exception ex)
         {
             // 服务端尚未实现该端点时，降级为仅展示提交信息，不崩溃
-            StatusText = $"加载提交详情失败：{ex.Message}（接口可能未实现）";
+            StatusText = LocalizedText.Format("git.vm.load_commit_detail_failed_format", ex.Message);
         }
     }
 
@@ -898,10 +898,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         {
             var result = await client.CreateBranchAsync(SelectedRepository.Id,
                 request with { StartPoint = startPoint });
-            StatusText = result.Success ? $"分支「{request.Name}」已创建" : $"创建失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.branch_created_format", request.Name) : LocalizedText.Format("git.vm.create_failed_format", result.Message);
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"创建失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.create_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -918,7 +918,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null || SelectedRepository is null) return;
-        if (branch.IsRemote) { StatusText = "不能直接重命名远程分支，请先在本地重命名后推送。"; return; }
+        if (branch.IsRemote) { StatusText = LocalizedText.Get("git.vm.rename_remote_branch"); return; }
 
         // 弹输入框取新名称；对话框未接入壳时走二次确认+占位提示（服务端接口已就绪）
         string? newName = null;
@@ -927,7 +927,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         else if (ShowConfirmAsync is not null)
         {
             // 壳暂未注入重命名输入对话框时，降级为直接尝试一个合理默认行为：追加 "-2" 后缀（便于先跑通接口链路）
-            if (!await ShowConfirmAsync($"重命名分支「{branch.Name}」？（壳暂未接入输入对话框，将自动追加 \"-2\" 后缀，如需自定义名称请稍后重试）"))
+            if (!await ShowConfirmAsync(LocalizedText.Format("git.vm.rename_confirm_format", branch.Name)))
                 return;
             newName = $"{branch.Name}-2";
         }
@@ -940,15 +940,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 new GitBranchRenameRequest(newName));
             if (result.Success)
             {
-                StatusText = $"已将「{branch.Name}」重命名为「{newName}」";
+                StatusText = LocalizedText.Format("git.vm.renamed_format", branch.Name, newName);
                 await RefreshAllAsync();
             }
             else
             {
-                StatusText = $"重命名失败：{result.Message}";
+                StatusText = LocalizedText.Format("git.vm.rename_failed_format", result.Message);
             }
         }
-        catch (Exception ex) { StatusText = $"重命名失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.rename_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -969,7 +969,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             // 默认策略：普通 merge（非 ff-only / squash），让 git 根据仓库配置决定是否生成合并提交
             request = new GitMergeRequest(branch.Name);
             if (ShowConfirmAsync is not null
-                && !await ShowConfirmAsync($"将分支「{branch.Name}」合并到当前（使用默认 merge 策略）？"))
+                && !await ShowConfirmAsync(LocalizedText.Format("git.vm.merge_confirm_format", branch.Name)))
                 return;
         }
 
@@ -979,22 +979,22 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             var result = await client.MergeBranchAsync(SelectedRepository.Id, request);
             if (result.Conflicts is not null && result.Conflicts.Count > 0)
             {
-                StatusText = $"合并产生 {result.Conflicts.Count} 个冲突，请先解决。";
+                StatusText = LocalizedText.Format("git.vm.merge_conflicts_format", result.Conflicts.Count);
                 HasConflicts = true;
                 ActivePage = GitClientPage.ConflictResolution;
                 await RefreshAllAsync();
             }
             else if (result.Success)
             {
-                StatusText = $"已合并「{request.Source}」";
+                StatusText = LocalizedText.Format("git.vm.merged_format", request.Source);
                 await RefreshAllAsync();
             }
             else
             {
-                StatusText = $"合并失败：{result.Message}";
+                StatusText = LocalizedText.Format("git.vm.merge_failed_format", result.Message);
             }
         }
-        catch (Exception ex) { StatusText = $"合并失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.merge_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -1003,7 +1003,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null) return;
-        StatusText = $"变基分支「{branch.Name}」：功能待实现（需新增 rebase 端点）";
+        StatusText = LocalizedText.Format("git.vm.rebase_unimplemented_format", branch.Name);
         await Task.CompletedTask;
     }
 
@@ -1012,7 +1012,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null) return;
-        if (branch.IsRemote) { StatusText = "不能推送远程分支对象"; return; }
+        if (branch.IsRemote) { StatusText = LocalizedText.Get("git.vm.cannot_push_remote"); return; }
         await PushAsync();
     }
 
@@ -1032,7 +1032,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null || SelectedRepository is null) return;
-        if (branch.IsRemote) { StatusText = "不能为远程分支对象设置跟踪；请选择本地分支。"; return; }
+        if (branch.IsRemote) { StatusText = LocalizedText.Get("git.vm.cannot_set_tracking_remote"); return; }
 
         GitBranchTrackingRequest? request;
         if (ShowSetTrackingDialogAsync is not null)
@@ -1043,8 +1043,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         else
         {
             // 默认：若分支名形式为 "origin/foo" 则尝试匹配远程分支；否则自动绑定 origin/<same-name>
-            var prompt = $"为本地分支「{branch.Name}」设置跟踪远程 origin/{branch.Name}？";
-            if (ShowConfirmAsync is not null && !await ShowConfirmAsync(prompt + "（如存在则绑定成功，不存在会返回错误，稍后可在对话框中自定义）"))
+            if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.set_tracking_confirm_format", branch.Name)))
                 return;
             request = new GitBranchTrackingRequest(Remote: "origin", Branch: branch.Name);
         }
@@ -1059,16 +1058,17 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                             && string.IsNullOrWhiteSpace(request.Remote)
                             && string.IsNullOrWhiteSpace(request.Branch);
                 StatusText = unset
-                    ? $"已取消「{branch.Name}」的跟踪分支"
-                    : $"已设置「{branch.Name}」跟踪 {(string.IsNullOrWhiteSpace(request.Upstream) ? $"{request.Remote}/{request.Branch}" : request.Upstream)}";
+                    ? LocalizedText.Format("git.vm.tracking_unset_format", branch.Name)
+                    : LocalizedText.Format("git.vm.tracking_set_format", branch.Name,
+                        string.IsNullOrWhiteSpace(request.Upstream) ? $"{request.Remote}/{request.Branch}" : request.Upstream);
                 await RefreshAllAsync();
             }
             else
             {
-                StatusText = $"设置跟踪失败：{result.Message}";
+                StatusText = LocalizedText.Format("git.vm.set_tracking_failed_format", result.Message);
             }
         }
-        catch (Exception ex) { StatusText = $"设置跟踪失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.set_tracking_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -1087,7 +1087,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 if (topLevel?.Clipboard is not null)
                 {
                     await topLevel.Clipboard.SetTextAsync(commit.Sha);
-                    StatusText = $"已复制 SHA：{commit.ShortSha}";
+                    StatusText = LocalizedText.Format("git.vm.copy_sha_format", commit.ShortSha);
                     return;
                 }
             }
@@ -1097,9 +1097,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 var tl = Avalonia.Controls.TopLevel.GetTopLevel((Avalonia.Visual?)null);
                 if (tl?.Clipboard is not null) await tl.Clipboard.SetTextAsync(commit.Sha);
             });
-            StatusText = $"SHA：{commit.ShortSha}（剪贴板复制暂未获取到 TopLevel）";
+            StatusText = LocalizedText.Format("git.vm.sha_no_toplevel_format", commit.ShortSha);
         }
-        catch (Exception ex) { StatusText = $"复制失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.copy_failed_format", ex.Message); }
     }
 
     [RelayCommand]
@@ -1115,13 +1115,13 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 if (topLevel?.Clipboard is not null)
                 {
                     await topLevel.Clipboard.SetTextAsync(commit.ShortSha);
-                    StatusText = $"已复制短 SHA：{commit.ShortSha}";
+                    StatusText = LocalizedText.Format("git.vm.copied_short_sha_format", commit.ShortSha);
                     return;
                 }
             }
-            StatusText = $"短 SHA：{commit.ShortSha}";
+            StatusText = LocalizedText.Format("git.vm.short_sha_format", commit.ShortSha);
         }
-        catch (Exception ex) { StatusText = $"复制失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.copy_failed_format", ex.Message); }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -1129,16 +1129,16 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null || SelectedRepository is null) return;
-        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"签出提交 {commit.ShortSha}（将进入 detached HEAD 状态）？"))
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.checkout_commit_confirm_format", commit.ShortSha)))
             return;
         IsBusy = true;
         try
         {
             var result = await client.CheckoutAsync(SelectedRepository.Id, new GitCheckoutRequest(commit.Sha));
-            StatusText = result.Success ? $"已签出 {commit.ShortSha}" : $"签出失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.checked_out_format", commit.ShortSha) : LocalizedText.Format("git.vm.checkout_failed_format", result.Message);
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"签出失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.checkout_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -1148,7 +1148,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         commit ??= SelectedCommit;
         if (commit is null) return;
         // TODO: 服务端尚未实现 git reset 端点（--soft/--mixed/--hard）
-        StatusText = $"重置到 {commit.ShortSha}：功能待实现（需新增 reset 端点，注意 --hard 为危险操作）";
+        StatusText = LocalizedText.Format("git.vm.reset_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1166,7 +1166,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         commit ??= SelectedCommit;
         if (commit is null) return;
         // TODO: 相当于 git reset --soft HEAD^ 或指定提交
-        StatusText = $"撤销提交 {commit.ShortSha}：功能待实现（需新增 reset --soft 端点）";
+        StatusText = LocalizedText.Format("git.vm.undo_commit_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1175,7 +1175,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"从 {commit.ShortSha} 创建补丁：功能待实现（需新增 format-patch 端点）";
+        StatusText = LocalizedText.Format("git.vm.create_patch_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1184,7 +1184,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"Cherry-pick {commit.ShortSha}：功能待实现（需新增 cherry-pick 端点）";
+        StatusText = LocalizedText.Format("git.vm.cherry_pick_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1193,7 +1193,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"从 {commit.ShortSha} 开始交互式变基：功能待实现（需新增 rebase -i 端点）";
+        StatusText = LocalizedText.Format("git.vm.rebase_interactive_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1202,7 +1202,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"压缩到 {commit.ShortSha}：功能待实现（交互式变基子集）";
+        StatusText = LocalizedText.Format("git.vm.squash_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1211,7 +1211,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"编辑提交信息 {commit.ShortSha}：功能待实现（reword / amend 端点）";
+        StatusText = LocalizedText.Format("git.vm.edit_message_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1220,7 +1220,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"推送此前提交（含 {commit.ShortSha}）：功能待实现（指定 ref 推送端点）";
+        StatusText = LocalizedText.Format("git.vm.push_before_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1229,7 +1229,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null) return;
-        StatusText = $"在 {commit.ShortSha} 新建标签：功能待实现（tag 管理端点）";
+        StatusText = LocalizedText.Format("git.vm.create_tag_unimplemented_format", commit.ShortSha);
         await Task.CompletedTask;
     }
 
@@ -1246,10 +1246,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         {
             var result = await client.CreateBranchAsync(SelectedRepository.Id,
                 request with { StartPoint = startPoint });
-            StatusText = result.Success ? $"分支「{request.Name}」已创建于 {commit.ShortSha}" : $"创建失败：{result.Message}";
+            StatusText = result.Success ? LocalizedText.Format("git.vm.branch_created_at_format", request.Name, commit.ShortSha) : LocalizedText.Format("git.vm.create_failed_format", result.Message);
             await RefreshAllAsync();
         }
-        catch (Exception ex) { StatusText = $"创建失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.create_failed_format", ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -1273,7 +1273,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             // 使用 ref=sha 查询提交版本的 diff
             FileDiff = await client.GetDiffAsync(SelectedRepository.Id, file.Path, staged: false, @ref: SelectedCommit.Sha);
         }
-        catch (Exception ex) { StatusText = $"Diff 失败：{ex.Message}"; }
+        catch (Exception ex) { StatusText = LocalizedText.Format("git.vm.diff_failed_format_v2", ex.Message); }
     }
 
     [RelayCommand]
@@ -1282,7 +1282,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         file ??= SelectedCommitFile ?? SelectedFile;
         if (file is null) return;
         // TODO: 通过 RemoteOS 内置 CodeEditor 或宿主 OS 默认编辑器打开，当前占位
-        StatusText = $"打开文件「{file.Path}」：功能待实现（调用 CodeEditor / OpenWith 端点）";
+        StatusText = LocalizedText.Format("git.vm.open_file_unimplemented_format", file.Path);
         await Task.CompletedTask;
     }
 
@@ -1291,10 +1291,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         file ??= SelectedFile;
         if (file is null || SelectedRepository is null) return;
-        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"还原文件「{file.Path}」的未提交变更？该操作不可撤销。"))
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.revert_file_confirm_format", file.Path)))
             return;
         // TODO: 服务端尚未实现 git checkout -- <path> / restore 端点
-        StatusText = $"还原文件「{file.Path}」：功能待实现（需新增 restore 端点）";
+        StatusText = LocalizedText.Format("git.vm.revert_file_unimplemented_format", file.Path);
         await Task.CompletedTask;
     }
 
@@ -1312,7 +1312,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         file ??= SelectedFile;
         if (file is null || SelectedRepository is null) return;
         // TODO: 服务端尚未实现 git reset HEAD <path> 端点
-        StatusText = $"取消暂存「{file.Path}」：功能待实现（需新增 unstage 端点）";
+        StatusText = LocalizedText.Format("git.vm.unstage_unimplemented_format", file.Path);
         await Task.CompletedTask;
     }
 
@@ -1321,7 +1321,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         file ??= SelectedCommitFile ?? SelectedFile;
         if (file is null) return;
-        StatusText = $"「{file.Path}」的历史记录：功能待实现（git log -- <path> 端点）";
+        StatusText = LocalizedText.Format("git.vm.file_history_unimplemented_format", file.Path);
         await Task.CompletedTask;
     }
 
@@ -1330,7 +1330,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         file ??= SelectedCommitFile ?? SelectedFile;
         if (file is null) return;
-        StatusText = $"从「{file.Path}」创建补丁：功能待实现";
+        StatusText = LocalizedText.Format("git.vm.create_patch_file_unimplemented_format", file.Path);
         await Task.CompletedTask;
     }
 }
