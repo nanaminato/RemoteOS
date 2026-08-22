@@ -3,29 +3,32 @@
              xmlns:protocol="clr-namespace:RemoteOS.Protocol.WebServers;assembly=RemoteOS.Protocol"
              xmlns:webservers="clr-namespace:Client.Apps.WebServers"
              x:Class="Client.Apps.WebServers.Views.WebServerSitesPageView"
-             x:DataType="webservers:WebServerManagerViewModel">
-    <Grid MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" RowDefinitions="Auto,*" RowSpacing="16">
+             x:DataType="webservers:WebServerManagerViewModel"
+             MinWidth="0"
+             MinHeight="0">
+    <Grid MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32"
+          RowDefinitions="Auto,*" RowSpacing="16" MinWidth="0" MinHeight="0" ClipToBounds="True">
         <Border Grid.Row="0" Background="White" CornerRadius="14" Padding="20">
             <StackPanel Spacing="14">
                 <StackPanel Spacing="3">
                     <TextBlock Text="站点部署" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
                     <TextBlock Text="创建站点会在单独的对话框中完成；选择列表中的站点后可继续编辑或删除。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <WrapPanel ItemHeight="34">
                     <Button Classes="primary" Content="新建站点" Command="{Binding NewSiteCommand}" />
-                    <Button Content="编辑选中站点" Command="{Binding EditSiteCommand}" />
-                    <Button Content="删除选中站点" Command="{Binding DeleteSiteCommand}" />
-                </StackPanel>
+                    <Button Content="编辑选中站点" Command="{Binding EditSiteCommand}" Margin="8,0,0,0" />
+                    <Button Content="删除选中站点" Command="{Binding DeleteSiteCommand}" Margin="8,0,0,0" />
+                </WrapPanel>
                 <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
             </StackPanel>
         </Border>
-        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="20">
-            <Grid RowDefinitions="Auto,*" RowSpacing="12">
+        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="20" MinWidth="0" MinHeight="0">
+            <Grid RowDefinitions="Auto,*" RowSpacing="12" MinWidth="0" MinHeight="0">
                 <TextBlock Text="已部署站点" FontWeight="SemiBold" Foreground="#163059" />
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite, Mode=TwoWay}"
                           AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" CanUserReorderColumns="False"
-                          GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" MinHeight="260"
-                          VerticalAlignment="Stretch">
+                          GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto" MinWidth="0" MinHeight="0" VerticalAlignment="Stretch">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="名称" Binding="{ReflectionBinding Name}" Width="150" />
                         <DataGridTextColumn Header="类型" Binding="{ReflectionBinding Kind}" Width="110" />
