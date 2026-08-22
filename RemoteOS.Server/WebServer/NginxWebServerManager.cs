@@ -83,7 +83,7 @@ internal sealed partial class NginxWebServerManager(
         if (instance is null || instance.Id != instanceId) return null;
         var running = instance.ManagementMode == WebServerManagementMode.Managed
             ? IsManagedNginxRunning(GetManagedLayout())
-            : IsNginxRunning();
+            : IsNginxRunning(instance.ExecutablePath);
         return new WebServerStatusDto(instanceId, running ? WebServerRuntimeState.Running : WebServerRuntimeState.Stopped);
     }
 
@@ -548,7 +548,7 @@ internal sealed partial class NginxWebServerManager(
         if (testProblem is not null) return testProblem;
         var running = instance.ManagementMode == WebServerManagementMode.Managed
             ? IsManagedNginxRunning(GetManagedLayout())
-            : IsNginxRunning();
+            : IsNginxRunning(instance.ExecutablePath);
         if (!running) return null;
         var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
         var reload = await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken);
@@ -1244,10 +1244,24 @@ internal sealed partial class NginxWebServerManager(
     private static bool IsValidServerName(string value) => value.Length <= 253 &&
         (IPAddress.TryParse(value, out _) || Uri.CheckHostName(value) == UriHostNameType.Dns && DomainPattern().IsMatch(value));
 
-    private static bool IsNginxRunning()
+    /// <summary>Checks the process image for the selected instance instead of treating any
+    /// Nginx process on the host as this instance. Linux Nginx changes the master and worker
+    /// process names to values such as "nginx: master process", so Process.GetProcessesByName
+    /// cannot be used here.</summary>
+    private static bool IsNginxRunning(string executablePath)
     {
-        try { return Process.GetProcessesByName("nginx").Length > 0; }
-        catch { return false; }
+        try
+        {
+            foreach (var process in Process.GetProcesses())
+            {
+                using (process)
+                {
+                    if (IsNginxProcess(process, executablePath)) return true;
+                }
+            }
+        }
+        catch { }
+        return false;
     }
 
     /// <summary>Uses the PID written by the RemoteOS-owned configuration instead of a host-wide
@@ -1260,15 +1274,48 @@ internal sealed partial class NginxWebServerManager(
             if (!File.Exists(pidPath) || IsSymbolicLink(pidPath)
                 || !int.TryParse(File.ReadAllText(pidPath).Trim(), out var pid) || pid <= 0) return false;
             using var process = Process.GetProcessById(pid);
-            // On Linux, Nginx changes its master-process title to "nginx: master process".
-            // ProcessName therefore is not always exactly "nginx", despite this PID belonging
-            // to the managed instance's private pid file.
-            return !process.HasExited && process.ProcessName.StartsWith(Path.GetFileNameWithoutExtension(layout.ExecutablePath), StringComparison.OrdinalIgnoreCase);
+            return IsNginxProcess(process, layout.ExecutablePath);
         }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static bool IsNginxProcess(Process process, string executablePath)
+    {
+        try
+        {
+            if (process.HasExited || !IsNginxProcessName(process.ProcessName)) return false;
+            var processExecutable = process.MainModule?.FileName;
+            return !string.IsNullOrWhiteSpace(processExecutable) && ExecutablePathsMatch(processExecutable, executablePath);
+        }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { return false; }
+        catch (NotSupportedException) { return false; }
+    }
+
+    private static bool IsNginxProcessName(string processName) =>
+        string.Equals(processName, "nginx", StringComparison.OrdinalIgnoreCase)
+        || processName.StartsWith("nginx:", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ExecutablePathsMatch(string left, string right)
+    {
+        try
+        {
+            var normalizedLeft = ResolveExecutablePath(left);
+            var normalizedRight = ResolveExecutablePath(right);
+            return string.Equals(normalizedLeft, normalizedRight,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static string ResolveExecutablePath(string path)
+    {
+        var file = new FileInfo(Path.GetFullPath(path));
+        return Path.GetFullPath(file.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? file.FullName);
     }
 
     private static async Task<bool> WaitForManagedNginxAsync(ManagedLayout layout, CancellationToken cancellationToken)
