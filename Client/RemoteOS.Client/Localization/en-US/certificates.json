@@ -57,6 +57,14 @@
     "certificates.column.challenge": "Challenge",
     "certificates.column.issuer": "Issuer",
     "certificates.column.not_before": "Valid from",
-    "certificates.column.not_after": "Valid until"
+    "certificates.column.not_after": "Valid until",
+    "certificates.workspace": "WORKSPACE",
+    "certificates.overview": "Overview",
+    "certificates.list": "Certificates",
+    "certificates.list_hint": "Select a certificate to deploy, renew, revoke, or delete it.",
+    "certificates.overview.total": "Certificates on this server",
+    "certificates.overview.total_hint": "Managed certificates are kept on the RemoteOS Server.",
+    "certificates.overview.actions": "QUICK ACTIONS",
+    "certificates.overview.safety_hint": "Certificate requests run a server-side preflight before they contact the certificate authority. Private keys never leave the server."
   }
 }

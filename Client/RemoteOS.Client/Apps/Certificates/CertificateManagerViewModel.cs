@@ -19,6 +19,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private readonly IAuthSession _session;
     private readonly IAppPermissionScope _permissions;
     private CancellationTokenSource? _operationCts;
+    private Guid? _activeOperationId;
 
     public CertificateManagerViewModel(IRemoteCertificateClient client, IAuthSession session, IAppPermissionScope permissions)
     {
@@ -59,10 +60,12 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     [ObservableProperty] private CertificateOption<CertificateKeyAlgorithm>? _selectedKeyAlgorithm;
     [ObservableProperty] private bool _acceptedTerms;
     [ObservableProperty] private bool _publicReachabilityConfirmed;
-    [ObservableProperty] private string _preflightText = string.Empty;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPreflightResult))]
+    private string _preflightText = string.Empty;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
+    public bool HasPreflightResult => !string.IsNullOrWhiteSpace(PreflightText);
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -114,18 +117,21 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanRequest))]
-    private async Task RequestAsync()
+    private async Task RequestAsync() => await TryRequestCertificateAsync();
+
+    /// <summary>Runs the request flow for the request dialog and reports whether issuance succeeded.</summary>
+    public async Task<bool> TryRequestCertificateAsync()
     {
-        if (!TryParseDomains(out var domains)) return;
+        if (!TryParseDomains(out var domains)) return false;
         if (!AcceptedTerms)
         {
             StatusText = LocalizedText.Get("certificates.validation.terms_required");
-            return;
+            return false;
         }
         if (string.IsNullOrWhiteSpace(ContactEmail))
         {
             StatusText = LocalizedText.Get("certificates.validation.email_required");
-            return;
+            return false;
         }
 
         var request = new RequestCertificateRequest(
@@ -135,7 +141,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             AcceptedTerms,
             SelectedKeyAlgorithm!.Value,
             PublicReachabilityConfirmed);
-        await RunOperationAsync(
+        return await RunOperationAsync(
             LocalizedText.Get("certificates.operation.request"),
             ct => _client.RequestAsync(request, ct),
             onSuccess: async op => { if (op.CertificateId is { } id) await SelectCertificateAsync(id, ct: default); },
@@ -159,11 +165,22 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         (id, ct) => _client.DeleteAsync(id, new DeleteCertificateRequest(true), ct));
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
-    private async Task CancelOperationAsync()
+    private async Task CancelOperationAsync() => await CancelActiveOperationAsync();
+
+    /// <summary>Requests cancellation from the server before stopping this window's wait loop.</summary>
+    public async Task CancelActiveOperationAsync()
     {
         if (_operationCts is null) return;
-        try { await _operationCts.CancelAsync(); }
-        catch (Exception) { /* cancellation is best-effort; the poll loop observes the token */ }
+        try
+        {
+            if (_activeOperationId is { } operationId)
+                await _client.CancelOperationAsync(operationId);
+            await _operationCts.CancelAsync();
+        }
+        catch (Exception)
+        {
+            // Cancellation is best-effort: the poll loop and server operation both observe it.
+        }
     }
 
     private async Task RunOperationForSelectedAsync(string kindKey, Func<Guid, CancellationToken, Task<CertificateOperationDto>> start)
@@ -176,12 +193,12 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             ct: default);
     }
 
-    private async Task RunOperationAsync(string label, Func<CancellationToken, Task<CertificateOperationDto>> start, Func<CertificateOperationDto, Task>? onSuccess, CancellationToken ct)
+    private async Task<bool> RunOperationAsync(string label, Func<CancellationToken, Task<CertificateOperationDto>> start, Func<CertificateOperationDto, Task>? onSuccess, CancellationToken ct)
     {
         if (!HasManagePermission)
         {
             StatusText = LocalizedText.Get("certificates.permission.manage_required");
-            return;
+            return false;
         }
 
         _operationCts?.Dispose();
@@ -195,31 +212,37 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             if (operation.OperationId == Guid.Empty)
             {
                 OperationText = LocalizedText.Format("certificates.operation.rejected", operation.ProblemCode);
-                return;
+                return false;
             }
+            _activeOperationId = operation.OperationId;
             operation = await PollOperationAsync(operation, token);
             if (operation.State == CertificateOperationState.Succeeded)
             {
                 OperationText = LocalizedText.Format("certificates.operation.succeeded", label);
                 if (onSuccess is not null) await onSuccess(operation);
                 await RefreshAsync();
+                return true;
             }
             else if (operation.State == CertificateOperationState.Cancelled)
                 OperationText = LocalizedText.Get("certificates.operation.cancelled");
             else
                 OperationText = LocalizedText.Format("certificates.operation.failed", label, operation.ProblemCode);
+            return false;
         }
         catch (OperationCanceledException)
         {
             OperationText = LocalizedText.Get("certificates.operation.cancelled");
+            return false;
         }
         catch (Exception exception)
         {
             OperationText = LocalizedText.Format("certificates.operation.exception", label, exception.Message);
+            return false;
         }
         finally
         {
             IsOperationRunning = false;
+            _activeOperationId = null;
             _operationCts?.Dispose();
             _operationCts = null;
         }
@@ -230,8 +253,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         while (operation.State is CertificateOperationState.Queued or CertificateOperationState.Running)
         {
             OperationText = LocalizedText.Format("certificates.operation.progress", operation.Kind, operation.Stage);
-            try { await Task.Delay(PollInterval, cancellationToken); }
-            catch (OperationCanceledException) { return operation; }
+            await Task.Delay(PollInterval, cancellationToken);
             var updated = await _client.GetOperationAsync(operation.OperationId, cancellationToken);
             if (updated is null) break;
             operation = updated;

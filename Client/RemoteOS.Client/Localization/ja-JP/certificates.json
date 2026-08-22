@@ -57,6 +57,14 @@
     "certificates.column.challenge": "チャレンジ",
     "certificates.column.issuer": "発行者",
     "certificates.column.not_before": "有効開始",
-    "certificates.column.not_after": "有効期限"
+    "certificates.column.not_after": "有効期限",
+    "certificates.workspace": "ワークスペース",
+    "certificates.overview": "概要",
+    "certificates.list": "証明書",
+    "certificates.list_hint": "証明書を選択して、デプロイ、更新、失効、削除できます。",
+    "certificates.overview.total": "このサーバーの証明書",
+    "certificates.overview.total_hint": "管理対象の証明書は RemoteOS Server に保存されます。",
+    "certificates.overview.actions": "クイック操作",
+    "certificates.overview.safety_hint": "証明書要求では、認証局へ接続する前にサーバー側の事前チェックを実行します。秘密鍵がサーバー外に出ることはありません。"
   }
 }

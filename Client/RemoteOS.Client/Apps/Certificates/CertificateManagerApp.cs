@@ -4,6 +4,7 @@ using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 
 namespace Client.Apps.Certificates;
@@ -28,8 +29,11 @@ public sealed class CertificateManagerApp : RemoteApplicationBase
             return;
         }
         var viewModel = new CertificateManagerViewModel(client, session, context.Permissions);
-        var view = CertificateManagerWorkspace.Create(viewModel);
-        context.ShowWindow(LocalizedText.Get("application.remoteos.certificates.display_name"),
+        ManagedWindow? window = null;
+        var view = CertificateManagerWorkspace.Create(
+            viewModel,
+            () => CertificateManagerDialogs.ShowRequestCertificateAsync(context, window!, viewModel));
+        window = context.ShowWindow(LocalizedText.Get("application.remoteos.certificates.display_name"),
             view, new Rect(60, 50, 1180, 780), Manifest.IconGlyph);
         _ = viewModel.StartAsync();
     }

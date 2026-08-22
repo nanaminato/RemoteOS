@@ -15,7 +15,7 @@
 > - 网络检查器设计见 [`RemoteOS.NetworkInspector.md`](./applications/RemoteOS.NetworkInspector.md)
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)
 > - Docker 管理器见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)
-> - 证书管理器设计中，见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
+> - 证书管理器见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
 > - Web Server 管理器 / Nginx 集成设计中，见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)
 > - 进程守护见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)
 > - 服务端持久化见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)
@@ -73,7 +73,7 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置防火墙应用已落地（Firewall）：仅 Linux Server + UFW，支持读取状态与编号规则、修改启用状态和默认策略、添加或删除经过结构化校验的规则。root 会话无需再次验证；其他用户每次变更均以其自身密码通过 PAM 一次性确认。Windows Server 不显示此应用。详见 [`RemoteOS.Firewall.md`](./applications/RemoteOS.Firewall.md)。
 
-内置证书管理器与 Web Server 管理器均为**设计中**：前者规划 ACME 证书生命周期、Kestrel 部署与续期；后者规划 Nginx 的发现、最小侵入集成和托管模式。二者尚未实现，不应被当作当前可用功能。
+内置证书管理器已落地基础闭环：ACME 证书列表、申请前预检、异步申请/取消、续期、Kestrel 部署、吊销和删除；客户端使用概览/证书列表多页工作区，申请操作在可滚动的模态对话框中完成。DNS-01、Wildcard 与 IIS/Nginx/Apache 部署仍属后续阶段。Web Server 管理器仍为**设计中**，规划 Nginx 的发现、最小侵入集成和托管模式。
 
 系统采用**渐进式开发**——在本地 Shell 基础上逐步完善服务端能力：登录与身份、Workspace、安全、云同步、Storage、Remote Runtime 等。各能力的当前状态见 §8。
 
@@ -264,7 +264,7 @@ Application Package
 | **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
 | **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 已实现（状态和资源只读列表、容器启停重启、Compose 校验/部署/停止；其余功能设计中，详见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)） |
 | **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载的声明持久化与启停重启；健康/日志/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)） |
-| **CertificateManager** | 本机 ACME 证书申请、部署与续期 | 设计中（尚未实现，详见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)） |
+| **CertificateManager** | 本机 ACME 证书申请、部署与续期 | 已实现（基础 UI、预检、申请/取消、续期、Kestrel 部署、吊销与删除；DNS-01、Wildcard 与其他 Web Server 部署设计中，详见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)） |
 | **WebServerManager** | Nginx 发现、最小侵入集成与后续托管 | 设计中（尚未实现，详见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)） |
 
 ---
@@ -424,7 +424,7 @@ RemoteOS.Server     = Cloud Backend
 |------|------|
 | [`Browser`](./applications/RemoteOS.Browser.md) | 浏览器、书签与历史 |
 | [`CodeEditor`](./applications/RemoteOS.CodeEditor.md) | 代码编辑器与文件安全边界 |
-| [`CertificateManager`](./applications/RemoteOS.CertificateManager.md) | ACME 证书生命周期、Kestrel 部署与续期（设计中） |
+| [`CertificateManager`](./applications/RemoteOS.CertificateManager.md) | ACME 证书生命周期、Kestrel 部署与续期 |
 | [`DockerManager`](./applications/RemoteOS.DockerManager.md) | Docker Engine、容器与 Stack 管理 |
 | [`Explorer`](./applications/RemoteOS.Explorer.md) | 文件管理器、REST API 与权限复用 |
 | [`Firewall`](./applications/RemoteOS.Firewall.md) | Linux Server UFW 防火墙 |

@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:certificates="clr-namespace:Client.Apps.Certificates"
+             x:Class="Client.Apps.Certificates.Views.CertificateListView"
+             x:DataType="certificates:CertificateManagerViewModel">
+    <Border Background="White" CornerRadius="14" Padding="20">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{loc:Loc certificates.list}" FontSize="19" FontWeight="SemiBold" Foreground="#163059" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                    <Button Classes="primary" Content="{loc:Loc certificates.request.title}" Click="RequestCertificate_Click" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Text="{loc:Loc certificates.list_hint}" Foreground="#61708B" TextWrapping="Wrap" />
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <DataGrid HorizontalAlignment="Left"
+                          ItemsSource="{Binding Certificates}"
+                          SelectedItem="{Binding SelectedCertificate, Mode=TwoWay}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserReorderColumns="False"
+                          GridLinesVisibility="Horizontal"
+                          SelectionMode="Single"
+                          HorizontalScrollBarVisibility="Disabled"
+                          MinWidth="900"
+                          Height="300">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.domain}" Binding="{ReflectionBinding PrimaryDomain}" Width="220" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.status}" Binding="{ReflectionBinding Status}" Width="110" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.challenge}" Binding="{ReflectionBinding ChallengeType}" Width="130" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.issuer}" Binding="{ReflectionBinding Issuer}" Width="180" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.not_before}" Binding="{ReflectionBinding NotBefore}" Width="180" />
+                        <DataGridTextColumn Header="{loc:Loc certificates.column.not_after}" Binding="{ReflectionBinding NotAfter}" Width="180" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </ScrollViewer>
+            <WrapPanel ItemHeight="34" HorizontalAlignment="Left">
+                <Button Content="{loc:Loc certificates.action.deploy}" Command="{Binding DeployCommand}" Margin="0,0,8,8" />
+                <Button Content="{loc:Loc certificates.action.renew}" Command="{Binding RenewCommand}" Margin="0,0,8,8" />
+                <Button Content="{loc:Loc certificates.action.revoke}" Command="{Binding RevokeCommand}" Margin="0,0,8,8" />
+                <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteCommand}" Foreground="#B42318" Margin="0,0,8,8" />
+            </WrapPanel>
+            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="#163059" />
+        </StackPanel>
+    </Border>
+</UserControl>

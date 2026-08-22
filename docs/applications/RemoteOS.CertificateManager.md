@@ -1,6 +1,6 @@
 # RemoteOS 证书管理器设计
 
-> 状态：**后端核心 V1 已实现，待目标平台验收**。已提供 ACME v2、HTTP-01（Direct/WebRoot）、受保护的 PEM 存储、RSA/ECDSA、Kestrel 部署、ARI 优先的自动续期与 HostGlobal SQLite 元数据。DNS-01、Wildcard、IIS/Nginx/Apache 部署和管理界面仍属后续阶段；Ubuntu 24.04 与 Windows Server 的真实 CA/监听/ACL 验收仍须在目标主机执行。
+> 状态：**后端核心 V1 与基础管理界面已实现，待目标平台验收**。已提供 ACME v2、HTTP-01（Direct/WebRoot）、受保护的 PEM 存储、RSA/ECDSA、Kestrel 部署、ARI 优先的自动续期、HostGlobal SQLite 元数据，以及包含概览/证书列表和申请对话框的客户端界面。DNS-01、Wildcard、IIS/Nginx/Apache 部署仍属后续阶段；Ubuntu 24.04 与 Windows Server 的真实 CA/监听/ACL 验收仍须在目标主机执行。
 
 ## 1. 项目背景
 
@@ -1059,7 +1059,18 @@ Success / Failed
 
 ---
 
-## 27. Avalonia 管理界面建议
+## 27. Avalonia 管理界面
+
+管理器采用与 Docker 管理器一致的“左侧导航 + 右侧工作区”多页结构，当前页面为：
+
+```text
+概览
+证书
+```
+
+概览展示受管理证书数量、刷新状态和申请入口；证书页展示列表，并按当前选择提供部署、续期、吊销和删除操作。详情、部署目标、续期历史、ACME 与 DNS 设置应以新增页面加入导航，而不是继续堆叠到列表页面。
+
+“申请新证书”使用模态对话框。域名、联系邮箱、验证类型、密钥算法、条款和公网可达性确认均在可滚动的内容区内；预检结果与签发进度也显示在该区域。预检、申请证书和取消按钮固定在对话框右下角、滚动区之外。取消会请求取消服务端 `OperationId`，不会仅停止客户端轮询。
 
 证书页面可以展示：
 
