@@ -29,6 +29,12 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Files shown in the Changes list (union of unstaged + untracked, excluding .gitignored).</summary>
     public ObservableCollection<GitFileChangeItem> Changes { get; } = [];
 
+    /// <summary>Tracked files with modifications (already in version control).</summary>
+    public ObservableCollection<GitFileChangeItem> TrackedChanges { get; } = [];
+
+    /// <summary>Untracked files (new, not yet in version control).</summary>
+    public ObservableCollection<GitFileChangeItem> UntrackedChanges { get; } = [];
+
     /// <summary>Number of selected files for commit.</summary>
     public int SelectedCount => Changes.Count(c => c.IsSelected);
 
@@ -720,29 +726,41 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         StatusText = $"已刷新变更列表，共 {Changes.Count} 个文件";
     }
 
-    /// <summary>Rebuilds the Changes list from UnstagedFiles + UntrackedFiles.</summary>
+    /// <summary>Rebuilds the Changes list from UnstagedFiles + UntrackedFiles, preserving selection state.</summary>
     private void RebuildChangesList()
     {
+        // Save currently selected paths before rebuilding
+        var selectedPaths = new HashSet<string>(Changes.Where(c => c.IsSelected).Select(c => c.Path));
+
         // Unsubscribe old items
         foreach (var item in Changes)
             item.SelectionChanged -= OnItemSelectionChanged;
 
         Changes.Clear();
+        TrackedChanges.Clear();
+        UntrackedChanges.Clear();
+        
+        // Add unstaged files (tracked files with modifications)
         foreach (var f in UnstagedFiles)
         {
-            var item = new GitFileChangeItem(f);
+            var item = new GitFileChangeItem(f, selectedPaths.Contains(f.Path));
             item.SelectionChanged += OnItemSelectionChanged;
             Changes.Add(item);
+            TrackedChanges.Add(item);
         }
+        
+        // Add untracked files (new files not yet in version control)
         foreach (var f in UntrackedFiles)
         {
             if (!Changes.Any(c => c.Path == f.Path))
             {
-                var item = new GitFileChangeItem(f);
+                var item = new GitFileChangeItem(f, selectedPaths.Contains(f.Path));
                 item.SelectionChanged += OnItemSelectionChanged;
                 Changes.Add(item);
+                UntrackedChanges.Add(item);
             }
         }
+        
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedFilePaths));
     }
