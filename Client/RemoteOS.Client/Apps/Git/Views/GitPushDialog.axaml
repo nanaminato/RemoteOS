@@ -42,38 +42,41 @@
                         Click="AllCommits_Click">
                     <Button.Styles>
                         <Style Selector="Button">
-                            <Setter Property="Background" Value="#F4F7FB"/>
+                            <Setter Property="Background" Value="Transparent"/>
                         </Style>
                         <Style Selector="Button.active">
                             <Setter Property="Background" Value="#DCE9FF"/>
                         </Style>
                     </Button.Styles>
                 </Button>
-                <Border Background="#F4F7FB" CornerRadius="6" Padding="4">
-                    <ListBox x:Name="CommitList"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Padding="0"
-                             ItemsSource="{Binding PushCommits}"
-                             SelectionChanged="CommitList_SelectionChanged">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="proto:GitCommitDto">
-                                <Border Padding="8,6">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock FontSize="12"
-                                                   Foreground="#122344"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center"
-                                                   Text="{Binding Subject}"/>
-                                        <TextBlock FontSize="10"
-                                                   Foreground="#888"
-                                                   Text="{Binding Author}"/>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Border>
+                <ListBox x:Name="CommitList"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         ItemsSource="{Binding PushCommits}"
+                         SelectionChanged="CommitList_SelectionChanged">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                        <Style Selector="ListBoxItem:selected">
+                            <Setter Property="Background" Value="#DCE9FF"/>
+                        </Style>
+                    </ListBox.Styles>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="proto:GitCommitDto">
+                            <Border Padding="8,6">
+                                <TextBlock FontSize="12"
+                                           Foreground="#122344"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="NoWrap"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding Subject}"/>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </StackPanel>
 
             <!-- Right: file-change tree, with commit metadata only for a concrete commit selection. -->
