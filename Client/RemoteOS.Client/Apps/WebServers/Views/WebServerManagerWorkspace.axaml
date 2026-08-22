@@ -35,9 +35,9 @@
                 </StackPanel>
             </Border>
 
-            <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                <Grid>
-                    <Grid x:Name="InstancesPage" MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" ColumnDefinitions="*,1.35*" ColumnSpacing="18">
+            <Grid Grid.Column="1">
+                <ScrollViewer x:Name="InstancesPage" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <Grid MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" ColumnDefinitions="*,1.35*" ColumnSpacing="18">
                         <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="24">
                             <StackPanel Spacing="14">
                                 <StackPanel Spacing="3">
@@ -125,9 +125,10 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </ScrollViewer>
 
-                    <StackPanel x:Name="SitesPage" MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" Spacing="16" IsVisible="False">
-                        <Border Background="White" CornerRadius="14" Padding="20">
+                <Grid x:Name="SitesPage" MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" RowDefinitions="Auto,*" RowSpacing="16" IsVisible="False">
+                        <Border Grid.Row="0" Background="White" CornerRadius="14" Padding="20">
                             <StackPanel Spacing="14">
                                 <StackPanel Spacing="3">
                                     <TextBlock Text="站点部署" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
@@ -142,12 +143,13 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Background="White" CornerRadius="14" Padding="20">
+                        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="20">
                             <Grid RowDefinitions="Auto,*" RowSpacing="12">
                                 <TextBlock Text="已部署站点" FontWeight="SemiBold" Foreground="#163059" />
                                 <DataGrid Grid.Row="1" ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite, Mode=TwoWay}"
                                           AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" CanUserReorderColumns="False"
-                                          GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" MinHeight="260">
+                                          GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto" MinHeight="260"
+                                          VerticalAlignment="Stretch">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="名称" Binding="{ReflectionBinding Name}" Width="150" />
                                         <DataGridTextColumn Header="类型" Binding="{ReflectionBinding Kind}" Width="110" />
@@ -166,9 +168,8 @@
                                 </DataGrid>
                             </Grid>
                         </Border>
-                    </StackPanel>
                 </Grid>
-            </ScrollViewer>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>
