@@ -26,6 +26,10 @@ public static class GitApiRoutes
     public const string Revert = $"/{V1}/git/repositories/{{id}}/revert";
     public const string Resolve = $"/{V1}/git/repositories/{{id}}/resolve";
     public const string Fetch = $"/{V1}/git/repositories/{{id}}/fetch";
+    public const string Reset = $"/{V1}/git/repositories/{{id}}/reset";
+    public const string Restore = $"/{V1}/git/repositories/{{id}}/restore";
+    public const string Stage = $"/{V1}/git/repositories/{{id}}/stage";
+    public const string Unstage = $"/{V1}/git/repositories/{{id}}/unstage";
 
     // ── 路径探测与初始化（不依赖已注册仓库）──
     public const string Probe = $"/{V1}/git/probe";

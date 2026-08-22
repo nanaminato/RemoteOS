@@ -762,12 +762,18 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task StageFileAsync(GitFileChangeDto file)
     {
         if (SelectedRepository is null || file is null) return;
+        IsBusy = true;
         try
         {
-            await client.CommitAsync(SelectedRepository.Id, new GitCommitRequest("", [file.Path]));
-            await RefreshStatusAsync();
+            var result = await client.StageAsync(SelectedRepository.Id, new GitStageRequest([file.Path]));
+            if (result.Success)
+                StatusText = LocalizedText.Format("git.vm.staged_format", file.Path);
+            else
+                await NotifyAsync(LocalizedText.Format("git.vm.stage_failed_format", result.Message));
+            await RefreshAllAsync();
         }
         catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.stage_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     // ── 工作区变更选择管理 ──
@@ -968,7 +974,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         }
         catch (Exception ex)
         {
-            // 服务端尚未实现该端点时，降级为仅展示提交信息，不崩溃
+            // Keep the history list usable if this individual detail request fails.
             StatusText = LocalizedText.Format("git.vm.load_commit_detail_failed_format", ex.Message);
         }
     }
@@ -1509,9 +1515,22 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task ResetToCommitAsync(GitCommitDto? commit)
     {
         commit ??= SelectedCommit;
-        if (commit is null) return;
-        // TODO: 服务端尚未实现 git reset 端点（--soft/--mixed/--hard）
-        await NotifyAsync(LocalizedText.Format("git.vm.reset_unimplemented_format", commit.ShortSha));
+        if (commit is null || SelectedRepository is null) return;
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.reset_confirm_format", commit.ShortSha)))
+            return;
+        IsBusy = true;
+        try
+        {
+            // Mixed reset retains working-tree content and is the safest useful reset mode for this UI.
+            var result = await client.ResetAsync(SelectedRepository.Id, new GitResetRequest(commit.Sha, "mixed"));
+            if (result.Success)
+                StatusText = LocalizedText.Format("git.vm.reset_success_format", commit.ShortSha);
+            else
+                await NotifyAsync(LocalizedText.Format("git.vm.reset_failed_format", result.Message));
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.reset_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -1526,9 +1545,28 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task UndoCommitAsync(GitCommitDto? commit)
     {
         commit ??= SelectedCommit;
-        if (commit is null) return;
-        // TODO: 相当于 git reset --soft HEAD^ 或指定提交
-        await NotifyAsync(LocalizedText.Format("git.vm.undo_commit_unimplemented_format", commit.ShortSha));
+        if (commit is null || SelectedRepository is null) return;
+        var head = Commits.FirstOrDefault();
+        if (head is null || !string.Equals(head.Sha, commit.Sha, StringComparison.OrdinalIgnoreCase))
+        {
+            await NotifyAsync(LocalizedText.Get("git.vm.undo_only_head"));
+            return;
+        }
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.undo_confirm_format", commit.ShortSha)))
+            return;
+        IsBusy = true;
+        try
+        {
+            // Soft reset removes only HEAD while preserving every file and its staged state.
+            var result = await client.ResetAsync(SelectedRepository.Id, new GitResetRequest("HEAD^", "soft"));
+            if (result.Success)
+                StatusText = LocalizedText.Format("git.vm.undo_success_format", commit.ShortSha);
+            else
+                await NotifyAsync(LocalizedText.Format("git.vm.undo_failed_format", result.Message));
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.undo_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand]
@@ -1649,8 +1687,18 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         if (file is null || SelectedRepository is null) return;
         if (ShowConfirmAsync is not null && !await ShowConfirmAsync(LocalizedText.Format("git.vm.revert_file_confirm_format", file.Path)))
             return;
-        // TODO: 服务端尚未实现 git checkout -- <path> / restore 端点
-        await NotifyAsync(LocalizedText.Format("git.vm.revert_file_unimplemented_format", file.Path));
+        IsBusy = true;
+        try
+        {
+            var result = await client.RestoreAsync(SelectedRepository.Id, new GitRestoreRequest([file.Path]));
+            if (result.Success)
+                StatusText = LocalizedText.Format("git.vm.revert_file_success_format", file.Path);
+            else
+                await NotifyAsync(LocalizedText.Format("git.vm.revert_file_failed_format", result.Message));
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.revert_file_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -1666,8 +1714,18 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         file ??= SelectedFile;
         if (file is null || SelectedRepository is null) return;
-        // TODO: 服务端尚未实现 git reset HEAD <path> 端点
-        await NotifyAsync(LocalizedText.Format("git.vm.unstage_unimplemented_format", file.Path));
+        IsBusy = true;
+        try
+        {
+            var result = await client.UnstageAsync(SelectedRepository.Id, new GitUnstageRequest([file.Path]));
+            if (result.Success)
+                StatusText = LocalizedText.Format("git.vm.unstaged_format", file.Path);
+            else
+                await NotifyAsync(LocalizedText.Format("git.vm.unstage_failed_format", result.Message));
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.unstage_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand]

@@ -162,6 +162,25 @@ public sealed record GitResolveRequest(
     [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths,
     [property: JsonPropertyName("continueMerge")] bool ContinueMerge = true);
 
+/// <summary>Move the current branch and index to a commit. Only <c>soft</c> and <c>mixed</c>
+/// modes are exposed: this API deliberately never performs <c>git reset --hard</c>.</summary>
+public sealed record GitResetRequest(
+    [property: JsonPropertyName("sha")] string Sha,
+    [property: JsonPropertyName("mode")] string Mode = "mixed");
+
+/// <summary>Restore tracked paths from a commit into the working tree. The default source is HEAD.</summary>
+public sealed record GitRestoreRequest(
+    [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths,
+    [property: JsonPropertyName("source")] string? Source = null);
+
+/// <summary>Paths to add to the Git index without creating a commit.</summary>
+public sealed record GitStageRequest(
+    [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths);
+
+/// <summary>Paths whose index entries should be restored from HEAD while leaving their working-tree contents intact.</summary>
+public sealed record GitUnstageRequest(
+    [property: JsonPropertyName("paths")] IReadOnlyList<string> Paths);
+
 /// <summary>Merge a source branch into the current branch. <c>Strategy</c> values:
 /// <c>merge</c> (default, respects repo config merge.ff), <c>no-ff</c> (always create merge commit),
 /// <c>ff-only</c> (refuse to create merge commit), <c>squash</c> (squash changes into worktree, no commit).</summary>

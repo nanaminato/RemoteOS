@@ -101,6 +101,18 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<GitOperationResult> ResolveConflictsAsync(string id, GitResolveRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Resolve.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
+    public Task<GitOperationResult> ResetAsync(string id, GitResetRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Reset.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
+    public Task<GitOperationResult> RestoreAsync(string id, GitRestoreRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Restore.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
+    public Task<GitOperationResult> StageAsync(string id, GitStageRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Stage.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
+    public Task<GitOperationResult> UnstageAsync(string id, GitUnstageRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Unstage.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
+
     public Task<GitRepositoryProbeDto> ProbeRepositoryAsync(string path, CancellationToken cancellationToken = default)
         => SendAsync<GitRepositoryProbeDto>(HttpMethod.Get, $"{GitApiRoutes.Probe}?path={Uri.EscapeDataString(path)}", null, cancellationToken);
 

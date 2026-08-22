@@ -193,6 +193,10 @@ builder.Services.AddSingleton<IGitRepositoryService, LocalGitRepositoryService>(
 | GET | `/api/v1/git/repositories/{id}/diff` | 文件 diff（query: path, staged, ref） |
 | POST | `/api/v1/git/repositories/{id}/revert` | 反向提交 |
 | POST | `/api/v1/git/repositories/{id}/resolve` | 标记冲突已解决 + 继续 |
+| POST | `/api/v1/git/repositories/{id}/stage` | 仅暂存指定文件 |
+| POST | `/api/v1/git/repositories/{id}/unstage` | 仅取消暂存指定文件 |
+| POST | `/api/v1/git/repositories/{id}/restore` | 从 HEAD（或指定提交）还原指定文件 |
+| POST | `/api/v1/git/repositories/{id}/reset` | 安全重置到提交（仅 `--soft` / `--mixed`） |
 
 `Program.cs` 注册：`app.MapGitEndpoints()`。
 
@@ -278,7 +282,7 @@ GitClientViewModel
 | `PushCommand` | `POST push` → RequiresCredentials 则提示 | HasUpstream && !IsBusy |
 | `FetchCommand` | `POST fetch` | SelectedRepository != null && !IsBusy |
 | `RevertCommand` | 二次确认 → `POST revert` → 冲突则进冲突视图 | SelectedCommit != null && !IsBusy |
-| `StageCommand`/`UnstageCommand` | `POST commit`(paths) / `git reset` 暂存调整 | SelectedFile != null |
+| `StageCommand`/`UnstageCommand` | `POST stage` / `POST unstage` 暂存调整 | SelectedFile != null |
 | `ViewDiffCommand` | `GET diff` | SelectedFile != null |
 | `ResolveConflictCommand` | 弹冲突解决对话框 → `POST resolve` | ConflictFiles 非空 |
 | `RegisterRepositoryCommand` | 弹注册对话框 → `POST repositories` | server.git.manage 权限 |
@@ -416,7 +420,7 @@ GitOperationResult
 
 ## 8. 后续演进
 
-> 标注 [右键菜单已占位] 的项：客户端日志页三栏（分支树/提交列表/变更文件树）右键菜单项与命令已在 UI 中绑定（`GitClientViewModel` + `GitLogView`），但服务端 `IGitRepositoryService` / REST 端点尚未实现，点击会走 `NotImplemented` 分支并在状态栏提示。优先补齐这些接口即可真正生效。
+> 标注 [右键菜单已占位] 的项：客户端日志页三栏（分支树/提交列表/变更文件树）已绑定对应命令，但其中高级 Git 子系统尚未具备服务端 API；点击会在状态栏说明当前不可用。
 
 ### 8.1 分支树右键菜单（左栏）
 
@@ -430,8 +434,7 @@ GitOperationResult
 
 - **[右键菜单已占位] 创建补丁**：`git format-patch -1 <sha>`。需加 `GET /repositories/{id}/patch?sha=` 返回 `.patch` 文件文本或 zip。
 - **[右键菜单已占位] 签出修订（detached）**：`git checkout <sha>`。复用现有 checkout 接口，传入分支名=SHA 且 `CreateIfMissing=false`，进入 detached HEAD 状态；UI 需同步禁用分支写操作。
-- **[右键菜单已占位] 将当前分支重置到此处**：`git reset [--soft|--mixed|--hard] <sha>`。需加 `POST /repositories/{id}/reset`，`--hard` 按危险操作二次确认（二次确认对话框 + Provider 侧预检工作区脏数据）。
-- **[右键菜单已占位] 撤销提交（undo）**：`git reset --soft HEAD^` / `git reset --mixed HEAD^`，与 reset 接口合并实现；区分「仅撤销提交（保留暂存）」vs「撤销提交+取消暂存」。
+- **重置 / 撤销提交**：已支持 `POST /repositories/{id}/reset` 的 `--soft` 与 `--mixed`；客户端「重置到此处」使用 mixed，「撤销提交」仅允许当前 HEAD 并使用 soft，保留暂存内容。`--hard` 仍不暴露。
 - **[右键菜单已占位] 编辑提交消息**：`git commit --amend -m <newMsg>`，当前 `POST /commit` 已有 `Amend` 参数，需校验是 HEAD 提交（无未暂存变更或允许 amend+暂存）。
 - **[右键菜单已占位] Fixup / 压缩到 / 删除提交 / 压缩提交**：均基于交互式 rebase（`git rebase -i <sha>^`），后续与 8.1 的变基一起补齐；动作分别对应 fixup/squash/drop/squash 行。
 - **[右键菜单已占位] 交互式变基**：`git rebase -i <startPoint>`，需返回 todo 列表供客户端编辑，再 `POST /rebase/continue` 提交 todo 文本。
@@ -446,7 +449,7 @@ GitOperationResult
 - **[右键菜单已占位] 在新标签页中显示差异**：纯 UI 增强（与主窗口同窗口内开新 Tab），当前 diff 弹窗/侧栏模式；需扩展 Shell Tab 容器或复用 CodeEditor 打开 patch。
 - **[右键菜单已占位] 将之前版本与本地版本进行比较（三元 diff）**：当前 diff 仅支持两两比较；三元 diff（父提交 vs HEAD vs 工作区）后续调用 CodeEditor 做三方合并视图。
 - **[右键菜单已占位] 编辑源 / 打开仓库版本**：复用 CodeEditor / 已存文件管理器，仓库版本（旧内容）需先写入临时文件再打开，临时文件生命周期由 Workspace 缓存。
-- **[右键菜单已占位] 还原所选更改**：`git checkout <sha> -- <path>` 或 `git restore --source=<sha> <path>`。需加 `POST /repositories/{id}/restore`，区分「还原到提交中版本」vs「还原到 HEAD」（工作区页也会用到同一接口）。
+- **还原所选更改**：已支持 `POST /repositories/{id}/restore`；默认从 HEAD 还原工作树，也可通过 `source` 指定提交。所有路径均在服务端校验必须位于仓库根目录。
 - **[右键菜单已占位] 优选所选更改 / 将所选更改提取到单独的提交**：交互性提交重排，基于 `git add -p` / interactive add，后续与 reset --soft + recommit 组合实现；当前提交接口 `Paths` 字段仅支持全文件暂存。
 - **[右键菜单已占位] 删除所选更改**：等价于还原 + 工作区删除，需二次确认（工作区文件将被覆盖/删除）。
 - **[右键菜单已占位] 从修订中获取**：`git show <sha>:<path>` 将指定提交版本的文件内容提取到工作区（可选另存路径），与「打开仓库版本」同用 show 命令。

@@ -135,6 +135,14 @@ public static class GitEndpoints
             catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "log-failed"); }
         });
 
+        group.MapGet("/repositories/{id}/commits/{sha}", async (string id, string sha, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.GetCommitDetailAsync(repoId, GetUserId(principal), sha, ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid commit", type: ProblemBase + "invalid-commit"); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 404, title: "Git error", type: ProblemBase + "commit-not-found"); }
+        });
+
         group.MapGet("/repositories/{id}/diff", async (string id, string path, bool? staged, string? @ref, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
@@ -153,6 +161,30 @@ public static class GitEndpoints
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
             return Results.Ok(await service.ResolveConflictsAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/reset", async (string id, GitResetRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.ResetAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/restore", async (string id, GitRestoreRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.RestoreAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/stage", async (string id, GitStageRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.StageAsync(repoId, GetUserId(principal), request, ct));
+        });
+
+        group.MapPost("/repositories/{id}/unstage", async (string id, GitUnstageRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            return Results.Ok(await service.UnstageAsync(repoId, GetUserId(principal), request, ct));
         });
 
         // ── 路径探测与初始化（不依赖已注册仓库）──

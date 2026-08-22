@@ -508,6 +508,37 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         return commits;
     }
 
+    public async Task<GitCommitDetailDto> GetCommitDetailAsync(Guid id, Guid userId, string sha, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sha) || sha.StartsWith("-", StringComparison.Ordinal))
+            throw new ArgumentException("A commit SHA is required.", nameof(sha));
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+
+        var format = "%H%x00%an%x00%aI%x00%s%x00%b%x00%P";
+        var commitResult = await RunGitAsync(gitPath, repo.Path, ["show", "-s", $"--format={format}", sha], cancellationToken);
+        if (!commitResult.Success)
+            throw new InvalidOperationException($"git show failed: {commitResult.Error}");
+
+        var fields = commitResult.Output.Split('\0');
+        if (fields.Length < 6 || string.IsNullOrWhiteSpace(fields[0]))
+            throw new InvalidOperationException("git show returned an invalid commit record.");
+
+        var filesResult = await RunGitAsync(gitPath, repo.Path,
+            ["diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-M", sha], cancellationToken);
+        if (!filesResult.Success)
+            throw new InvalidOperationException($"git diff-tree failed: {filesResult.Error}");
+
+        var changedFiles = ParseChangedFiles(filesResult.Output);
+        var body = fields[4].TrimEnd('\r', '\n');
+        return new GitCommitDetailDto(
+            fields[0].Trim(), fields[1], fields[2], fields[3],
+            fields[5].Split(' ', StringSplitOptions.RemoveEmptyEntries), changedFiles,
+            string.IsNullOrEmpty(body) ? null : body);
+    }
+
     public async Task<GitDiffDto> GetDiffAsync(Guid id, Guid userId, string path, bool staged = false, string? @ref = null, CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -604,6 +635,96 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
                     Conflicts: remainingConflicts, Message: rebaseResult.Success ? null : rebaseResult.Error);
             }
             return new GitOperationResult(true, "resolve");
+        });
+    }
+
+    public async Task<GitOperationResult> ResetAsync(Guid id, Guid userId, GitResetRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Sha) || request.Sha.StartsWith("-", StringComparison.Ordinal))
+            return new GitOperationResult(false, "reset", Message: "A commit SHA is required.");
+
+        var mode = (request.Mode ?? "mixed").Trim().ToLowerInvariant();
+        if (mode is not ("soft" or "mixed"))
+            return new GitOperationResult(false, "reset", Message: "Only soft and mixed reset modes are supported.");
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var result = await RunGitAsync(gitPath, repo.Path, ["reset", $"--{mode}", request.Sha], cancellationToken);
+            return new GitOperationResult(result.Success, "reset", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    public async Task<GitOperationResult> RestoreAsync(Guid id, Guid userId, GitRestoreRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!ArePathsSafe(request.Paths, out var pathError))
+            return new GitOperationResult(false, "restore", Message: pathError);
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        if (request.Paths.Any(path => !IsPathSafe(repo.Path, path)))
+            return new GitOperationResult(false, "restore", Message: "Path outside repository.");
+
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var args = new List<string> { "restore", "--worktree" };
+            if (!string.IsNullOrWhiteSpace(request.Source)) args.Add($"--source={request.Source}");
+            args.Add("--");
+            args.AddRange(request.Paths);
+            var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
+            return new GitOperationResult(result.Success, "restore", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    public async Task<GitOperationResult> StageAsync(Guid id, Guid userId, GitStageRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!ArePathsSafe(request.Paths, out var pathError))
+            return new GitOperationResult(false, "stage", Message: pathError);
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        if (request.Paths.Any(path => !IsPathSafe(repo.Path, path)))
+            return new GitOperationResult(false, "stage", Message: "Path outside repository.");
+
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var args = new List<string> { "add", "--" };
+            args.AddRange(request.Paths);
+            var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
+            return new GitOperationResult(result.Success, "stage", Message: result.Success ? null : result.Error);
+        });
+    }
+
+    public async Task<GitOperationResult> UnstageAsync(Guid id, Guid userId, GitUnstageRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!ArePathsSafe(request.Paths, out var pathError))
+            return new GitOperationResult(false, "unstage", Message: pathError);
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        if (request.Paths.Any(path => !IsPathSafe(repo.Path, path)))
+            return new GitOperationResult(false, "unstage", Message: "Path outside repository.");
+
+        var gitPath = ResolveGitPathOrThrow();
+        return await WithWriteLockAsync(id, async () =>
+        {
+            var args = new List<string> { "restore", "--staged", "--" };
+            args.AddRange(request.Paths);
+            var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
+
+            // An initial repository has no HEAD, so `restore --staged` cannot obtain an index source.
+            // Removing just the index entries is the equivalent safe unstage operation in that state.
+            if (!result.Success && result.Error.Contains("could not resolve HEAD", StringComparison.OrdinalIgnoreCase))
+            {
+                var fallbackArgs = new List<string> { "rm", "--cached", "--ignore-unmatch", "--" };
+                fallbackArgs.AddRange(request.Paths);
+                result = await RunGitAsync(gitPath, repo.Path, [.. fallbackArgs], cancellationToken);
+            }
+            return new GitOperationResult(result.Success, "unstage", Message: result.Success ? null : result.Error);
         });
     }
 
@@ -1023,6 +1144,23 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         return (additions, deletions);
     }
 
+    private static IReadOnlyList<GitFileChangeDto> ParseChangedFiles(string output)
+    {
+        var files = new List<GitFileChangeDto>();
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.TrimEnd('\r').Split('\t');
+            if (parts.Length < 2) continue;
+            var status = parts[0];
+            var kind = MapStatusChar(status[0]);
+            if ((status[0] is 'R' or 'C') && parts.Length >= 3)
+                files.Add(new GitFileChangeDto(parts[2], parts[1], kind));
+            else
+                files.Add(new GitFileChangeDto(parts[1], Status: kind));
+        }
+        return files;
+    }
+
     private static bool IsPathSafe(string repoRoot, string path)
     {
         if (!Path.IsPathRooted(path))
@@ -1031,6 +1169,22 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         var fullTarget = Path.GetFullPath(path);
         var relative = Path.GetRelativePath(fullRepoRoot, fullTarget);
         return !relative.StartsWith("..", StringComparison.Ordinal) && !Path.IsPathRooted(relative);
+    }
+
+    private static bool ArePathsSafe(IReadOnlyList<string>? paths, out string? error)
+    {
+        if (paths is null || paths.Count == 0)
+        {
+            error = "At least one path is required.";
+            return false;
+        }
+        if (paths.Any(string.IsNullOrWhiteSpace))
+        {
+            error = "Paths must not be empty.";
+            return false;
+        }
+        error = null;
+        return true;
     }
 
     private static bool IsCredentialError(string error) =>
