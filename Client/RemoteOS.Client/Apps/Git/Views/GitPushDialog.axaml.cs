@@ -56,7 +56,20 @@ internal partial class GitPushDialog : UserControl
             await _viewModel.SelectPushCommitCommand.ExecuteAsync(commit);
     }
 
-    private void Push_Click(object? sender, RoutedEventArgs e) => _dialog.Close(true);
+    private async void Push_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel.PushIsLoading) return;
+        _viewModel.PushIsLoading = true;
+        try
+        {
+            if (await _viewModel.ExecutePushFromDialogAsync(_dialog.Window))
+                _dialog.Close(true);
+        }
+        finally
+        {
+            _viewModel.PushIsLoading = false;
+        }
+    }
 
     private void Cancel_Click(object? sender, RoutedEventArgs e) => _dialog.Cancel();
 }

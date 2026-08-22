@@ -736,6 +736,76 @@ internal static class GitClientDialogs
             dialog => new Views.GitPushDialog(vm, dialog),
             new RemoteOS.Core.Primitives.Size(820, 580));
 
+    /// <summary>Prompts for a HTTPS username and personal access token as a child of the push preview dialog.
+    /// The dialog returns the secret to the active request only; it is never stored in the client.</summary>
+    public static Task<GitCredentialRequest?> ShowGitCredentialsDialogAsync(AppContext context, ManagedWindow owner)
+        => context.ShowDialogAsync<GitCredentialRequest?>(owner,
+            LocalizedText.Get("git.dialog.credentials.title"),
+            BuildGitCredentialsDialog,
+            new RemoteOS.Core.Primitives.Size(440, 285));
+
+    private static Control BuildGitCredentialsDialog(ModalDialog<GitCredentialRequest?> dialog)
+    {
+        var notice = new TextBlock
+        {
+            Text = LocalizedText.Get("git.dialog.credentials.notice"),
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = Brush.Parse("#52627A"),
+        };
+        var username = new TextBox { PlaceholderText = LocalizedText.Get("git.dialog.credentials.username_placeholder") };
+        var password = new TextBox
+        {
+            PasswordChar = '•',
+            PlaceholderText = LocalizedText.Get("git.dialog.credentials.token_placeholder"),
+        };
+        var remember = new CheckBox
+        {
+            Content = LocalizedText.Get("git.dialog.credentials.remember"),
+            IsChecked = true,
+        };
+        var save = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.credentials.confirm"),
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new(14, 6),
+        };
+        save.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(username.Text) || string.IsNullOrWhiteSpace(password.Text)) return;
+            dialog.Close(new GitCredentialRequest(username.Text.Trim(), password.Text, remember.IsChecked == true));
+        };
+        var cancel = new Button
+        {
+            Content = LocalizedText.Get("git.dialog.credentials.cancel"),
+            Padding = new(14, 6),
+            Margin = new(8, 0, 0, 0),
+        };
+        cancel.Click += (_, _) => dialog.Cancel();
+
+        return new StackPanel
+        {
+            Margin = new(18),
+            Spacing = 10,
+            Children =
+            {
+                notice,
+                new TextBlock { Text = LocalizedText.Get("git.dialog.credentials.username"), FontSize = 13 },
+                username,
+                new TextBlock { Text = LocalizedText.Get("git.dialog.credentials.token"), FontSize = 13 },
+                password,
+                remember,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { save, cancel },
+                },
+            },
+        };
+    }
+
     // ── Remote / Branch picker dialog ──
 
     public static Task<(string Remote, string Branch)?> ShowRemoteBranchPickerDialogAsync(

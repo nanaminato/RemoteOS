@@ -147,6 +147,18 @@ public sealed record GitPullRequest(
     [property: JsonPropertyName("remote")] string? Remote = null,
     [property: JsonPropertyName("refspec")] string? Refspec = null);
 
+/// <summary>HTTPS credentials supplied only for the current Git operation. The server may retain them
+/// in its protected per-user credential store when <see cref="GitPushRequest.SaveCredentials"/> is set.</summary>
+public sealed record GitCredentialRequest(
+    [property: JsonPropertyName("username")] string Username,
+    [property: JsonPropertyName("password")] string Password,
+    [property: JsonPropertyName("saveCredentials")] bool SaveCredentials = true);
+
+/// <summary>Push options. Credentials are used through a temporary askpass helper rather than command-line arguments.</summary>
+public sealed record GitPushRequest(
+    [property: JsonPropertyName("credentials")] GitCredentialRequest? Credentials = null,
+    [property: JsonPropertyName("saveCredentials")] bool SaveCredentials = true);
+
 /// <summary>Checkout request.</summary>
 public sealed record GitCheckoutRequest(
     [property: JsonPropertyName("branch")] string Branch,

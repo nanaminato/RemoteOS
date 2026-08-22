@@ -122,10 +122,10 @@ public static class GitEndpoints
             return Results.Ok(await service.PullAsync(repoId, GetUserId(principal), request, ct));
         });
 
-        group.MapPost("/repositories/{id}/push", async (string id, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        group.MapPost("/repositories/{id}/push", async (string id, GitPushRequest? request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
-            return Results.Ok(await service.PushAsync(repoId, GetUserId(principal), ct));
+            return Results.Ok(await service.PushAsync(repoId, GetUserId(principal), request, ct));
         });
 
         group.MapGet("/repositories/{id}/log", async (string id, int? limit, int? skip, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>

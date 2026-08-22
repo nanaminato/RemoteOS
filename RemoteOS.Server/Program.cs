@@ -15,6 +15,9 @@ using Server.Storage;
 using Server.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Git HTTPS tokens are protected before they are persisted in application storage.
+builder.Services.AddDataProtection();
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);

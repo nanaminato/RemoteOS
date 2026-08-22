@@ -19,6 +19,10 @@
                        Foreground="#666"
                        Margin="8,0,0,0"
                        Text="{Binding PushCommitCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_commits_format'}"/>
+            <TextBlock FontSize="12"
+                       Foreground="#666"
+                       Margin="8,0,0,0"
+                       Text="{Binding PushStatusMessage}"/>
         </StackPanel>
 
         <!-- Row 1: Resizable commit list and file tree -->

@@ -147,6 +147,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// Returns: (remoteName, branchName) tuple or null on cancel.</summary>
     public Func<ManagedWindow?, string?, string?, Task<(string Remote, string Branch)?>>? ShowRemoteBranchPickerDialogAsync { get; set; }
 
+    /// <summary>Shows the credential prompt as a child of the push preview dialog. Returned credentials
+    /// are used only by the retry request and are never retained by this view model.</summary>
+    public Func<ManagedWindow?, Task<GitCredentialRequest?>>? ShowGitCredentialsDialogAsync { get; set; }
+
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
     public bool CanOpenProject => !IsBusy && IsPickerMode;
@@ -704,13 +708,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
             if (ShowPushDialogAsync is not null)
             {
-                var confirmed = await ShowPushDialogAsync();
-                if (confirmed)
-                    await ExecutePushNowAsync();
+                await ShowPushDialogAsync();
             }
             else
             {
-                await ExecutePushNowAsync();
+                await ExecutePushFromDialogAsync(null);
             }
         }
         catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
@@ -1226,9 +1228,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
                 if (ShowPushDialogAsync is not null)
                 {
-                    var confirmed = await ShowPushDialogAsync();
-                    if (confirmed)
-                        await ExecutePushNowAsync();
+                    await ShowPushDialogAsync();
                 }
             }
             else
@@ -1247,35 +1247,49 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         await PreparePushPreviewAsync();
         if (ShowPushDialogAsync is not null)
-        {
-            var confirmed = await ShowPushDialogAsync();
-            if (confirmed)
-                await ExecutePushNowAsync();
-        }
+            await ShowPushDialogAsync();
     }
 
-    /// <summary>Executes the actual push operation with current dialog settings.</summary>
-    private async Task ExecutePushNowAsync()
+    /// <summary>Executes the push from the preview dialog. If Git reports missing HTTPS credentials,
+    /// prompts within that dialog and retries once with the supplied credentials.</summary>
+    public async Task<bool> ExecutePushFromDialogAsync(ManagedWindow? owner)
     {
-        if (SelectedRepository is null) return;
-        IsBusy = true;
+        if (SelectedRepository is null) return false;
         StatusText = LocalizedText.Get("git.vm.push_progress");
+        PushStatusMessage = LocalizedText.Get("git.dialog.push.pushing");
         try
         {
             var result = await client.PushAsync(SelectedRepository.Id);
             if (result.RequiresCredentials)
-                await NotifyAsync(LocalizedText.Get("git.vm.credentials_required"));
-            else
             {
-                if (result.Success)
-                    StatusText = LocalizedText.Get("git.vm.pushed");
-                else
-                    await NotifyAsync(LocalizedText.Format("git.vm.push_failed_format", result.Message));
-                await RefreshAllAsync();
+                if (ShowGitCredentialsDialogAsync is null) return false;
+                var credentials = await ShowGitCredentialsDialogAsync(owner);
+                if (credentials is null)
+                {
+                    PushStatusMessage = LocalizedText.Get("git.dialog.credentials.canceled");
+                    return false;
+                }
+                result = await client.PushAsync(SelectedRepository.Id, new GitPushRequest(credentials, credentials.SaveCredentials));
             }
+
+            if (result.Success)
+            {
+                StatusText = LocalizedText.Get("git.vm.pushed");
+                PushStatusMessage = LocalizedText.Get("git.vm.pushed");
+                await RefreshAllAsync();
+                return true;
+            }
+
+            PushStatusMessage = result.RequiresCredentials
+                ? LocalizedText.Get("git.dialog.credentials.failed")
+                : LocalizedText.Format("git.vm.push_failed_format", result.Message);
+            return false;
         }
-        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
-        finally { IsBusy = false; }
+        catch (Exception ex)
+        {
+            PushStatusMessage = LocalizedText.Format("git.status.error_format", ex.Message);
+            return false;
+        }
     }
 
     /// <summary>获取远程分支名称列表（从已加载的 Branches 中过滤 IsRemote=true）。

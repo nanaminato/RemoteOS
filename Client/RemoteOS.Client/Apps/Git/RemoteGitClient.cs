@@ -70,8 +70,8 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<GitOperationResult> PullAsync(string id, GitPullRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Pull.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
-    public Task<GitOperationResult> PushAsync(string id, CancellationToken cancellationToken = default)
-        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Push.Replace("{id}", Uri.EscapeDataString(id)), null, cancellationToken);
+    public Task<GitOperationResult> PushAsync(string id, GitPushRequest? request = null, CancellationToken cancellationToken = default)
+        => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Push.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
     public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(string id, int limit = 200, int skip = 0, CancellationToken cancellationToken = default)
     {

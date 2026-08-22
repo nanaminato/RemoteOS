@@ -1,6 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using RemoteOS.Protocol.AppSettings;
 using RemoteOS.Protocol.Git;
 using Server.Domain;
 using Server.Storage.Sqlite;
@@ -10,12 +15,18 @@ namespace Server.Git;
 /// <summary>Singleton service that invokes the host git CLI and manages repository registrations.
 /// Write operations are serialized per-repository via SemaphoreSlim to avoid index.lock conflicts.
 /// Runtime state (status/branches/log/diff) is never persisted—only GitRepository registration records.</summary>
-public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContext> dbFactory, IHostGitCli gitCli, ILogger<LocalGitRepositoryService> logger) : IGitRepositoryService
+public sealed class LocalGitRepositoryService(
+    IDbContextFactory<RemoteOsDbContext> dbFactory,
+    IHostGitCli gitCli,
+    IDataProtectionProvider dataProtection,
+    ILogger<LocalGitRepositoryService> logger) : IGitRepositoryService
 {
     private const int MaxDiffPatchSize = 200 * 1024; // 200KB
     private static readonly TimeSpan SemaphoreTimeout = TimeSpan.FromSeconds(3);
 
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _writeLocks = new();
+    private readonly IDataProtector _credentialProtector = dataProtection.CreateProtector("RemoteOS.GitCredentials.v1");
+    private const string CredentialAppId = "remoteos.git.internal";
 
     // ── Host Git engine probe & install ──
 
@@ -457,19 +468,128 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         });
     }
 
-    public async Task<GitOperationResult> PushAsync(Guid id, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<GitOperationResult> PushAsync(Guid id, Guid userId, GitPushRequest? request = null, CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
-            var result = await RunGitAsync(gitPath, repo.Path, ["push"], cancellationToken);
+            var remoteUri = await TryGetPushRemoteUriAsync(gitPath, repo.Path, cancellationToken);
+            var suppliedCredentials = request?.Credentials;
+            if (suppliedCredentials is not null &&
+                (string.IsNullOrWhiteSpace(suppliedCredentials.Username) || string.IsNullOrWhiteSpace(suppliedCredentials.Password)))
+            {
+                return new GitOperationResult(false, "push", Message: "Username and access token are required.", RequiresCredentials: true);
+            }
+
+            var credentials = suppliedCredentials;
+            if (credentials is null && remoteUri is not null)
+                credentials = await GetStoredCredentialsAsync(userId, remoteUri, cancellationToken);
+
+            var result = await RunGitAsync(gitPath, repo.Path, ["push"], cancellationToken, credentials);
+            if (result.Success && suppliedCredentials is not null && request?.SaveCredentials != false && remoteUri is not null)
+                await SaveCredentialsAsync(userId, remoteUri, suppliedCredentials, cancellationToken);
+
             return new GitOperationResult(result.Success, "push",
                 RequiresCredentials: !result.Success && IsCredentialError(result.Error),
                 Message: result.Success ? null : result.Error);
         });
     }
+
+    /// <summary>Loads the push URL without exposing it over the API. Credentials are meaningful only for HTTPS URLs;
+    /// SSH continues to use the host service account's SSH agent/configuration.</summary>
+    private async Task<Uri?> TryGetPushRemoteUriAsync(string gitPath, string repoPath, CancellationToken cancellationToken)
+    {
+        var branchResult = await RunGitAsync(gitPath, repoPath, ["symbolic-ref", "--quiet", "--short", "HEAD"], cancellationToken);
+        var remoteNameResult = branchResult.Success
+            ? await RunGitAsync(gitPath, repoPath, ["config", "--get", $"branch.{branchResult.Output.Trim()}.remote"], cancellationToken)
+            : new CommandResult(false, string.Empty, string.Empty);
+        // Fall back to origin, then to the only configured remote, which covers normal Git repositories safely.
+        var remoteName = remoteNameResult.Success ? remoteNameResult.Output.Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(remoteName)) remoteName = "origin";
+
+        var urlResult = await RunGitAsync(gitPath, repoPath, ["remote", "get-url", "--push", remoteName], cancellationToken);
+        if (!urlResult.Success)
+        {
+            var remotes = await RunGitAsync(gitPath, repoPath, ["remote"], cancellationToken);
+            var onlyRemote = remotes.Success
+                ? remotes.Output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(2).ToArray()
+                : [];
+            if (onlyRemote.Length != 1) return null;
+            urlResult = await RunGitAsync(gitPath, repoPath, ["remote", "get-url", "--push", onlyRemote[0]], cancellationToken);
+        }
+
+        return urlResult.Success && Uri.TryCreate(urlResult.Output.Trim(), UriKind.Absolute, out var uri) &&
+               string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            ? uri
+            : null;
+    }
+
+    private async Task<GitCredentialRequest?> GetStoredCredentialsAsync(Guid userId, Uri remoteUri, CancellationToken cancellationToken)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var key = CredentialKey(remoteUri);
+        var setting = await db.Set<AppSetting>().SingleOrDefaultAsync(item =>
+            item.UserId == userId && item.Scope == AppSettingsScope.User && item.ScopeId == userId &&
+            item.AppId == CredentialAppId && item.Key == key, cancellationToken);
+        if (setting is null) return null;
+
+        try
+        {
+            var stored = JsonSerializer.Deserialize<StoredGitCredential>(setting.ValueJson);
+            if (stored is null || string.IsNullOrWhiteSpace(stored.Username) || string.IsNullOrWhiteSpace(stored.ProtectedPassword))
+                return null;
+            return new GitCredentialRequest(stored.Username, _credentialProtector.Unprotect(stored.ProtectedPassword));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not load a stored Git credential for the current user.");
+            return null;
+        }
+    }
+
+    private async Task SaveCredentialsAsync(Guid userId, Uri remoteUri, GitCredentialRequest credentials, CancellationToken cancellationToken)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var key = CredentialKey(remoteUri);
+        var setting = await db.Set<AppSetting>().SingleOrDefaultAsync(item =>
+            item.UserId == userId && item.Scope == AppSettingsScope.User && item.ScopeId == userId &&
+            item.AppId == CredentialAppId && item.Key == key, cancellationToken);
+
+        var value = JsonSerializer.Serialize(new StoredGitCredential(credentials.Username, _credentialProtector.Protect(credentials.Password)));
+        if (setting is null)
+        {
+            db.Add(new AppSetting
+            {
+                UserId = userId,
+                Scope = AppSettingsScope.User,
+                ScopeId = userId,
+                AppId = CredentialAppId,
+                Key = key,
+                ValueJson = value,
+                SchemaVersion = 1,
+                Revision = 1,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+        else
+        {
+            setting.ValueJson = value;
+            setting.SchemaVersion = 1;
+            setting.Revision++;
+            setting.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string CredentialKey(Uri remoteUri)
+    {
+        var identity = remoteUri.GetLeftPart(UriPartial.Authority).ToLowerInvariant();
+        return "https-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
+    }
+
+    private sealed record StoredGitCredential(string Username, string ProtectedPassword);
 
     public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(Guid id, Guid userId, int limit = 200, int skip = 0, CancellationToken cancellationToken = default)
     {
@@ -1191,7 +1311,12 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         error.Contains("Authentication failed", StringComparison.OrdinalIgnoreCase) ||
         error.Contains("could not read Username", StringComparison.OrdinalIgnoreCase) ||
         error.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) ||
-        error.Contains("fatal: could not read", StringComparison.OrdinalIgnoreCase);
+        error.Contains("fatal: could not read", StringComparison.OrdinalIgnoreCase) ||
+        HasInteractiveCredentialPrompt(error);
+
+    private static bool HasInteractiveCredentialPrompt(string error) =>
+        error.Contains("Username for '", StringComparison.OrdinalIgnoreCase) ||
+        error.Contains("Password for '", StringComparison.OrdinalIgnoreCase);
 
     private async Task<IReadOnlyList<string>?> TryGetConflictPathsAsync(string gitPath, string repoPath, CancellationToken cancellationToken)
     {
@@ -1219,10 +1344,18 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         finally { semaphore.Release(); }
     }
 
-    private async Task<CommandResult> RunGitAsync(string gitPath, string workingDir, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private async Task<CommandResult> RunGitAsync(
+        string gitPath,
+        string workingDir,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken,
+        GitCredentialRequest? credentials = null)
     {
+        var operation = arguments.FirstOrDefault() ?? "unknown";
         try
         {
+            logger.LogDebug("Starting git operation {GitOperation}.", operation);
+            using var askPass = credentials is null ? null : new GitAskPassScope(credentials);
             using var process = new Process
             {
                 StartInfo = new ProcessStartInfo(gitPath)
@@ -1234,27 +1367,81 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
                     WorkingDirectory = workingDir
                 }
             };
+            // A remote server has no interactive terminal to hand over to the desktop client.
+            // Fail promptly when no saved/supplied credential exists; when one is available,
+            // Git obtains it from the temporary askpass process below.
+            process.StartInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            if (askPass is not null)
+            {
+                process.StartInfo.Environment["GIT_ASKPASS"] = askPass.Path;
+                process.StartInfo.Environment["GIT_ASKPASS_REQUIRE"] = "force";
+                process.StartInfo.Environment["REMOTEOS_GIT_ASKPASS_USERNAME"] = credentials!.Username;
+                process.StartInfo.Environment["REMOTEOS_GIT_ASKPASS_PASSWORD"] = credentials.Password;
+            }
             foreach (var arg in arguments) process.StartInfo.ArgumentList.Add(arg);
             if (!process.Start())
                 return new CommandResult(false, "", "start_failed");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
-            var outputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
-            var errorTask = process.StandardError.ReadToEndAsync(cts.Token);
+            // Do not cancel the pipe reads with the operation timeout: after killing a
+            // timed-out process we still need its final stderr to diagnose an interactive
+            // credential prompt. Never write stderr itself to logs because it can contain
+            // a username or a remote URL.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
             try
             {
                 await process.WaitForExitAsync(cts.Token);
-                return new CommandResult(process.ExitCode == 0, await outputTask, await errorTask);
+                var output = await outputTask;
+                var error = await errorTask;
+                var success = process.ExitCode == 0;
+                if (!success)
+                {
+                    logger.LogWarning(
+                        "Git operation {GitOperation} failed with exit code {ExitCode}. InteractiveCredentialPrompt={InteractiveCredentialPrompt}",
+                        operation, process.ExitCode, HasInteractiveCredentialPrompt(error));
+                }
+                return new CommandResult(success, output, error);
             }
             catch (OperationCanceledException)
             {
                 try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
+                try { await process.WaitForExitAsync(CancellationToken.None); } catch { }
+                var error = await errorTask;
+                _ = await outputTask;
+                logger.LogWarning(
+                    "Git operation {GitOperation} was canceled or timed out. InteractiveCredentialPrompt={InteractiveCredentialPrompt}",
+                    operation, HasInteractiveCredentialPrompt(error));
                 return new CommandResult(false, "", "timeout");
             }
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or FileNotFoundException)
         {
             return new CommandResult(false, "", "git_not_found");
+        }
+    }
+
+    /// <summary>Creates a short-lived helper used only by one child Git process. Secrets live in that
+    /// process environment rather than in its command line, and the helper file is deleted immediately.</summary>
+    private sealed class GitAskPassScope : IDisposable
+    {
+        public string Path { get; }
+
+        public GitAskPassScope(GitCredentialRequest credentials)
+        {
+            var extension = OperatingSystem.IsWindows() ? ".cmd" : ".sh";
+            Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"remoteos-git-askpass-{Guid.NewGuid():N}{extension}");
+            var script = OperatingSystem.IsWindows()
+                ? "@echo off\r\nset \"prompt=%~1\"\r\necho %prompt% | findstr /I /C:\"username\" >nul\r\nif not errorlevel 1 ( <nul set /p \"=%REMOTEOS_GIT_ASKPASS_USERNAME%\" & exit /b 0 )\r\necho %prompt% | findstr /I /C:\"password\" >nul\r\nif not errorlevel 1 ( <nul set /p \"=%REMOTEOS_GIT_ASKPASS_PASSWORD%\" & exit /b 0 )\r\nexit /b 1\r\n"
+                : "#!/bin/sh\ncase \"$1\" in\n  *[Uu]sername*) printf '%s\\n' \"$REMOTEOS_GIT_ASKPASS_USERNAME\" ;;\n  *[Pp]assword*) printf '%s\\n' \"$REMOTEOS_GIT_ASKPASS_PASSWORD\" ;;\n  *) exit 1 ;;\nesac\n";
+            File.WriteAllText(Path, script, Encoding.UTF8);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(Path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        public void Dispose()
+        {
+            try { File.Delete(Path); } catch { /* best effort cleanup of the one-shot helper */ }
         }
     }
 
