@@ -16,10 +16,14 @@ namespace Client.Apps.Git.Views;
 internal partial class GitLogView : UserControl
 {
     public ObservableCollection<BranchTreeNode> BranchTreeRoots { get; } = [];
+    public ObservableCollection<CommitFileTreeNode> CommitFileTreeRoots { get; } = [];
 
     private GitClientViewModel? _vm;
     private bool _branchesHandlerAttached;
+    private bool _commitFilesHandlerAttached;
+    private bool _commitTreeRebuildPending;
     private bool _attached;
+    private readonly Dictionary<string, bool> _branchExpansionState = new(StringComparer.Ordinal);
 
     public GitLogView() => InitializeComponent();
     public GitLogView(GitClientViewModel vm) : this()
@@ -48,6 +52,12 @@ internal partial class GitLogView : UserControl
             _branchesHandlerAttached = true;
         }
 
+        if (!_commitFilesHandlerAttached)
+        {
+            _vm.CommitChangedFiles.CollectionChanged += (_, _) => QueueCommitFileTreeRebuild();
+            _commitFilesHandlerAttached = true;
+        }
+
         // 搜索框变化时重建（过滤）分支树；Status 更新时 HEAD 文案可能变
         _vm.PropertyChanged += (_, args) =>
         {
@@ -60,6 +70,8 @@ internal partial class GitLogView : UserControl
 
         // 将 TreeView 绑定到本地树形集合（XAML 默认扁平，这里替换为分组树）
         BranchTree.ItemsSource = BranchTreeRoots;
+        ChangedFileTree.ItemsSource = CommitFileTreeRoots;
+        RebuildCommitFileTree();
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
@@ -71,6 +83,7 @@ internal partial class GitLogView : UserControl
     private void RebuildBranchTree()
     {
         if (_vm is null) return;
+        CaptureBranchExpansionState();
         var filter = (_vm.BranchSearchText ?? string.Empty).Trim();
         bool Pass(string s) => string.IsNullOrEmpty(filter)
             || s.Contains(filter, StringComparison.OrdinalIgnoreCase);
@@ -107,7 +120,11 @@ internal partial class GitLogView : UserControl
 
         // 2. 本地分支分组
         var locals = all.Where(b => !b.IsRemote).ToList();
-        var localGroup = new BranchTreeNode(LocalizedText.Get("git.log.branch_tree_local"), icon: "📁", nodeKind: BranchNodeKind.Group, isExpanded: true);
+        var localGroup = new BranchTreeNode(
+            LocalizedText.Get("git.log.branch_tree_local"),
+            icon: "📁",
+            nodeKind: BranchNodeKind.Group,
+            isExpanded: GetBranchExpansionState("local", defaultValue: true));
         foreach (var b in locals)
         {
             if (!Pass(b.Name)) continue;
@@ -132,7 +149,11 @@ internal partial class GitLogView : UserControl
 
         // 3. 远程分组：按 remote 名（remote/name 中 slash 前）分组
         var remotes = all.Where(b => b.IsRemote).ToList();
-        var remoteRoot = new BranchTreeNode(LocalizedText.Get("git.log.branch_tree_remote"), icon: "🌐", nodeKind: BranchNodeKind.Group, isExpanded: true);
+        var remoteRoot = new BranchTreeNode(
+            LocalizedText.Get("git.log.branch_tree_remote"),
+            icon: "🌐",
+            nodeKind: BranchNodeKind.Group,
+            isExpanded: GetBranchExpansionState("remotes", defaultValue: true));
         var remoteGroups = new Dictionary<string, BranchTreeNode>(StringComparer.OrdinalIgnoreCase);
         foreach (var b in remotes)
         {
@@ -143,7 +164,11 @@ internal partial class GitLogView : UserControl
 
             if (!remoteGroups.TryGetValue(remoteName, out var rg))
             {
-                rg = new BranchTreeNode(remoteName, icon: "📂", nodeKind: BranchNodeKind.RemoteGroup, isExpanded: true);
+                rg = new BranchTreeNode(
+                    remoteName,
+                    icon: "📂",
+                    nodeKind: BranchNodeKind.RemoteGroup,
+                    isExpanded: GetBranchExpansionState($"remote:{remoteName}", defaultValue: true));
                 remoteGroups[remoteName] = rg;
                 remoteRoot.Children.Add(rg);
             }
@@ -158,6 +183,81 @@ internal partial class GitLogView : UserControl
                 canDelete: false));
         }
         BranchTreeRoots.Add(remoteRoot);
+    }
+
+    private void CaptureBranchExpansionState()
+    {
+        foreach (var root in BranchTreeRoots)
+        {
+            if (root.Kind == BranchNodeKind.Group && root.Icon == "📁")
+                _branchExpansionState["local"] = root.IsExpanded;
+            else if (root.Kind == BranchNodeKind.Group && root.Icon == "🌐")
+            {
+                _branchExpansionState["remotes"] = root.IsExpanded;
+                foreach (var remote in root.Children.Where(node => node.Kind == BranchNodeKind.RemoteGroup))
+                    _branchExpansionState[$"remote:{remote.DisplayName}"] = remote.IsExpanded;
+            }
+        }
+    }
+
+    private bool GetBranchExpansionState(string key, bool defaultValue)
+        => _branchExpansionState.TryGetValue(key, out var isExpanded) ? isExpanded : defaultValue;
+
+    private void QueueCommitFileTreeRebuild()
+    {
+        if (_commitTreeRebuildPending) return;
+        _commitTreeRebuildPending = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _commitTreeRebuildPending = false;
+            if (_attached) RebuildCommitFileTree();
+        });
+    }
+
+    private void RebuildCommitFileTree()
+    {
+        if (_vm is null) return;
+
+        _vm.SelectedCommitFile = null;
+        CommitFileTreeRoots.Clear();
+        var directories = new Dictionary<string, CommitFileTreeNode>(StringComparer.Ordinal);
+
+        foreach (var file in _vm.CommitChangedFiles.OrderBy(file => file.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            var segments = file.Path
+                .Replace('\\', '/')
+                .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (segments.Length == 0) continue;
+
+            var parent = CommitFileTreeRoots;
+            var directoryPath = string.Empty;
+            for (var index = 0; index < segments.Length; index++)
+            {
+                var isFile = index == segments.Length - 1;
+                if (isFile)
+                {
+                    parent.Add(new CommitFileTreeNode(segments[index], file));
+                    continue;
+                }
+
+                directoryPath = string.IsNullOrEmpty(directoryPath)
+                    ? segments[index]
+                    : $"{directoryPath}/{segments[index]}";
+                if (!directories.TryGetValue(directoryPath, out var directory))
+                {
+                    directory = new CommitFileTreeNode(segments[index]);
+                    directories[directoryPath] = directory;
+                    parent.Add(directory);
+                }
+                parent = directory.Children;
+            }
+        }
+    }
+
+    private void ChangedFileTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_vm is not null)
+            _vm.SelectedCommitFile = (ChangedFileTree.SelectedItem as CommitFileTreeNode)?.File;
     }
 }
 
@@ -200,6 +300,23 @@ public sealed class BranchTreeNode
 }
 
 public enum BranchNodeKind { Item, Group, Head, LocalBranch, RemoteBranch, RemoteGroup }
+
+/// <summary>A node in the selected commit's changed-file tree. Directory nodes have no associated file.</summary>
+public sealed class CommitFileTreeNode
+{
+    public CommitFileTreeNode(string name, GitFileChangeDto? file = null)
+    {
+        Name = name;
+        File = file;
+    }
+
+    public string Name { get; }
+    public GitFileChangeDto? File { get; }
+    public bool IsFile => File is not null;
+    public string Icon => IsFile ? "📄" : "📁";
+    public string Status => File?.Status ?? string.Empty;
+    public ObservableCollection<CommitFileTreeNode> Children { get; } = [];
+}
 
 /// <summary>GitLogView XAML 中用到的一组值转换器（单例，x:Static 引用）。</summary>
 public static class GitLogConverters
