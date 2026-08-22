@@ -73,31 +73,33 @@
                                Margin="0,4,0,0"
                                Text="{Binding PushFileCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_files_format'}"/>
 
-                    <TreeView Background="Transparent"
+                    <ListBox Background="Transparent"
                               BorderThickness="0"
                               Padding="4"
                               ItemsSource="{Binding PushChangedFiles}">
-                        <TreeView.ItemTemplate>
+                        <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="proto:GitFileChangeDto">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="📄" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                    <TextBlock FontSize="12"
-                                               Foreground="#122344"
-                                               TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center"
-                                               Text="{Binding Path}"/>
-                                    <Border CornerRadius="3"
-                                            Padding="4,0"
-                                            Margin="4,0,0,0"
-                                            Background="#0078D4">
-                                        <TextBlock FontSize="10"
-                                                   Foreground="White"
-                                                   Text="{Binding Status}"/>
-                                    </Border>
-                                </StackPanel>
+                                <Border Padding="4,3">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="📄" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                        <TextBlock FontSize="12"
+                                                   Foreground="#122344"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding Path}"/>
+                                        <Border CornerRadius="3"
+                                                Padding="4,0"
+                                                Margin="4,0,0,0"
+                                                Background="#0078D4">
+                                            <TextBlock FontSize="10"
+                                                       Foreground="White"
+                                                       Text="{Binding Status}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
 
                     <!-- Commit info panel (shown when single commit is selected) -->
                     <Border x:Name="CommitInfoBorder"

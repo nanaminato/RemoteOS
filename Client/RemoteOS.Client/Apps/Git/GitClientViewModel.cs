@@ -686,19 +686,19 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         if (SelectedRepository is null) return;
         IsBusy = true;
-        StatusText = LocalizedText.Get("git.vm.push_progress");
         try
         {
-            var result = await client.PushAsync(SelectedRepository.Id);
-            if (result.RequiresCredentials)
-                await NotifyAsync(LocalizedText.Get("git.vm.credentials_required"));
+            await PreparePushPreviewAsync();
+
+            if (ShowPushDialogAsync is not null)
+            {
+                var confirmed = await ShowPushDialogAsync();
+                if (confirmed)
+                    await ExecutePushNowAsync();
+            }
             else
             {
-                if (result.Success)
-                    StatusText = LocalizedText.Get("git.vm.pushed");
-                else
-                    await NotifyAsync(LocalizedText.Format("git.vm.push_failed_format", result.Message));
-                await RefreshAllAsync();
+                await ExecutePushNowAsync();
             }
         }
         catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
