@@ -232,7 +232,7 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
-        var result = await RunGitAsync(gitPath, repo.Path, ["status", "--porcelain=v2", "--branch"], cancellationToken);
+        var result = await RunGitAsync(gitPath, repo.Path, ["status", "--porcelain=v2", "--branch", "-uall"], cancellationToken);
         if (!result.Success)
             throw new InvalidOperationException($"git status failed: {result.Error}");
         return ParseStatus(result.Output);
@@ -818,7 +818,7 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
     {
         var gitPath = ResolveGitPath();
         if (string.IsNullOrEmpty(gitPath)) return ("unknown", null, 0, 0, false, 0);
-        var result = await RunGitAsync(gitPath, repoPath, ["status", "--porcelain=v2", "--branch"], cancellationToken);
+        var result = await RunGitAsync(gitPath, repoPath, ["status", "--porcelain=v2", "--branch", "-uall"], cancellationToken);
         if (!result.Success) return ("unknown", null, 0, 0, false, 0);
         var status = ParseStatus(result.Output);
         var uncommitted = status.Staged.Count + status.Unstaged.Count + status.Untracked.Count + status.Conflicts.Count;
@@ -891,7 +891,12 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
             {
                 var filePath = line[2..].Trim();
                 if (!string.IsNullOrEmpty(filePath))
+                {
+                    // Handle quoted paths (git quotes paths with special chars)
+                    if (filePath.StartsWith('"') && filePath.EndsWith('"'))
+                        filePath = UnquotePath(filePath);
                     untracked.Add(new GitFileChangeDto(filePath, Staged: false, Status: "untracked"));
+                }
             }
         }
         return new GitStatusDto(branch, staged, unstaged, untracked, conflicts, upstream, ahead, behind, isDetached);
@@ -913,6 +918,10 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
         }
 
         var tail = remaining.ToString();
+        // Handle quoted paths
+        if (tail.StartsWith('"') && tail.EndsWith('"'))
+            tail = UnquotePath(tail);
+        
         // type 2 的 rename/copy 行：路径部分是 path⇥orig_path（TAB 分隔）
         var tab = tail.IndexOf('\t');
         if (tab >= 0)
@@ -922,6 +931,44 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
             return (path, string.IsNullOrEmpty(orig) ? null : orig);
         }
         return (tail.Trim(), null);
+    }
+
+    /// <summary>Unquote a git path that was quoted because it contains special characters.
+    /// Git uses C-style quoting with backslash escapes.</summary>
+    private static string UnquotePath(string path)
+    {
+        if (!path.StartsWith('"') || !path.EndsWith('"'))
+            return path;
+        
+        // Remove surrounding quotes
+        var inner = path[1..^1];
+        
+        // Handle backslash escapes (Git uses C-style quoting)
+        // \a, \b, \f, \n, \r, \t, \\, \"
+        var result = new System.Text.StringBuilder(inner.Length);
+        for (int i = 0; i < inner.Length; i++)
+        {
+            if (inner[i] == '\\' && i + 1 < inner.Length)
+            {
+                switch (inner[i + 1])
+                {
+                    case 'a': result.Append('\a'); i++; break;
+                    case 'b': result.Append('\b'); i++; break;
+                    case 'f': result.Append('\f'); i++; break;
+                    case 'n': result.Append('\n'); i++; break;
+                    case 'r': result.Append('\r'); i++; break;
+                    case 't': result.Append('\t'); i++; break;
+                    case '\\': result.Append('\\'); i++; break;
+                    case '"': result.Append('"'); i++; break;
+                    default: result.Append(inner[i]); break;
+                }
+            }
+            else
+            {
+                result.Append(inner[i]);
+            }
+        }
+        return result.ToString();
     }
 
     private static string MapStatusChar(char c) => c switch
@@ -973,7 +1020,7 @@ public sealed class LocalGitRepositoryService(IDbContextFactory<RemoteOsDbContex
 
     private async Task<IReadOnlyList<string>?> TryGetConflictPathsAsync(string gitPath, string repoPath, CancellationToken cancellationToken)
     {
-        var statusResult = await RunGitAsync(gitPath, repoPath, ["status", "--porcelain=v2"], cancellationToken);
+        var statusResult = await RunGitAsync(gitPath, repoPath, ["status", "--porcelain=v2", "-uall"], cancellationToken);
         if (!statusResult.Success) return null;
         var conflicts = new List<string>();
         foreach (var line in statusResult.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
