@@ -182,6 +182,20 @@ internal static class GitClientDialogs
         var messageBox = new TextBox { PlaceholderText = "Commit message…", MinHeight = 60, AcceptsReturn = true };
         var amendCheck = new CheckBox { Content = "Amend last commit" };
 
+        var fileListTitle = new TextBlock
+        {
+            Text = $"将提交 {vm.SelectedCount} 个文件：",
+            FontSize = 12,
+            Foreground = Brush.Parse("#666"),
+            Margin = new(0, 8, 0, 4)
+        };
+        
+        var fileListBox = new ListBox
+        {
+            Height = 100,
+            ItemsSource = vm.SelectedFilePaths,
+        };
+
         var commitBtn = new Button
         {
             Content = "✔ Commit",
@@ -191,7 +205,9 @@ internal static class GitClientDialogs
         {
             if (string.IsNullOrWhiteSpace(messageBox.Text))
                 return;
-            var paths = vm.StagedFiles.Select(f => f.Path).ToArray();
+            var paths = vm.SelectedFilePaths.ToArray();
+            if (paths.Length == 0)
+                return;
             dialog.Close(new GitCommitRequest(messageBox.Text!, paths, amendCheck.IsChecked == true));
         };
 
@@ -201,11 +217,13 @@ internal static class GitClientDialogs
         return new StackPanel
         {
             Margin = new(16),
-            Spacing = 12,
+            Spacing = 8,
             Children =
             {
                 messageBox,
                 amendCheck,
+                fileListTitle,
+                fileListBox,
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,

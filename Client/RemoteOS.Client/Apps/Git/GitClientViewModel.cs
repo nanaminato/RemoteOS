@@ -26,6 +26,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public ObservableCollection<GitRemoteDto> Remotes { get; } = [];
     public ObservableCollection<GitFileChangeDto> CommitChangedFiles { get; } = [];
 
+    /// <summary>Files shown in the Changes list (union of unstaged + untracked, excluding .gitignored).</summary>
+    public ObservableCollection<GitFileChangeItem> Changes { get; } = [];
+
+    /// <summary>Number of selected files for commit.</summary>
+    public int SelectedCount => Changes.Count(c => c.IsSelected);
+
+    /// <summary>Gets the selected file paths for commit.</summary>
+    public IReadOnlyList<string> SelectedFilePaths => Changes.Where(c => c.IsSelected).Select(c => c.Path).ToArray();
+
     [ObservableProperty] private GitRepositoryDto? _selectedRepository;
     [ObservableProperty] private GitClientPage _activePage = GitClientPage.Overview;
     [ObservableProperty] private GitStatusDto? _status;
@@ -191,6 +200,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 Log("⚠ Status 返回为 null — 工作区变更与分支信息无法呈现");
             }
 
+            RebuildChangesList();
             StatusText = $"Ready — {Status?.Branch ?? "unknown"}";
         }
         catch (Exception ex)
@@ -223,6 +233,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 foreach (var f in Status.Conflicts) ConflictFiles.Add(f);
                 HasConflicts = ConflictFiles.Count > 0;
             }
+            RebuildChangesList();
         }
         catch { /* silent — timer tick */ }
         finally
@@ -508,18 +519,49 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task CommitAsync()
     {
-        if (ShowCommitDialogAsync is null || SelectedRepository is null) return;
-        var request = await ShowCommitDialogAsync();
-        if (request is null) return;
-        IsBusy = true;
-        try
+        if (SelectedRepository is null) return;
+        
+        // If a commit dialog is assigned, use it (for amend option etc.)
+        if (ShowCommitDialogAsync is not null)
         {
-            var result = await client.CommitAsync(SelectedRepository.Id, request);
-            StatusText = result.Success ? "Committed" : $"Commit failed: {result.Message}";
-            await RefreshAllAsync();
+            var request = await ShowCommitDialogAsync();
+            if (request is null) return;
+            IsBusy = true;
+            try
+            {
+                var result = await client.CommitAsync(SelectedRepository.Id, request);
+                StatusText = result.Success ? "Committed" : $"Commit failed: {result.Message}";
+                await RefreshAllAsync();
+            }
+            catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+            finally { IsBusy = false; }
         }
-        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
-        finally { IsBusy = false; }
+        else
+        {
+            // Direct commit from workspace: use selected files
+            if (SelectedCount == 0)
+            {
+                StatusText = "请先选择要提交的文件";
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(CommitMessage))
+            {
+                StatusText = "请输入提交消息";
+                return;
+            }
+            IsBusy = true;
+            try
+            {
+                var request = new GitCommitRequest(CommitMessage, SelectedFilePaths.ToArray());
+                var result = await client.CommitAsync(SelectedRepository.Id, request);
+                StatusText = result.Success ? "Committed" : $"Commit failed: {result.Message}";
+                if (result.Success)
+                    CommitMessage = string.Empty;
+                await RefreshAllAsync();
+            }
+            catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
+            finally { IsBusy = false; }
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -629,6 +671,86 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             await RefreshStatusAsync();
         }
         catch (Exception ex) { StatusText = $"Stage failed: {ex.Message}"; }
+    }
+
+    // ── 工作区变更选择管理 ──
+
+    /// <summary>Checks if a file path is selected for commit.</summary>
+    public bool IsFileSelected(string path) => Changes.Any(c => c.Path == path && c.IsSelected);
+
+    /// <summary>Toggles file selection for commit.</summary>
+    public void ToggleFileSelection(GitFileChangeItem item)
+    {
+        item.IsSelected = !item.IsSelected;
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
+    }
+
+    /// <summary>Sets file selection state.</summary>
+    public void SetFileSelection(GitFileChangeItem item, bool isSelected)
+    {
+        item.IsSelected = isSelected;
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
+    }
+
+    /// <summary>Selects all files in the Changes list.</summary>
+    [RelayCommand]
+    private void SelectAllChanges()
+    {
+        foreach (var c in Changes) c.IsSelected = true;
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
+    }
+
+    /// <summary>Clears all selected files.</summary>
+    [RelayCommand]
+    private void ClearSelection()
+    {
+        foreach (var c in Changes) c.IsSelected = false;
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
+    }
+
+    /// <summary>Refreshes changes list (re-processes .gitignore rules by re-fetching status).</summary>
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task RefreshChangesAsync()
+    {
+        await RefreshStatusAsync();
+        StatusText = $"已刷新变更列表，共 {Changes.Count} 个文件";
+    }
+
+    /// <summary>Rebuilds the Changes list from UnstagedFiles + UntrackedFiles.</summary>
+    private void RebuildChangesList()
+    {
+        // Unsubscribe old items
+        foreach (var item in Changes)
+            item.SelectionChanged -= OnItemSelectionChanged;
+
+        Changes.Clear();
+        foreach (var f in UnstagedFiles)
+        {
+            var item = new GitFileChangeItem(f);
+            item.SelectionChanged += OnItemSelectionChanged;
+            Changes.Add(item);
+        }
+        foreach (var f in UntrackedFiles)
+        {
+            if (!Changes.Any(c => c.Path == f.Path))
+            {
+                var item = new GitFileChangeItem(f);
+                item.SelectionChanged += OnItemSelectionChanged;
+                Changes.Add(item);
+            }
+        }
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
+    }
+
+    private void OnItemSelectionChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedFilePaths));
     }
 
     [RelayCommand]

@@ -1,63 +1,74 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:git="clr-namespace:Client.Apps.Git"
-             xmlns:proto="clr-namespace:RemoteOS.Protocol.Git;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Git.Views.GitWorkspaceView"
              x:DataType="git:GitClientViewModel">
-    <Grid RowDefinitions="*,Auto" MinHeight="300">
-        <Grid ColumnDefinitions="*,Auto,*">
-            <!-- Unstaged / Untracked -->
-            <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="12" Margin="0,0,4,0">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Changes (unstaged)" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" />
-                        <ItemsControl ItemsSource="{Binding UnstagedFiles}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="proto:GitFileChangeDto">
-                                    <Button Click="StageFile_Click" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                            Background="Transparent" BorderThickness="0" Padding="4,3">
-                                        <TextBlock Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="Untracked" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" Margin="0,8,0,0" />
-                        <ItemsControl ItemsSource="{Binding UntrackedFiles}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="proto:GitFileChangeDto">
-                                    <Button Click="StageFile_Click" Tag="{Binding}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                            Background="Transparent" BorderThickness="0" Padding="4,3">
-                                        <TextBlock Text="{Binding Path}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
+    <Grid RowDefinitions="Auto,*,Auto" MinHeight="350">
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="更改" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Changes.Count, StringFormat='({0} 个文件)'}" FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="已选中:" FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding SelectedCount}" FontSize="12" FontWeight="SemiBold" Foreground="#0078D4" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Grid.Column="2" Content="全选" Command="{Binding SelectAllChangesCommand}" Margin="8,0,0,0"/>
+                <Button Grid.Column="3" Content="刷新" Command="{Binding RefreshChangesCommand}" Margin="4,0,0,0"/>
+            </Grid>
+        </Border>
 
-            <!-- Staged -->
-            <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="12" Margin="4,0,0,0">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Staged" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" />
-                        <ItemsControl ItemsSource="{Binding StagedFiles}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="proto:GitFileChangeDto">
-                                    <TextBlock Text="{Binding Path}" FontSize="12" Padding="4,3" TextTrimming="CharacterEllipsis" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
-        </Grid>
+        <!-- Changes List -->
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="8" Margin="0,0,0,8">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Changes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="git:GitFileChangeItem">
+                            <Grid Margin="2,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <CheckBox Grid.Column="0" 
+                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Margin="4,0,8,0"
+                                          VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding StatusIcon}" 
+                                           FontSize="12" 
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"
+                                           Foreground="#0078D4"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Grid.Column="2" 
+                                           Text="{Binding Path}" 
+                                           FontSize="12" 
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
 
         <!-- Commit area -->
-        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="12" Margin="0,8,0,0">
+        <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="12">
             <StackPanel Spacing="8">
-                <TextBox x:Name="CommitMessageInput" PlaceholderText="Commit message…" Text="{Binding CommitMessage}" MinHeight="32" />
-                <Button Content="✔ Commit" Command="{Binding CommitCommand}" HorizontalAlignment="Right" />
+                <TextBox x:Name="CommitMessageInput" PlaceholderText="提交消息…" Text="{Binding CommitMessage}" MinHeight="32" AcceptsReturn="True"/>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="✔ 提交" Click="Commit_Click" HorizontalAlignment="Left"/>
+                    <Button Content="清空选择" Click="ClearSelection_Click"/>
+                </StackPanel>
             </StackPanel>
         </Border>
     </Grid>
