@@ -269,7 +269,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         try
         {
             await RunOperationAsync("install", ct => _client.InstallManagedAsync("nginx", new InstallManagedWebServerRequest(true,
-                version, _localPackageId), ct), rethrowApiException: true);
+                version, _localPackageId), ct), rethrowApiProblemCode: "webserver.managed_installation_exists");
         }
         catch (WebServerApiException exception) when (exception.ProblemCode == "webserver.managed_installation_exists")
         {
@@ -522,7 +522,12 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task RunOperationAsync(string kindKey, WebServerDto server, Func<string, CancellationToken, Task<WebServerOperationDto?>> start)
         => await RunOperationAsync(kindKey, ct => start(server.Id, ct));
 
-    private async Task RunOperationAsync(string kindKey, Func<CancellationToken, Task<WebServerOperationDto?>> start, bool rethrowApiException = false)
+    /// <summary>
+    /// Starts and monitors an operation. <paramref name="rethrowApiProblemCode"/> is reserved for
+    /// the one install response that requires a follow-up UI choice; all other API errors remain
+    /// user-facing operation failures and must never escape an async command.
+    /// </summary>
+    private async Task RunOperationAsync(string kindKey, Func<CancellationToken, Task<WebServerOperationDto?>> start, string? rethrowApiProblemCode = null)
     {
         if (!HasManagePermission)
         {
@@ -564,7 +569,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         {
             OperationText = LocalizedText.Get("webservers.operation.cancelled");
         }
-        catch (WebServerApiException) when (rethrowApiException)
+        catch (WebServerApiException exception) when (exception.ProblemCode == rethrowApiProblemCode)
         {
             throw;
         }
