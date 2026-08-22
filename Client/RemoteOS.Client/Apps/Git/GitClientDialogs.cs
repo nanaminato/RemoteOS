@@ -65,6 +65,24 @@ internal static class GitClientDialogs
             dialog => BuildRemoteDialog(existing, dialog),
             new RemoteOS.Core.Primitives.Size(480, 240));
 
+    /// <summary>Prompts for a new branch name when renaming. Returns null on cancel.</summary>
+    public static Task<string?> ShowRenameBranchDialogAsync(AppContext context, ManagedWindow owner, GitBranchDto branch)
+        => context.ShowDialogAsync<string?>(owner, $"重命名分支 - {branch.Name}",
+            dialog => BuildRenameBranchDialog(branch, dialog),
+            new RemoteOS.Core.Primitives.Size(420, 180));
+
+    /// <summary>Prompts for merge strategy (merge/no-ff/ff-only/squash) + optional message. Returns null on cancel.</summary>
+    public static Task<GitMergeRequest?> ShowMergeDialogAsync(AppContext context, ManagedWindow owner, GitBranchDto sourceBranch, GitClientViewModel vm)
+        => context.ShowDialogAsync<GitMergeRequest?>(owner, $"合并分支 - {sourceBranch.Name}",
+            dialog => BuildMergeDialog(sourceBranch, vm, dialog),
+            new RemoteOS.Core.Primitives.Size(460, 340));
+
+    /// <summary>Prompts for an upstream (remote/branch) to track, or choose "Unset". Returns null on cancel.</summary>
+    public static Task<GitBranchTrackingRequest?> ShowSetTrackingDialogAsync(AppContext context, ManagedWindow owner, GitBranchDto localBranch, GitClientViewModel vm)
+        => context.ShowDialogAsync<GitBranchTrackingRequest?>(owner, $"设置跟踪分支 - {localBranch.Name}",
+            dialog => BuildSetTrackingDialog(localBranch, vm, dialog),
+            new RemoteOS.Core.Primitives.Size(460, 260));
+
     // ── Dialog builders (programmatic — no separate AXAML files needed) ──
 
     private static Control BuildInitConfirmDialog(string path, ModalDialog<bool?> dialog)
@@ -389,6 +407,246 @@ internal static class GitClientDialogs
             Margin = new Thickness(20),
             Spacing = 12,
             Children = { header, statusBox, footer }
+        };
+    }
+
+    // ── 分支管理对话框构建器 ──
+
+    private static Control BuildRenameBranchDialog(GitBranchDto branch, ModalDialog<string?> dialog)
+    {
+        var nameBox = new TextBox
+        {
+            PlaceholderText = "输入新分支名称…",
+            Text = branch.Name,
+        };
+        nameBox.SelectAll();
+
+        var renameBtn = new Button
+        {
+            Content = "重命名",
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new(14, 6),
+        };
+        renameBtn.Click += (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(nameBox.Text)) return;
+            var newName = nameBox.Text!.Trim();
+            if (newName == branch.Name) return;
+            dialog.Close(newName);
+        };
+
+        var cancelBtn = new Button { Content = "取消", Padding = new(14, 6), Margin = new(8, 0, 0, 0) };
+        cancelBtn.Click += (_, _) => dialog.Cancel();
+
+        return new StackPanel
+        {
+            Margin = new(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"当前分支：{branch.Name}{(branch.IsCurrent ? "（当前）" : "")}",
+                    FontSize = 13,
+                    Foreground = Brush.Parse("#666"),
+                },
+                new TextBlock { Text = "新分支名称", FontSize = 13 },
+                nameBox,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { renameBtn, cancelBtn },
+                },
+            },
+        };
+    }
+
+    private static Control BuildMergeDialog(GitBranchDto sourceBranch, GitClientViewModel vm, ModalDialog<GitMergeRequest?> dialog)
+    {
+        var currentBranchName = vm.Status?.Branch ?? "(未知)";
+
+        var mergeRadio = new RadioButton { Content = "默认 Merge (merge)", GroupName = "strategy", IsChecked = true };
+        var noFfRadio = new RadioButton { Content = "强制生成合并提交 (no-ff)", GroupName = "strategy" };
+        var ffOnlyRadio = new RadioButton { Content = "仅快进 (ff-only)", GroupName = "strategy" };
+        var squashRadio = new RadioButton { Content = "压缩合并 (squash, 不自动提交)", GroupName = "strategy" };
+
+        var noCommitCheck = new CheckBox
+        {
+            Content = "不自动提交 (--no-commit)",
+        };
+
+        var messageBox = new TextBox
+        {
+            PlaceholderText = "合并提交消息（可选，留空使用默认）",
+            MinHeight = 70,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+        };
+
+        var mergeBtn = new Button
+        {
+            Content = "合并",
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new(14, 6),
+        };
+        mergeBtn.Click += (_, _) =>
+        {
+            string strategy;
+            bool noCommit;
+            if (noFfRadio.IsChecked == true) { strategy = "no-ff"; noCommit = noCommitCheck.IsChecked == true; }
+            else if (ffOnlyRadio.IsChecked == true) { strategy = "ff-only"; noCommit = false; }
+            else if (squashRadio.IsChecked == true) { strategy = "squash"; noCommit = true; }
+            else { strategy = "merge"; noCommit = noCommitCheck.IsChecked == true; }
+
+            dialog.Close(new GitMergeRequest(
+                Source: sourceBranch.Name,
+                Strategy: strategy,
+                NoCommit: noCommit,
+                Message: string.IsNullOrWhiteSpace(messageBox.Text) ? null : messageBox.Text!.Trim()));
+        };
+
+        var cancelBtn = new Button { Content = "取消", Padding = new(14, 6), Margin = new(8, 0, 0, 0) };
+        cancelBtn.Click += (_, _) => dialog.Cancel();
+
+        return new StackPanel
+        {
+            Margin = new(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"将「{sourceBranch.Name}」合并到当前分支「{currentBranchName}」",
+                    FontSize = 14,
+                    FontWeight = FontWeight.SemiBold,
+                },
+                new TextBlock { Text = "合并策略", FontSize = 13, Margin = new Thickness(0, 4, 0, 0) },
+                new StackPanel
+                {
+                    Spacing = 6,
+                    Children = { mergeRadio, noFfRadio, ffOnlyRadio, squashRadio },
+                },
+                noCommitCheck,
+                new TextBlock { Text = "合并提交消息（可选）", FontSize = 13 },
+                messageBox,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { mergeBtn, cancelBtn },
+                },
+            },
+        };
+    }
+
+    private static Control BuildSetTrackingDialog(GitBranchDto localBranch, GitClientViewModel vm, ModalDialog<GitBranchTrackingRequest?> dialog)
+    {
+        var currentTracking = localBranch.Tracking ?? "(未设置)";
+
+        var unsetRadio = new RadioButton { Content = "取消跟踪 (--unset-upstream)", GroupName = "tracking" };
+        var autoRadio = new RadioButton { Content = $"自动推断 (origin/{localBranch.Name})", GroupName = "tracking", IsChecked = true };
+        var customRadio = new RadioButton { Content = "自定义远程 / 分支", GroupName = "tracking" };
+
+        var remotes = vm.Remotes.ToList();
+        var remoteBox = new ComboBox
+        {
+            PlaceholderText = "选择远程仓库…",
+            ItemsSource = remotes.Select(r => r.Name).ToList(),
+        };
+        if (remotes.Count > 0) remoteBox.SelectedIndex = 0;
+
+        var branchBox = new TextBox
+        {
+            PlaceholderText = "远程分支名称…",
+            Text = localBranch.Name,
+        };
+
+        // 自定义区域容器：选中 custom 时启用
+        var customPanel = new StackPanel
+        {
+            IsEnabled = false,
+            Spacing = 8,
+        };
+        var label1 = new TextBlock { Text = "远程仓库", FontSize = 13 };
+        var label2 = new TextBlock { Text = "远程分支", FontSize = 13, Margin = new Thickness(0, 4, 0, 0) };
+        customPanel.Children.Add(label1);
+        customPanel.Children.Add(remoteBox);
+        customPanel.Children.Add(label2);
+        customPanel.Children.Add(branchBox);
+
+        // 点击 any Radio 时刷新 customPanel 启用状态
+        void RefreshEnabled(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        {
+            customPanel.IsEnabled = customRadio.IsChecked == true;
+        }
+        unsetRadio.Click += RefreshEnabled;
+        autoRadio.Click += RefreshEnabled;
+        customRadio.Click += RefreshEnabled;
+
+        var setBtn = new Button
+        {
+            Content = "设置",
+            Background = Brush.Parse("#1C3765"),
+            Foreground = Brushes.White,
+            Padding = new(14, 6),
+        };
+        setBtn.Click += (_, _) =>
+        {
+            if (unsetRadio.IsChecked == true)
+            {
+                dialog.Close(new GitBranchTrackingRequest(Upstream: null, Remote: null, Branch: null));
+                return;
+            }
+            if (autoRadio.IsChecked == true)
+            {
+                dialog.Close(new GitBranchTrackingRequest(Remote: "origin", Branch: localBranch.Name));
+                return;
+            }
+            // 自定义
+            var remote = remoteBox.SelectedItem as string;
+            var branch = string.IsNullOrWhiteSpace(branchBox.Text) ? null : branchBox.Text!.Trim();
+            if (string.IsNullOrWhiteSpace(remote) || string.IsNullOrWhiteSpace(branch)) return;
+            dialog.Close(new GitBranchTrackingRequest(Remote: remote, Branch: branch));
+        };
+
+        var cancelBtn = new Button { Content = "取消", Padding = new(14, 6), Margin = new(8, 0, 0, 0) };
+        cancelBtn.Click += (_, _) => dialog.Cancel();
+
+        return new StackPanel
+        {
+            Margin = new(16),
+            Spacing = 12,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = $"本地分支：{localBranch.Name}{(localBranch.IsCurrent ? "（当前）" : "")}",
+                    FontSize = 13,
+                    Foreground = Brush.Parse("#666"),
+                },
+                new TextBlock
+                {
+                    Text = $"当前跟踪：{currentTracking}",
+                    FontSize = 13,
+                    Foreground = Brush.Parse("#666"),
+                },
+                new Separator(),
+                new StackPanel
+                {
+                    Spacing = 6,
+                    Children = { unsetRadio, autoRadio, customRadio },
+                },
+                customPanel,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Children = { setBtn, cancelBtn },
+                },
+            },
         };
     }
 }
