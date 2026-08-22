@@ -23,6 +23,7 @@ public sealed class ModalDialog<TResult>
     }
 
     internal ManagedWindow Owner { get; }
+    public ManagedWindow? Window => _window;
     public Task<TResult?> Result => _completion.Task;
 
     public void Close(TResult result) => _completion.TrySetResult(result);

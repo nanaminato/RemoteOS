@@ -21,7 +21,7 @@ internal partial class GitPushDialog : UserControl
     private async void BranchLine_PointerPressed(object? sender, RoutedEventArgs e)
     {
         if (_viewModel.SelectPushRemoteBranchCommand.IsRunning) return;
-        await _viewModel.SelectPushRemoteBranchCommand.ExecuteAsync(null);
+        await _viewModel.SelectPushRemoteBranchCommand.ExecuteAsync(_dialog.Window);
     }
 
     private async void AllCommits_Click(object? sender, RoutedEventArgs e)

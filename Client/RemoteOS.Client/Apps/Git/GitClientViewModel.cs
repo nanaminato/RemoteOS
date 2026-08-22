@@ -8,6 +8,7 @@ using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Git;
+using RemoteOS.WindowManager;
 
 namespace Client.Apps.Git;
 
@@ -130,9 +131,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public Func<Task<bool>>? ShowPushDialogAsync { get; set; }
 
     /// <summary>Shows the remote/branch picker dialog for push target selection.
-    /// Input: current remote name (may be null), current branch name.
+    /// Input: owner window (for correct Z-order), current remote name (may be null), current branch name.
     /// Returns: (remoteName, branchName) tuple or null on cancel.</summary>
-    public Func<string?, string?, Task<(string Remote, string Branch)?>>? ShowRemoteBranchPickerDialogAsync { get; set; }
+    public Func<ManagedWindow?, string?, string?, Task<(string Remote, string Branch)?>>? ShowRemoteBranchPickerDialogAsync { get; set; }
 
     public bool HasUpstream => Status?.Upstream is not null;
     public bool CanManage => SelectedRepository is not null && !IsBusy;
@@ -1111,10 +1112,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
     /// <summary>Opens the remote/branch picker dialog for the push target.</summary>
     [RelayCommand]
-    private async Task SelectPushRemoteBranchAsync()
+    private async Task SelectPushRemoteBranch(ManagedWindow? owner)
     {
         if (ShowRemoteBranchPickerDialogAsync is null) return;
-        var result = await ShowRemoteBranchPickerDialogAsync(PushSelectedRemote, PushSelectedBranch);
+        var result = await ShowRemoteBranchPickerDialogAsync(owner, PushSelectedRemote, PushSelectedBranch);
         if (result.HasValue)
         {
             PushSelectedRemote = result.Value.Remote;

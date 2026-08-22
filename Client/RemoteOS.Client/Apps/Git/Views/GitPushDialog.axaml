@@ -18,7 +18,7 @@
             <TextBlock FontSize="12"
                        Foreground="#666"
                        Margin="8,0,0,0"
-                       Text="{Binding PushCommitCount, StringFormat={loc:Loc git.dialog.push.n_commits_format}}"/>
+                       Text="{Binding PushCommitCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_commits_format'}"/>
         </StackPanel>
 
         <!-- Row 1: Two-column layout -->
@@ -71,7 +71,7 @@
                     <TextBlock FontSize="11"
                                Foreground="#666"
                                Margin="0,4,0,0"
-                               Text="{Binding PushFileCount, StringFormat={loc:Loc git.dialog.push.n_files_format}}"/>
+                               Text="{Binding PushFileCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_files_format'}"/>
 
                     <TreeView Background="Transparent"
                               BorderThickness="0"
