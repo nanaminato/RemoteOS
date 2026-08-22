@@ -1,0 +1,428 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:git="clr-namespace:Client.Apps.Git"
+             xmlns:gitViews="clr-namespace:Client.Apps.Git.Views"
+             x:Class="Client.Apps.Git.Views.GitLogView"
+             x:Name="LogViewRoot"
+             x:DataType="git:GitClientViewModel"
+             x:CompileBindings="False"
+             Background="#F4F7FB">
+    <Grid ColumnDefinitions="220,5,*,5,360" MinHeight="380">
+
+        <!-- ============================================================
+             LEFT PANE : Branch / Tag Tree (Fork-style)
+             ============================================================ -->
+        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="8"
+                BoxShadow="0 2 8 0 #10000000">
+            <Grid RowDefinitions="Auto,Auto,*">
+                <!-- 搜索框 -->
+                <Border Grid.Row="0" Background="#EEF3FA" CornerRadius="6" Padding="8,4" Margin="0,0,0,6">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox Grid.Column="1" Watermark="分支或标签" BorderThickness="0" Background="Transparent"
+                                 Text="{Binding BranchSearchText, Mode=TwoWay}"
+                                 FontSize="12" Foreground="#122344" Padding="0" />
+                    </Grid>
+                </Border>
+
+                <!-- 快捷操作按钮栏 -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
+                    <Button Content="➕" Command="{Binding CreateBranchCommand}"
+                            ToolTip.Tip="新建分支" FontSize="12" Padding="6,2" />
+                    <Button Content="⬇" Command="{Binding FetchCommand}"
+                            ToolTip.Tip="抓取所有远程" FontSize="12" Padding="6,2" />
+                    <Button Content="⟳" Command="{Binding RefreshCommand}"
+                            ToolTip.Tip="刷新" FontSize="12" Padding="6,2" />
+                </StackPanel>
+
+                <!-- 分支 TreeView -->
+                <TreeView Grid.Row="2" x:Name="BranchTree"
+                          SelectedItem="{Binding SelectedBranch, Mode=TwoWay}"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                <ContentPresenter Content="{Binding Icon}" />
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
+                                           Foreground="{Binding Foreground}"
+                                           FontWeight="{Binding FontWeight}" />
+                                <TextBlock Text="{Binding Badge}" FontSize="10" Foreground="#888"
+                                           IsVisible="{Binding HasBadge}" />
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+
+                    <TreeView.Styles>
+                        <!-- 给每个 TreeViewItem 挂上右键菜单，DataContext 为 BranchTreeNode -->
+                        <Style Selector="TreeViewItem">
+                            <Setter Property="ContextMenu">
+                                <ContextMenu>
+                                    <MenuItem Header="从此处新建分支…"
+                                              Command="{Binding $parent[UserControl].DataContext.CreateBranchFromHereCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="🌿" />
+                                    <MenuItem Header="显示与工作树的差异"
+                                              Command="{Binding $parent[UserControl].DataContext.MergeBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="↔"
+                                              IsVisible="{Binding IsBranch}" />
+                                    <MenuItem Header="从该分支新建工作树…"
+                                              Command="{Binding $parent[UserControl].DataContext.RebaseBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="🏗"
+                                              IsVisible="{Binding IsBranch}" />
+                                    <Separator IsVisible="{Binding IsBranch}" />
+                                    <MenuItem Header="更新"
+                                              Command="{Binding $parent[UserControl].DataContext.FetchBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="🔄" />
+                                    <MenuItem Header="推送…"
+                                              Command="{Binding $parent[UserControl].DataContext.PushBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="⬆"
+                                              IsVisible="{Binding IsLocalBranch}" />
+                                    <MenuItem Header="跟踪的分支"
+                                              Command="{Binding $parent[UserControl].DataContext.SetUpstreamBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="🔗"
+                                              IsVisible="{Binding IsLocalBranch}" />
+                                    <Separator IsVisible="{Binding IsBranch}" />
+                                    <MenuItem Header="重命名…  [F2]"
+                                              Command="{Binding $parent[UserControl].DataContext.RenameBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="✏"
+                                              IsVisible="{Binding IsLocalBranch}" />
+                                    <MenuItem Header="切换到该分支"
+                                              Command="{Binding $parent[UserControl].DataContext.CheckoutBranchCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="👉"
+                                              IsVisible="{Binding IsBranchAndNotCurrent}" />
+                                    <MenuItem Header="删除该分支"
+                                              Command="{Binding $parent[UserControl].DataContext.DeleteBranchContextCommand}"
+                                              CommandParameter="{Binding Branch}"
+                                              Icon="🗑"
+                                              IsVisible="{Binding CanDelete}" />
+                                </ContextMenu>
+                            </Setter>
+                        </Style>
+                    </TreeView.Styles>
+                </TreeView>
+            </Grid>
+        </Border>
+
+        <!-- 分隔条（占位，5px 宽） -->
+        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="Transparent" />
+
+        <!-- ============================================================
+             MIDDLE PANE : Commit list (history) with toolbar
+             ============================================================ -->
+        <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="0"
+                BoxShadow="0 2 8 0 #10000000">
+            <Grid RowDefinitions="Auto,*">
+                <!-- 顶部筛选工具栏 -->
+                <Border Grid.Row="0" Background="#EEF3FA" Padding="8,6" CornerRadius="8,8,0,0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <!-- 搜索框 -->
+                            <Border Background="White" CornerRadius="6" Padding="8,3" MinWidth="260">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                    <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBox Grid.Column="1" Watermark="文本或哈希" BorderThickness="0" Background="Transparent"
+                                             Text="{Binding CommitSearchText, Mode=TwoWay}"
+                                             FontSize="12" Foreground="#122344" Padding="0" />
+                                    <Button Grid.Column="2" Content=".*" ToolTip.Tip="正则" FontSize="11" Padding="6,0"
+                                            Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                    <Button Grid.Column="3" Content="Cc" ToolTip.Tip="大小写敏感" FontSize="11" Padding="4,0"
+                                            Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                </Grid>
+                            </Border>
+                            <!-- 筛选下拉 -->
+                            <Button Content="分支: HEAD ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                                    Foreground="#122344" BorderThickness="0" />
+                            <Button Content="用户 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                                    Foreground="#122344" BorderThickness="0" />
+                            <Button Content="日期 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                                    Foreground="#122344" BorderThickness="0" />
+                            <Button Content="路径 ▾" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                                    Foreground="#122344" BorderThickness="0" />
+                            <Button Content="↓↑" ToolTip.Tip="排序" FontSize="12" Padding="8,3" Background="#DCE6F4"
+                                    Foreground="#122344" BorderThickness="0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button Content="↶" ToolTip.Tip="上一个" FontSize="13" Padding="8,2" Background="Transparent"
+                                    Foreground="#567" BorderThickness="0" />
+                            <Button Content="⟳" ToolTip.Tip="刷新" Command="{Binding RefreshCommand}"
+                                    FontSize="13" Padding="8,2" Background="Transparent"
+                                    Foreground="#567" BorderThickness="0" />
+                            <Button Content="👁" ToolTip.Tip="查看选项" FontSize="13" Padding="8,2" Background="Transparent"
+                                    Foreground="#567" BorderThickness="0" />
+                            <Button Content="🔍" ToolTip.Tip="在历史中搜索" FontSize="13" Padding="8,2" Background="Transparent"
+                                    Foreground="#567" BorderThickness="0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 提交列表（ListBox 自定义 item，Fork 样式） -->
+                <ListBox Grid.Row="1" x:Name="CommitList" ItemsSource="{Binding Commits}"
+                         SelectedItem="{Binding SelectedCommit, Mode=TwoWay}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Background="Transparent" Padding="4">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="22,*,Auto" MinHeight="32" Margin="2,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!-- 左侧：分支点图形 + HEAD/分支标记 -->
+                                <Grid Grid.Column="0" VerticalAlignment="Center">
+                                    <Ellipse Width="10" Height="10" Fill="#4C6FFF"
+                                             Stroke="#2E4BCC" StrokeThickness="1"
+                                             HorizontalAlignment="Center" />
+                                </Grid>
+                                <!-- 中：提交 subject -->
+                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="13"
+                                           Foreground="#122344" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
+                                <!-- 右：标签 + 作者 + 日期 -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
+                                            VerticalAlignment="Center">
+                                    <!-- 分支/远程 Badge -->
+                                    <ItemsControl ItemsSource="{Binding $parent[ListBox].DataContext.Status, Converter={x:Static gitViews:GitLogConverters.BranchBadgesConverter}, FallbackValue={x:Null}}"
+                                                  IsVisible="{Binding $parent[ListBox].DataContext.SelectedCommit.Sha, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="3" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding Bg}" CornerRadius="4" Padding="5,1">
+                                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                                        <TextBlock Text="{Binding Icon}" FontSize="10" />
+                                                        <TextBlock Text="{Binding Label}" FontSize="10"
+                                                                   Foreground="{Binding Fg}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#567" />
+                                    <TextBlock Text="{Binding AuthorDate}" FontSize="11" Foreground="#8899B8" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+
+                    <ListBox.ItemContainerTheme>
+                        <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="ContextMenu">
+                                <ContextMenu>
+                                    <MenuItem Header="复制修订号   Ctrl+Alt+Shift+C"
+                                              Command="{Binding $parent[UserControl].DataContext.CopyShaCommand}"
+                                              CommandParameter="{Binding}" Icon="📋" />
+                                    <MenuItem Header="创建补丁…"
+                                              Command="{Binding $parent[UserControl].DataContext.CreatePatchFromCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="🧵" />
+                                    <Separator />
+                                    <MenuItem Header="优选" IsEnabled="False" Foreground="#666">
+                                        <MenuItem Header="签出修订"
+                                                  Command="{Binding $parent[UserControl].DataContext.CheckoutCommitCommand}"
+                                                  CommandParameter="{Binding}" Icon="👉" />
+                                        <MenuItem Header="在修订版中显示仓库"
+                                                  Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
+                                                  CommandParameter="{Binding}" Icon="📁" />
+                                        <MenuItem Header="与本地比较"
+                                                  Command="{Binding $parent[UserControl].DataContext.ResetToCommitCommand}"
+                                                  CommandParameter="{Binding}" Icon="↔" />
+                                    </MenuItem>
+                                    <Separator />
+                                    <MenuItem Header="将当前分支重置到此处…"
+                                              Command="{Binding $parent[UserControl].DataContext.ResetToCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="↺" />
+                                    <MenuItem Header="还原提交"
+                                              Command="{Binding $parent[UserControl].DataContext.RevertCommitContextCommand}"
+                                              CommandParameter="{Binding}" Icon="↩" />
+                                    <MenuItem Header="撤销提交…"
+                                              Command="{Binding $parent[UserControl].DataContext.UndoCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="⏪" />
+                                    <MenuItem Header="编辑提交消息…   [F2]"
+                                              Command="{Binding $parent[UserControl].DataContext.EditCommitMessageCommand}"
+                                              CommandParameter="{Binding}" Icon="✏" />
+                                    <MenuItem Header="Fixup…"
+                                              Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
+                                              CommandParameter="{Binding}" Icon="🔧" />
+                                    <MenuItem Header="压缩到…"
+                                              Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
+                                              CommandParameter="{Binding}" Icon="📦" />
+                                    <MenuItem Header="删除提交"
+                                              Command="{Binding $parent[UserControl].DataContext.UndoCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="🗑" />
+                                    <MenuItem Header="压缩提交…"
+                                              Command="{Binding $parent[UserControl].DataContext.SquashFromHereCommand}"
+                                              CommandParameter="{Binding}" Icon="🗃" />
+                                    <MenuItem Header="从这里进行交互式变基…"
+                                              Command="{Binding $parent[UserControl].DataContext.RebaseInteractiveFromHereCommand}"
+                                              CommandParameter="{Binding}" Icon="♻" />
+                                    <MenuItem Header="推送此前所有提交…"
+                                              Command="{Binding $parent[UserControl].DataContext.PushAllBeforeCommand}"
+                                              CommandParameter="{Binding}" Icon="⬆" />
+                                    <Separator />
+                                    <MenuItem Header="分支 “origin/master”  ▸" IsEnabled="False" Foreground="#666" />
+                                    <MenuItem Header="新建分支…   Ctrl+Alt+N"
+                                              Command="{Binding $parent[UserControl].DataContext.CreateBranchAtCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="🌿" />
+                                    <MenuItem Header="新建标记…"
+                                              Command="{Binding $parent[UserControl].DataContext.CreateTagFromCommitCommand}"
+                                              CommandParameter="{Binding}" Icon="🏷" />
+                                </ContextMenu>
+                            </Setter>
+                        </ControlTheme>
+                    </ListBox.ItemContainerTheme>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="Transparent" />
+
+        <!-- ============================================================
+             RIGHT PANE : Changed files + Commit details
+             ============================================================ -->
+        <Border Grid.Column="4" Background="White" CornerRadius="8" Padding="0"
+                BoxShadow="0 2 8 0 #10000000">
+            <Grid RowDefinitions="Auto,*,Auto">
+                <!-- 文件树标题栏 -->
+                <Border Grid.Row="0" Background="#EEF3FA" Padding="10,6" CornerRadius="8,8,0,0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontSize="12" Foreground="#122344">
+                            <Run Text="📁" />
+                            <Run Text="  " />
+                            <Run Text="{Binding CommitChangedFiles.Count, StringFormat='{}{0} 个文件', FallbackValue='0 个文件'}" />
+                        </TextBlock>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                            <Button Content="↶" ToolTip.Tip="上一文件" FontSize="12" Padding="6,1"
+                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                            <Button Content="↷" ToolTip.Tip="下一文件" FontSize="12" Padding="6,1"
+                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                            <Button Content="👁" ToolTip.Tip="查看选项" FontSize="12" Padding="6,1"
+                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 变更文件树（使用 TreeView 展示层级；暂时先用 ListBox 平铺 + 路径分组） -->
+                <TreeView Grid.Row="1" x:Name="ChangedFileTree"
+                          ItemsSource="{Binding CommitChangedFiles}"
+                          SelectedItem="{Binding SelectedCommitFile, Mode=TwoWay}"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <TreeView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="24">
+                                <TextBlock Grid.Column="0" Text="📄" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding Path}" FontSize="12" Foreground="#122344"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Background="{Binding Status, Converter={x:Static gitViews:GitLogConverters.StatusBgConverter}}"
+                                        CornerRadius="3" Padding="4,0" Margin="4,0,0,0">
+                                    <TextBlock Text="{Binding Status, Converter={x:Static gitViews:GitLogConverters.StatusLabelConverter}}"
+                                               FontSize="10" Foreground="White" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </TreeView.ItemTemplate>
+
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem">
+                            <Setter Property="ContextMenu">
+                                <ContextMenu>
+                                    <MenuItem Header="显示差异   Ctrl+D"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
+                                              CommandParameter="{Binding}" Icon="↔" />
+                                    <MenuItem Header="在新标签页中显示差异"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
+                                              CommandParameter="{Binding}" Icon="🗐" />
+                                    <MenuItem Header="与本地比较"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowFileDiffContextCommand}"
+                                              CommandParameter="{Binding}" Icon="🆚" />
+                                    <MenuItem Header="将之前版本与本地版本进行比较"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
+                                              CommandParameter="{Binding}" Icon="⏳" />
+                                    <Separator />
+                                    <MenuItem Header="编辑源   [F4]"
+                                              Command="{Binding $parent[UserControl].DataContext.OpenFileInEditorCommand}"
+                                              CommandParameter="{Binding}" Icon="📝" />
+                                    <MenuItem Header="打开仓库版本"
+                                              Command="{Binding $parent[UserControl].DataContext.OpenFileInEditorCommand}"
+                                              CommandParameter="{Binding}" Icon="📂" />
+                                    <Separator />
+                                    <MenuItem Header="还原所选更改"
+                                              Command="{Binding $parent[UserControl].DataContext.RevertFileChangeCommand}"
+                                              CommandParameter="{Binding}" Icon="↺" />
+                                    <MenuItem Header="优选所选更改"
+                                              Command="{Binding $parent[UserControl].DataContext.StageFileContextCommand}"
+                                              CommandParameter="{Binding}" Icon="✅" />
+                                    <MenuItem Header="将所选更改提取到单独的提交…"
+                                              Command="{Binding $parent[UserControl].DataContext.CreatePatchFromFileCommand}"
+                                              CommandParameter="{Binding}" Icon="✂" />
+                                    <MenuItem Header="删除所选更改"
+                                              Command="{Binding $parent[UserControl].DataContext.RevertFileChangeCommand}"
+                                              CommandParameter="{Binding}" Icon="🗑" />
+                                    <Separator />
+                                    <MenuItem Header="创建补丁…"
+                                              Command="{Binding $parent[UserControl].DataContext.CreatePatchFromFileCommand}"
+                                              CommandParameter="{Binding}" Icon="🧵" />
+                                    <MenuItem Header="从修订中获取"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
+                                              CommandParameter="{Binding}" Icon="⬇" />
+                                    <MenuItem Header="迄今为止的历史记录"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowFileHistoryCommand}"
+                                              CommandParameter="{Binding}" Icon="📜" />
+                                    <MenuItem Header="显示对父项的更改"
+                                              Command="{Binding $parent[UserControl].DataContext.ShowCommitFileDiffCommand}"
+                                              CommandParameter="{Binding}" Icon="↔" />
+                                </ContextMenu>
+                            </Setter>
+                        </Style>
+                    </TreeView.Styles>
+                </TreeView>
+
+                <!-- 选中提交详情 -->
+                <Border Grid.Row="2" Background="#FAFCFE" Padding="12" CornerRadius="0,0,8,8"
+                        IsVisible="{Binding SelectedCommit, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto" MaxHeight="260">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{Binding SelectedCommit.Subject}" FontSize="16"
+                                       FontWeight="SemiBold" Foreground="#122344" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding SelectedCommit.ShortSha}" FontSize="11"
+                                           FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="#888" />
+                                <TextBlock Text="·" FontSize="11" Foreground="#8899B8" />
+                                <TextBlock Text="作者" FontSize="11" Foreground="#8899B8" />
+                                <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="11"
+                                           Foreground="#36506F" />
+                                <TextBlock Text="&lt;" FontSize="11" Foreground="#567" />
+                                <TextBlock Text="{Binding SelectedCommit.AuthorEmail}" FontSize="11"
+                                           Foreground="#567" />
+                                <TextBlock Text="&gt;" FontSize="11" Foreground="#567" />
+                                <TextBlock Text="," FontSize="11" Foreground="#567" />
+                                <TextBlock Text="{Binding SelectedCommit.AuthorDate}" FontSize="11"
+                                           Foreground="#567" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="#567"
+                                       TextWrapping="Wrap" IsVisible="{Binding SelectedCommit.Body, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
+                                <TextBlock Text="🟡 HEAD" FontSize="11" Foreground="#D19A00" />
+                                <TextBlock Text="🟣 master" FontSize="11" Foreground="#9855CC" />
+                                <TextBlock Text="🔷 origin/master" FontSize="11" Foreground="#2E6BCC" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

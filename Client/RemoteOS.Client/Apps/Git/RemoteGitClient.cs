@@ -66,6 +66,14 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
         return await SendAsync<IReadOnlyList<GitCommitDto>>(HttpMethod.Get, route, null, cancellationToken);
     }
 
+    public Task<GitCommitDetailDto> GetCommitDetailAsync(string id, string sha, CancellationToken cancellationToken = default)
+    {
+        var route = GitApiRoutes.CommitDetail
+            .Replace("{id}", Uri.EscapeDataString(id))
+            .Replace("{sha}", Uri.EscapeDataString(sha));
+        return SendAsync<GitCommitDetailDto>(HttpMethod.Get, route, null, cancellationToken);
+    }
+
     public async Task<GitDiffDto> GetDiffAsync(string id, string path, bool staged = false, string? @ref = null, CancellationToken cancellationToken = default)
     {
         var route = $"{GitApiRoutes.Diff.Replace("{id}", Uri.EscapeDataString(id))}?path={Uri.EscapeDataString(path)}";

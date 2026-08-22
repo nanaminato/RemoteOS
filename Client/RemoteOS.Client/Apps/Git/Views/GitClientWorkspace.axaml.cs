@@ -116,8 +116,7 @@ internal partial class GitClientWorkspace : UserControl
     private object CreatePageView(string section) => section switch
     {
         "workspace" => new GitWorkspaceView(_viewModel),
-        "branches" => new GitBranchesView(_viewModel),
-        "history" => new GitHistoryView(_viewModel),
+        "log" => new GitLogView(_viewModel),
         "remotes" => new GitRemotesView(_viewModel),
         "conflicts" => new GitConflictResolutionView(_viewModel),
         _ => new GitOverviewView(_viewModel),
@@ -126,8 +125,7 @@ internal partial class GitClientWorkspace : UserControl
     private static string PageToSection(GitClientPage page) => page switch
     {
         GitClientPage.Workspace => "workspace",
-        GitClientPage.Branches => "branches",
-        GitClientPage.History => "history",
+        GitClientPage.Log => "log",
         GitClientPage.Remotes => "remotes",
         GitClientPage.ConflictResolution => "conflicts",
         _ => "overview",
@@ -136,8 +134,7 @@ internal partial class GitClientWorkspace : UserControl
     private static GitClientPage? SectionToPage(string section) => section switch
     {
         "workspace" => GitClientPage.Workspace,
-        "branches" => GitClientPage.Branches,
-        "history" => GitClientPage.History,
+        "log" => GitClientPage.Log,
         "remotes" => GitClientPage.Remotes,
         "conflicts" => GitClientPage.ConflictResolution,
         "overview" => GitClientPage.Overview,

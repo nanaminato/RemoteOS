@@ -18,6 +18,7 @@ public static class GitApiRoutes
     public const string Pull = $"/{V1}/git/repositories/{{id}}/pull";
     public const string Push = $"/{V1}/git/repositories/{{id}}/push";
     public const string Log = $"/{V1}/git/repositories/{{id}}/log";
+    public const string CommitDetail = $"/{V1}/git/repositories/{{id}}/commits/{{sha}}";
     public const string Diff = $"/{V1}/git/repositories/{{id}}/diff";
     public const string Revert = $"/{V1}/git/repositories/{{id}}/revert";
     public const string Resolve = $"/{V1}/git/repositories/{{id}}/resolve";

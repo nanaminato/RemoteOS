@@ -54,7 +54,7 @@ GitClientApp (RemoteApplicationBase)
     |
     GitClientWorkspace (UserControl)
         ├── 顶部标题栏（图标 + 仓库选择器 + 当前分支 + upstream 状态 + 刷新）
-        └── 左侧导航 + 右侧内容区（按 ActivePage 切换：概览/工作区/分支/历史）
+        └── 左侧导航 + 右侧内容区（按 ActivePage 切换：概览/工作区/日志/冲突解决/远程）
 ```
 
 `GitClientApp.Activate` 注入 `IAuthSession` + `IRemoteGitClient`（从 `context.Services`）。未登录时弹 `TextBlock` 提示窗（470x180，不可缩放），不崩溃；登录则构造 `GitClientViewModel` + `GitClientWorkspace`，`context.ShowWindow`（bounds 1180x760）后 `_ = viewModel.StartAsync()` 异步拉取仓库列表与首仓状态。
@@ -249,13 +249,15 @@ public sealed class GitClientApp : RemoteApplicationBase
 GitClientViewModel
     ├── Repositories: ObservableCollection<GitRepositoryDto>   # 仓库列表（左上选择器）
     ├── SelectedRepository: GitRepositoryDto?                  # 当前仓库
-    ├── ActivePage: GitClientPage (Overview/Workspace/Branches/History)
+    ├── ActivePage: GitClientPage (Overview/Workspace/Log/ConflictResolution/Remotes)
     ├── Status: GitStatusDto?                                  # 工作区状态
     │     ├── StagedFiles / UnstagedFiles / UntrackedFiles / ConflictFiles
     │     └── Branch / Upstream / Ahead / Behind
     ├── Branches: ObservableCollection<GitBranchDto>            # 分支列表
     ├── Commits: ObservableCollection<GitCommitDto>           # 历史列表
     ├── SelectedCommit: GitCommitDto?                          # 选中提交
+    ├── CommitDetail: GitCommitDetailDto?                      # 选中提交详情（变更文件列表+parents+作者等）
+    ├── CommitChangedFiles: ObservableCollection<GitFileChangeDto>  # 选中提交的变更文件树
     ├── SelectedFile: GitFileChangeDto?                        # 选中文件
     ├── FileDiff: GitDiffDto?                                  # 当前文件 diff
     ├── StatusText: string                                     # 状态栏文案
@@ -288,13 +290,16 @@ GitClientViewModel
 模拟 Windows 风格（用户偏好），与 DockerManagerWorkspace 同构的三段式布局：
 
 - **顶部标题栏**（`#122344` 深色）：左侧 🌿 图标 + 应用名 + 副标题；右侧仓库选择 ComboBox + 当前分支 Badge + upstream 落后/领先指示 + 「⟳ 刷新」按钮。
-- **左侧导航**（190px，`#EEF3FA` 浅色）：概览 / 工作区 / 分支 / 历史 四个导航按钮（`NavigationButton_Click` 切换 `ActivePage`，高亮激活页）。
+- **左侧导航**（190px，`#EEF3FA` 浅色）：概览 / 工作区 / 日志 / 冲突解决 / 远程 五个导航按钮（`NavigationButton_Click` 切换 `ActivePage`，高亮激活页）。
 - **右侧内容区**（`ScrollViewer` + `ContentControl`，按 `ActivePage` 切换子视图）：
   - **概览页**：仓库卡片（名称/路径/当前分支/upstream/远程 URL）+ 状态摘要卡片（已暂存/未暂存/未跟踪/冲突计数 + ahead/behind）+ 快捷操作按钮（拉取/推送/提交/新建分支）。
   - **工作区页**：双栏文件列表（左：未暂存/未跟踪；右：已暂存），中间「暂存»/«取消暂存」按钮，底部提交消息输入框 + 提交按钮；选中文件显示 diff（只读 patch）。
-  - **分支页**：分支 DataGrid（名称/远程?/当前?/upstream/ahead/behind）+ 工具栏（新建/切换/删除）。
-  - **历史页**：提交列表（hash/作者/时间/消息）+ 选中提交详情面板（parents/变更文件/diff）+ Revert 按钮。
+  - **日志页**（原分支+历史合并，三栏统一视图）：
+    - 左栏（220px）：分支/标签树（HEAD、本地分支分组、远程分支分组），支持右键菜单：新建分支、切换、重命名、删除、推送、拉取、更新、设置跟踪分支、显示与工作树差异、复制分支名。
+    - 中栏：提交列表（带时间图元、hash、作者、时间、消息、分支标签），支持搜索过滤（文本/哈希、用户、日期、路径），右键菜单：复制修订号（SHA）、创建补丁、签出修订、在修订版中显示仓库、与本地比较、将当前分支重置到此处、还原提交、撤销提交、编辑提交消息、Fixup、压缩到、删除提交、压缩提交、交互式变基、推送此前所有提交、新建分支、新建标记。
+    - 右栏（360px）：上半部分为提交变更文件树（按文件夹分组，显示状态图标），右键菜单：显示差异、在新标签页中显示差异、与本地比较、将之前版本与本地版本进行比较、编辑源、打开仓库版本、还原所选更改、优选所选更改、将所选更改提取到单独的提交、删除所选更改、创建补丁、从修订中获取、迄今为止的历史记录、显示对父项的更改；下半部分为提交详情（SHA、作者、日期、消息正文、所在分支标签）。
   - **冲突解决页**（冲突时显示）：冲突文件列表 + 每文件 ours/theirs 选择 + 继续/中止合并按钮。
+  - **远程页**：多远程仓库管理（添加、修改、删除 remote，配置 push/pull URL）。
 
 `Border.card` 样式选择器统一卡片外观（与 DockerManagerWorkspace 同风格）。
 
@@ -411,15 +416,51 @@ GitOperationResult
 
 ## 8. 后续演进
 
-- **stash**：当前未含。后续加 `POST /stash` + 工作区快照列表。
-- **cherry-pick / rebase -i**：当前 revert 之外的反向操作。后续加交互式 rebase 编辑器。
-- **tag 管理**：当前未含。后续加 tag 列表/新建/删除。
-- **submodule**：当前未含。后续按需新增。
-- **内置冲突编辑器**：当前冲突解决仅 ours/theirs 二选一。后续调用 CodeEditor 打开冲突文件做三方合并。
-- **多远程管理**：当前假设单一 `origin`。后续支持 remote 列表与切换。
-- **强制 push / reset --hard**：MVP 不暴露（危险操作）。后续在「高级」页带二次确认暴露。
-- **LFS 指针文件**：当前未特殊处理。后续探测 `.gitattributes` 的 LFS 配置。
-- **历史搜索 / 责怪 (blame)**：当前仅 log。后续加 `git log -S` / `git blame`。
+> 标注 [右键菜单已占位] 的项：客户端日志页三栏（分支树/提交列表/变更文件树）右键菜单项与命令已在 UI 中绑定（`GitClientViewModel` + `GitLogView`），但服务端 `IGitRepositoryService` / REST 端点尚未实现，点击会走 `NotImplemented` 分支并在状态栏提示。优先补齐这些接口即可真正生效。
+
+### 8.1 分支树右键菜单（左栏）
+
+- **[右键菜单已占位] 重命名分支**：`git branch -m <old> <new>`。需加 `POST /repositories/{id}/branches/{name}/rename`，校验新分支名不冲突 + 当前分支允许重命名。
+- **[右键菜单已占位] 合并分支**：`git merge <source>`。需加 `POST /repositories/{id}/merge`（源分支名 + fast-forward/--no-ff/--squash 策略）。冲突时沿用 `GitOperationResult.Conflicts` 通道切到冲突解决页（与 pull/revert 同构）。
+- **[右键菜单已占位] 变基分支**：`git rebase <upstream>`。需加 `POST /repositories/{id}/rebase`（交互式/非交互式，abort/continue/skip 子动作）。交互式 rebase 后续补编辑器。
+- **[右键菜单已占位] 设置跟踪分支**：`git branch -u <upstream> <branch>`。需加 `PUT /repositories/{id}/branches/{name}/tracking`，允许解绑（track=null）。
+- **[右键菜单已占位] 显示与工作树差异**：基于现有 diff 接口 `GET /diff?ref=<branch>`，新增「工作树 vs 指定分支」比较，当前仅支持工作区 vs HEAD / staged。
+
+### 8.2 提交列表右键菜单（中栏）
+
+- **[右键菜单已占位] 创建补丁**：`git format-patch -1 <sha>`。需加 `GET /repositories/{id}/patch?sha=` 返回 `.patch` 文件文本或 zip。
+- **[右键菜单已占位] 签出修订（detached）**：`git checkout <sha>`。复用现有 checkout 接口，传入分支名=SHA 且 `CreateIfMissing=false`，进入 detached HEAD 状态；UI 需同步禁用分支写操作。
+- **[右键菜单已占位] 将当前分支重置到此处**：`git reset [--soft|--mixed|--hard] <sha>`。需加 `POST /repositories/{id}/reset`，`--hard` 按危险操作二次确认（二次确认对话框 + Provider 侧预检工作区脏数据）。
+- **[右键菜单已占位] 撤销提交（undo）**：`git reset --soft HEAD^` / `git reset --mixed HEAD^`，与 reset 接口合并实现；区分「仅撤销提交（保留暂存）」vs「撤销提交+取消暂存」。
+- **[右键菜单已占位] 编辑提交消息**：`git commit --amend -m <newMsg>`，当前 `POST /commit` 已有 `Amend` 参数，需校验是 HEAD 提交（无未暂存变更或允许 amend+暂存）。
+- **[右键菜单已占位] Fixup / 压缩到 / 删除提交 / 压缩提交**：均基于交互式 rebase（`git rebase -i <sha>^`），后续与 8.1 的变基一起补齐；动作分别对应 fixup/squash/drop/squash 行。
+- **[右键菜单已占位] 交互式变基**：`git rebase -i <startPoint>`，需返回 todo 列表供客户端编辑，再 `POST /rebase/continue` 提交 todo 文本。
+- **[右键菜单已占位] 推送此前所有提交**：`git push <remote> <sha>:<branch>`，当前 push 接口仅支持当前分支 → upstream，需扩展指定源/目标 refspec。
+- **[右键菜单已占位] 新建标记（tag）**：`git tag <name> <sha>`。需加 `GET/POST/DELETE /repositories/{id}/tags`（含 lightweight/annotated 两种，后者支持 message）。与 §8.3 同项。
+- **cherry-pick / rebase -i**：当前 revert 之外的反向操作。后续加交互式 rebase 编辑器（与 Fixup/压缩同属 rebase 子系统）。
+- **tag 管理**：当前未含。后续加 tag 列表/新建/删除，同时在日志页左栏分支树增加「标签」分组展示。
+- **历史搜索 / 责怪 (blame)**：当前仅 log + 搜索过滤。后续加 `git log -S`（按 diff 内容搜索）/ `git blame <path>`（逐行最后修改人+SHA），右栏文件右键菜单补充「显示 Blame」。
+
+### 8.3 变更文件树右键菜单（右栏）
+
+- **[右键菜单已占位] 在新标签页中显示差异**：纯 UI 增强（与主窗口同窗口内开新 Tab），当前 diff 弹窗/侧栏模式；需扩展 Shell Tab 容器或复用 CodeEditor 打开 patch。
+- **[右键菜单已占位] 将之前版本与本地版本进行比较（三元 diff）**：当前 diff 仅支持两两比较；三元 diff（父提交 vs HEAD vs 工作区）后续调用 CodeEditor 做三方合并视图。
+- **[右键菜单已占位] 编辑源 / 打开仓库版本**：复用 CodeEditor / 已存文件管理器，仓库版本（旧内容）需先写入临时文件再打开，临时文件生命周期由 Workspace 缓存。
+- **[右键菜单已占位] 还原所选更改**：`git checkout <sha> -- <path>` 或 `git restore --source=<sha> <path>`。需加 `POST /repositories/{id}/restore`，区分「还原到提交中版本」vs「还原到 HEAD」（工作区页也会用到同一接口）。
+- **[右键菜单已占位] 优选所选更改 / 将所选更改提取到单独的提交**：交互性提交重排，基于 `git add -p` / interactive add，后续与 reset --soft + recommit 组合实现；当前提交接口 `Paths` 字段仅支持全文件暂存。
+- **[右键菜单已占位] 删除所选更改**：等价于还原 + 工作区删除，需二次确认（工作区文件将被覆盖/删除）。
+- **[右键菜单已占位] 从修订中获取**：`git show <sha>:<path>` 将指定提交版本的文件内容提取到工作区（可选另存路径），与「打开仓库版本」同用 show 命令。
+- **[右键菜单已占位] 迄今为止的历史记录**：`git log -- <path>`，当前中栏仅全仓库 log，需增加按路径过滤（复用现有 `Log` 接口新增 `path` query）。
+- **[右键菜单已占位] 显示对父项的更改**：当前 diff 默认相对 HEAD；对于多父提交（merge commit），需支持选择相对第 1 父 / 第 2 父，`GET /diff` 接口新增 `parent` 参数（1-based）。
+
+### 8.4 其它后续演进
+
+- **stash**：当前未含。后续加 `POST /stash` + 工作区快照列表（push/pop/apply/drop），工作区页与分支 checkout 前预检走 stash。
+- **submodule**：当前未含。后续按需新增（`.gitmodules` 探测 + submodule add/init/update/sync）。
+- **内置冲突编辑器**：当前冲突解决仅 ours/theirs 二选一。后续调用 CodeEditor 打开冲突文件做三方合并（与 8.3 三元 diff 同视图）。
+- **多远程管理**：当前远程页 UI 已占位；`GET/POST/DELETE/PUT /repositories/{id}/remotes`（name/url/pushUrl/fetch），与现有的多 remote 路由映射对齐。
+- **强制 push / reset --hard**：MVP 不暴露（危险操作）。后续在「高级」对话框二次确认暴露，写入审计日志。
+- **LFS 指针文件**：当前未特殊处理。后续探测 `.gitattributes` 的 LFS 配置，diff 时对 LFS 指针文件跳过内容展示（显示「LFS 对象」占位）。
 
 ---
 

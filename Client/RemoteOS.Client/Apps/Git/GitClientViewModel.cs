@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -7,7 +10,7 @@ using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git;
 
-public enum GitClientPage { Overview, Workspace, Branches, History, ConflictResolution, Remotes }
+public enum GitClientPage { Overview, Workspace, Log, ConflictResolution, Remotes }
 
 /// <summary>State and typed operations for the Git Client. Uses DispatcherTimer (10s) for status refresh with Interlocked reentrancy guard.
 /// Each window owns its own ViewModel instance — supports multiple projects open simultaneously (MultiWindow instance policy).</summary>
@@ -21,6 +24,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public ObservableCollection<GitFileChangeDto> UntrackedFiles { get; } = [];
     public ObservableCollection<GitFileChangeDto> ConflictFiles { get; } = [];
     public ObservableCollection<GitRemoteDto> Remotes { get; } = [];
+    public ObservableCollection<GitFileChangeDto> CommitChangedFiles { get; } = [];
 
     [ObservableProperty] private GitRepositoryDto? _selectedRepository;
     [ObservableProperty] private GitClientPage _activePage = GitClientPage.Overview;
@@ -35,6 +39,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasConflicts;
+    [ObservableProperty] private GitCommitDetailDto? _commitDetail;
+    [ObservableProperty] private string _branchSearchText = string.Empty;
+    [ObservableProperty] private string _commitSearchText = string.Empty;
+    [ObservableProperty] private GitFileChangeDto? _selectedCommitFile;
 
     // ── 项目选择器状态：IsPickerMode=true 时显示项目选择视图而非工作区 ──
     [ObservableProperty] private bool _isPickerMode = true;
@@ -690,5 +698,389 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             await RefreshRemotesAsync();
         }
         catch (Exception ex) { StatusText = $"删除失败：{ex.Message}"; }
+    }
+
+    // ── 选中提交变化：加载提交详情（含变更文件列表）──
+    partial void OnSelectedCommitChanged(GitCommitDto? value)
+    {
+        _ = LoadCommitDetailAsync(value);
+    }
+
+    private async Task LoadCommitDetailAsync(GitCommitDto? commit)
+    {
+        CommitChangedFiles.Clear();
+        CommitDetail = null;
+        if (commit is null || SelectedRepository is null) return;
+        try
+        {
+            var detail = await client.GetCommitDetailAsync(SelectedRepository.Id, commit.Sha);
+            CommitDetail = detail;
+            foreach (var f in detail.ChangedFiles) CommitChangedFiles.Add(f);
+        }
+        catch (Exception ex)
+        {
+            // 服务端尚未实现该端点时，降级为仅展示提交信息，不崩溃
+            StatusText = $"加载提交详情失败：{ex.Message}（接口可能未实现）";
+        }
+    }
+
+    // ── 分支右键菜单命令 ──
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CheckoutBranchAsync(GitBranchDto? branch)
+    {
+        if (branch is null) branch = SelectedBranch;
+        if (branch is null) return;
+        await CheckoutAsync(branch);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CreateBranchFromHereAsync(GitBranchDto? baseBranch)
+    {
+        if (ShowCreateBranchDialogAsync is null || SelectedRepository is null) return;
+        var request = await ShowCreateBranchDialogAsync();
+        if (request is null) return;
+        // 若用户对话框未指定起点，则以右键选中的分支作为起点
+        var startPoint = string.IsNullOrWhiteSpace(request.StartPoint) && baseBranch is not null
+            ? baseBranch.Name
+            : request.StartPoint;
+        IsBusy = true;
+        try
+        {
+            var result = await client.CreateBranchAsync(SelectedRepository.Id,
+                request with { StartPoint = startPoint });
+            StatusText = result.Success ? $"分支「{request.Name}」已创建" : $"创建失败：{result.Message}";
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { StatusText = $"创建失败：{ex.Message}"; }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task DeleteBranchContextAsync(GitBranchDto? branch)
+    {
+        if (branch is null) branch = SelectedBranch;
+        if (branch is null) return;
+        await DeleteBranchAsync(branch);
+    }
+
+    [RelayCommand]
+    private async Task RenameBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null) return;
+        // TODO: 服务端尚未实现 git branch -m 端点，占位提示
+        StatusText = $"重命名分支「{branch.Name}」：功能待实现（需新增 rename-branch 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task MergeBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null || SelectedRepository is null) return;
+        // TODO: 服务端尚未实现 git merge 端点，占位提示
+        StatusText = $"合并分支「{branch.Name}」到当前：功能待实现（需新增 merge 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task RebaseBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null) return;
+        StatusText = $"变基分支「{branch.Name}」：功能待实现（需新增 rebase 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task PushBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null) return;
+        if (branch.IsRemote) { StatusText = "不能推送远程分支对象"; return; }
+        await PushAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task PullBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null) return;
+        await PullAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task FetchBranchAsync(GitBranchDto? _) => await FetchAsync();
+
+    [RelayCommand]
+    private async Task SetUpstreamBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null) return;
+        StatusText = $"设置分支「{branch.Name}」跟踪：功能待实现（需新增 set-upstream 端点）";
+        await Task.CompletedTask;
+    }
+
+    // ── 提交右键菜单命令 ──
+
+    [RelayCommand]
+    private async Task CopyShaAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
+                if (topLevel?.Clipboard is not null)
+                {
+                    await topLevel.Clipboard.SetTextAsync(commit.Sha);
+                    StatusText = $"已复制 SHA：{commit.ShortSha}";
+                    return;
+                }
+            }
+            // 兜底：通过 Dispatcher + TopLevel 遍历查找
+            await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var tl = Avalonia.Controls.TopLevel.GetTopLevel((Avalonia.Visual?)null);
+                if (tl?.Clipboard is not null) await tl.Clipboard.SetTextAsync(commit.Sha);
+            });
+            StatusText = $"SHA：{commit.ShortSha}（剪贴板复制暂未获取到 TopLevel）";
+        }
+        catch (Exception ex) { StatusText = $"复制失败：{ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task CopyShortShaAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                var topLevel = TopLevel.GetTopLevel(desktop.MainWindow);
+                if (topLevel?.Clipboard is not null)
+                {
+                    await topLevel.Clipboard.SetTextAsync(commit.ShortSha);
+                    StatusText = $"已复制短 SHA：{commit.ShortSha}";
+                    return;
+                }
+            }
+            StatusText = $"短 SHA：{commit.ShortSha}";
+        }
+        catch (Exception ex) { StatusText = $"复制失败：{ex.Message}"; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CheckoutCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null || SelectedRepository is null) return;
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"签出提交 {commit.ShortSha}（将进入 detached HEAD 状态）？"))
+            return;
+        IsBusy = true;
+        try
+        {
+            var result = await client.CheckoutAsync(SelectedRepository.Id, new GitCheckoutRequest(commit.Sha));
+            StatusText = result.Success ? $"已签出 {commit.ShortSha}" : $"签出失败：{result.Message}";
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { StatusText = $"签出失败：{ex.Message}"; }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task ResetToCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        // TODO: 服务端尚未实现 git reset 端点（--soft/--mixed/--hard）
+        StatusText = $"重置到 {commit.ShortSha}：功能待实现（需新增 reset 端点，注意 --hard 为危险操作）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task RevertCommitContextAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        await RevertAsync(commit);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task UndoCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        // TODO: 相当于 git reset --soft HEAD^ 或指定提交
+        StatusText = $"撤销提交 {commit.ShortSha}：功能待实现（需新增 reset --soft 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task CreatePatchFromCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"从 {commit.ShortSha} 创建补丁：功能待实现（需新增 format-patch 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CherryPickCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"Cherry-pick {commit.ShortSha}：功能待实现（需新增 cherry-pick 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task RebaseInteractiveFromHereAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"从 {commit.ShortSha} 开始交互式变基：功能待实现（需新增 rebase -i 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task SquashFromHereAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"压缩到 {commit.ShortSha}：功能待实现（交互式变基子集）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task EditCommitMessageAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"编辑提交信息 {commit.ShortSha}：功能待实现（reword / amend 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task PushAllBeforeAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"推送此前提交（含 {commit.ShortSha}）：功能待实现（指定 ref 推送端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task CreateTagFromCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null) return;
+        StatusText = $"在 {commit.ShortSha} 新建标签：功能待实现（tag 管理端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task CreateBranchAtCommitAsync(GitCommitDto? commit)
+    {
+        commit ??= SelectedCommit;
+        if (commit is null || ShowCreateBranchDialogAsync is null || SelectedRepository is null) return;
+        var request = await ShowCreateBranchDialogAsync();
+        if (request is null) return;
+        var startPoint = string.IsNullOrWhiteSpace(request.StartPoint) ? commit.Sha : request.StartPoint;
+        IsBusy = true;
+        try
+        {
+            var result = await client.CreateBranchAsync(SelectedRepository.Id,
+                request with { StartPoint = startPoint });
+            StatusText = result.Success ? $"分支「{request.Name}」已创建于 {commit.ShortSha}" : $"创建失败：{result.Message}";
+            await RefreshAllAsync();
+        }
+        catch (Exception ex) { StatusText = $"创建失败：{ex.Message}"; }
+        finally { IsBusy = false; }
+    }
+
+    // ── 文件（工作区/提交详情）右键菜单命令 ──
+
+    [RelayCommand]
+    private async Task ShowFileDiffContextAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedCommitFile ?? SelectedFile;
+        if (file is null) return;
+        await ViewDiffAsync(file);
+    }
+
+    [RelayCommand]
+    private async Task ShowCommitFileDiffAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedCommitFile;
+        if (file is null || SelectedRepository is null || SelectedCommit is null) return;
+        try
+        {
+            // 使用 ref=sha 查询提交版本的 diff
+            FileDiff = await client.GetDiffAsync(SelectedRepository.Id, file.Path, staged: false, @ref: SelectedCommit.Sha);
+        }
+        catch (Exception ex) { StatusText = $"Diff 失败：{ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task OpenFileInEditorAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedCommitFile ?? SelectedFile;
+        if (file is null) return;
+        // TODO: 通过 RemoteOS 内置 CodeEditor 或宿主 OS 默认编辑器打开，当前占位
+        StatusText = $"打开文件「{file.Path}」：功能待实现（调用 CodeEditor / OpenWith 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task RevertFileChangeAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedFile;
+        if (file is null || SelectedRepository is null) return;
+        if (ShowConfirmAsync is not null && !await ShowConfirmAsync($"还原文件「{file.Path}」的未提交变更？该操作不可撤销。"))
+            return;
+        // TODO: 服务端尚未实现 git checkout -- <path> / restore 端点
+        StatusText = $"还原文件「{file.Path}」：功能待实现（需新增 restore 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task StageFileContextAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedFile;
+        if (file is null) return;
+        await StageFileAsync(file);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task UnstageFileAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedFile;
+        if (file is null || SelectedRepository is null) return;
+        // TODO: 服务端尚未实现 git reset HEAD <path> 端点
+        StatusText = $"取消暂存「{file.Path}」：功能待实现（需新增 unstage 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task ShowFileHistoryAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedCommitFile ?? SelectedFile;
+        if (file is null) return;
+        StatusText = $"「{file.Path}」的历史记录：功能待实现（git log -- <path> 端点）";
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task CreatePatchFromFileAsync(GitFileChangeDto? file)
+    {
+        file ??= SelectedCommitFile ?? SelectedFile;
+        if (file is null) return;
+        StatusText = $"从「{file.Path}」创建补丁：功能待实现";
+        await Task.CompletedTask;
     }
 }

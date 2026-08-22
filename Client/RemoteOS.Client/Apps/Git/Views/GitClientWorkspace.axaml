@@ -37,10 +37,7 @@
                     <Button Content="📝 工作区" Tag="workspace" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="🌿 分支" Tag="branches" Click="NavigationButton_Click"
-                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
-                    <Button Content="📜 历史" Tag="history" Click="NavigationButton_Click"
+                    <Button Content="📜 日志" Tag="log" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Background="Transparent" Foreground="#36506F" BorderThickness="0" Padding="16,10" />
                     <Button Content="🌐 远程仓库" Tag="remotes" Click="NavigationButton_Click"
