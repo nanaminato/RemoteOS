@@ -39,14 +39,14 @@ public sealed partial class FirewallViewModel : ObservableObject
     public IReadOnlyList<FirewallOption> Directions { get; }
     public IReadOnlyList<FirewallOption> Protocols { get; }
 
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(UpdateRuleCommand), nameof(DeleteRuleCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(ShowEditRuleEditorCommand), nameof(DeleteRuleCommand))]
     private FirewallRuleDto? _selectedRule;
     [ObservableProperty] private string _statusText = LocalizedText.Get("firewall.status.loading");
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(AddRuleCommand), nameof(UpdateRuleCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(ShowAddRuleEditorCommand), nameof(ShowEditRuleEditorCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
     private bool _isAvailable;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EnableCommand), nameof(DisableCommand))]
     private bool _isEnabled;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(AddRuleCommand), nameof(UpdateRuleCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(EnableCommand), nameof(DisableCommand), nameof(SaveDefaultsCommand), nameof(ShowAddRuleEditorCommand), nameof(ShowEditRuleEditorCommand), nameof(DeleteRuleCommand), nameof(ClearEditorCommand))]
     private bool _isLoading;
     [ObservableProperty] private FirewallOption? _selectedIncomingPolicy;
     [ObservableProperty] private FirewallOption? _selectedOutgoingPolicy;
@@ -60,6 +60,8 @@ public sealed partial class FirewallViewModel : ObservableObject
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     /// <summary>Provided by the window so a credential is collected only for the pending operation.</summary>
     public Func<Task<string?>>? RequestPasswordAsync { get; set; }
+    /// <summary>Provided by the window because editing is rendered in a window-owned modal dialog.</summary>
+    public Func<bool, Task>? ShowRuleEditorAsync { get; set; }
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -117,18 +119,35 @@ public sealed partial class FirewallViewModel : ObservableObject
         SelectedIncomingPolicy?.Value ?? "deny", SelectedOutgoingPolicy?.Value ?? "allow", confirmation)));
 
     [RelayCommand(CanExecute = nameof(CanManage))]
-    private async Task AddRuleAsync()
+    private async Task ShowAddRuleEditorAsync()
     {
-        if (!TryBuildRule(out var rule)) return;
-        if (await ApplyAsync(confirmation => _client.CreateRuleAsync(rule with { CredentialConfirmation = confirmation }))) ClearEditor();
+        ClearEditor();
+        if (ShowRuleEditorAsync is not null) await ShowRuleEditorAsync(false);
     }
 
     [RelayCommand(CanExecute = nameof(CanUpdateRule))]
-    private async Task UpdateRuleAsync()
+    private async Task ShowEditRuleEditorAsync()
     {
-        if (SelectedRule is null || !TryBuildRule(out var rule)) return;
-        if (await ApplyAsync(confirmation => _client.UpdateRuleAsync(SelectedRule.Number,
-                new UpdateFirewallRuleRequest(rule.Action, rule.Direction, rule.Protocol, rule.Source, rule.Destination, rule.Port, confirmation)))) ClearEditor();
+        if (SelectedRule is null) return;
+        LoadRuleIntoEditor(SelectedRule);
+        if (ShowRuleEditorAsync is not null) await ShowRuleEditorAsync(true);
+    }
+
+    public async Task<bool> AddRuleAsync()
+    {
+        if (!TryBuildRule(out var rule)) return false;
+        var success = await ApplyAsync(confirmation => _client.CreateRuleAsync(rule with { CredentialConfirmation = confirmation }));
+        if (success) ClearEditor();
+        return success;
+    }
+
+    public async Task<bool> UpdateRuleAsync()
+    {
+        if (SelectedRule is null || !TryBuildRule(out var rule)) return false;
+        var success = await ApplyAsync(confirmation => _client.UpdateRuleAsync(SelectedRule.Number,
+            new UpdateFirewallRuleRequest(rule.Action, rule.Direction, rule.Protocol, rule.Source, rule.Destination, rule.Port, confirmation)));
+        if (success) ClearEditor();
+        return success;
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteRule))]
@@ -153,6 +172,11 @@ public sealed partial class FirewallViewModel : ObservableObject
     partial void OnSelectedRuleChanged(FirewallRuleDto? value)
     {
         if (value is null) return;
+        LoadRuleIntoEditor(value);
+    }
+
+    private void LoadRuleIntoEditor(FirewallRuleDto value)
+    {
         SelectedAction = Find(Actions, value.Action, "allow");
         SelectedDirection = Find(Directions, value.Direction, "in");
         SelectedProtocol = Find(Protocols, value.Protocol, "any");

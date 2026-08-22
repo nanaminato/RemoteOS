@@ -34,6 +34,7 @@ public sealed class FirewallApp : RemoteApplicationBase
         var viewModel = new FirewallViewModel(client, session, context.Permissions);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(70, 55, 1160, 760), Manifest.IconGlyph);
         viewModel.RequestPasswordAsync = () => RequestPasswordAsync(context, window);
+        viewModel.ShowRuleEditorAsync = editing => ShowRuleEditorAsync(context, window, viewModel, editing);
         _ = viewModel.StartAsync();
     }
 
@@ -57,23 +58,10 @@ public sealed class FirewallApp : RemoteApplicationBase
         DockPanel.SetDock(settings, Dock.Top); root.Children.Add(settings);
 
         var rules = new DockPanel { DataContext = vm };
-        var editor = new StackPanel { Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 10) };
-        editor.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.rule.editor_title") });
-        editor.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.rule.help"), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        var editorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Bottom };
-        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedAction), vm.Actions, "firewall.rule.action", 120));
-        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedDirection), vm.Directions, "firewall.rule.direction", 110));
-        editorRow.Children.Add(ChoiceField(vm, nameof(vm.SelectedProtocol), vm.Protocols, "firewall.rule.protocol", 110));
-        editorRow.Children.Add(TextField(vm, nameof(vm.Source), "firewall.rule.source", "firewall.rule.source_hint", 180));
-        editorRow.Children.Add(TextField(vm, nameof(vm.Destination), "firewall.rule.destination", "firewall.rule.destination_hint", 180));
-        editorRow.Children.Add(TextField(vm, nameof(vm.Port), "firewall.rule.port", "firewall.rule.port_hint", 150));
-        editor.Children.Add(editorRow);
-        var editorActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.add"), Command = vm.AddRuleCommand });
-        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.update"), Command = vm.UpdateRuleCommand });
-        editorActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.clear"), Command = vm.ClearEditorCommand });
-        editor.Children.Add(editorActions);
-        DockPanel.SetDock(editor, Dock.Top); rules.Children.Add(editor);
+        var ruleActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Avalonia.Thickness(0, 0, 0, 10) };
+        ruleActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.add"), Command = vm.ShowAddRuleEditorCommand });
+        ruleActions.Children.Add(new Button { Content = LocalizedText.Get("firewall.rule.update"), Command = vm.ShowEditRuleEditorCommand });
+        DockPanel.SetDock(ruleActions, Dock.Top); rules.Children.Add(ruleActions);
 
         var delete = new Button { Content = LocalizedText.Get("firewall.rule.delete"), Command = vm.DeleteRuleCommand, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Avalonia.Thickness(0, 8, 0, 0) };
         DockPanel.SetDock(delete, Dock.Bottom); rules.Children.Add(delete);
@@ -98,12 +86,57 @@ public sealed class FirewallApp : RemoteApplicationBase
         table.Columns.Add(Column("firewall.rule.action", nameof(FirewallRuleDto.Action), 100));
         table.Columns.Add(Column("firewall.rule.direction", nameof(FirewallRuleDto.Direction), 100));
         table.Columns.Add(Column("firewall.rule.protocol", nameof(FirewallRuleDto.Protocol), 100));
+        table.Columns.Add(Column("firewall.rule.address_family", nameof(FirewallRuleDto.AddressFamily), 120));
         table.Columns.Add(Column("firewall.rule.source", nameof(FirewallRuleDto.Source), 210));
         table.Columns.Add(Column("firewall.rule.destination", nameof(FirewallRuleDto.Destination), 210));
         table.Columns.Add(Column("firewall.rule.port", nameof(FirewallRuleDto.Port), 140));
         table.SelectionChanged += (_, _) => vm.SelectedRule = table.SelectedItem as FirewallRuleDto;
         return table;
     }
+
+    private static Task ShowRuleEditorAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner, FirewallViewModel vm, bool editing) =>
+        context.ShowDialogAsync<bool>(owner,
+            LocalizedText.Get(editing ? "firewall.rule.edit_dialog_title" : "firewall.rule.add_dialog_title"), dialog =>
+            {
+                var content = new DockPanel { Margin = new Avalonia.Thickness(20), LastChildFill = true, DataContext = vm };
+                var help = new TextBlock { Text = LocalizedText.Get("firewall.rule.help"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Avalonia.Thickness(0, 0, 0, 12) };
+                DockPanel.SetDock(help, Dock.Top);
+                content.Children.Add(help);
+                var status = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+                status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(vm.StatusText)));
+                status.Margin = new Avalonia.Thickness(0, 0, 0, 12);
+                DockPanel.SetDock(status, Dock.Top);
+                content.Children.Add(status);
+
+                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Avalonia.Thickness(0, 12, 0, 0) };
+                var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+                cancel.Click += (_, _) => dialog.Cancel();
+                var save = new Button { Content = LocalizedText.Get(editing ? "firewall.rule.update" : "firewall.rule.add"), Classes = { "primary" } };
+                save.Click += async (_, _) =>
+                {
+                    var success = editing ? await vm.UpdateRuleAsync() : await vm.AddRuleAsync();
+                    if (success) dialog.Close(true);
+                };
+                actions.Children.Add(cancel);
+                actions.Children.Add(save);
+                DockPanel.SetDock(actions, Dock.Bottom);
+                content.Children.Add(actions);
+
+                var fields = new StackPanel { Spacing = 12 };
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedAction), vm.Actions, "firewall.rule.action", 360));
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedDirection), vm.Directions, "firewall.rule.direction", 360));
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedProtocol), vm.Protocols, "firewall.rule.protocol", 360));
+                fields.Children.Add(TextField(vm, nameof(vm.Source), "firewall.rule.source", "firewall.rule.source_hint", 360, "firewall.rule.source_tooltip"));
+                fields.Children.Add(TextField(vm, nameof(vm.Destination), "firewall.rule.destination", "firewall.rule.destination_hint", 360, "firewall.rule.destination_tooltip"));
+                fields.Children.Add(TextField(vm, nameof(vm.Port), "firewall.rule.port", "firewall.rule.port_hint", 360));
+                content.Children.Add(new ScrollViewer
+                {
+                    Content = fields,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                });
+                return content;
+            }, new RemoteOS.Core.Primitives.Size(460, 560));
 
     private static DataGridTextColumn Column(string headerKey, string property, double width) => new()
     {
@@ -112,7 +145,7 @@ public sealed class FirewallApp : RemoteApplicationBase
 
     private static Control ChoiceField(FirewallViewModel vm, string property, IReadOnlyList<FirewallOption> choices, string labelKey, double width)
     {
-        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm };
+        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
         field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey) });
         var box = new ComboBox { ItemsSource = choices, DisplayMemberBinding = new Avalonia.Data.Binding(nameof(FirewallOption.Label)) };
         box.Bind(SelectingItemsControl.SelectedItemProperty, new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay });
@@ -120,10 +153,12 @@ public sealed class FirewallApp : RemoteApplicationBase
         return field;
     }
 
-    private static Control TextField(FirewallViewModel vm, string property, string labelKey, string hintKey, double width)
+    private static Control TextField(FirewallViewModel vm, string property, string labelKey, string hintKey, double width, string? tooltipKey = null)
     {
-        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm };
-        field.Children.Add(new TextBlock { Text = LocalizedText.Get(labelKey) });
+        var field = new StackPanel { Spacing = 4, Width = width, DataContext = vm, HorizontalAlignment = HorizontalAlignment.Left };
+        var label = new TextBlock { Text = LocalizedText.Get(labelKey) };
+        if (tooltipKey is not null) ToolTip.SetTip(label, LocalizedText.Get(tooltipKey));
+        field.Children.Add(label);
         var box = new TextBox { PlaceholderText = LocalizedText.Get(hintKey) };
         box.Bind(TextBox.TextProperty, new Avalonia.Data.Binding(property) { Mode = Avalonia.Data.BindingMode.TwoWay });
         field.Children.Add(box);
