@@ -25,10 +25,12 @@ internal sealed partial class NginxWebServerManager(
     NginxManagedOptions managedOptions,
     NginxInstallPackageStore packages,
     ICertificateStore certificates,
+    FileHttp01ChallengeStore webRootChallenges,
     ILogger<NginxWebServerManager> logger) : IWebServerProvider
 {
     private const string ProviderKey = "nginx";
     private const string OwnedFileName = "remoteos.conf";
+    private const string AcmeEnabledFileName = "acme-http01.enabled";
     private const string OwnershipMarker = "# Managed by RemoteOS. Do not edit.";
     private const string ManagedMarkerName = ".remoteos-managed";
     private const string ManagedMarkerContent = "RemoteOS owns this Nginx installation. Do not move this marker.\n";
@@ -199,6 +201,13 @@ internal sealed partial class NginxWebServerManager(
                 : new[] { "-s", "reload" };
             return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
                 new WebServerOperationResult((await RunNginxAsync(instance.ExecutablePath, arguments, ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
+        }
+        if (action == WebServerLifecycleAction.EnableAcmeHttp01)
+        {
+            if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
+                return Rejected(instanceId, "enable-acme-http01", "webserver.acme_integration_required");
+            return await operations.StartAsync(idempotencyKey, instanceId, "enable-acme-http01", actor,
+                ct => EnableAcmeHttp01CoreAsync(instance, ct), lifetime.ApplicationStopping);
         }
         if (instance.ManagementMode != WebServerManagementMode.Managed)
             return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.managed_required");
@@ -497,7 +506,8 @@ internal sealed partial class NginxWebServerManager(
         }
         var stage = Path.Combine(directory, $"remoteos.{Guid.NewGuid():N}.conf");
         var backup = config + ".rollback";
-        await File.WriteAllTextAsync(stage, RenderSiteConfiguration(site, certificatePaths), new UTF8Encoding(false), cancellationToken);
+        var acmeChallengeRoot = IsAcmeHttp01Enabled(directory) ? webRootChallenges.RootPath : null;
+        await File.WriteAllTextAsync(stage, RenderSiteConfiguration(site, certificatePaths, acmeChallengeRoot), new UTF8Encoding(false), cancellationToken);
         var hadExisting = File.Exists(config);
         try
         {
@@ -548,6 +558,9 @@ internal sealed partial class NginxWebServerManager(
     }
 
     private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths)
+        => RenderSiteConfiguration(site, certificatePaths, null);
+
+    private static string RenderSiteConfiguration(WebServerSiteDto site, (string FullChainPath, string PrivateKeyPath)? certificatePaths, string? acmeChallengeRoot)
     {
         var body = site.Kind == WebServerSiteKind.ReverseProxy
             ? $"location / {{\n        proxy_pass {site.Upstream};\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection \"upgrade\";\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }}"
@@ -562,7 +575,8 @@ internal sealed partial class NginxWebServerManager(
         {
             listens.Add($"listen 443 ssl;\n    ssl_certificate {NginxConfigPath(certificatePaths.Value.FullChainPath)};\n    ssl_certificate_key {NginxConfigPath(certificatePaths.Value.PrivateKeyPath)};");
         }
-        return $"# Managed by RemoteOS. Site: {site.Id}\nserver {{\n    {string.Join("\n    ", listens)}\n    server_name {serverNames};\n    {body}\n}}\n";
+        var acmeLocation = string.IsNullOrWhiteSpace(acmeChallengeRoot) ? "" : $"\n    location ^~ /.well-known/acme-challenge/ {{\n        alias {NginxConfigPath(acmeChallengeRoot)}/;\n        default_type text/plain;\n    }}";
+        return $"# Managed by RemoteOS. Site: {site.Id}\nserver {{\n    {string.Join("\n    ", listens)}\n    server_name {serverNames};{acmeLocation}\n    {body}\n}}\n";
     }
 
     private static string? GetSitesDirectory(WebServerDto instance)
@@ -572,6 +586,14 @@ internal sealed partial class NginxWebServerManager(
             ? Path.Combine(Path.GetDirectoryName(instance.ConfigurationPath)!, "conf.d")
             : FindOwnedIncludeDirectory(instance.ConfigurationPath);
         return confd is null ? null : Path.Combine(confd, "remoteos.d");
+    }
+
+    private static bool IsAcmeHttp01Enabled(string sitesDirectory)
+    {
+        var marker = Path.Combine(sitesDirectory, AcmeEnabledFileName);
+        try { return File.Exists(marker) && !IsSymbolicLink(marker) && File.ReadAllText(marker) == OwnershipMarker + "\nACME HTTP-01 enabled.\n"; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 
     private static string GetStaticSitesRoot(WebServerDto instance)
@@ -676,6 +698,50 @@ internal sealed partial class NginxWebServerManager(
         }
         catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.config_elevation_required", snapshot.Id); }
         catch (IOException) { return new WebServerOperationResult("webserver.configuration_changed", snapshot.Id); }
+        finally { IntegrationGate.Release(); }
+    }
+
+    private async Task<WebServerOperationResult> EnableAcmeHttp01CoreAsync(WebServerDto instance, CancellationToken cancellationToken)
+    {
+        var directory = GetSitesDirectory(instance);
+        if (directory is null) return new WebServerOperationResult("webserver.acme_integration_required");
+        await IntegrationGate.WaitAsync(cancellationToken);
+        try
+        {
+            var anchorProblem = await EnsureSiteIncludeAnchorAsync(instance, cancellationToken);
+            if (anchorProblem is not null) return new WebServerOperationResult("webserver.acme_integration_required");
+            if (IsSymbolicLink(directory)) return new WebServerOperationResult("webserver.unsafe_path");
+            Directory.CreateDirectory(directory);
+            var sites = await ReadSitesAsync(instance, cancellationToken);
+            if (sites.Count == 0) return new WebServerOperationResult("webserver.acme_no_managed_sites");
+
+            var marker = Path.Combine(directory, AcmeEnabledFileName);
+            if (File.Exists(marker) && !IsAcmeHttp01Enabled(directory)) return new WebServerOperationResult("webserver.ownership_conflict");
+            if (!File.Exists(marker))
+            {
+                var stage = marker + ".stage";
+                try
+                {
+                    await File.WriteAllTextAsync(stage, OwnershipMarker + "\nACME HTTP-01 enabled.\n", new UTF8Encoding(false), cancellationToken);
+                    File.Move(stage, marker, false);
+                }
+                finally { if (File.Exists(stage)) File.Delete(stage); }
+            }
+
+            foreach (var site in sites)
+            {
+                var problem = await WriteSiteConfigurationAsync(instance, site, cancellationToken);
+                if (problem is not null)
+                {
+                    logger.LogWarning("Nginx ACME HTTP-01 enablement could not update site. InstanceId={InstanceId} SiteId={SiteId} Problem={Problem}", instance.Id, site.Id, problem);
+                    return new WebServerOperationResult(problem);
+                }
+            }
+            logger.LogInformation("Nginx ACME HTTP-01 routing enabled. InstanceId={InstanceId} Sites={SiteCount} ChallengeRoot={ChallengeRoot}", instance.Id, sites.Count, webRootChallenges.RootPath);
+            return new WebServerOperationResult("");
+        }
+        catch (UnauthorizedAccessException) { return new WebServerOperationResult("webserver.config_elevation_required"); }
+        catch (IOException) { return new WebServerOperationResult("webserver.configuration_changed"); }
         finally { IntegrationGate.Release(); }
     }
 

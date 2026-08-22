@@ -6,7 +6,7 @@ public enum WebServerType { Nginx }
 public enum WebServerManagementMode { External, Integrated, Managed }
 public enum WebServerRuntimeState { Unknown, Running, Stopped }
 public enum WebServerOperationState { Queued, Running, Succeeded, Failed, Cancelled }
-public enum WebServerLifecycleAction { Start, Stop, Restart, Reload }
+public enum WebServerLifecycleAction { Start, Stop, Restart, Reload, EnableAcmeHttp01 }
 /// <summary>How a Windows managed installation handles a pre-existing RemoteOS Nginx directory.</summary>
 public enum ManagedInstallExistingDirectoryAction { Reject, Reuse, Replace }
 

@@ -168,8 +168,8 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
         ["app.example.test", "admin.example.test"], 5000, null, "/srv/remoteos-sites/multi-port", null, false, DateTimeOffset.UtcNow,
         [new WebServerSiteBindingDto("app.example.test", 5000), new WebServerSiteBindingDto("admin.example.test", 6000)]);
     Assert(multiPortSite.DomainsDisplay == "app.example.test:5000, admin.example.test:6000", "Multi-port bindings were not formatted for the site table.");
-    var renderSite = typeof(NginxWebServerManager).GetMethod("RenderSiteConfiguration", BindingFlags.Static | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException("Nginx site renderer was not found.");
+    var renderSite = typeof(NginxWebServerManager).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+        .Single(method => method.Name == "RenderSiteConfiguration" && method.GetParameters().Length == 2);
     var rendered = (string)renderSite.Invoke(null, [multiPortSite, null])!;
     Assert(rendered.Split("server {", StringSplitOptions.None).Length == 2 && rendered.Contains("listen 5000;") && rendered.Contains("listen 6000;")
         && rendered.Contains("server_name app.example.test admin.example.test;"), "A multi-port site was not rendered as one Nginx server with all listeners and names.");
@@ -178,6 +178,12 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     Assert(renderedProxy.Contains("proxy_http_version 1.1;")
         && renderedProxy.Contains("proxy_set_header Upgrade $http_upgrade;")
         && renderedProxy.Contains("proxy_set_header Connection \"upgrade\";"), "A reverse-proxy site did not preserve WebSocket upgrades for SignalR.");
+    var renderWithAcme = typeof(NginxWebServerManager).GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+        .Single(method => method.Name == "RenderSiteConfiguration" && method.GetParameters().Length == 3);
+    var renderedWithAcme = (string)renderWithAcme.Invoke(null, [proxySite, null, "/var/lib/remoteos/acme-challenge"])!;
+    Assert(renderedWithAcme.Contains("location ^~ /.well-known/acme-challenge/")
+        && renderedWithAcme.Contains("alias /var/lib/remoteos/acme-challenge/;")
+        && renderedWithAcme.Contains("location / {"), "ACME HTTP-01 routing was not rendered ahead of the site location.");
 
     var findRoutingConflict = typeof(NginxWebServerManager).GetMethod("FindRoutingConflict", BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Nginx site conflict detector was not found.");

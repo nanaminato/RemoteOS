@@ -73,6 +73,10 @@
                         <TextBlock Text="已集成实例可重载配置，以应用站点变更。" FontSize="12" Foreground="#61708B" />
                         <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" HorizontalAlignment="Left" />
                     </StackPanel>
+                    <StackPanel IsVisible="{Binding IsIntegratedOrManagedServer}" Spacing="6">
+                        <TextBlock Text="为所有由 RemoteOS 管理的站点添加 /.well-known/acme-challenge/ 路由。站点须绑定证书域名和 80 端口；启用后，请在证书管理器选择“HTTP-01（Web Root）”。" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <Button Content="{loc:Loc webservers.action.enable_acme_http01}" Command="{Binding EnableAcmeHttp01Command}" HorizontalAlignment="Left" />
+                    </StackPanel>
                     <StackPanel IsVisible="{Binding IsManagedServer}" Spacing="10">
                         <TextBlock Text="服务控制" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" />
                         <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">

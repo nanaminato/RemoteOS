@@ -43,7 +43,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     [NotifyPropertyChangedFor(nameof(IsExternalServer), nameof(IsIntegratedServer), nameof(IsManagedServer), nameof(IsIntegratedOrManagedServer), nameof(ManagementHint))]
     private WebServerDto? _selectedServer;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(EditSiteCommand))]
@@ -62,11 +62,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private bool _siteHttpsEnabled;
     [ObservableProperty] private CertificateDto? _selectedSiteCertificate;
     [ObservableProperty] private string _siteStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     private bool _isLoading;
     // Every action uses IsOperationRunning in its CanExecute predicate. Keep the command state
     // in sync before and after polling, otherwise controls can retain a stale disabled state.
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand), nameof(CancelOperationCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsManagedInstallAvailable))]
     private bool _hasManagedInstallation;
@@ -251,6 +251,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         await RunOperationAsync("integrate", SelectedServer!,
             (id, ct) => _client.IntegrateAsync(id, new IntegrateWebServerRequest(true), ct));
     }
+
+    [RelayCommand(CanExecute = nameof(CanEnableAcmeHttp01))]
+    private Task EnableAcmeHttp01Async() => RunOperationAsync("enable-acme-http01", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.EnableAcmeHttp01, ct));
 
     [RelayCommand(CanExecute = nameof(CanInstallManaged))]
     private async Task InstallManagedAsync()
@@ -604,6 +607,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool CanTestConfiguration => HasReadPermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanTestConfiguration == true;
     private bool CanInstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning;
     private bool CanIntegrate => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanIntegrate == true;
+    private bool CanEnableAcmeHttp01 => CanSaveSite;
     private bool CanStart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStart == true;
     private bool CanStop => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStop == true;
     private bool CanRestart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRestart == true;
@@ -624,6 +628,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "stop" => LocalizedText.Get("webservers.operation.kind.stop", "停止 Nginx"),
         "restart" => LocalizedText.Get("webservers.operation.kind.restart", "重启 Nginx"),
         "reload" => LocalizedText.Get("webservers.operation.kind.reload", "重载 Nginx"),
+        "enable-acme-http01" => LocalizedText.Get("webservers.operation.kind.enable_acme_http01", "启用 ACME HTTP-01 验证"),
         _ => kind,
     };
 
@@ -657,6 +662,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         "webserver.existing_installation_unsafe" => LocalizedText.Get("webservers.problem.existing_installation_unsafe", "现有安装目录不完整或包含不安全链接，无法复用或删除。"),
         "webserver.package_invalid" => LocalizedText.Get("webservers.problem.package_invalid", "Nginx ZIP 包无效或不符合预期布局。"),
         "webserver.package_not_found" => LocalizedText.Get("webservers.problem.package_not_found", "离线安装包已过期，请重新选择。"),
+        "webserver.acme_integration_required" => LocalizedText.Get("webservers.problem.acme_integration_required", "请先集成或使用受管 Nginx，然后再启用 ACME HTTP-01。"),
+        "webserver.acme_no_managed_sites" => LocalizedText.Get("webservers.problem.acme_no_managed_sites", "请先创建至少一个由 RemoteOS 管理、且域名与证书申请一致的 Nginx 站点。"),
         _ => problemCode,
     };
 
