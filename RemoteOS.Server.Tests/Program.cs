@@ -164,6 +164,20 @@ static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
     if (OperatingSystem.IsLinux())
         Assert(managedExecutable == "/usr/sbin/nginx", "Built-in Linux installation must use the package executable instead of creating a second copy.");
 
+    var resolveManagedConfiguration = typeof(NginxWebServerManager).GetMethod("ResolveManagedConfigurationPath", BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Managed Nginx configuration resolver was not found.");
+    var managedConfigurationPath = (string)resolveManagedConfiguration.Invoke(null, [managedRoot, true])!;
+    if (OperatingSystem.IsLinux())
+        Assert(managedConfigurationPath == "/etc/nginx/nginx.conf", "Built-in Linux installation must use the package configuration managed by nginx.service.");
+
+    if (OperatingSystem.IsLinux())
+    {
+        var isPosixProcessAlive = typeof(NginxWebServerManager).GetMethod("IsPosixProcessAlive", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Linux process liveness checker was not found.");
+        Assert((bool)isPosixProcessAlive.Invoke(null, [Environment.ProcessId])!, "The current Linux process was not recognized as alive.");
+        Assert(!(bool)isPosixProcessAlive.Invoke(null, [int.MaxValue])!, "A non-existent Linux process was reported as alive.");
+    }
+
     var validServerName = typeof(NginxWebServerManager).GetMethod("IsValidServerName", BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Nginx server-name validator was not found.");
     Assert((bool)validServerName.Invoke(null, ["192.0.2.10"])!, "IPv4 addresses were rejected as Nginx server names.");

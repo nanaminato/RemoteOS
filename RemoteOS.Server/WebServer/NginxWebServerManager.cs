@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.WebServers;
 using Server.Certificate;
@@ -37,20 +38,6 @@ internal sealed partial class NginxWebServerManager(
     private static readonly JsonSerializerOptions SiteJson = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private static readonly string LegacyOwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\n";
     private static readonly string PreviousOwnedContent = $"{OwnershipMarker}\n# RemoteOS-owned Nginx integration anchor.\ninclude remoteos.d/*.conf;\n";
-    private static readonly string ManagedConfiguration = """
-        worker_processes auto;
-        error_log logs/error.log notice;
-        pid logs/nginx.pid;
-
-        events { worker_connections 1024; }
-
-        http {
-            default_type application/octet-stream;
-            access_log logs/access.log;
-            sendfile on;
-            include conf.d/*.conf;
-        }
-        """;
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
     // A managed instance has one fixed root, so concurrent installs must serialize their
     // directory checks, replacement, and extraction.
@@ -82,7 +69,9 @@ internal sealed partial class NginxWebServerManager(
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null || instance.Id != instanceId) return null;
         var running = instance.ManagementMode == WebServerManagementMode.Managed
-            ? IsManagedNginxRunning(GetManagedLayout())
+            ? UsesSystemPackageManagedService()
+                ? await IsSystemdNginxActiveAsync(cancellationToken)
+                : IsManagedNginxRunning(GetManagedLayout())
             : IsNginxRunning(instance.ExecutablePath);
         return new WebServerStatusDto(instanceId, running ? WebServerRuntimeState.Running : WebServerRuntimeState.Stopped);
     }
@@ -202,11 +191,14 @@ internal sealed partial class NginxWebServerManager(
         {
             if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
                 return Rejected(instanceId, "reload", "webserver.reload_not_permitted");
-            var arguments = instance.ManagementMode == WebServerManagementMode.Managed
-                ? ManagedArguments(GetManagedLayout(), ["-s", "reload"])
-                : new[] { "-s", "reload" };
             return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
-                new WebServerOperationResult((await RunNginxAsync(instance.ExecutablePath, arguments, ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
+            {
+                var success = instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService()
+                    ? await RunSystemdNginxAsync("reload", ct)
+                    : (await RunNginxAsync(instance.ExecutablePath,
+                        instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], ct)).Success;
+                return new WebServerOperationResult(success ? "" : "webserver.reload_failed");
+            }, lifetime.ApplicationStopping);
         }
         if (action == WebServerLifecycleAction.EnableAcmeHttp01)
         {
@@ -553,13 +545,16 @@ internal sealed partial class NginxWebServerManager(
         var testProblem = await TestConfigurationAsync(instance, cancellationToken);
         if (testProblem is not null) return testProblem;
         var running = instance.ManagementMode == WebServerManagementMode.Managed
-            ? IsManagedNginxRunning(GetManagedLayout())
+            ? UsesSystemPackageManagedService()
+                ? await IsSystemdNginxActiveAsync(cancellationToken)
+                : IsManagedNginxRunning(GetManagedLayout())
             : IsNginxRunning(instance.ExecutablePath);
         if (!running) return null;
-        var arguments = instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : new[] { "-s", "reload" };
-        var reload = await RunNginxAsync(instance.ExecutablePath, arguments, cancellationToken);
-        if (reload.Success) return null;
-        logger.LogWarning("Nginx site configuration reload failed. InstanceId={InstanceId}, Output={Output}", instance.Id, CommandOutputForLog(reload.Output));
+        var reloaded = instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService()
+            ? await RunSystemdNginxAsync("reload", cancellationToken)
+            : (await RunNginxAsync(instance.ExecutablePath, instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], cancellationToken)).Success;
+        if (reloaded) return null;
+        logger.LogWarning("Nginx site configuration reload failed. InstanceId={InstanceId}", instance.Id);
         return "webserver.site_reload_failed";
     }
 
@@ -602,8 +597,10 @@ internal sealed partial class NginxWebServerManager(
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    private static string GetStaticSitesRoot(WebServerDto instance)
+    private string GetStaticSitesRoot(WebServerDto instance)
     {
+        if (instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService())
+            return Path.Combine(GetManagedLayout().Root, "sites");
         var configDirectory = Path.GetDirectoryName(instance.ConfigurationPath!)!;
         return Path.Combine(configDirectory, "remoteos-sites");
     }
@@ -1005,6 +1002,21 @@ internal sealed partial class NginxWebServerManager(
 
     private async Task<WebServerOperationResult> ApplyManagedLifecycleCoreAsync(ManagedLayout layout, WebServerLifecycleAction action, CancellationToken cancellationToken)
     {
+        if (UsesSystemPackageManagedService())
+        {
+            await StopLegacyCustomManagedInstanceAsync(layout, cancellationToken);
+            var command = action switch
+            {
+                WebServerLifecycleAction.Start => "start",
+                WebServerLifecycleAction.Stop => "stop",
+                WebServerLifecycleAction.Restart => "restart",
+                _ => null
+            };
+            if (command is not "stop" && !await RunSystemdNginxAsync("enable", cancellationToken))
+                return new WebServerOperationResult($"webserver.{action.ToString().ToLowerInvariant()}_failed");
+            var success = command is not null && await RunSystemdNginxAsync(command, cancellationToken);
+            return new WebServerOperationResult(success ? "" : $"webserver.{action.ToString().ToLowerInvariant()}_failed");
+        }
         var result = action switch
         {
             WebServerLifecycleAction.Start => await StartManagedAsync(layout, cancellationToken),
@@ -1018,7 +1030,13 @@ internal sealed partial class NginxWebServerManager(
     private async Task<WebServerOperationResult> UninstallManagedCoreAsync(ManagedLayout layout, CancellationToken cancellationToken)
     {
         if (!IsManagedInstallation(layout)) return new WebServerOperationResult("webserver.managed_required");
-        _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
+        if (UsesSystemPackageManagedService())
+        {
+            await StopLegacyCustomManagedInstanceAsync(layout, cancellationToken);
+            _ = await RunSystemdNginxAsync("disable", cancellationToken, "--now");
+        }
+        else
+            _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
         try
         {
             if (UsesSystemPackageManagedExecutable()
@@ -1085,27 +1103,33 @@ internal sealed partial class NginxWebServerManager(
         try
         {
             if (IsSymbolicLink(layout.Root)) return false;
-            Directory.CreateDirectory(Path.Combine(layout.Root, "conf", "conf.d"));
-            Directory.CreateDirectory(Path.Combine(layout.Root, "logs"));
-            await File.WriteAllTextAsync(layout.ConfigurationPath, ManagedConfiguration, new UTF8Encoding(false), cancellationToken);
-            // Debian-family packages normally start nginx after installation.  RemoteOS uses
-            // the package's one executable with its own configuration, so stop and disable the
-            // package service before the managed instance is ever started.
-            return await StopDistributionNginxServiceAsync(layout.ExecutablePath, cancellationToken);
+            Directory.CreateDirectory(layout.Root);
+            // The APT package owns both the executable and nginx.service. Keep that service
+            // enabled and let systemd own the daemon lifecycle; RemoteOS manages only its
+            // package ownership marker and the files it creates in /etc/nginx/conf.d.
+            return await RunSystemdNginxAsync("enable", cancellationToken, "--now");
         }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    private async Task<bool> StopDistributionNginxServiceAsync(string executable, CancellationToken cancellationToken)
+    private async Task<bool> RunSystemdNginxAsync(string command, CancellationToken cancellationToken, params string[] additionalArguments)
     {
-        if (File.Exists("/usr/bin/systemctl"))
-            _ = await RunProcessAsync("/usr/bin/systemctl", ["disable", "--now", "nginx.service"], cancellationToken);
-        if (IsNginxRunning(executable))
-            _ = await RunNginxAsync(executable, ["-s", "quit"], cancellationToken);
-        for (var attempt = 0; attempt < 20 && IsNginxRunning(executable); attempt++)
-            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
-        return !IsNginxRunning(executable);
+        if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/systemctl")) return false;
+        var arguments = new List<string> { command };
+        arguments.AddRange(additionalArguments);
+        arguments.Add("nginx.service");
+        return await RunProcessAsync("/usr/bin/systemctl", arguments, cancellationToken);
+    }
+
+    private Task<bool> IsSystemdNginxActiveAsync(CancellationToken cancellationToken) =>
+        RunSystemdNginxAsync("is-active", cancellationToken, "--quiet");
+
+    private async Task StopLegacyCustomManagedInstanceAsync(ManagedLayout layout, CancellationToken cancellationToken)
+    {
+        var legacyConfiguration = Path.Combine(layout.Root, "conf", "nginx.conf");
+        if (!OperatingSystem.IsLinux() || !File.Exists(legacyConfiguration) || IsSymbolicLink(legacyConfiguration)) return;
+        _ = await RunNginxAsync(layout.ExecutablePath, ["-p", layout.Root, "-c", legacyConfiguration, "-s", "quit"], cancellationToken);
     }
 
     private static async Task<bool> RunProcessAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
@@ -1137,16 +1161,23 @@ internal sealed partial class NginxWebServerManager(
         // it into the RemoteOS data directory after installing the package, which produced a
         // second Nginx installation and a second discovered instance.
         var executable = ResolveManagedExecutablePath(root, UsesSystemPackageManagedExecutable());
-        return new ManagedLayout(root, executable, Path.Combine(root, "conf", "nginx.conf"), Path.Combine(root, ManagedMarkerName), InstanceId(executable));
+        var configuration = ResolveManagedConfigurationPath(root, UsesSystemPackageManagedService());
+        return new ManagedLayout(root, executable, configuration, Path.Combine(root, ManagedMarkerName), InstanceId(executable));
     }
 
     private bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux() && !IsConfiguredInstaller();
+
+    private bool UsesSystemPackageManagedService() => UsesSystemPackageManagedExecutable();
 
     private static string ResolveManagedExecutablePath(string root, bool useSystemPackageExecutable) => OperatingSystem.IsWindows()
         ? Path.Combine(root, "nginx.exe")
         : useSystemPackageExecutable
             ? "/usr/sbin/nginx"
             : Path.Combine(root, "sbin", "nginx");
+
+    private static string ResolveManagedConfigurationPath(string root, bool useSystemPackageService) => useSystemPackageService
+        ? "/etc/nginx/nginx.conf"
+        : Path.Combine(root, "conf", "nginx.conf");
 
     private static bool IsManagedInstallation(ManagedLayout layout)
     {
@@ -1160,7 +1191,9 @@ internal sealed partial class NginxWebServerManager(
         catch (UnauthorizedAccessException) { return false; }
     }
 
-    private static IReadOnlyList<string> ManagedArguments(ManagedLayout layout, IReadOnlyList<string> operation) => ["-p", layout.Root, "-c", layout.ConfigurationPath, .. operation];
+    private IReadOnlyList<string> ManagedArguments(ManagedLayout layout, IReadOnlyList<string> operation) => UsesSystemPackageManagedService()
+        ? operation
+        : ["-p", layout.Root, "-c", layout.ConfigurationPath, .. operation];
 
     private static WebServerOperationDto Rejected(string instanceId, string kind, string problemCode) =>
         new(Guid.Empty, instanceId, kind, WebServerOperationState.Failed, "validation", problemCode, null, null, DateTimeOffset.UtcNow);
@@ -1299,28 +1332,30 @@ internal sealed partial class NginxWebServerManager(
     }
 
     /// <summary>Uses the PID written by the RemoteOS-owned configuration instead of a host-wide
-    /// process-name scan.  This keeps the managed instance independent from any external Nginx.</summary>
+    /// process-name scan. This keeps the managed instance independent from any external Nginx.</summary>
     private static bool IsManagedNginxRunning(ManagedLayout layout)
     {
         var pidPath = Path.Combine(layout.Root, "logs", "nginx.pid");
+        var pid = 0;
         try
         {
             if (!File.Exists(pidPath) || IsSymbolicLink(pidPath)
-                || !int.TryParse(File.ReadAllText(pidPath).Trim(), out var pid) || pid <= 0) return false;
+                || !int.TryParse(File.ReadAllText(pidPath).Trim(), out pid) || pid <= 0) return false;
+            if (OperatingSystem.IsLinux() && !IsPosixProcessAlive(pid)) return false;
             using var process = Process.GetProcessById(pid);
             if (IsNginxProcess(process, layout.ExecutablePath)) return true;
-            // Upgrade compatibility: old Linux builds copied the package executable into the
-            // managed root.  Treat that still-running process as managed so stop/restart can
-            // transition it cleanly to the one package executable.
-            var legacyExecutable = Path.Combine(layout.Root, "sbin", "nginx");
-            return OperatingSystem.IsLinux()
-                && !string.Equals(legacyExecutable, layout.ExecutablePath, StringComparison.Ordinal)
-                && IsNginxProcess(process, legacyExecutable);
+            // Some Ubuntu/systemd configurations deny both Process.MainModule and
+            // /proc/<pid>/exe to the RemoteOS service. The PID is written to a regular,
+            // RemoteOS-owned file by this exact configuration, so a live Nginx process at
+            // that PID remains a reliable managed-instance signal when image inspection is
+            // unavailable. This is intentionally not used for external instances.
+            return !process.HasExited && IsNginxProcessName(process.ProcessName);
         }
         catch (ArgumentException) { return false; }
         catch (InvalidOperationException) { return false; }
         catch (IOException) { return false; }
         catch (UnauthorizedAccessException) { return false; }
+        catch (System.ComponentModel.Win32Exception) when (OperatingSystem.IsLinux()) { return IsPosixProcessAlive(pid); }
     }
 
     private static bool IsNginxProcess(Process process, string executablePath)
@@ -1354,6 +1389,18 @@ internal sealed partial class NginxWebServerManager(
         catch (System.ComponentModel.Win32Exception) { return false; }
         catch (NotSupportedException) { return false; }
     }
+
+    /// <summary>On Linux, use the kernel's process-existence check rather than /proc metadata.
+    /// Signal 0 does not alter the target process. An EPERM result still proves it exists.</summary>
+    private static bool IsPosixProcessAlive(int pid)
+    {
+        if (!OperatingSystem.IsLinux()) return false;
+        if (Kill(pid, 0) == 0) return true;
+        return Marshal.GetLastPInvokeError() == 1; // EPERM
+    }
+
+    [DllImport("libc", SetLastError = true, EntryPoint = "kill")]
+    private static extern int Kill(int pid, int signal);
 
     private static bool IsNginxProcessName(string processName) =>
         string.Equals(processName, "nginx", StringComparison.OrdinalIgnoreCase)

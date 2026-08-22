@@ -81,7 +81,7 @@
     "webservers.managed.package_file_type": "Nginx Windows ZIP 包",
     "webservers.managed.uninstall": "卸载受管 Nginx",
     "webservers.managed.install.title": "安装受管 Nginx",
-    "webservers.managed.install.message": "此操作会使用系统软件源安装一个 Nginx，并以该唯一可执行文件配合 RemoteOS 专用配置运行。继续吗？",
+    "webservers.managed.install.message": "此操作会使用系统软件源安装 Nginx，并由系统服务 nginx.service 管理其启动、停止、重启和开机自启。RemoteOS 只管理自己的站点配置。继续吗？",
     "webservers.managed.install.confirm": "确认安装",
     "webservers.managed.existing.title": "发现现有 Nginx 安装",
     "webservers.managed.existing.message": "RemoteOS 的受管目录中已存在未标记的 Nginx 安装。可以先验证配置并复用它，或删除该目录后重新安装。删除操作不可恢复。",

@@ -81,7 +81,7 @@
     "webservers.managed.package_file_type": "Nginx Windows ZIP package",
     "webservers.managed.uninstall": "Uninstall managed Nginx",
     "webservers.managed.install.title": "Install managed Nginx",
-    "webservers.managed.install.message": "This installs one Nginx from the system package source and runs its only executable with an isolated RemoteOS configuration. Continue?",
+    "webservers.managed.install.message": "This installs Nginx from the system package source and lets nginx.service manage start, stop, restart, and startup. RemoteOS manages only its own site configuration. Continue?",
     "webservers.managed.install.confirm": "Install",
     "webservers.managed.existing.title": "Existing Nginx installation found",
     "webservers.managed.existing.message": "An unmarked Nginx installation already exists in the RemoteOS-managed directory. You can validate and reuse it, or delete that directory and reinstall. Deletion cannot be undone.",

@@ -81,7 +81,7 @@
     "webservers.managed.package_file_type": "Nginx Windows ZIP パッケージ",
     "webservers.managed.uninstall": "管理対象 Nginx をアンインストール",
     "webservers.managed.install.title": "管理対象 Nginx をインストール",
-    "webservers.managed.install.message": "システムのパッケージソースから Nginx を 1 つインストールし、その唯一の実行ファイルを RemoteOS 専用構成で実行します。続行しますか？",
+    "webservers.managed.install.message": "システムのパッケージソースから Nginx をインストールし、nginx.service が開始、停止、再起動、および起動時の実行を管理します。RemoteOS は自分のサイト構成のみを管理します。続行しますか？",
     "webservers.managed.install.confirm": "インストール",
     "webservers.managed.existing.title": "既存の Nginx インストールを検出",
     "webservers.managed.existing.message": "RemoteOS 管理ディレクトリに、マークされていない Nginx インストールが存在します。構成を検証して再利用するか、そのディレクトリを削除して再インストールできます。削除は元に戻せません。",
