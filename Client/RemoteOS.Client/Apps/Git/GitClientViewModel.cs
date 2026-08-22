@@ -43,7 +43,12 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Gets the selected file paths for commit.</summary>
     public IReadOnlyList<string> SelectedFilePaths => Changes.Where(c => c.IsSelected).Select(c => c.Path).ToArray();
 
-    [ObservableProperty] private GitRepositoryDto? _selectedRepository;
+    // These commands share CanManage.  Notify them when a project is opened from
+    // the picker (including a recent/history entry), otherwise their initial
+    // disabled state is retained by Avalonia.
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand))]
+    private GitRepositoryDto? _selectedRepository;
     [ObservableProperty] private GitClientPage _activePage = GitClientPage.Overview;
     [ObservableProperty] private GitStatusDto? _status;
     [ObservableProperty] private GitBranchDto? _selectedBranch;
@@ -52,7 +57,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private GitDiffDto? _fileDiff;
     [ObservableProperty] private GitRemoteDto? _selectedRemote;
     [ObservableProperty] private string _statusText = LocalizedText.Get("git.status.loading");
-    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand))]
+    private bool _isBusy;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private string _commitMessage = string.Empty;
     [ObservableProperty] private bool _hasConflicts;
