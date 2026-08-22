@@ -98,19 +98,17 @@ public sealed class FirewallApp : RemoteApplicationBase
         context.ShowDialogAsync<bool>(owner,
             LocalizedText.Get(editing ? "firewall.rule.edit_dialog_title" : "firewall.rule.add_dialog_title"), dialog =>
             {
-                var content = new StackPanel { Spacing = 12, Margin = new Avalonia.Thickness(20), DataContext = vm };
-                content.Children.Add(new TextBlock { Text = LocalizedText.Get("firewall.rule.help"), TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+                var content = new DockPanel { Margin = new Avalonia.Thickness(20), LastChildFill = true, DataContext = vm };
+                var help = new TextBlock { Text = LocalizedText.Get("firewall.rule.help"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Avalonia.Thickness(0, 0, 0, 12) };
+                DockPanel.SetDock(help, Dock.Top);
+                content.Children.Add(help);
                 var status = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
                 status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(vm.StatusText)));
+                status.Margin = new Avalonia.Thickness(0, 0, 0, 12);
+                DockPanel.SetDock(status, Dock.Top);
                 content.Children.Add(status);
-                content.Children.Add(ChoiceField(vm, nameof(vm.SelectedAction), vm.Actions, "firewall.rule.action", 360));
-                content.Children.Add(ChoiceField(vm, nameof(vm.SelectedDirection), vm.Directions, "firewall.rule.direction", 360));
-                content.Children.Add(ChoiceField(vm, nameof(vm.SelectedProtocol), vm.Protocols, "firewall.rule.protocol", 360));
-                content.Children.Add(TextField(vm, nameof(vm.Source), "firewall.rule.source", "firewall.rule.source_hint", 360, "firewall.rule.source_tooltip"));
-                content.Children.Add(TextField(vm, nameof(vm.Destination), "firewall.rule.destination", "firewall.rule.destination_hint", 360, "firewall.rule.destination_tooltip"));
-                content.Children.Add(TextField(vm, nameof(vm.Port), "firewall.rule.port", "firewall.rule.port_hint", 360));
 
-                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Avalonia.Thickness(0, 12, 0, 0) };
                 var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
                 cancel.Click += (_, _) => dialog.Cancel();
                 var save = new Button { Content = LocalizedText.Get(editing ? "firewall.rule.update" : "firewall.rule.add"), Classes = { "primary" } };
@@ -121,7 +119,22 @@ public sealed class FirewallApp : RemoteApplicationBase
                 };
                 actions.Children.Add(cancel);
                 actions.Children.Add(save);
+                DockPanel.SetDock(actions, Dock.Bottom);
                 content.Children.Add(actions);
+
+                var fields = new StackPanel { Spacing = 12 };
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedAction), vm.Actions, "firewall.rule.action", 360));
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedDirection), vm.Directions, "firewall.rule.direction", 360));
+                fields.Children.Add(ChoiceField(vm, nameof(vm.SelectedProtocol), vm.Protocols, "firewall.rule.protocol", 360));
+                fields.Children.Add(TextField(vm, nameof(vm.Source), "firewall.rule.source", "firewall.rule.source_hint", 360, "firewall.rule.source_tooltip"));
+                fields.Children.Add(TextField(vm, nameof(vm.Destination), "firewall.rule.destination", "firewall.rule.destination_hint", 360, "firewall.rule.destination_tooltip"));
+                fields.Children.Add(TextField(vm, nameof(vm.Port), "firewall.rule.port", "firewall.rule.port_hint", 360));
+                content.Children.Add(new ScrollViewer
+                {
+                    Content = fields,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                });
                 return content;
             }, new RemoteOS.Core.Primitives.Size(460, 560));
 
