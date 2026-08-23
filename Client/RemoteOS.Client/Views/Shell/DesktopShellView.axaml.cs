@@ -256,7 +256,7 @@ public partial class DesktopShellView : UserControl
         shell.RequestOpenDesktopDisplaySettingsAsync = () =>
             ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("shell.desktop_display.title"),
                 new Size(560, 520),
-                complete => DesktopDisplayDialogs.BuildSettingsDialog(
+                complete => new DesktopDisplayDialogs(
                     shell.Settings,
                     applications,
                     () => shell.SavePreferencesFireAndForgetAsync(),
@@ -269,7 +269,7 @@ public partial class DesktopShellView : UserControl
             // 首次配置：先把「跳过也算完成」写入 HasCompletedFirstTimeSetup
             var confirmed = await ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("shell.desktop_display.welcome_title"),
                 new Size(580, 560),
-                complete => DesktopDisplayDialogs.BuildSettingsDialog(
+                complete => new DesktopDisplayDialogs(
                     shell.Settings,
                     applications,
                     async () =>
