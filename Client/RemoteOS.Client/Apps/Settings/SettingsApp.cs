@@ -87,8 +87,25 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
             });
             var file = selected.FirstOrDefault();
             if (file is null) return;
-            await using var stream = await file.OpenReadAsync();
-            await wallpapers.UploadAndApplyAsync(stream, file.Name);
+            try
+            {
+                await using var stream = await file.OpenReadAsync();
+                await wallpapers.UploadAndApplyAsync(stream, file.Name);
+            }
+            catch (OperationCanceledException)
+            {
+                // The picker, stream, or request was cancelled; no user-facing failure is needed.
+            }
+            catch (Exception ex)
+            {
+                await context.ShowDialogAsync<bool>(window, LocalizedText.Get("settings.wallpaper"), dialog => new ConfirmDialogView
+                {
+                    DataContext = new ConfirmDialogViewModel(
+                        LocalizedText.Format("settings.wallpaper.upload_failed", ex.Message),
+                        result => dialog.Close(result),
+                        LocalizedText.Get("common.ok")),
+                });
+            }
         };
         appsPage.RequestPermissionEditorAsync = async app =>
         {

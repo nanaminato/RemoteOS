@@ -67,9 +67,10 @@ public sealed record WorkspacePreferencesDto
         this.DesktopDisplay = DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
     }
 
-    // EF Core must use the parameterless constructor because DefaultApps is an owned
-    // collection navigation, not a scalar constructor binding.
-    private WorkspacePreferencesDto()
+    // Both EF Core and System.Text.Json must use the parameterless constructor. JSON cannot
+    // bind the public constructor's IReadOnlyList parameter to the mutable List property,
+    // while property-based deserialization preserves the wire contract for DefaultApps.
+    public WorkspacePreferencesDto()
         : this(string.Empty, default, string.Empty, string.Empty, string.Empty, string.Empty,
             [], TextEncodingPreferences.Default, TextEncodingPreferences.Default,
             DesktopDisplaySettingsDto.Default)

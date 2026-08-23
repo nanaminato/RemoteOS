@@ -88,6 +88,7 @@
         "settings.wallpaper.description": "Choose a desktop background preset or your own image.",
         "settings.wallpaper.choose_image": "Browse for an image",
         "settings.wallpaper.sync_hint": "Images are securely stored in this workspace and sync to your other devices.",
+        "settings.wallpaper.upload_failed": "Could not upload wallpaper: {0}",
         "settings.value.connected": "Connected",
         "settings.value.connecting": "Connecting…",
         "settings.value.not_connected": "Not connected",

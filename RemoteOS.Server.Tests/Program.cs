@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -26,12 +27,33 @@ try
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
+    VerifyWorkspacePreferencesJsonContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
+
 finally
 {
     if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+}
+
+static void VerifyWorkspacePreferencesJsonContract()
+{
+    var preferences = new WorkspacePreferencesDto(
+        WorkspacePreferencesDto.CustomWallpaperPrefix + Guid.NewGuid().ToString("N"),
+        ThemeKind.Dark,
+        WorkspacePreferencesDto.TimeFormat12H,
+        "M/d/yyyy",
+        "en-US",
+        "en-US",
+        [new DefaultAppMappingDto("https", "remoteos.browser")]);
+
+    var json = JsonSerializer.Serialize(preferences, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    var deserialized = JsonSerializer.Deserialize<WorkspacePreferencesDto>(json, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default)
+        ?? throw new InvalidOperationException("Workspace preferences JSON did not deserialize.");
+
+    Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
+    Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
 }
 
 static async Task VerifyCertificateStoreAndSniAsync(string root)

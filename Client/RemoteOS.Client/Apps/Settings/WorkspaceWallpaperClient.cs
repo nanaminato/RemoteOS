@@ -21,8 +21,20 @@ public sealed class WorkspaceWallpaperClient(HttpClient http) : IWallpaperClient
         request.Content = form;
         using var response = await http.SendAsync(request, ct);
         await EnsureSuccessAsync(response, ct);
-        return await response.Content.ReadFromJsonAsync<WorkspacePreferencesDto>(RemoteOsJsonOptions.Default, ct)
-            ?? throw new RemoteOsAuthException(EmptyResponse());
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<WorkspacePreferencesDto>(RemoteOsJsonOptions.Default, ct)
+                ?? throw new RemoteOsAuthException(EmptyResponse());
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or InvalidOperationException or NotSupportedException)
+        {
+            throw new RemoteOsAuthException(new ProblemDetails(
+                "https://remoteos.app/problems/invalid-response",
+                "Invalid server response",
+                502,
+                "The server returned invalid wallpaper preferences.",
+                null));
+        }
     }
 
     public async Task<byte[]> DownloadAsync(string serverUrl, string accessToken, Guid workspaceId, string blobId,
