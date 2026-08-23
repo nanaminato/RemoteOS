@@ -1674,15 +1674,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         if (branch is null) return;
         if (!branch.IsRemote)
         {
-            GitPullRequest? request = new();
+            GitPullRequest? branchRequest = new();
             if (ShowPullDialogAsync is not null)
-                request = await ShowPullDialogAsync();
-            if (request is null || SelectedRepository is null) return;
+                branchRequest = await ShowPullDialogAsync();
+            if (branchRequest is null || SelectedRepository is null) return;
 
             IsBusy = true;
             try
             {
-                var result = await client.PullAsync(SelectedRepository.Id, request with { Branch = branch.Name });
+                var result = await client.PullAsync(SelectedRepository.Id, branchRequest with { Branch = branch.Name });
                 if (result.Success)
                 {
                     StatusText = LocalizedText.Get("git.vm.pulled");
