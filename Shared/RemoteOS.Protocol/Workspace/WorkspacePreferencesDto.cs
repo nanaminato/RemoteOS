@@ -4,28 +4,73 @@ using RemoteOS.Protocol.Desktop;
 namespace RemoteOS.Protocol.Workspace;
 
 /// <summary>
-/// Workspace 级用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）。
+/// Workspace 级用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序 / 桌面显示配置）。
 /// 与 <see cref="TerminalSettingsDto"/> / <see cref="RemoteOS.Protocol.Browser.BrowserSettingsDto"/> 同模式：
 /// 作为 <c>OwnsOne + ToJson</c> 挂在 Workspace 上，单列 JSON 文本持久化（新增字段无需改 schema）。
 /// 多设备登录同一 Workspace 时共享同一份偏好。
 /// </summary>
-public sealed record WorkspacePreferencesDto(
-    [property: JsonPropertyName("wallpaperKey")] string WallpaperKey,
-    [property: JsonPropertyName("theme")] ThemeKind Theme,
-    [property: JsonPropertyName("timeFormat")] string TimeFormat,
-    [property: JsonPropertyName("dateFormat")] string DateFormat,
-    [property: JsonPropertyName("language")] string Language,
-    [property: JsonPropertyName("region")] string Region,
-    [property: JsonPropertyName("defaultApps")] IReadOnlyList<DefaultAppMappingDto> DefaultApps,
-    [property: JsonPropertyName("notepadDefaultEncoding")] string? NotepadDefaultEncoding = TextEncodingPreferences.Default,
-    [property: JsonPropertyName("codeEditorDefaultEncoding")] string? CodeEditorDefaultEncoding = TextEncodingPreferences.Default)
+public sealed record WorkspacePreferencesDto
 {
+    [property: JsonPropertyName("wallpaperKey")]
+    public string WallpaperKey { get; init; }
+
+    [property: JsonPropertyName("theme")]
+    public ThemeKind Theme { get; init; }
+
+    [property: JsonPropertyName("timeFormat")]
+    public string TimeFormat { get; init; }
+
+    [property: JsonPropertyName("dateFormat")]
+    public string DateFormat { get; init; }
+
+    [property: JsonPropertyName("language")]
+    public string Language { get; init; }
+
+    [property: JsonPropertyName("region")]
+    public string Region { get; init; }
+
+    [property: JsonPropertyName("defaultApps")]
+    public IReadOnlyList<DefaultAppMappingDto> DefaultApps { get; init; }
+
+    [property: JsonPropertyName("notepadDefaultEncoding")]
+    public string? NotepadDefaultEncoding { get; init; }
+
+    [property: JsonPropertyName("codeEditorDefaultEncoding")]
+    public string? CodeEditorDefaultEncoding { get; init; }
+
+    /// <summary>桌面显示项目配置。</summary>
+    [property: JsonPropertyName("desktopDisplay")]
+    public DesktopDisplaySettingsDto DesktopDisplay { get; init; }
+
     // EF Core materializes the scalar JSON properties after constructing the owned type.
-    // The public positional constructor cannot be used because DefaultApps is an owned
-    // collection navigation rather than a scalar property.
+    public WorkspacePreferencesDto(
+        string wallpaperKey,
+        ThemeKind theme,
+        string timeFormat,
+        string dateFormat,
+        string language,
+        string region,
+        IReadOnlyList<DefaultAppMappingDto> defaultApps,
+        string? notepadDefaultEncoding = TextEncodingPreferences.Default,
+        string? codeEditorDefaultEncoding = TextEncodingPreferences.Default,
+        DesktopDisplaySettingsDto? desktopDisplay = null)
+    {
+        WallpaperKey = wallpaperKey;
+        Theme = theme;
+        TimeFormat = timeFormat;
+        DateFormat = dateFormat;
+        Language = language;
+        Region = region;
+        DefaultApps = defaultApps;
+        NotepadDefaultEncoding = notepadDefaultEncoding;
+        CodeEditorDefaultEncoding = codeEditorDefaultEncoding;
+        DesktopDisplay = desktopDisplay ?? DesktopDisplaySettingsDto.Default;
+    }
+
     private WorkspacePreferencesDto()
         : this(string.Empty, default, string.Empty, string.Empty, string.Empty, string.Empty,
-            new List<DefaultAppMappingDto>())
+            new List<DefaultAppMappingDto>(), TextEncodingPreferences.Default, TextEncodingPreferences.Default,
+            DesktopDisplaySettingsDto.Default)
     {
     }
 
@@ -51,5 +96,6 @@ public sealed record WorkspacePreferencesDto(
         Region: "en-US",
         DefaultApps: Array.Empty<DefaultAppMappingDto>(),
         NotepadDefaultEncoding: TextEncodingPreferences.Default,
-        CodeEditorDefaultEncoding: TextEncodingPreferences.Default);
+        CodeEditorDefaultEncoding: TextEncodingPreferences.Default,
+        DesktopDisplay: DesktopDisplaySettingsDto.Default);
 }
