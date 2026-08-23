@@ -7,7 +7,10 @@ public sealed class JwtOptions
     public string Issuer { get; set; } = "RemoteOS.Server";
     public string Audience { get; set; } = "RemoteOS.Client";
     public TimeSpan AccessTokenTtl { get; set; } = TimeSpan.FromMinutes(15);
+    /// <summary>Maximum idle interval between refreshes.</summary>
     public TimeSpan RefreshTokenTtl { get; set; } = TimeSpan.FromDays(7);
+    /// <summary>Hard upper bound for one in-memory sign-in session, even when it remains active.</summary>
+    public TimeSpan RefreshTokenMaximumLifetime { get; set; } = TimeSpan.FromDays(30);
     public TimeSpan FileCapabilityTokenTtl { get; set; } = TimeSpan.FromMinutes(5);
     public TimeSpan MediaLeaseTtl { get; set; } = TimeSpan.FromMinutes(2);
     public TimeSpan MediaLeaseMaximumLifetime { get; set; } = TimeSpan.FromHours(8);

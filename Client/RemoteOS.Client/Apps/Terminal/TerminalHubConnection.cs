@@ -18,7 +18,7 @@ public static class TerminalHubConnection
             .WithUrl(opts.HubUrl, http =>
             {
                 http.AccessTokenProvider = () =>
-                    Task.FromResult<string?>(opts.TokenProvider?.Invoke() ?? opts.AccessToken);
+                    opts.TokenProvider?.Invoke() ?? Task.FromResult(opts.AccessToken);
                 if (opts.Diagnostics is not null)
                     http.HttpMessageHandlerFactory = inner => new NetworkDiagnosticsHandler(opts.Diagnostics, "terminal-signalr")
                     {

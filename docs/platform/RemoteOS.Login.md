@@ -34,7 +34,7 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 
 **已实现**：
 
-- 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（可选记住设备）+ 启动分叉
+- 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（可选记住设备）+ 统一 bearer 自动刷新/401 单次重试 + 启动分叉
 - 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser）+ `LinuxPamProvider`（PAM 认证与账户检查、NSS 用户信息）+ SQLite 持久化仓储（User/Workspace/Device/Bookmark/HistoryEntry，Session/刷新令牌/PTY 内存）
 - 协议：零改动（复用 Protocol 已有的 `LoginRequest`/`LoginResponse`/`AuthTokens`/`AuthApiRoutes`/`ProblemDetails`）
 
@@ -181,15 +181,15 @@ IIdentityProvider
 JwtTokenService.Issue(user, workspace, device, role)
     |
     AccessToken (15min, HMACSHA256)
-      claims: sub=userId, name=username, workspace_id, device_id, role, jti=sessionId
+      claims: sub=userId, name=username, workspace_id, device_id, role, jti=tokenId
     |
-    RefreshToken (7d, 随机 32 字节)
-      登记到 AuthSessionStore（refreshToken → sessionId/userId/workspaceId/deviceId/exp）
+    RefreshToken (7d idle, 30d absolute, 随机 32 字节)
+      仅保存在 Client/Server 当前进程内，登记到 AuthSessionStore
 ```
 
 - AccessToken：REST/Hub 鉴权，`Authorization: Bearer <token>`。
-- RefreshToken：换新用，一次性（刷新后旧 token 吊销）。
-- `AuthSessionStore`：单例 `ConcurrentDictionary`，支持校验/吊销。
+- RefreshToken：换新用，一次性（原子消费后签发后继 token）；**不会**持久化到客户端或服务端数据库。
+- `AuthSessionStore`：单例 `ConcurrentDictionary`，支持原子消费/吊销，并定期清理过期项；服务端重启会令当前 refresh token 失效。
 - 密钥：`appsettings.json` `Jwt:Secret`（≥32 字符），Production 启动校验非默认值。
 
 ### 4.4 内存仓储与领域模型
@@ -259,19 +259,22 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 ## 7. Token 生命周期
 
 ```text
-登录 → AccessToken(15min) + RefreshToken(7d)
+登录 → AccessToken(15min) + RefreshToken(7d idle / 30d absolute)
           |
-          AccessToken 过期 → RefreshAsync(refresh) → 新 AccessToken + 新 RefreshToken（旧 refresh 吊销）
+          每个受保护 API 请求 → 到期前自动 RefreshAsync；收到 401 时刷新并单次重试
           |
-          RefreshToken 过期/失效 → 从系统安全存储读取密码并直接重新登录
-          系统凭据被删除或密码已变更 → 回 LoginWindow 重新登录
+          AccessToken 过期 → 新 AccessToken + 新 RefreshToken（旧 refresh 原子消费）
+          |
+          RefreshToken 过期/失效 → 回 LoginWindow；若用户已保存密码则自动回填，用户确认后重新登录
+          系统凭据未保存、被删除或密码已变更 → 在 LoginWindow 手动重新登录
           |
           登出 → LogoutAsync → 吊销 RefreshToken（AccessToken 自然过期）
 ```
 
 - AccessToken TTL：15 分钟（`Jwt:AccessTokenTtl`）。
-- RefreshToken TTL：7 天（`Jwt:RefreshTokenTtl`）。
-- 刷新失败（refresh 过期/已吊销）→ `AuthSession.Reset()` → 状态回 `Unauthenticated`。
+- RefreshToken idle TTL：7 天（`Jwt:RefreshTokenTtl`）；绝对会话上限：30 天（`Jwt:RefreshTokenMaximumLifetime`）。每次刷新延长 idle TTL，但不会超过绝对上限。
+- refresh token 不写入本地凭据库，故它只服务于持续运行的客户端会话；客户端退出或服务端重启后，用户可用已选择保存的系统密码再次登录。
+- 只有 refresh 明确返回 401（过期/吊销/服务端重启）才会 `AuthSession.Reset()` 并回到登录窗；网络故障不会错误清空会话。
 - **桌面外壳衔接**：登录后 `MainWindow` 的 mstsc 连接栏"关闭连接"与标题栏"关闭"均触发 `IAuthSession.LogoutAsync()` 后 `MainWindow.Close()`（当前阶段断开即退出进程，不回登录窗），详见 [`RemoteOS.Desktop.md`](../desktop/RemoteOS.Desktop.md) §2.4。
 
 ---
@@ -287,7 +290,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 | 自动登录凭据 | Windows DPAPI / macOS Keychain / Linux Secret Service（勾选后启用） | Linux 桌面密钥环不可用时仅密码不保存；服务器/用户名列表仍持久化，可正常手动登录 |
 | 持久化仓储 | SQLite + EF Core（User/Workspace/Device/Bookmark/HistoryEntry），Session/刷新令牌内存 | 全量持久化按需扩展 |
 | 多设备控制权竞争 | 单设备 = Controller | Observer/Request Control 弹窗（Workspace.md §21） |
-| Token 自动刷新拦截 | 手动 RefreshAsync | DelegatingHandler 自动刷新 + 重试 |
+| Token 自动刷新拦截 | 统一 `AuthenticatedHttpHandler` | 到期前刷新 + 401 后单次刷新并重试；并发请求共用一次 refresh |
 
 Linux 服务端部署要求系统提供 PAM 运行库（Ubuntu 的 `libpam0g`，通常由基础系统预装）以及可用的 `login` PAM service。RemoteOS 不读取 `/etc/shadow`，也不保存或记录登录请求中的密码；PAM conversation 仅在同步认证调用期间持有凭据。账户信息通过 NSS 查询，因此系统配置的 SSSD/LDAP 用户同样可被解析。
 

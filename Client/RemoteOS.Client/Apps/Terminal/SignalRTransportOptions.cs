@@ -15,7 +15,7 @@ public sealed class SignalRTransportOptions : ITerminalTransportOptions
 
     public string HubUrl { get; }
     public string? AccessToken { get; }
-    public Func<string?>? TokenProvider { get; }
+    public Func<Task<string?>>? TokenProvider { get; }
     public string? Shell { get; }
     public string? WorkingDirectory { get; }
     public string? SessionId { get; }
@@ -24,7 +24,7 @@ public sealed class SignalRTransportOptions : ITerminalTransportOptions
     public SignalRTransportOptions(
         string hubUrl,
         TerminalSessionDimensions dimensions,
-        Func<string?>? tokenProvider = null,
+        Func<Task<string?>>? tokenProvider = null,
         string? accessToken = null,
         string? shell = null,
         string? workingDirectory = null,
