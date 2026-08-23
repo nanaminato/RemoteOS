@@ -8,7 +8,8 @@
              x:DataType="git:GitClientViewModel"
              x:CompileBindings="False"
              Background="#F4F7FB">
-    <Grid ColumnDefinitions="220,5,*,5,360" MinHeight="380">
+    <Grid x:Name="LogLayoutRoot" ColumnDefinitions="220,5,*,5,360" MinHeight="380"
+          SizeChanged="LogLayoutRoot_SizeChanged">
 
         <!-- ============================================================
              LEFT PANE : Branch / Tag Tree (Fork-style)
@@ -22,7 +23,8 @@
                         <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.branch_search_watermark}" BorderThickness="0" Background="Transparent"
                                  Text="{Binding BranchSearchText, Mode=TwoWay}"
-                                 FontSize="12" Foreground="#122344" Padding="0" />
+                                 FontSize="12" Foreground="#122344" Padding="0"
+                                 VerticalContentAlignment="Center" />
                     </Grid>
                 </Border>
 
@@ -139,31 +141,44 @@
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <!-- 搜索框 -->
-                            <Border Background="White" CornerRadius="6" Padding="8,3" MinWidth="260">
+                            <Border Background="White" CornerRadius="6" Padding="8,3" MinWidth="180">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
                                     <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.commit_search_watermark}" BorderThickness="0" Background="Transparent"
                                              Text="{Binding CommitSearchText, Mode=TwoWay}"
-                                             FontSize="12" Foreground="#122344" Padding="0" />
-                                    <Button Grid.Column="2" Content=".*" ToolTip.Tip="{loc:Loc git.log.regex}" FontSize="11" Padding="6,0"
-                                            Background="Transparent" Foreground="#668" BorderThickness="0" />
-                                    <Button Grid.Column="3" Content="Cc" ToolTip.Tip="{loc:Loc git.log.case_sensitive}" FontSize="11" Padding="4,0"
+                                             FontSize="12" Foreground="#122344" Padding="0"
+                                             VerticalContentAlignment="Center" />
+                                    <ToggleButton Grid.Column="2" Content=".*" ToolTip.Tip="{loc:Loc git.log.regex}" FontSize="11" Padding="6,0"
+                                                  IsChecked="{Binding IsLogRegex, Mode=TwoWay}"
+                                                  Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                    <ToggleButton Grid.Column="3" Content="Cc" ToolTip.Tip="{loc:Loc git.log.case_sensitive}" FontSize="11" Padding="4,0"
+                                                  IsChecked="{Binding IsLogCaseSensitive, Mode=TwoWay}"
+                                                  Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                    <Button Grid.Column="4" Content="🔍" ToolTip.Tip="{loc:Loc git.log.search_history}"
+                                            Command="{Binding ApplyLogFiltersCommand}" FontSize="11" Padding="4,0"
                                             Background="Transparent" Foreground="#668" BorderThickness="0" />
                                 </Grid>
                             </Border>
-                            <!-- 筛选下拉 -->
-                            <Button Content="{loc:Loc git.log.filter_branch}" FontSize="12" Padding="8,3" Background="#DCE6F4"
-                                    Foreground="#122344" BorderThickness="0" />
-                            <Button Content="{loc:Loc git.log.filter_user}" FontSize="12" Padding="8,3" Background="#DCE6F4"
-                                    Foreground="#122344" BorderThickness="0" />
-                            <Button Content="{loc:Loc git.log.filter_date}" FontSize="12" Padding="8,3" Background="#DCE6F4"
-                                    Foreground="#122344" BorderThickness="0" />
-                            <Button Content="{loc:Loc git.log.filter_path}" FontSize="12" Padding="8,3" Background="#DCE6F4"
-                                    Foreground="#122344" BorderThickness="0" />
-                            <Button Content="↓↑" ToolTip.Tip="{loc:Loc git.log.sort}" FontSize="12" Padding="8,3" Background="#DCE6F4"
-                                    Foreground="#122344" BorderThickness="0" />
+                            <!-- These controls issue a server-side git log query. -->
+                            <ComboBox x:Name="LogBranchFilter" Width="145" FontSize="12" Padding="6,2"
+                                      ItemsSource="{Binding LogBranchOptions}" SelectedItem="{Binding SelectedLogBranch, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox x:Name="LogAuthorFilter" Width="110" FontSize="12" Padding="6,2"
+                                      ItemsSource="{Binding LogAuthorOptions}" SelectedItem="{Binding SelectedLogAuthor, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <ComboBox x:Name="LogDateFilter" Width="92" FontSize="12" Padding="6,2"
+                                      ItemsSource="{Binding LogDateOptions}" SelectedItem="{Binding SelectedLogDate, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Border x:Name="LogPathFilter" Background="White" CornerRadius="6" Padding="6,2" Width="130">
+                                <TextBox Watermark="{loc:Loc git.log.filter_path}" BorderThickness="0" Background="Transparent"
+                                         Text="{Binding LogPathFilter, Mode=TwoWay}" FontSize="12" Padding="0"
+                                         VerticalContentAlignment="Center" />
+                            </Border>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                        <StackPanel x:Name="CommitToolbarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                             <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous}" FontSize="13" Padding="8,2" Background="Transparent"
                                     Foreground="#567" BorderThickness="0" />
                             <Button Content="⟳" ToolTip.Tip="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}"
@@ -180,17 +195,13 @@
                 <!-- 提交列表（ListBox 自定义 item，Fork 样式） -->
                 <ListBox Grid.Row="1" x:Name="CommitList" ItemsSource="{Binding Commits}"
                          SelectedItem="{Binding SelectedCommit, Mode=TwoWay}"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          Background="Transparent" Padding="4">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid ColumnDefinitions="22,*,Auto" MinHeight="32" Margin="2,1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="22" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                            <Grid ColumnDefinitions="22,*,Auto" MinHeight="32" MinWidth="0"
+                                  HorizontalAlignment="Stretch" ClipToBounds="True" Margin="2,1">
                                 <!-- 左侧：分支点图形 + HEAD/分支标记 -->
                                 <Grid Grid.Column="0" VerticalAlignment="Center">
                                     <Ellipse Width="10" Height="10" Fill="#4C6FFF"
@@ -198,7 +209,7 @@
                                              HorizontalAlignment="Center" />
                                 </Grid>
                                 <!-- 中：提交 subject -->
-                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="13"
+                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="13" MinWidth="0"
                                            Foreground="#122344" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
                                 <!-- 右：标签 + 作者 + 日期 -->
@@ -217,15 +228,15 @@
                                                 <Border Background="{Binding Bg}" CornerRadius="4" Padding="5,1">
                                                     <StackPanel Orientation="Horizontal" Spacing="2">
                                                         <TextBlock Text="{Binding Icon}" FontSize="10" />
-                                                        <TextBlock Text="{Binding Label}" FontSize="10"
+                                                        <TextBlock Text="{Binding Label}" FontSize="10" MaxWidth="140" TextTrimming="CharacterEllipsis"
                                                                    Foreground="{Binding Fg}" />
                                                     </StackPanel>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#567" />
-                                    <TextBlock Text="{Binding AuthorDate}" FontSize="11" Foreground="#8899B8" />
+                                    <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#567" MaxWidth="100" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AuthorDate}" FontSize="11" Foreground="#8899B8" MaxWidth="112" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -233,6 +244,8 @@
 
                     <ListBox.ItemContainerTheme>
                         <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalAlignment" Value="Stretch" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="ContextMenu">
                                 <ContextMenu>
                                     <MenuItem Header="{loc:Loc git.log.menu.copy_sha}"
@@ -316,7 +329,7 @@
                             <Run Text="  " />
                             <Run Text="{Binding CommitChangedFiles.Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.log.file_count_format'}" />
                         </TextBlock>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                        <StackPanel x:Name="FileToolbarActions" Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous_file}" FontSize="12" Padding="6,1"
                                     Background="Transparent" Foreground="#567" BorderThickness="0" />
                             <Button Content="↷" ToolTip.Tip="{loc:Loc git.log.next_file}" FontSize="12" Padding="6,1"
@@ -329,7 +342,7 @@
 
                 <!-- 变更文件树（按路径分层展示） -->
                 <TreeView Grid.Row="1" x:Name="ChangedFileTree"
-                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                           SelectionChanged="ChangedFileTree_SelectionChanged">
                     <TreeView.ItemTemplate>
