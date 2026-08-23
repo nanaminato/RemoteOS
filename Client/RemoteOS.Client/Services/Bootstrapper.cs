@@ -109,6 +109,7 @@ public static class Bootstrapper
         services.AddSingleton<IAppActivationDiagnostics, UriSchemeRoutingDiagnostics>();
         services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
+        services.AddSingleton<ITextFileSniffer, TextFileSniffer>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<IAppPermissionRequestService, AppPermissionRequestService>();
         services.AddSingleton<IAppDataManager, AppDataManager>();
@@ -174,7 +175,8 @@ public static class Bootstrapper
                 sp.GetRequiredService<Client.Apps.Explorer.IRemoteFileClipboard>(),
                 sp.GetRequiredService<DefaultAppRegistry>(),
                 sp.GetRequiredService<ISettingsClient>(),
-                sp.GetRequiredService<IAppActivationDiagnostics>());
+                sp.GetRequiredService<IAppActivationDiagnostics>(),
+                sp.GetRequiredService<ITextFileSniffer>());
         });
 
         services.AddSingleton<DesktopRestoreOrchestrator>();

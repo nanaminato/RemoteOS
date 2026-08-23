@@ -38,6 +38,7 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly DefaultAppRegistry _defaultApps;
     private readonly ISettingsClient _settingsClient;
     private readonly IAppActivationDiagnostics _activationDiagnostics;
+    private readonly ITextFileSniffer _textSniffer;
     private int _desktopFileLoadGeneration;
 
     public DesktopShellViewModel(
@@ -52,7 +53,8 @@ public partial class DesktopShellViewModel : ObservableObject
         IRemoteFileClipboard fileClipboard,
         DefaultAppRegistry defaultApps,
         ISettingsClient settingsClient,
-        IAppActivationDiagnostics activationDiagnostics)
+        IAppActivationDiagnostics activationDiagnostics,
+        ITextFileSniffer textSniffer)
     {
         _windowManager = windowManager;
         _applications = applications;
@@ -66,6 +68,7 @@ public partial class DesktopShellViewModel : ObservableObject
         _defaultApps = defaultApps;
         _settingsClient = settingsClient;
         _activationDiagnostics = activationDiagnostics;
+        _textSniffer = textSniffer;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
@@ -212,7 +215,7 @@ public partial class DesktopShellViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenDesktopEntry(DesktopFileEntryViewModel? item)
+    private async Task OpenDesktopEntryAsync(DesktopFileEntryViewModel? item)
     {
         if (item is null)
         {
@@ -234,14 +237,32 @@ public partial class DesktopShellViewModel : ObservableObject
             : _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault()?.Id;
         RecordDesktopFileMenuDiagnostic(
             $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}.");
-        if (opener is null)
+        if (opener is not null)
         {
-            RecordDesktopFileMenuDiagnostic("file open stopped: no compatible file opener was registered.");
+            var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
+            RecordDesktopFileMenuDiagnostic($"file open result: entry={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
             return;
         }
 
-        var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
-        RecordDesktopFileMenuDiagnostic($"file open result: entry={item.DisplayName}, result={result.Status}, target={result.TargetAppId?.Value ?? "<none>"}.");
+        // 没有任何应用显式声明支持该扩展名：嗅探文件是否为文本，是文本就用默认文本编辑器
+        // （首个 SupportsTextFiles 应用）作为兜底打开。双击路径不弹"打开方式"对话框以避免打断流。
+        if (_applications.TextFileOpeners.Count == 0)
+        {
+            RecordDesktopFileMenuDiagnostic("file open stopped: no compatible opener and no text-capable fallback registered.");
+            return;
+        }
+        var isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
+        RecordDesktopFileMenuDiagnostic($"text sniff: entry={item.DisplayName}, isText={isText}.");
+        if (!isText)
+        {
+            RecordDesktopFileMenuDiagnostic("file open stopped: no compatible opener and content sniff rejected text fallback.");
+            return;
+        }
+        var textOpener = _applications.TextFileOpeners[0].Id;
+        var textResult = _applications.OpenFileAsText(textOpener, item.Entry.Path)
+            ? new AppActivationResult(AppActivationStatus.Activated, textOpener)
+            : new AppActivationResult(AppActivationStatus.Unavailable, textOpener);
+        RecordDesktopFileMenuDiagnostic($"text fallback open result: entry={item.DisplayName}, result={textResult.Status}, target={textResult.TargetAppId?.Value ?? "<none>"}.");
     }
 
     [RelayCommand]
@@ -254,12 +275,23 @@ public partial class DesktopShellViewModel : ObservableObject
         }
         if (item.IsDirectory)
         {
-            OpenDesktopEntry(item);
+            await OpenDesktopEntryAsync(item);
             return;
         }
 
         var openers = _applications.FileOpenersForPath(item.Entry.Path);
         RecordDesktopFileMenuDiagnostic($"open-with requested: entry={item.DisplayName}, candidates={openers.Count}, dialogAvailable={RequestDesktopOpenWithAsync is not null}.");
+
+        // 没有任何应用显式声明支持时，嗅探文本：若是文本，把 SupportsTextFiles 应用
+        // (Notepad/CodeEditor) 作为 fallback 候选加入"打开方式"列表让用户选择。
+        if (openers.Count == 0 && _applications.TextFileOpeners.Count > 0)
+        {
+            var isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
+            RecordDesktopFileMenuDiagnostic($"open-with text sniff: entry={item.DisplayName}, isText={isText}.");
+            if (isText)
+                openers = _applications.TextFileOpeners;
+        }
+
         if (openers.Count == 0 || RequestDesktopOpenWithAsync is null)
         {
             RecordDesktopFileMenuDiagnostic("open-with stopped: no compatible opener or no dialog callback.");
@@ -278,9 +310,19 @@ public partial class DesktopShellViewModel : ObservableObject
         if (choice.SetAsDefault && !string.IsNullOrWhiteSpace(extension))
             await SaveDesktopDefaultAppAsync(extension, selectedApplication);
 
-        var result = _applications.Activate(new AppActivationRequest(
-            RemoteOsActivationUris.OpenFile(new AppId(selectedApplication), item.Entry.Path)));
-        RecordDesktopFileMenuDiagnostic($"open-with result: entry={item.DisplayName}, app={selectedApplication}, result={result.Status}.");
+        // 用户选中的可能是 SupportsTextFiles 应用但未声明该扩展名（如 .enabled → Notepad）。
+        // 若走 remoteos://file/open 路由会被 ApplicationManager.OpenFile 的 SupportsFile 校验拦截，
+        // 这里分流：选中的应用是 TextFileOpeners 之一时用 OpenFileAsText 绕过校验。
+        var appId = new AppId(selectedApplication);
+        var isTextFallbackChoice = _applications.TextFileOpeners.Any(o => o.Id == appId)
+            && !_applications.SupportsFile(appId, item.Entry.Path);
+        var result = isTextFallbackChoice
+            ? (_applications.OpenFileAsText(appId, item.Entry.Path)
+                ? new AppActivationResult(AppActivationStatus.Activated, appId)
+                : new AppActivationResult(AppActivationStatus.Unavailable, appId))
+            : _applications.Activate(new AppActivationRequest(
+                RemoteOsActivationUris.OpenFile(appId, item.Entry.Path)));
+        RecordDesktopFileMenuDiagnostic($"open-with result: entry={item.DisplayName}, app={selectedApplication}, textFallback={isTextFallbackChoice}, result={result.Status}.");
     }
 
     [RelayCommand]
