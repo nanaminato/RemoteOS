@@ -23,7 +23,8 @@
                         <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.branch_search_watermark}" BorderThickness="0" Background="Transparent"
                                  Text="{Binding BranchSearchText, Mode=TwoWay}"
-                                 FontSize="12" Foreground="#122344" Padding="0" />
+                                 FontSize="12" Foreground="#122344" Padding="0"
+                                 VerticalContentAlignment="Center" />
                     </Grid>
                 </Border>
 
@@ -145,7 +146,8 @@
                                     <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.commit_search_watermark}" BorderThickness="0" Background="Transparent"
                                              Text="{Binding CommitSearchText, Mode=TwoWay}"
-                                             FontSize="12" Foreground="#122344" Padding="0" />
+                                             FontSize="12" Foreground="#122344" Padding="0"
+                                             VerticalContentAlignment="Center" />
                                     <ToggleButton Grid.Column="2" Content=".*" ToolTip.Tip="{loc:Loc git.log.regex}" FontSize="11" Padding="6,0"
                                                   IsChecked="{Binding IsLogRegex, Mode=TwoWay}"
                                                   Background="Transparent" Foreground="#668" BorderThickness="0" />
@@ -172,7 +174,8 @@
                             </ComboBox>
                             <Border x:Name="LogPathFilter" Background="White" CornerRadius="6" Padding="6,2" Width="130">
                                 <TextBox Watermark="{loc:Loc git.log.filter_path}" BorderThickness="0" Background="Transparent"
-                                         Text="{Binding LogPathFilter, Mode=TwoWay}" FontSize="12" Padding="0" />
+                                         Text="{Binding LogPathFilter, Mode=TwoWay}" FontSize="12" Padding="0"
+                                         VerticalContentAlignment="Center" />
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="CommitToolbarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
@@ -245,6 +248,7 @@
 
                     <ListBox.ItemContainerTheme>
                         <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="ContextMenu">
                                 <ContextMenu>
                                     <MenuItem Header="{loc:Loc git.log.menu.copy_sha}"
