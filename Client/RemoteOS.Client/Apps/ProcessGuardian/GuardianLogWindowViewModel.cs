@@ -28,7 +28,7 @@ public sealed partial class GuardianLogWindowViewModel(IAuthSession session, Gua
 
         var hubUrl = new Uri(new Uri(session.ServerUrl), RemoteOsEndpoints.GuardianLogsHubPath.TrimStart('/')).ToString();
         var connection = _connection = new HubConnectionBuilder()
-            .WithUrl(hubUrl, options => options.AccessTokenProvider = () => Task.FromResult<string?>(session.Tokens?.AccessToken))
+            .WithUrl(hubUrl, options => options.AccessTokenProvider = () => session.GetAccessTokenAsync(TimeSpan.FromMinutes(1)))
             .WithAutomaticReconnect()
             .Build();
         connection.On<IReadOnlyList<GuardianLogEntryDto>>(GuardianLogsHubEvents.OnLogSnapshot, ReplaceLogs);

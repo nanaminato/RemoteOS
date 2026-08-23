@@ -37,4 +37,11 @@ public interface IAuthSession
 
     /// <summary>用 RefreshToken 换新令牌对。失败返回 false 并重置会话。</summary>
     Task<bool> RefreshAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a usable access token, refreshing it once when it is near expiry or when the supplied
+    /// token has just been rejected by the server. Refresh tokens remain memory-only.
+    /// </summary>
+    Task<string?> GetAccessTokenAsync(TimeSpan renewBefore, string? rejectedAccessToken = null,
+        CancellationToken ct = default);
 }

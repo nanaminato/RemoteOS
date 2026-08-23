@@ -5,11 +5,12 @@
     </PropertyGroup>
     <ItemGroup>
         <!-- Avalonia packages. Important: keep version in sync! -->
-        <PackageVersion Include="Avalonia" Version="12.1.0" />
-        <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
-        <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
-        <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
-        <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.0" />
+        <!-- 12.1.0 → 12.1.1：RoyalTerminal 0.5.2 传递依赖要求 Avalonia >= 12.1.1 -->
+        <PackageVersion Include="Avalonia" Version="12.1.1" />
+        <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.1" />
+        <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.1" />
+        <PackageVersion Include="Avalonia.Desktop" Version="12.1.1" />
+        <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.1" />
         <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
         <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
 
@@ -35,13 +36,16 @@
         <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
         <!-- Certificate manager: ACME v2 client, isolated behind Server.Certificate. -->
         <PackageVersion Include="Webprofusion.Certify.ACME.Anvil" Version="3.3.3" />
+        <!-- 10.0.0 → 10.0.11：RoyalTerminal 0.5.2 传递依赖要求 >= 10.0.11 -->
+        <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
 
         <!-- Terminal: RoyalTerminal 终端栈（Managed Avalonia terminal，含 TerminalControl + 默认会话组合） -->
-        <PackageVersion Include="RoyalApps.RoyalTerminal.Avalonia" Version="0.4.0" />
+        <!-- 0.4.0 → 0.5.2：修复 Tab/光标渲染缺陷（0.4.1 PR #106 "Clear terminal selection when typing"） -->
+        <PackageVersion Include="RoyalApps.RoyalTerminal.Avalonia" Version="0.5.2" />
         <!-- Server 端 PTY 工厂（Windows ConPTY / Unix forkpty），Terminal Hub 哑中继用 -->
-        <PackageVersion Include="RoyalApps.RoyalTerminal.Terminal.Pty.Platform" Version="0.4.0" />
+        <PackageVersion Include="RoyalApps.RoyalTerminal.Terminal.Pty.Platform" Version="0.5.2" />
 
         <!-- Explorer: 移植自 Jaya 文件管理器（BSD-3）。Behaviors 用于双击导航等交互；Newtonsoft 保留 Jaya 配置模型序列化 -->
         <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.0.1" />

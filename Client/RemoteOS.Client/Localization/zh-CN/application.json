@@ -33,5 +33,7 @@
         "application.remoteos.certificates.description": "管理 RemoteOS Server 上的 TLS 证书",
         "application.remoteos.webservers.display_name": "Web 服务器管理器",
         "application.remoteos.webservers.description": "管理 RemoteOS Server 上的 Web 服务器"
+        "application.remoteos.git.display_name": "Git 客户端",
+        "application.remoteos.git.description": "管理 RemoteOS Server 上的 Git 仓库"
     }
 }

@@ -249,6 +249,7 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
 
         var applications = context.Services.GetService(typeof(ApplicationManager)) as ApplicationManager;
         var defaults = context.Services.GetService(typeof(DefaultAppRegistry)) as DefaultAppRegistry;
+        var textSniffer = context.Services.GetService(typeof(ITextFileSniffer)) as ITextFileSniffer;
         vm.OpenTerminalAtPathAsync = path =>
         {
             if (applications?.OpenTerminal(path) == true)
@@ -263,9 +264,42 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             var applicationId = defaultApplicationId is not null && applications?.SupportsFile(new AppId(defaultApplicationId), entry.Path) == true
                 ? defaultApplicationId
                 : applications?.FileOpenersForPath(entry.Path).FirstOrDefault()?.Id.Value;
-            var result = applicationId is null
-                ? new AppActivationResult(AppActivationStatus.Unavailable)
-                : context.Activations.Activate(RemoteOsActivationUris.OpenFile(new AppId(applicationId), entry.Path));
+            AppActivationResult result;
+            if (applicationId is not null)
+            {
+                result = context.Activations.Activate(RemoteOsActivationUris.OpenFile(new AppId(applicationId), entry.Path));
+            }
+            // 用户显式绑定（设置页自由添加的未知扩展名）但应用未声明支持时：若该应用 SupportsTextFiles
+            // 且文件确认为文本 → OpenFileAsText 绕过 Manifest 校验，保持绑定权威性。
+            else if (defaultApplicationId is not null && entry.Type == FileSystemEntryType.File
+                     && applications?.GetManifest(new AppId(defaultApplicationId)) is { SupportsTextFiles: true })
+            {
+                var isText = textSniffer is not null && textSniffer.IsTextByMimeType(entry.MimeType);
+                if (!isText && textSniffer is not null)
+                    isText = await textSniffer.IsTextFileAsync(entry.Path);
+                var boundId = new AppId(defaultApplicationId);
+                result = isText && applications.OpenFileAsText(boundId, entry.Path)
+                    ? new AppActivationResult(AppActivationStatus.Activated, boundId)
+                    : new AppActivationResult(AppActivationStatus.Unavailable, boundId);
+            }
+            else if (entry.Type == FileSystemEntryType.File && applications?.TextFileOpeners.Count > 0)
+            {
+                // 无应用显式声明支持 + 无用户绑定 → 先用服务端 MIME 快速判断；若未知再退化读字节嗅探
+                var isText = textSniffer is not null && textSniffer.IsTextByMimeType(entry.MimeType);
+                if (!isText && textSniffer is not null)
+                    isText = await textSniffer.IsTextFileAsync(entry.Path);
+                if (isText)
+                {
+                    var opener = applications.TextFileOpeners[0].Id;
+                    result = applications.OpenFileAsText(opener, entry.Path)
+                        ? new AppActivationResult(AppActivationStatus.Activated, opener)
+                        : new AppActivationResult(AppActivationStatus.Unavailable, opener);
+                }
+                else
+                    result = new AppActivationResult(AppActivationStatus.Unavailable);
+            }
+            else
+                result = new AppActivationResult(AppActivationStatus.Unavailable);
             if (!result.Succeeded)
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.no_file_opener")) ?? Task.CompletedTask);
         };
@@ -275,6 +309,14 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             var owner = FindOwnerWindow(context, vm);
             var extension = Path.GetExtension(entry.Name);
             var openers = applications?.FileOpenersForPath(entry.Path) ?? Array.Empty<ApplicationInfo>();
+            // 候选为空 + 文件条目 + 有文本编辑器 → 先 MIME 快速判断；不确定再退化嗅探字节
+            if (openers.Count == 0 && entry.Type == FileSystemEntryType.File && applications?.TextFileOpeners.Count > 0)
+            {
+                var isText = textSniffer is not null && textSniffer.IsTextByMimeType(entry.MimeType);
+                if (!isText && textSniffer is not null)
+                    isText = await textSniffer.IsTextFileAsync(entry.Path);
+                if (isText) openers = applications.TextFileOpeners;
+            }
             if (owner is null || openers.Count == 0)
             {
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_with"), LocalizedText.Get("explorer.no_open_with_app")) ?? Task.CompletedTask);
@@ -294,7 +336,14 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             if (choice.SetAsDefault && !string.IsNullOrWhiteSpace(extension))
                 await SaveDefaultAppAsync(context, defaults, extension, choice.ApplicationId);
 
-            if (!context.Activations.Activate(RemoteOsActivationUris.OpenFile(new AppId(choice.ApplicationId), entry.Path)).Succeeded)
+            var appId = new AppId(choice.ApplicationId);
+            // 用户选中 SupportsTextFiles 应用但未声明该扩展名时，走 OpenFileAsText 绕过 Manifest 校验
+            var isTextFallback = applications?.TextFileOpeners.Any(o => o.Id == appId) == true
+                && !applications.SupportsFile(appId, entry.Path);
+            var opened = isTextFallback
+                ? applications?.OpenFileAsText(appId, entry.Path) == true
+                : context.Activations.Activate(RemoteOsActivationUris.OpenFile(appId, entry.Path)).Succeeded;
+            if (!opened)
                 await (vm.ShowMessageAsync?.Invoke(LocalizedText.Get("explorer.open_file"), LocalizedText.Get("explorer.selected_app_unavailable")) ?? Task.CompletedTask);
         };
 

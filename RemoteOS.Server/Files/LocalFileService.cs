@@ -3,6 +3,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
+using Microsoft.AspNetCore.StaticFiles;
 using RemoteOS.Protocol.Files;
 
 namespace Server.Files;
@@ -13,9 +14,30 @@ namespace Server.Files;
 public sealed class LocalFileService : IFileService
 {
     private static readonly bool IsLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+    private static readonly FileExtensionContentTypeProvider ContentTypes = new();
+    /// <summary>超出该大小的未知扩展名文件不在列目录时做内容嗅探，避免遍历大目录 IO 过重。</summary>
+    private const int ContentSniffMaxBytes = 4 * 1024 * 1024;
+    private const string TextPlain = "text/plain";
+    private const string OctetStream = "application/octet-stream";
+    private const string InodeDirectory = "inode/directory";
 
     public IReadOnlyList<DriveDto> GetDrives()
     {
+        // DriveInfo.GetDrives() 在 Linux 上会枚举每一个挂载点，其中包含 /dev、
+        // /dev/pts、/dev/shm 等嵌套的伪文件系统。把它们全部作为“此电脑”的
+        // 直接子项会丢失目录层级，也会让挂载点看起来像并列磁盘。Linux 的
+        // 文件系统只有一个可浏览的根，因此仅将 / 作为导航树根；其余挂载点
+        // 会在按目录展开 /dev、/sys 等时显示在各自正确的父目录下。
+        if (IsLinux)
+        {
+            var root = new DriveInfo(Path.DirectorySeparatorChar.ToString());
+            return [new DriveDto(
+                Name: root.Name,
+                Path: root.RootDirectory.FullName,
+                TotalSize: root.IsReady ? root.TotalSize : null,
+                IsReady: root.IsReady)];
+        }
+
         var list = new List<DriveDto>();
         foreach (var d in DriveInfo.GetDrives())
         {
@@ -132,7 +154,8 @@ public sealed class LocalFileService : IFileService
                     Modified: null,
                     Accessed: null,
                     IsHidden: false,
-                    IsSystem: false));
+                    IsSystem: false,
+                    MimeType: null));
             }
             return new DirectoryDto(
                 Path: string.Empty,
@@ -167,7 +190,8 @@ public sealed class LocalFileService : IFileService
                     Modified: di.LastWriteTimeUtc,
                     Accessed: di.LastAccessTimeUtc,
                     IsHidden: di.Attributes.HasFlag(FileAttributes.Hidden),
-                    IsSystem: di.Attributes.HasFlag(FileAttributes.System)));
+                    IsSystem: di.Attributes.HasFlag(FileAttributes.System),
+                    MimeType: InodeDirectory));
             }
         }
         catch (UnauthorizedAccessException) { /* 部分子目录不可访问：跳过 */ }
@@ -177,19 +201,7 @@ public sealed class LocalFileService : IFileService
         try
         {
             foreach (var fi in info.EnumerateFiles())
-            {
-                var ext = string.IsNullOrEmpty(fi.Extension) ? null : fi.Extension.Substring(1).ToLowerInvariant();
-                files.Add(new FileEntryDto(
-                    Path: fi.FullName,
-                    Name: fi.Name,
-                    Extension: ext,
-                    Size: fi.Length,
-                    Created: fi.CreationTimeUtc,
-                    Modified: fi.LastWriteTimeUtc,
-                    Accessed: fi.LastAccessTimeUtc,
-                    IsHidden: fi.Attributes.HasFlag(FileAttributes.Hidden),
-                    IsSystem: fi.Attributes.HasFlag(FileAttributes.System)));
-            }
+                files.Add(ToFileEntry(fi));
         }
         catch (UnauthorizedAccessException) { }
 
@@ -217,22 +229,24 @@ public sealed class LocalFileService : IFileService
                 Modified: di.LastWriteTimeUtc,
                 Accessed: di.LastAccessTimeUtc,
                 IsHidden: di.Attributes.HasFlag(FileAttributes.Hidden),
-                IsSystem: di.Attributes.HasFlag(FileAttributes.System));
+                IsSystem: di.Attributes.HasFlag(FileAttributes.System),
+                MimeType: InodeDirectory);
         }
         if (File.Exists(path))
         {
             var fi = new FileInfo(path);
-            var ext = string.IsNullOrEmpty(fi.Extension) ? null : fi.Extension.Substring(1).ToLowerInvariant();
+            var fe = ToFileEntry(fi);
             return new FileSystemEntryDto(
-                Path: fi.FullName,
-                Name: fi.Name,
-                Size: fi.Length,
+                Path: fe.Path,
+                Name: fe.Name,
+                Size: fe.Size,
                 Type: FileSystemEntryType.File,
-                Created: fi.CreationTimeUtc,
-                Modified: fi.LastWriteTimeUtc,
-                Accessed: fi.LastAccessTimeUtc,
-                IsHidden: fi.Attributes.HasFlag(FileAttributes.Hidden),
-                IsSystem: fi.Attributes.HasFlag(FileAttributes.System));
+                Created: fe.Created,
+                Modified: fe.Modified,
+                Accessed: fe.Accessed,
+                IsHidden: fe.IsHidden,
+                IsSystem: fe.IsSystem,
+                MimeType: fe.MimeType);
         }
         return null;
     }
@@ -241,7 +255,7 @@ public sealed class LocalFileService : IFileService
     {
         if (!File.Exists(path)) return null;
         var fi = new FileInfo(path);
-        return (fi.OpenRead(), "application/octet-stream", fi.Name);
+        return (fi.OpenRead(), GuessMimeType(fi), fi.Name);
     }
 
     public async Task<FileEntryDto> WriteFileAsync(string path, Stream content, CancellationToken cancellationToken = default)
@@ -412,9 +426,66 @@ public sealed class LocalFileService : IFileService
     private static FileEntryDto ToFileEntry(FileInfo file)
     {
         var ext = string.IsNullOrEmpty(file.Extension) ? null : file.Extension[1..].ToLowerInvariant();
+        var mime = GuessMimeType(file);
         return new FileEntryDto(file.FullName, file.Name, ext, file.Length, file.CreationTimeUtc,
             file.LastWriteTimeUtc, file.LastAccessTimeUtc, file.Attributes.HasFlag(FileAttributes.Hidden),
-            file.Attributes.HasFlag(FileAttributes.System));
+            file.Attributes.HasFlag(FileAttributes.System), mime);
+    }
+
+    /// <summary>
+    /// 推断文件 MIME：
+    /// 1. 用 <see cref="ContentTypeProvider"/> 按扩展名匹配，命中且非 octet-stream 直接使用；
+    /// 2. 否则文件小于 <see cref="ContentSniffMaxBytes"/> 时读前 4KB 嗅探是否纯文本：
+    ///    是文本 → <c>text/plain</c>；否则 → <c>application/octet-stream</c>。
+    /// 对列目录性能敏感，超大未知文件仅返回 octet-stream，不触发磁盘 IO。
+    /// </summary>
+    private static string GuessMimeType(FileInfo file)
+    {
+        if (ContentTypes.TryGetContentType(file.Name, out var mapped)
+            && !string.Equals(mapped, OctetStream, StringComparison.Ordinal))
+            return mapped;
+
+        if (file.Length > 0 && file.Length <= ContentSniffMaxBytes)
+        {
+            try
+            {
+                Span<byte> head = stackalloc byte[Math.Min((int)file.Length, 4096)];
+                using var fs = file.OpenRead();
+                var read = fs.Read(head);
+                if (read > 0 && SniffIsTextContent(head[..read]))
+                    return TextPlain;
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+        }
+        return OctetStream;
+    }
+
+    /// <summary>与客户端 TextFileSniffer 相同的判定规则，避免两端分叉。</summary>
+    private static bool SniffIsTextContent(Span<byte> span)
+    {
+        var length = span.Length;
+        if (length >= 3 && span[0] == 0xEF && span[1] == 0xBB && span[2] == 0xBF) return true;
+        if (length >= 2 && span[0] == 0xFF && span[1] == 0xFE) return true;
+        if (length >= 2 && span[0] == 0xFE && span[1] == 0xFF) return true;
+        if (length >= 4 && span[0] == 0x00 && span[1] == 0x00 && span[2] == 0xFE && span[3] == 0xFF) return true;
+        if (length >= 4 && span[0] == 0xFF && span[1] == 0xFE && span[2] == 0x00 && span[3] == 0x00) return true;
+
+        var printable = 0;
+        for (var i = 0; i < length; i++)
+        {
+            var b = span[i];
+            if (b == 0x00) return false;
+            // ASCII 可打印 + 常见空白控制字符
+            if ((b >= 0x20 && b <= 0x7E) || b == (byte)'\t' || b == (byte)'\n' || b == (byte)'\r' || b == (byte)'\f' || b == 0x0B) printable++;
+            // UTF-8 多字节序列：起始字节 (>=0xC2) + 续字节 (0x80–0xBF) 都宽松计为"可能文本"
+            //   2 字节字符：起始 0xC0–0xDF（含 0xC2 起的合法范围）+ 1 个续字节
+            //   3 字节字符：起始 0xE0–0xEF + 2 个续字节（中文等）
+            //   4 字节字符：起始 0xF0–0xF7 + 3 个续字节（Emoji 等）
+            // 这样每个中文 3 字节都被完整计入，避免 2/3 比例低于阈值被误判为二进制。
+            else if (b >= 0x80) printable++;
+        }
+        return printable >= (length * 7 / 10);
     }
 
     private static string GetPermissions(string path, FileAttributes attributes)

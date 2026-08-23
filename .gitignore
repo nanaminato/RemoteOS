@@ -11,6 +11,9 @@
 *.sln.docstates
 *.Development.json
 *.Production.json
+# 调试日志
+*operations.json
+
 
 dataSources.xml
 db-forest-config.xml

@@ -115,13 +115,8 @@ public static class AuthEndpoints
                 IDeviceRepository devs,
                 JwtTokenService jwt) =>
             {
-                if (string.IsNullOrEmpty(req.RefreshToken) || !sessions.IsValid(req.RefreshToken))
-                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The refresh token is invalid or has expired.");
-
-                if (!sessions.TryGet(req.RefreshToken, out var rec))
-                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The refresh token record does not exist.");
-
-                sessions.Revoke(req.RefreshToken);  // 旧 refresh 作废（一次性）
+                if (string.IsNullOrEmpty(req.RefreshToken) || !sessions.TryConsume(req.RefreshToken, out var rec))
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "The refresh token is invalid, expired, or has already been used.");
 
                 var user = users.FindById(rec.UserId);
                 var ws = wss.FindById(rec.WorkspaceId);
@@ -130,7 +125,7 @@ public static class AuthEndpoints
                     return Problem(http, 401, "invalid-credential", "Invalid credentials", "The session context is no longer valid.");
 
                 var role = ws.ControllerDeviceId == device.Id ? DeviceRole.Controller : DeviceRole.Observer;
-                var tokens = jwt.Issue(user, ws, device, role);
+                var tokens = jwt.Issue(user, ws, device, role, rec.SessionId, rec.AbsoluteExpiresAt);
                 return Results.Ok(new RefreshTokenResponse(tokens));
             })
             .WithTags("Auth");
@@ -172,6 +167,7 @@ public static class AuthEndpoints
             ServerCapabilities.Metrics,
             ServerCapabilities.Processes,
             ServerCapabilities.Terminal,
+            ServerCapabilities.Git,
         };
         if (!isWindows)
         {

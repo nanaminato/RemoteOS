@@ -46,12 +46,6 @@ public sealed class AppSettingsClient(HttpClient http, IAuthSession session) : I
     {
         if (session.State != AuthSessionState.Authenticated || session.ServerUrl is null || session.Tokens is null)
             throw new InvalidOperationException("Sign in before clearing application data.");
-        if (session.Tokens.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1)
-            && !await session.RefreshAsync(cancellationToken))
-            throw new InvalidOperationException("The RemoteOS session has expired.");
-        if (session.ServerUrl is null || session.Tokens is null)
-            throw new InvalidOperationException("The RemoteOS session has expired.");
-
         using var request = new HttpRequestMessage(HttpMethod.Delete, new Uri(new Uri(session.ServerUrl, UriKind.Absolute),
             AppSettingsApiRoutes.Application.Replace("{appId}", Uri.EscapeDataString(appId)).TrimStart('/')));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
@@ -59,23 +53,17 @@ public sealed class AppSettingsClient(HttpClient http, IAuthSession session) : I
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
-    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string appId, AppSettingsScope scope, string key, CancellationToken cancellationToken)
+    private Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string appId, AppSettingsScope scope, string key, CancellationToken cancellationToken)
     {
         if (session.State != AuthSessionState.Authenticated || session.ServerUrl is null || session.Tokens is null)
             throw new InvalidOperationException("Sign in before using application settings.");
-        if (session.Tokens.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1)
-            && !await session.RefreshAsync(cancellationToken))
-            throw new InvalidOperationException("The RemoteOS session has expired.");
-        if (session.ServerUrl is null || session.Tokens is null)
-            throw new InvalidOperationException("The RemoteOS session has expired.");
-
         var route = AppSettingsApiRoutes.Document
             .Replace("{appId}", Uri.EscapeDataString(appId))
             .Replace("{scope}", scope.ToString().ToLowerInvariant())
             .Replace("{key}", Uri.EscapeDataString(key));
         var request = new HttpRequestMessage(method, new Uri(new Uri(session.ServerUrl, UriKind.Absolute), route.TrimStart('/')));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
-        return request;
+        return Task.FromResult(request);
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)

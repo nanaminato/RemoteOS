@@ -160,7 +160,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             var drivesTask = _client.GetDrivesAsync();
             await Task.WhenAll(specialTask, drivesTask);
             var specials = specialTask.Result;
-            var drives = drivesTask.Result;
+            var drives = GetNavigationDrives(drivesTask.Result);
 
             Nodes.Clear();
 
@@ -323,10 +323,10 @@ public sealed partial class ExplorerViewModel : ObservableObject
             string? confirmedPath;
             if (path is null)
             {
-                var drives = await _client.GetDrivesAsync();
+                var drives = GetNavigationDrives(await _client.GetDrivesAsync());
                 foreach (var d in drives)
                     Entries.Add(new FileSystemEntryDto(d.Path, d.Name, d.TotalSize,
-                        FileSystemEntryType.Drive, null, null, null, false, false));
+                        FileSystemEntryType.Drive, null, null, null, false, false, null));
                 confirmedPath = null;
                 AddressbarPath = null;
                 StatusText = LocalizedText.Format("explorer.status.drives_ready", drives.Count);
@@ -339,7 +339,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 {
                     foreach (var f in dir.Files.Where(f => !IsFilePickerMode || MatchesSelectedFilter(f.Name)))
                         Entries.Add(new FileSystemEntryDto(f.Path, f.Name, f.Size, FileSystemEntryType.File,
-                            f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem));
+                            f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem, f.MimeType));
                 }
                 confirmedPath = dir.Path;
                 AddressbarPath = dir.Path;
@@ -439,6 +439,17 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private static bool PathEquals(string? a, string? b, StringComparison? comparison = null)
         => string.Equals(NormalizePath(a), NormalizePath(b),
             comparison ?? PathComparison);
+
+    /// <summary>
+    /// Linux 的 DriveInfo 会把每个挂载点（包括 /dev/shm 与 /dev/pts）都作为一个驱动器返回。
+    /// 导航窗格应只有一个 POSIX 根；其余挂载点会在展开相应父目录时以正常目录层级呈现。
+    /// 保留没有 POSIX 根的结果，以兼容 Windows 盘符列表和其他服务端实现。
+    /// </summary>
+    private static IReadOnlyList<DriveDto> GetNavigationDrives(IReadOnlyList<DriveDto> drives)
+    {
+        var posixRoot = drives.FirstOrDefault(d => string.Equals(d.Path, "/", StringComparison.Ordinal));
+        return posixRoot is null ? drives : [posixRoot];
+    }
 
     /// <summary>ancestor 是否为 descendant 的祖先或相等（用于下钻时判断子节点是否包含目标路径）。</summary>
     private static bool IsAncestorOrEqual(string? ancestor, string descendant, StringComparison comparison)

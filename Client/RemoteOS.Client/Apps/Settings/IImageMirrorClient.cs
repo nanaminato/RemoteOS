@@ -51,17 +51,13 @@ public sealed class ImageMirrorClient(HttpClient http, IAuthSession session) : I
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
-    private async Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string route, CancellationToken cancellationToken)
+    private Task<HttpRequestMessage> CreateRequestAsync(HttpMethod method, string route, CancellationToken cancellationToken)
     {
         if (session.State != AuthSessionState.Authenticated || session.ServerUrl is null || session.Tokens is null)
             throw new InvalidOperationException("Sign in before managing image mirrors.");
-        if (session.Tokens.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.AddMinutes(1) && !await session.RefreshAsync(cancellationToken))
-            throw new InvalidOperationException("The RemoteOS session has expired.");
-        if (session.ServerUrl is null || session.Tokens is null)
-            throw new InvalidOperationException("The RemoteOS session has expired.");
         var request = new HttpRequestMessage(method, new Uri(new Uri(session.ServerUrl, UriKind.Absolute), route.TrimStart('/')));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
-        return request;
+        return Task.FromResult(request);
     }
 
     private static string Target(ImageMirrorTarget target) => target.ToString().ToLowerInvariant();

@@ -12,4 +12,5 @@ public sealed record FileEntryDto(
     [property: JsonPropertyName("modified")] DateTimeOffset? Modified,
     [property: JsonPropertyName("accessed")] DateTimeOffset? Accessed,
     [property: JsonPropertyName("isHidden")] bool IsHidden,
-    [property: JsonPropertyName("isSystem")] bool IsSystem);
+    [property: JsonPropertyName("isSystem")] bool IsSystem,
+    [property: JsonPropertyName("mimeType")] string MimeType);

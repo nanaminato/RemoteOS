@@ -26,13 +26,15 @@ public sealed class JwtTokenService
     }
 
     /// <summary>签发令牌对。role 决定 JWT 中的 role claim（首个登录设备为 Controller）。</summary>
-    public AuthTokens Issue(User user, Workspace workspace, Device device, DeviceRole role)
+    public AuthTokens Issue(User user, Workspace workspace, Device device, DeviceRole role,
+        Guid? sessionId = null, DateTimeOffset? absoluteExpiresAt = null)
     {
         var now = DateTimeOffset.UtcNow;
-        var accessExp = now.Add(_opt.AccessTokenTtl);
-        var refreshExp = now.Add(_opt.RefreshTokenTtl);
+        var absoluteExp = absoluteExpiresAt ?? now.Add(_opt.RefreshTokenMaximumLifetime);
+        var accessExp = Min(now.Add(_opt.AccessTokenTtl), absoluteExp);
+        var refreshExp = Min(now.Add(_opt.RefreshTokenTtl), absoluteExp);
 
-        var sessionId = Guid.NewGuid();
+        var currentSessionId = sessionId ?? Guid.NewGuid();
         var claims = new[]
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
@@ -40,7 +42,7 @@ public sealed class JwtTokenService
             new Claim("workspace_id", workspace.Id.ToString()),
             new Claim("device_id", device.Id.ToString()),
             new Claim("role", role.ToString().ToLowerInvariant()),
-            new Claim(JwtRegisteredClaimNames.Jti, sessionId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opt.Secret));
@@ -54,12 +56,14 @@ public sealed class JwtTokenService
             signingCredentials: creds);
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
 
-        // RefreshToken：随机 32 字节，登记到吊销簿（jti → user/workspace/device/exp）
+        // RefreshToken：随机 32 字节，登记到当前内存会话的吊销簿。
         var refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        _sessions.Register(sessionId, refreshToken, user.Id, workspace.Id, device.Id, refreshExp);
+        _sessions.Register(currentSessionId, refreshToken, user.Id, workspace.Id, device.Id, refreshExp, absoluteExp);
 
         return new AuthTokens(accessToken, refreshToken, accessExp, refreshExp);
     }
+
+    private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left <= right ? left : right;
 
     /// <summary>Issues a token restricted to the server file API for one external application.</summary>
     public FileCapabilityTokenDto IssueFileCapability(

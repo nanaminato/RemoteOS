@@ -22,6 +22,8 @@ public static class AppPermissions
     public const string ServerCertificatesManage = "server.certificates.manage";
     public const string ServerWebServersRead = "server.webservers.read";
     public const string ServerWebServersManage = "server.webservers.manage";
+    public const string ServerGitRead = "server.git.read";
+    public const string ServerGitManage = "server.git.manage";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -48,6 +50,8 @@ public static class AppPermissions
         new(ServerCertificatesManage, "Manage TLS certificates", "Request, renew, deploy, revoke, and delete TLS certificates on the server.", "server_management"),
         new(ServerWebServersRead, "Read web server configuration", "View discovered web servers, their runtime status, and configuration metadata on the server.", "server_management"),
         new(ServerWebServersManage, "Manage web server configuration", "Integrate, reload, and test web server configuration on the server.", "server_management"),
+        new(ServerGitRead, "Read Git repositories", "View registered Git repositories, their status, branches, history, and diffs on the server.", "server_files"),
+        new(ServerGitManage, "Manage Git repositories", "Commit, pull, push, switch, create and delete branches, and revert commits in registered Git repositories on the server.", "server_files"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>

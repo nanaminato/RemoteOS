@@ -119,7 +119,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
 [`RemoteOS.Server/Files/IFileService.cs`](../../RemoteOS.Server/Files/IFileService.cs) 定义接口；[`LocalFileService.cs`](../../RemoteOS.Server/Files/LocalFileService.cs) 实现。
 
 - **移植自** Jaya `FileSystemService.GetDirectoryAsync` 的目录枚举逻辑（`DirectoryInfo.EnumerateDirectories` / `EnumerateFiles`）。
-- **平台感知**：`GetDrives()` 返回 `DriveInfo.GetDrives()`；`GetDirectory(null)` 在 Windows 返回盘符聚合视图，在 Linux 返回 "/" 根列举。
+- **平台感知**：Windows 的 `GetDrives()` 返回盘符；Linux 仅返回 `/` 作为导航根，避免将 `/dev/shm`、`/dev/pts` 等嵌套挂载点显示为并列磁盘。`GetDirectory(null)` 在 Windows 返回盘符聚合视图，在 Linux 返回 `/` 根列举。
 - **特殊位置枚举**（`GetSpecialLocations`）：跨平台枚举家目录/桌面/文档/下载/图片/音乐/视频，供 Explorer 导航窗格"主目录"组节点填充快捷入口。
   - 用 `Environment.GetFolderPath(Environment.SpecialFolder.UserProfile / Desktop / MyDocuments / MyPictures / MyMusic / MyVideos)` 跨平台获取。
   - Downloads 不在 `SpecialFolder` 枚举中 → 手动 `Path.Combine(home, "Downloads")` 拼接。

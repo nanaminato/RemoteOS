@@ -61,7 +61,7 @@
 | **ImageMirrors** | ✅ SQLite | 按 User + 目标服务隔离的镜像仓库前缀与当前选择；Docker 拉取时由服务端读取，选择默认不使用镜像源。 |
 | **Device** | ✅ SQLite | 设备登记历史，与 User/Workspace 同属「持久实体」，保持一致。 |
 | Session | ❌ 内存 | 「连接关系」是运行时状态（Created→Active→Disconnected→Expired），重启后旧 Session 本就应失效，用户重新登录即可。持久化反而引入状态不一致。 |
-| AuthSessionStore（refresh token） | ❌ 内存 | 安全令牌重启失效 = 强制重新登录，符合安全语义（与 mstsc 默认不保存凭据一致）。 |
+| AuthSessionStore（refresh token） | ❌ 内存 | refresh token 仅限当前客户端/服务端进程会话；客户端退出或服务端重启后失效，重新登录可使用用户显式保存于系统凭据库的密码。 |
 | TerminalSessionManager（PTY + 环形缓冲） | ❌ 内存 | PTY 是活进程，无法序列化；重启后用户重连新建 PTY + 回放缓冲（缓冲内存丢失为已知行为，见 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)）。 |
 
 > 结论：持久化 **User + Workspace + Device + AppSettings + ImageMirrors**，以及浏览器书签/历史。Session / refresh token / PTY 维持内存，符合各自语义。

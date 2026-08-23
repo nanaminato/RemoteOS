@@ -33,6 +33,7 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         Description: "Text editor for remote files",
         SupportedFileExtensions: SupportedExtensions,
         SupportsExtensionlessFiles: true,
+        SupportsTextFiles: true,
         InstancePolicy: ApplicationInstancePolicy.MultiWindow);
 
     public override void Activate(AppContext context)

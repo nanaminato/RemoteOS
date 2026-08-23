@@ -18,6 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 var kestrelCertificates = new Server.Certificate.KestrelCertificateRegistry();
 builder.WebHost.ConfigureKestrel(options => options.ConfigureHttpsDefaults(https =>
     https.ServerCertificateSelector = (_, hostName) => kestrelCertificates.Select(hostName)));
+
+// Git HTTPS tokens are protected before they are persisted in application storage.
+builder.Services.AddDataProtection();
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
@@ -48,9 +51,15 @@ if (string.IsNullOrWhiteSpace(jwtCfg.Secret) || jwtCfg.Secret.Length < 32)
     throw new InvalidOperationException("Jwt:Secret 必须至少 32 字符（HMACSHA256 要求 ≥256 位）。");
 if (builder.Environment.IsProduction() && jwtCfg.Secret == JwtOptions.DefaultInsecureSecret)
     throw new InvalidOperationException("Production 环境必须替换默认 Jwt:Secret。");
+if (jwtCfg.AccessTokenTtl <= TimeSpan.Zero || jwtCfg.RefreshTokenTtl <= TimeSpan.Zero
+    || jwtCfg.RefreshTokenMaximumLifetime <= TimeSpan.Zero)
+    throw new InvalidOperationException("Jwt token lifetimes must be greater than zero.");
+if (jwtCfg.RefreshTokenMaximumLifetime < jwtCfg.AccessTokenTtl)
+    throw new InvalidOperationException("Jwt:RefreshTokenMaximumLifetime must not be shorter than Jwt:AccessTokenTtl.");
 
 builder.Services.AddSingleton<AuthSessionStore>();
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 builder.Services.AddAuthentication(options =>
     {
@@ -170,6 +179,11 @@ builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Se
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
 
+// Git client: server-side git CLI service (Singleton—holds per-repo write semaphore).
+// Invokes host git CLI as the host user; credentials handled entirely by the host git credential helper.
+builder.Services.AddSingleton<Server.Git.IHostGitCli, Server.Git.HostGitCli>();
+builder.Services.AddSingleton<Server.Git.IGitRepositoryService, Server.Git.LocalGitRepositoryService>();
+
 // Firewall keeps a deliberately narrow UFW-only surface. On Linux the RemoteOS Server service
 // is the privileged host facade; on Windows the unavailable provider is retained only so all
 // endpoint wiring has one stable abstraction (the app itself is hidden by its Linux manifest).
@@ -223,7 +237,10 @@ if (storageProvider == "sqlite")
     var dbDir = Path.GetDirectoryName(dbPath);
     if (!string.IsNullOrEmpty(dbDir))
         Directory.CreateDirectory(dbDir);
-    builder.Services.AddDbContext<RemoteOsDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+    // AddDbContextFactory: 注册 IDbContextFactory<RemoteOsDbContext>（Singleton）供 Singleton 消费者
+    // （如 LocalGitRepositoryService）按操作创建短生命周期 DbContext；同时保留 RemoteOsDbContext 为
+    // Scoped，使既有 Scoped 仓储（SqliteUserRepository 等）直接注入不变。
+    builder.Services.AddDbContextFactory<RemoteOsDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
     // 仓储为 Scoped（依赖 Scoped 的 DbContext）；Minimal API [FromServices] 每请求创建 scope，兼容
     builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
     builder.Services.AddScoped<IWorkspaceRepository, SqliteWorkspaceRepository>();
@@ -354,6 +371,15 @@ if (storageProvider == "sqlite")
             "UpdatedAt" TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_image_mirrors_UserId_Target" ON "image_mirrors" ("UserId", "Target");
+
+        CREATE TABLE IF NOT EXISTS "git_repositories" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Path" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_git_repositories_UserId" ON "git_repositories" ("UserId");
         """);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
@@ -388,6 +414,7 @@ app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
 app.MapWebServerEndpoints();
 app.MapCertificateEndpoints();
+app.MapGitEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

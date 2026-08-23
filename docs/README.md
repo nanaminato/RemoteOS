@@ -18,6 +18,7 @@
 > - 证书管理器见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
 > - Web Server 管理器 / Nginx 集成设计中，见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)
 > - 进程守护见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)
+> - Git 客户端见 [`RemoteOS.GitClient.md`](./applications/RemoteOS.GitClient.md)
 > - 服务端持久化见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)
 > - 开发者指南见 [`RemoteOS.Develop.md`](./development/RemoteOS.Develop.md)
 > - 开发模式与扩展见 [`RemoteOS.DeveloperMode.md`](./development/RemoteOS.DeveloperMode.md)
@@ -266,6 +267,7 @@ Application Package
 | **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载的声明持久化与启停重启；健康/日志/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)） |
 | **CertificateManager** | 本机 ACME 证书申请、部署与续期 | 已实现（基础 UI、预检、申请/取消、续期、Kestrel 部署、吊销与删除；DNS-01、Wildcard 与其他 Web Server 部署设计中，详见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)） |
 | **WebServerManager** | Nginx 发现、最小侵入集成与后续托管 | 设计中（尚未实现，详见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)） |
+| **GitClient** | 远端宿主机 Git 仓库版本控制（分支切换/新建/删除、提交、拉取含冲突解决、推送、历史、Revert、Diff） | 设计中（参考 TortoiseGit，Server 端跨平台 `git` CLI，凭据委托宿主 OS，详见 [`RemoteOS.GitClient.md`](./applications/RemoteOS.GitClient.md)） |
 
 ---
 
@@ -428,6 +430,7 @@ RemoteOS.Server     = Cloud Backend
 | [`DockerManager`](./applications/RemoteOS.DockerManager.md) | Docker Engine、容器与 Stack 管理 |
 | [`Explorer`](./applications/RemoteOS.Explorer.md) | 文件管理器、REST API 与权限复用 |
 | [`Firewall`](./applications/RemoteOS.Firewall.md) | Linux Server UFW 防火墙 |
+| [`GitClient`](./applications/RemoteOS.GitClient.md) | Git 仓库版本控制、分支与提交 |
 | [`NetworkInspector`](./applications/RemoteOS.NetworkInspector.md) | 网络诊断与分析 |
 | [`PortForwarding`](./applications/RemoteOS.PortForwarding.md) | 本机 SSH loopback 隧道 |
 | [`ProcessGuardian`](./applications/RemoteOS.ProcessGuardian.md) | 守护工作负载、健康检查与服务管理 |

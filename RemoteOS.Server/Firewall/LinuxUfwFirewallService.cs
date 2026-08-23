@@ -40,10 +40,16 @@ public sealed class LinuxUfwFirewallService : IHostFirewallService
         if (!result.Success) return [];
 
         // UFW expands an any-to-any rule into adjacent IPv4 and IPv6 entries.
-        // They are one logical rule from the application's perspective.
+        // They remain one logical rule for mutation, while its address-family
+        // coverage is exposed so users can see why otherwise matching rules differ.
         return result.Rules
             .Where(rule => !rule.IsIpv6 || !HasCompanion(result.Rules, rule))
-            .Select(rule => rule.Rule)
+            .Select(rule => rule.Rule with
+            {
+                AddressFamily = HasCompanion(result.Rules, rule)
+                    ? "IPv4 + IPv6"
+                    : rule.IsIpv6 ? "IPv6" : "IPv4",
+            })
             .ToArray();
     }
 

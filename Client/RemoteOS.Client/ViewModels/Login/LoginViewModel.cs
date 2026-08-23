@@ -127,6 +127,14 @@ public partial class LoginViewModel : ObservableObject
         HasError = false;
     }
 
+    /// <summary>Shows the actionable reason when a running desktop session can no longer be refreshed.</summary>
+    public void ShowSessionExpiredMessage()
+    {
+        ErrorMessage = T("login.error.session_expired", "Your session expired. Sign in again to continue.");
+        HasError = true;
+        StatusMessage = string.Empty;
+    }
+
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ConnectAsync(CancellationToken ct)
     {
