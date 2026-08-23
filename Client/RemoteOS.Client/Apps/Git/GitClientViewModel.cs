@@ -112,7 +112,9 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
     /// <summary>Dialog callbacks assigned by the app shell.</summary>
     public Func<Task<GitCommitRequest?>>? ShowCommitDialogAsync { get; set; }
-    public Func<Task<GitBranchCreateRequest?>>? ShowCreateBranchDialogAsync { get; set; }
+    /// <summary>Shows the new-branch dialog.  The optional source drives the dialog
+    /// title and default name when the action originates from a branch context menu.</summary>
+    public Func<GitBranchDto?, Task<GitBranchCreateRequest?>>? ShowCreateBranchDialogAsync { get; set; }
     public Func<Task<GitPullRequest?>>? ShowPullDialogAsync { get; set; }
     public Func<Task<GitRepositoryRegistration?>>? ShowRegisterRepositoryDialogAsync { get; set; }
     public Func<string, Task<bool>>? ShowConfirmAsync { get; set; }
@@ -540,7 +542,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task CreateBranchAsync()
     {
         if (ShowCreateBranchDialogAsync is null || SelectedRepository is null) return;
-        var request = await ShowCreateBranchDialogAsync();
+        var request = await ShowCreateBranchDialogAsync(null);
         if (request is null) return;
         IsBusy = true;
         try
@@ -1326,10 +1328,22 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CheckoutAndUpdateBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null || branch.IsRemote) return;
+        await CheckoutAsync(branch);
+        // CheckoutAsync refreshes Status only after a successful checkout. Avoid
+        // pulling the old branch when checkout was rejected by local changes.
+        if (string.Equals(Status?.Branch, branch.Name, StringComparison.Ordinal))
+            await PullAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task CreateBranchFromHereAsync(GitBranchDto? baseBranch)
     {
         if (ShowCreateBranchDialogAsync is null || SelectedRepository is null) return;
-        var request = await ShowCreateBranchDialogAsync();
+        var request = await ShowCreateBranchDialogAsync(baseBranch);
         if (request is null) return;
         // 若用户对话框未指定起点，则以右键选中的分支作为起点
         var startPoint = string.IsNullOrWhiteSpace(request.StartPoint) && baseBranch is not null
@@ -1444,6 +1458,34 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task CompareBranchAsync(GitBranchDto? branch)
+    {
+        branch ??= SelectedBranch;
+        if (branch is null || SelectedRepository is null) return;
+        IsBusy = true;
+        try
+        {
+            var comparison = await client.CompareBranchAsync(SelectedRepository.Id, branch.Name);
+            // Reuse the log view's changed-files pane for the branch-vs-working-tree
+            // result.  Clearing the selected commit first prevents its async detail
+            // loader from overwriting the comparison file list.
+            SelectedCommit = null;
+            CommitChangedFiles.Clear();
+            foreach (var file in comparison.ChangedFiles) CommitChangedFiles.Add(file);
+            CommitDetail = new GitCommitDetailDto(
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                LocalizedText.Format("git.vm.branch_comparison_title_format", comparison.Branch),
+                [],
+                comparison.ChangedFiles);
+            StatusText = LocalizedText.Format("git.vm.branch_comparison_loaded_format", comparison.Branch, comparison.ChangedFiles.Count);
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.branch_comparison_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task RebaseBranchAsync(GitBranchDto? branch)
     {
         branch ??= SelectedBranch;
@@ -1465,7 +1507,47 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         branch ??= SelectedBranch;
         if (branch is null) return;
-        await PullAsync();
+        if (!branch.IsRemote)
+        {
+            await PullAsync();
+            return;
+        }
+
+        var slash = branch.Name.IndexOf('/');
+        if (slash <= 0 || slash == branch.Name.Length - 1)
+        {
+            await NotifyAsync(LocalizedText.Format("git.vm.failed_format", "远程分支名称无效。"));
+            return;
+        }
+
+        GitPullRequest? request = new();
+        if (ShowPullDialogAsync is not null)
+            request = await ShowPullDialogAsync();
+        if (request is null || SelectedRepository is null) return;
+
+        IsBusy = true;
+        try
+        {
+            var result = await client.PullAsync(SelectedRepository.Id,
+                request with { Remote = branch.Name[..slash], Refspec = branch.Name[(slash + 1)..] });
+            if (result.Success)
+            {
+                StatusText = LocalizedText.Get("git.vm.pulled");
+                await RefreshAllAsync();
+            }
+            else if (result.Conflicts is not null && result.Conflicts.Count > 0)
+            {
+                HasConflicts = true;
+                ActivePage = GitClientPage.ConflictResolution;
+                await RefreshAllAsync();
+            }
+            else
+            {
+                await NotifyAsync(LocalizedText.Format("git.vm.pull_failed_format", result.Message));
+            }
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.pull_failed_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -1708,7 +1790,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         commit ??= SelectedCommit;
         if (commit is null || ShowCreateBranchDialogAsync is null || SelectedRepository is null) return;
-        var request = await ShowCreateBranchDialogAsync();
+        var request = await ShowCreateBranchDialogAsync(null);
         if (request is null) return;
         var startPoint = string.IsNullOrWhiteSpace(request.StartPoint) ? commit.Sha : request.StartPoint;
         IsBusy = true;

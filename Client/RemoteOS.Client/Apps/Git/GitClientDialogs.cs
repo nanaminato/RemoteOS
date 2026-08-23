@@ -23,10 +23,14 @@ internal static class GitClientDialogs
             dialog => BuildCommitDialog(vm, dialog),
             new RemoteOS.Core.Primitives.Size(470, 380));
 
-    public static Task<GitBranchCreateRequest?> ShowCreateBranchDialogAsync(AppContext context, ManagedWindow owner, GitClientViewModel vm) =>
-        context.ShowDialogAsync<GitBranchCreateRequest?>(owner, LocalizedText.Get("git.dialog.new_branch.title"),
-            dialog => BuildCreateBranchDialog(dialog),
-            new RemoteOS.Core.Primitives.Size(470, 240));
+    public static Task<GitBranchCreateRequest?> ShowCreateBranchDialogAsync(AppContext context, ManagedWindow owner,
+        GitClientViewModel vm, GitBranchDto? sourceBranch = null) =>
+        context.ShowDialogAsync<GitBranchCreateRequest?>(owner,
+            sourceBranch is null
+                ? LocalizedText.Get("git.dialog.new_branch.title")
+                : LocalizedText.Format("git.dialog.new_branch.from_title_format", sourceBranch.Name),
+            dialog => BuildCreateBranchDialog(dialog, sourceBranch),
+            new RemoteOS.Core.Primitives.Size(430, 205));
 
     public static Task<GitPullRequest?> ShowPullDialogAsync(AppContext context, ManagedWindow owner, GitClientViewModel vm) =>
         context.ShowDialogAsync<GitPullRequest?>(owner, LocalizedText.Get("git.dialog.pull.title"),
@@ -256,19 +260,43 @@ internal static class GitClientDialogs
         };
     }
 
-    private static Control BuildCreateBranchDialog(ModalDialog<GitBranchCreateRequest?> dialog)
+    private static Control BuildCreateBranchDialog(ModalDialog<GitBranchCreateRequest?> dialog, GitBranchDto? sourceBranch)
     {
-        var nameBox = new TextBox { PlaceholderText = LocalizedText.Get("git.dialog.new_branch.name_placeholder") };
-        var startBox = new TextBox { PlaceholderText = LocalizedText.Get("git.dialog.new_branch.start_placeholder") };
-        var trackCheck = new CheckBox { Content = LocalizedText.Get("git.dialog.new_branch.track") };
+        var suggestedName = sourceBranch is null
+            ? string.Empty
+            : sourceBranch.IsRemote && sourceBranch.Name.Contains('/')
+                ? sourceBranch.Name[(sourceBranch.Name.IndexOf('/') + 1)..]
+                : sourceBranch.Name;
+        var nameBox = new TextBox
+        {
+            PlaceholderText = LocalizedText.Get("git.dialog.new_branch.name_placeholder"),
+            Text = suggestedName,
+        };
+        // The suggested source name is meant to be overwritten, just like IDEA's
+        // branch dialog.  SelectAll also keeps keyboard input fast for a new name.
+        nameBox.SelectAll();
+        var checkoutCheck = new CheckBox
+        {
+            Content = LocalizedText.Get("git.dialog.new_branch.checkout"),
+            IsChecked = true,
+        };
+        var resetExistingCheck = new CheckBox
+        {
+            Content = LocalizedText.Get("git.dialog.new_branch.reset_existing"),
+            IsChecked = false,
+            Margin = new Thickness(14, 0, 0, 0),
+        };
 
         var createBtn = new Button { Content = LocalizedText.Get("git.dialog.new_branch.create"), HorizontalAlignment = HorizontalAlignment.Right };
         createBtn.Click += (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(nameBox.Text)) return;
-            dialog.Close(new GitBranchCreateRequest(nameBox.Text!,
-                string.IsNullOrWhiteSpace(startBox.Text) ? null : startBox.Text,
-                trackCheck.IsChecked == true));
+            dialog.Close(new GitBranchCreateRequest(
+                nameBox.Text!.Trim(),
+                sourceBranch?.Name,
+                Track: sourceBranch?.IsRemote == true,
+                Checkout: checkoutCheck.IsChecked == true,
+                ResetExisting: resetExistingCheck.IsChecked == true));
         };
 
         var cancelBtn = new Button { Content = LocalizedText.Get("git.dialog.new_branch.cancel"), HorizontalAlignment = HorizontalAlignment.Right, Margin = new(8, 0, 0, 0) };
@@ -282,9 +310,11 @@ internal static class GitClientDialogs
             {
                 new TextBlock { Text = LocalizedText.Get("git.dialog.new_branch.name_label"), FontSize = 13 },
                 nameBox,
-                new TextBlock { Text = LocalizedText.Get("git.dialog.new_branch.start_label"), FontSize = 13 },
-                startBox,
-                trackCheck,
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Children = { checkoutCheck, resetExistingCheck }
+                },
                 new StackPanel
                 {
                     Orientation = Orientation.Horizontal,

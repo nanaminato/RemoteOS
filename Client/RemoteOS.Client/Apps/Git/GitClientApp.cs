@@ -43,7 +43,7 @@ public sealed class GitClientApp : RemoteApplicationBase
 
         // Wire dialog callbacks — the VM commands call these and handle the returned request objects.
         vm.ShowCommitDialogAsync = () => GitClientDialogs.ShowCommitDialogAsync(context, window!, vm);
-        vm.ShowCreateBranchDialogAsync = () => GitClientDialogs.ShowCreateBranchDialogAsync(context, window!, vm);
+        vm.ShowCreateBranchDialogAsync = source => GitClientDialogs.ShowCreateBranchDialogAsync(context, window!, vm, source);
         vm.ShowPullDialogAsync = () => GitClientDialogs.ShowPullDialogAsync(context, window!, vm);
         vm.ShowRegisterRepositoryDialogAsync = () => GitClientDialogs.ShowRegisterRepositoryDialogAsync(context, window!, vm);
         vm.ShowConfirmAsync = message => GitClientDialogs.ShowConfirmAsync(context, window!, message);

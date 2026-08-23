@@ -18,6 +18,7 @@ public interface IGitRepositoryService
     // ── Real-time git operations (not persisted) ──
     Task<GitStatusDto> GetStatusAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GitBranchDto>> ListBranchesAsync(Guid id, Guid userId, CancellationToken cancellationToken = default);
+    Task<GitBranchComparisonDto> CompareBranchAsync(Guid id, Guid userId, string name, CancellationToken cancellationToken = default);
     Task<GitOperationResult> CreateBranchAsync(Guid id, Guid userId, GitBranchCreateRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> DeleteBranchAsync(Guid id, Guid userId, string name, CancellationToken cancellationToken = default);
     Task<GitOperationResult> RenameBranchAsync(Guid id, Guid userId, string name, GitBranchRenameRequest request, CancellationToken cancellationToken = default);

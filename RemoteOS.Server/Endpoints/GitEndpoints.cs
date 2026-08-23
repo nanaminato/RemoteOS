@@ -68,6 +68,14 @@ public static class GitEndpoints
             catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "branches-failed"); }
         });
 
+        group.MapGet("/repositories/{id}/branches/{name}/comparison", async (string id, string name, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        {
+            if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
+            try { return Results.Ok(await service.CompareBranchAsync(repoId, GetUserId(principal), name, ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid branch", type: ProblemBase + "invalid-branch"); }
+            catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "branch-comparison-failed"); }
+        });
+
         group.MapPost("/repositories/{id}/branches", async (string id, GitBranchCreateRequest request, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();

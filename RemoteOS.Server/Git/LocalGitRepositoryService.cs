@@ -254,7 +254,10 @@ public sealed class LocalGitRepositoryService(
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
-        var fmt = "%(refname:short)%09%(upstream:short)%09%(upstream:track)%09%(HEAD)";
+        // Keep the full refname in addition to its display name.  A branch name is
+        // allowed to contain '/', so it cannot tell us whether the ref is local or
+        // remote (for example, a perfectly valid local branch is feature/login).
+        var fmt = "%(refname)%09%(refname:short)%09%(upstream:short)%09%(upstream:track)%09%(HEAD)";
         var result = await RunGitAsync(gitPath, repo.Path,
             ["for-each-ref", $"--format={fmt}", "refs/heads", "refs/remotes"], cancellationToken);
         if (!result.Success)
@@ -264,16 +267,46 @@ public sealed class LocalGitRepositoryService(
         foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             var parts = line.Split('\t');
-            if (parts.Length < 4) continue;
-            var name = parts[0];
-            var upstream = parts[1].Length > 0 ? parts[1] : null;
-            var track = parts[2];
-            var isHead = parts[3] == "*";
-            var isRemote = name.Contains('/');
+            if (parts.Length < 5) continue;
+            var fullRefName = parts[0];
+            var name = parts[1];
+            var upstream = parts[2].Length > 0 ? parts[2] : null;
+            var track = parts[3];
+            var isHead = parts[4] == "*";
+            var isRemote = fullRefName.StartsWith("refs/remotes/", StringComparison.Ordinal);
+
+            // refs/remotes/<remote>/HEAD is a symbolic pointer to the remote's
+            // default branch, not a branch a user can check out or manage.
+            if (isRemote && fullRefName.EndsWith("/HEAD", StringComparison.OrdinalIgnoreCase))
+                continue;
             var (ahead, behind) = ParseTrack(track);
             branches.Add(new GitBranchDto(name, isRemote, isHead, false, upstream, ahead, behind));
         }
         return branches;
+    }
+
+    public async Task<GitBranchComparisonDto> CompareBranchAsync(Guid id, Guid userId, string name, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.StartsWith("-", StringComparison.Ordinal))
+            throw new ArgumentException("A valid branch name is required.", nameof(name));
+
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
+        var gitPath = ResolveGitPathOrThrow();
+
+        // Resolve first so the branch name is never interpreted as a command option
+        // and so a stale remote ref produces a useful validation error.
+        var verify = await RunGitAsync(gitPath, repo.Path, ["rev-parse", "--verify", "--quiet", $"{name}^{{commit}}"], cancellationToken);
+        if (!verify.Success)
+            throw new ArgumentException($"Branch or revision '{name}' does not exist.", nameof(name));
+
+        // A one-revision diff compares that revision with the index and working tree,
+        // which is the same source/target direction exposed by IDEA's "Show Diff with
+        // Working Tree" action.  -M preserves rename information for the file list.
+        var result = await RunGitAsync(gitPath, repo.Path, ["diff", "--name-status", "-M", name], cancellationToken);
+        if (!result.Success)
+            throw new InvalidOperationException($"git diff failed: {result.Error}");
+        return new GitBranchComparisonDto(name, ParseChangedFiles(result.Output));
     }
 
     public async Task<GitOperationResult> CreateBranchAsync(Guid id, Guid userId, GitBranchCreateRequest request, CancellationToken cancellationToken = default)
@@ -283,11 +316,25 @@ public sealed class LocalGitRepositoryService(
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
-            var args = new List<string> { "branch", request.Name };
+            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.StartsWith("-", StringComparison.Ordinal))
+                return new GitOperationResult(false, "create-branch", Message: "A valid branch name is required.");
+
+            var args = new List<string> { "branch" };
+            if (request.ResetExisting) args.Add("--force");
             if (request.Track) args.Add("--track");
+            args.Add(request.Name);
             if (!string.IsNullOrEmpty(request.StartPoint)) args.Add(request.StartPoint);
-            var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
-            return new GitOperationResult(result.Success, "create-branch", Message: result.Success ? null : result.Error);
+            var createResult = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
+            if (!createResult.Success)
+                return new GitOperationResult(false, "create-branch", Message: createResult.Error);
+
+            if (!request.Checkout)
+                return new GitOperationResult(true, "create-branch");
+
+            var checkoutResult = await RunGitAsync(gitPath, repo.Path, ["checkout", request.Name], cancellationToken);
+            var conflicts = checkoutResult.Success ? null : await TryGetConflictPathsAsync(gitPath, repo.Path, cancellationToken);
+            return new GitOperationResult(checkoutResult.Success, "create-branch", Conflicts: conflicts,
+                Message: checkoutResult.Success ? null : checkoutResult.Error);
         });
     }
 
@@ -359,9 +406,37 @@ public sealed class LocalGitRepositoryService(
         var gitPath = ResolveGitPathOrThrow();
         return await WithWriteLockAsync(id, async () =>
         {
+            if (string.IsNullOrWhiteSpace(request.Branch) || request.Branch.StartsWith("-", StringComparison.Ordinal))
+                return new GitOperationResult(false, "checkout", Message: "A valid branch name is required.");
+
+            var remoteRef = await RunGitAsync(gitPath, repo.Path,
+                ["show-ref", "--verify", "--quiet", $"refs/remotes/{request.Branch}"], cancellationToken);
             var args = new List<string> { "checkout" };
-            if (request.CreateIfMissing) args.Add("-b");
-            args.Add(request.Branch);
+            if (remoteRef.Success)
+            {
+                // Checking out a remote ref directly detaches HEAD.  Match IDE
+                // behavior instead: create/check out a local branch that tracks it.
+                var slash = request.Branch.IndexOf('/');
+                var localName = slash >= 0 ? request.Branch[(slash + 1)..] : request.Branch;
+                var localRef = await RunGitAsync(gitPath, repo.Path,
+                    ["show-ref", "--verify", "--quiet", $"refs/heads/{localName}"], cancellationToken);
+                if (localRef.Success)
+                {
+                    // Do not reset an existing local branch implicitly.  It may
+                    // contain work that has not been pushed yet.
+                    args.Add(localName);
+                }
+                else
+                {
+                    args.Add("--track");
+                    args.Add(request.Branch);
+                }
+            }
+            else
+            {
+                if (request.CreateIfMissing) args.Add("-b");
+                args.Add(request.Branch);
+            }
             var result = await RunGitAsync(gitPath, repo.Path, [.. args], cancellationToken);
             var conflicts = result.Success ? null : await TryGetConflictPathsAsync(gitPath, repo.Path, cancellationToken);
             return new GitOperationResult(result.Success, "checkout", Conflicts: conflicts, Message: result.Success ? null : result.Error);

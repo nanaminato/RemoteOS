@@ -15,6 +15,7 @@ public static class GitApiRoutes
     public const string BranchByName = $"/{V1}/git/repositories/{{id}}/branches/{{name}}";
     public const string RenameBranch = $"/{V1}/git/repositories/{{id}}/branches/{{name}}/rename";
     public const string BranchTracking = $"/{V1}/git/repositories/{{id}}/branches/{{name}}/tracking";
+    public const string BranchComparison = $"/{V1}/git/repositories/{{id}}/branches/{{name}}/comparison";
     public const string Checkout = $"/{V1}/git/repositories/{{id}}/checkout";
     public const string Commit = $"/{V1}/git/repositories/{{id}}/commit";
     public const string Merge = $"/{V1}/git/repositories/{{id}}/merge";

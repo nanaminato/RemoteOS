@@ -15,6 +15,7 @@ public interface IRemoteGitClient
     Task<bool> UnregisterRepositoryAsync(string id, CancellationToken cancellationToken = default);
     Task<GitStatusDto> GetStatusAsync(string id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GitBranchDto>> ListBranchesAsync(string id, CancellationToken cancellationToken = default);
+    Task<GitBranchComparisonDto> CompareBranchAsync(string id, string name, CancellationToken cancellationToken = default);
     Task<GitOperationResult> CreateBranchAsync(string id, GitBranchCreateRequest request, CancellationToken cancellationToken = default);
     Task<GitOperationResult> DeleteBranchAsync(string id, string name, CancellationToken cancellationToken = default);
     Task<GitOperationResult> RenameBranchAsync(string id, string name, GitBranchRenameRequest request, CancellationToken cancellationToken = default);

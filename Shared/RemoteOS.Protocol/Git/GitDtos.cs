@@ -56,6 +56,11 @@ public sealed record GitBranchDto(
     [property: JsonPropertyName("ahead")] int Ahead = 0,
     [property: JsonPropertyName("behind")] int Behind = 0);
 
+/// <summary>File-level comparison between a selected branch and the current working tree.</summary>
+public sealed record GitBranchComparisonDto(
+    [property: JsonPropertyName("branch")] string Branch,
+    [property: JsonPropertyName("changedFiles")] IReadOnlyList<GitFileChangeDto> ChangedFiles);
+
 /// <summary>Commit item (history list).</summary>
 public sealed record GitCommitDto(
     [property: JsonPropertyName("sha")] string Sha,
@@ -139,7 +144,9 @@ public sealed record GitCommitRequest(
 public sealed record GitBranchCreateRequest(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("startPoint")] string? StartPoint = null,
-    [property: JsonPropertyName("track")] bool Track = false);
+    [property: JsonPropertyName("track")] bool Track = false,
+    [property: JsonPropertyName("checkout")] bool Checkout = true,
+    [property: JsonPropertyName("resetExisting")] bool ResetExisting = false);
 
 /// <summary>Pull strategy request.</summary>
 public sealed record GitPullRequest(

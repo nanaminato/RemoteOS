@@ -39,6 +39,11 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<IReadOnlyList<GitBranchDto>> ListBranchesAsync(string id, CancellationToken cancellationToken = default)
         => SendAsync<IReadOnlyList<GitBranchDto>>(HttpMethod.Get, GitApiRoutes.Branches.Replace("{id}", Uri.EscapeDataString(id)), null, cancellationToken);
 
+    public Task<GitBranchComparisonDto> CompareBranchAsync(string id, string name, CancellationToken cancellationToken = default)
+        => SendAsync<GitBranchComparisonDto>(HttpMethod.Get,
+            GitApiRoutes.BranchComparison.Replace("{id}", Uri.EscapeDataString(id)).Replace("{name}", Uri.EscapeDataString(name)),
+            null, cancellationToken);
+
     public Task<GitOperationResult> CreateBranchAsync(string id, GitBranchCreateRequest request, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Branches.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 

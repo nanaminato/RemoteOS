@@ -143,7 +143,8 @@ internal partial class GitLogView : UserControl
                 branch: b,
                 nodeKind: BranchNodeKind.LocalBranch,
                 canDelete: !b.IsCurrent,
-                isBranchAndNotCurrent: !b.IsCurrent));
+                isBranchAndNotCurrent: !b.IsCurrent,
+                currentBranchName: currentBranchName));
         }
         BranchTreeRoots.Add(localGroup);
 
@@ -180,7 +181,8 @@ internal partial class GitLogView : UserControl
                 badge: string.Empty,
                 branch: b,
                 nodeKind: BranchNodeKind.RemoteBranch,
-                canDelete: false));
+                canDelete: false,
+                currentBranchName: currentBranchName));
         }
         BranchTreeRoots.Add(remoteRoot);
     }
@@ -278,13 +280,35 @@ public sealed class BranchTreeNode
 
     public bool IsBranch => Kind is BranchNodeKind.LocalBranch or BranchNodeKind.RemoteBranch or BranchNodeKind.Head;
     public bool IsLocalBranch => Kind == BranchNodeKind.LocalBranch;
+    public bool IsRemoteBranch => Kind == BranchNodeKind.RemoteBranch;
+    public bool IsActionableBranch => Kind is BranchNodeKind.LocalBranch or BranchNodeKind.RemoteBranch;
+    public bool IsCurrentLocalBranch => IsLocalBranch && Branch?.IsCurrent == true;
+    public bool CanCheckout => IsActionableBranch && !IsCurrentLocalBranch;
+    public bool CanCheckoutAndUpdate => IsLocalBranch && !IsCurrentLocalBranch;
+    public bool CanMergeIntoCurrent => IsActionableBranch && !IsCurrentLocalBranch;
+    public bool CanPush => IsCurrentLocalBranch;
+    public bool CanUpdate => IsCurrentLocalBranch || IsRemoteBranch;
+    public bool CanRename => IsLocalBranch;
+    public string NewBranchMenuText => IsActionableBranch
+        ? LocalizedText.Format("git.log.menu.create_branch_from_format", Branch!.Name)
+        : LocalizedText.Get("git.log.menu.new_branch");
+    public string CompareMenuText => LocalizedText.Format("git.log.menu.compare_with_current_format",
+        string.IsNullOrWhiteSpace(CurrentBranchName) ? LocalizedText.Get("git.status.unknown_branch") : CurrentBranchName);
+    public string MergeMenuText => LocalizedText.Format("git.log.menu.merge_into_current_format", Branch?.Name ?? DisplayName,
+        string.IsNullOrWhiteSpace(CurrentBranchName) ? LocalizedText.Get("git.status.unknown_branch") : CurrentBranchName);
+    public string PullMenuText => IsRemoteBranch
+        ? LocalizedText.Format("git.log.menu.pull_remote_into_current_format", Branch?.Name ?? DisplayName,
+            string.IsNullOrWhiteSpace(CurrentBranchName) ? LocalizedText.Get("git.status.unknown_branch") : CurrentBranchName)
+        : LocalizedText.Get("git.log.menu.update");
+    public string? CurrentBranchName { get; }
 
     public ObservableCollection<BranchTreeNode> Children { get; } = [];
 
     public BranchTreeNode(string displayName, string icon = "📄",
         string foreground = "#122344", FontWeight fontWeight = default, string badge = "",
         GitBranchDto? branch = null, BranchNodeKind nodeKind = BranchNodeKind.Item,
-        bool canDelete = false, bool isBranchAndNotCurrent = false, bool isExpanded = false)
+        bool canDelete = false, bool isBranchAndNotCurrent = false, bool isExpanded = false,
+        string? currentBranchName = null)
     {
         DisplayName = displayName;
         Icon = icon;
@@ -296,6 +320,7 @@ public sealed class BranchTreeNode
         CanDelete = canDelete;
         IsBranchAndNotCurrent = isBranchAndNotCurrent;
         IsExpanded = isExpanded;
+        CurrentBranchName = currentBranchName;
     }
 }
 
