@@ -20,6 +20,21 @@
         "shell.shutdown": "シャットダウン",
         "shell.full_screen.enter": "全画面表示",
         "shell.full_screen.enter_tooltip": "全画面表示に切り替える",
-        "shell.full_screen.exit": "全画面表示を終了"
+        "shell.full_screen.exit": "全画面表示を終了",
+        "shell.desktop_display.title": "デスクトップ表示の設定",
+        "shell.desktop_display.welcome_title": "RemoteOS デスクトップへようこそ",
+        "shell.desktop_display.configure_ellipsis": "デスクトップ表示を設定...",
+        "shell.desktop_display.welcome_heading": "RemoteOS へようこそ！",
+        "shell.desktop_display.welcome_description": "デスクトップに表示する項目を選択してください。後でデスクトップのコンテキスト メニューまたは Ctrl+Shift+D から変更できます。",
+        "shell.desktop_display.description": "デスクトップに表示する項目を選択してください。設定はこのワークスペースに保存され、デバイス間で同期されます。",
+        "shell.desktop_display.built_in_apps": "組み込みアプリ",
+        "shell.desktop_display.show_built_in_apps": "組み込みアプリをデスクトップに表示する",
+        "shell.desktop_display.show_all_built_in_apps": "すべての組み込みアプリを表示する（既定）",
+        "shell.desktop_display.show_selected_apps": "選択したアプリのみ表示する：",
+        "shell.desktop_display.server_desktop_files": "サーバーのデスクトップ ファイル",
+        "shell.desktop_display.show_server_files": "サーバーのデスクトップのファイル（フォルダー、ドキュメント、画像など）を表示する",
+        "shell.desktop_display.show_server_shortcuts": "サーバーのデスクトップ ショートカット（.lnk / .desktop）を表示する",
+        "shell.desktop_display.shortcuts_tooltip": "ショートカットはホスト マシン上のパスを指すことが多く、RemoteOS では直接開けない場合があります。",
+        "shell.desktop_display.get_started": "開始する"
     }
 }

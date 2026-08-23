@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using RemoteOS.Core.Applications;
 using RemoteOS.Core.Input;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Core.Windows;
@@ -23,6 +24,7 @@ public sealed class WindowManager : IWindowManager
     private readonly Dictionary<WindowId, WindowState> _preFullScreenState = new();
     private readonly Dictionary<WindowId, Canvas> _windowHosts = new();
     private readonly List<IModalSession> _modalSessions = new();
+    private readonly List<IShellModalSession> _shellModalSessions = new();
 
     private Canvas? _host;
     private Canvas? _fullScreenHost;
@@ -68,6 +70,8 @@ public sealed class WindowManager : IWindowManager
 
         foreach (var session in _modalSessions)
             session.Blocker.ApplyBounds(session.Owner.Info.Bounds);
+        foreach (var session in _shellModalSessions)
+            session.Blocker.ApplyBounds(_hostBounds);
     }
 
     public void SetFullScreenHostBounds(Rect bounds)
@@ -166,7 +170,7 @@ public sealed class WindowManager : IWindowManager
         MoveToHost(dialogWindow, dialogHost);
         dialog.Attach(dialogWindow);
 
-        var blocker = new ModalBlocker(owner);
+        var blocker = new ModalBlocker();
         blocker.ApplyBounds(owner.Info.Bounds);
         // Place the shield above only its owner and below the newly-created dialog window.
         blocker.ZIndex = dialogWindow.View.ZIndex - 1;
@@ -204,6 +208,55 @@ public sealed class WindowManager : IWindowManager
         return ShowDialogAsync(owner, title, contentFactory, bounds);
     }
 
+    public Task<TResult?> ShowShellDialogAsync<TResult>(
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize)
+    {
+        if (_host == null)
+            throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
+
+        var width = _hostBounds.Width > 0
+            ? Math.Min(preferredSize.Width, Math.Max(320, _hostBounds.Width - 48))
+            : preferredSize.Width;
+        var height = _hostBounds.Height > 0
+            ? Math.Min(preferredSize.Height, Math.Max(220, _hostBounds.Height - 56))
+            : preferredSize.Height;
+        var bounds = new Rect(
+            _hostBounds.Width > 0 ? _hostBounds.X + Math.Max(24, (_hostBounds.Width - width) / 2) : 120,
+            _hostBounds.Height > 0 ? _hostBounds.Y + Math.Max(28, (_hostBounds.Height - height) / 2) : 100,
+            width,
+            height);
+        var dialog = new ModalDialog<TResult>(this, owner: null);
+        var dialogWindow = Create(new WindowCreateOptions(
+            OwnerAppId: new AppId("remoteos.shell"),
+            Title: title,
+            Content: contentFactory(dialog),
+            Bounds: bounds,
+            IconGlyph: "🖥",
+            CanResize: true,
+            CanMinimize: false,
+            CanMaximize: false,
+            IsModalDialog: true));
+        dialog.Attach(dialogWindow);
+
+        var blocker = new ModalBlocker();
+        blocker.ApplyBounds(_hostBounds);
+        blocker.ZIndex = dialogWindow.View.ZIndex - 1;
+        blocker.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            Focus(dialogWindow);
+        };
+        _host.Children.Add(blocker);
+
+        var session = new ShellModalSession<TResult>(dialogWindow, blocker, _host, dialog);
+        _shellModalSessions.Add(session);
+        _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseShellModalSession(session)),
+            TaskScheduler.Default);
+        return dialog.Result;
+    }
+
     public void Close(ManagedWindow window)
     {
         if (!_windows.Remove(window))
@@ -215,6 +268,8 @@ public sealed class WindowManager : IWindowManager
         _preFullScreenState.Remove(window.Info.Id);
         _windowHosts.Remove(window.Info.Id);
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window) || ReferenceEquals(s.DialogWindow, window)).ToList())
+            session.Cancel();
+        foreach (var session in _shellModalSessions.Where(s => ReferenceEquals(s.DialogWindow, window)).ToList())
             session.Cancel();
 
         if (ReferenceEquals(_active, window))
@@ -243,10 +298,28 @@ public sealed class WindowManager : IWindowManager
             Close(session.DialogWindow);
     }
 
+    private void CloseShellModalSession(IShellModalSession session)
+    {
+        if (!_shellModalSessions.Remove(session))
+            return;
+
+        session.Host.Children.Remove(session.Blocker);
+
+        if (_windows.Contains(session.DialogWindow))
+            Close(session.DialogWindow);
+    }
+
     public void Focus(ManagedWindow window)
     {
         if (!_windows.Contains(window))
             return;
+
+        // A shell modal has no individual application owner: it blocks the complete desktop
+        // host. Keep it (and any nested child modal) at the activation target even if another
+        // window tries to take focus while the shell flow is open.
+        if (_shellModalSessions.LastOrDefault() is { } shellModal
+            && _windows.Contains(shellModal.DialogWindow))
+            window = shellModal.DialogWindow;
 
         // Activation always targets the topmost modal dialog of the clicked window's modal
         // chain. A modal owner stays blocked, so clicking it (or the input shield that covers
@@ -505,6 +578,14 @@ public sealed class WindowManager : IWindowManager
             if (session is not null)
             {
                 session.Cancel();
+                e.Handled = true;
+                return;
+            }
+
+            var shellSession = _shellModalSessions.LastOrDefault(candidate => ReferenceEquals(candidate.DialogWindow, window));
+            if (shellSession is not null)
+            {
+                shellSession.Cancel();
                 e.Handled = true;
             }
             return;

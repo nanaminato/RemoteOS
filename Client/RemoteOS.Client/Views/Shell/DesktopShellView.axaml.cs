@@ -254,7 +254,7 @@ public partial class DesktopShellView : UserControl
         // ── 桌面显示配置对话框 ──
         var applications = App.Services.GetRequiredService<ApplicationManager>();
         shell.RequestOpenDesktopDisplaySettingsAsync = () =>
-            ShowDesktopDialogAsync<bool>(shell, "配置桌面显示项目",
+            ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("shell.desktop_display.title"),
                 new Size(560, 520),
                 complete => DesktopDisplayDialogs.BuildSettingsDialog(
                     shell.Settings,
@@ -267,7 +267,7 @@ public partial class DesktopShellView : UserControl
         shell.RequestFirstTimeDesktopSetupAsync = async () =>
         {
             // 首次配置：先把「跳过也算完成」写入 HasCompletedFirstTimeSetup
-            var confirmed = await ShowDesktopDialogAsync<bool>(shell, "欢迎使用 RemoteOS 桌面",
+            var confirmed = await ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("shell.desktop_display.welcome_title"),
                 new Size(580, 560),
                 complete => DesktopDisplayDialogs.BuildSettingsDialog(
                     shell.Settings,
@@ -291,36 +291,10 @@ public partial class DesktopShellView : UserControl
 
     private static Task<TResult?> ShowDesktopDialogAsync<TResult>(DesktopShellViewModel shell, string title, Size preferredSize,
         Func<Action<TResult?>, Control> contentFactory)
-    {
-        var completion = new TaskCompletionSource<TResult?>();
-        ManagedWindow? window = null;
-        EventHandler<ManagedWindow>? closed = null;
-        void Complete(TResult? result)
-        {
-            if (!completion.TrySetResult(result)) return;
-            if (closed is not null) shell.WindowManager.WindowClosed -= closed;
-            if (window is not null) shell.WindowManager.Close(window);
-        }
-
-        var host = shell.WindowManager.HostBounds;
-        var width = host.Width > 0 ? Math.Min(preferredSize.Width, Math.Max(320, host.Width - 48)) : preferredSize.Width;
-        var height = host.Height > 0 ? Math.Min(preferredSize.Height, Math.Max(220, host.Height - 56)) : preferredSize.Height;
-        var bounds = new Rect(
-            host.Width > 0 ? Math.Max(24, (host.Width - width) / 2) : 120,
-            host.Height > 0 ? Math.Max(28, (host.Height - height) / 2) : 100,
-            width, height);
-        window = shell.WindowManager.Create(new WindowCreateOptions(
-            new AppId("remoteos.shell"), title, contentFactory(Complete), bounds,
-            IconGlyph: "📁", CanResize: true, CanMinimize: false, CanMaximize: false));
-        closed = (_, closedWindow) =>
-        {
-            if (!ReferenceEquals(closedWindow, window)) return;
-            shell.WindowManager.WindowClosed -= closed;
-            completion.TrySetResult(default);
-        };
-        shell.WindowManager.WindowClosed += closed;
-        return completion.Task;
-    }
+        => shell.WindowManager.ShowShellDialogAsync<TResult>(
+            title,
+            dialog => contentFactory(result => dialog.Close(result!)),
+            preferredSize);
 
     private void TaskbarPreviewBackdrop_OnPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
     {

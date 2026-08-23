@@ -107,6 +107,7 @@ ConnectionWorkspace ← IAuthSession.CurrentWorkspace.Name
 
 - 对话框是一个 `ManagedWindow`（由 `WindowManager.Create` 创建），可移动、可 resize，与普通应用窗口共用同一套 z-order / 焦点逻辑。
 - **只屏蔽其直接 owner**：通过一个跟随 owner 的半透明遮罩（`ModalBlocker`）盖住 owner，owner 之外其它窗口仍可交互。
+- **桌面级模态**：没有应用 owner 的桌面外壳流程使用 `ShowShellDialogAsync`；遮罩覆盖整个桌面窗口宿主，且对话框仍是受管窗口。
 - **可嵌套**：对话框可以再弹自己的子对话框（owner = 该对话框窗口）。
 - **任意结果类型**：`ModalDialog<TResult>`，`await` 返回 `TResult?`；取消/关闭返回 `default`。
 - **自动清理**：owner 关闭/最小化、对话框关闭、Esc/取消按钮，都触发 session 取消并移除遮罩。
@@ -120,6 +121,7 @@ ModalBlocker : Border       半透明遮罩（#3D000000），ApplyBounds 跟随 
 ModalSession<TResult>      owner + dialogWindow + blocker + dialog，实现 IModalSession
 IWindowManager.ShowDialogAsync<TResult>(owner, title, contentFactory)
 AppContext.ShowDialogAsync<TResult>(owner, title, contentFactory)   // 应用入口
+IWindowManager.ShowShellDialogAsync<TResult>(title, contentFactory) // 桌面外壳入口
 ```
 
 ### 3.3 ShowDialogAsync 流程

@@ -50,6 +50,15 @@ public interface IWindowManager
         Func<ModalDialog<TResult>, Control> contentFactory,
         Size preferredSize);
 
+    /// <summary>
+    /// Shows a shell-owned modal dialog. Use this for desktop-level flows that do not have an
+    /// application window owner; the desktop window host is blocked while the dialog is open.
+    /// </summary>
+    Task<TResult?> ShowShellDialogAsync<TResult>(
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize);
+
     void Close(ManagedWindow window);
     void Focus(ManagedWindow window);
     void Minimize(ManagedWindow window);
