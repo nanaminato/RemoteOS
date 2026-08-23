@@ -106,33 +106,45 @@ public static class DesktopDisplayDialogs
             IsEnabled = buffer.ShowBuiltInApps,
         };
 
-        var appListBox = new ListBox
+        // A ListBox only indicates selection with a row highlight, which makes it unclear
+        // that each application can be included or excluded independently.  Use explicit
+        // check boxes so the current choice and the interactive target are both visible.
+        var appList = new StackPanel { Spacing = 2 };
+        foreach (var item in buffer.AppItems)
+        {
+            var appCheckBox = new CheckBox
+            {
+                Content = $"{item.IconGlyph}  {item.DisplayName}",
+                IsChecked = item.IsVisible,
+                Padding = new Thickness(4, 2),
+            };
+            appCheckBox.IsCheckedChanged += (_, _) => item.IsVisible = appCheckBox.IsChecked == true;
+            appList.Children.Add(appCheckBox);
+        }
+
+        var appListViewer = new ScrollViewer
         {
             Background = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(0),
             MaxHeight = 160,
-            ItemsSource = buffer.AppItems,
+            Content = appList,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             IsEnabled = buffer.ShowBuiltInApps && !buffer.ShowAllBuiltInApps,
-            SelectionMode = SelectionMode.Multiple,
         };
-        if (appListBox.SelectedItems is { } selectedItems)
-            foreach (var item in buffer.AppItems.Where(i => i.IsVisible))
-                selectedItems.Add(item);
 
         showAppsToggle.IsCheckedChanged += (_, _) =>
         {
             buffer.ShowBuiltInApps = showAppsToggle.IsChecked == true;
             allAppsRadio.IsEnabled = buffer.ShowBuiltInApps;
             customAppsRadio.IsEnabled = buffer.ShowBuiltInApps;
-            UpdateAppListBoxEnabled();
+            UpdateAppListEnabled();
         };
         allAppsRadio.IsCheckedChanged += (_, _) =>
         {
             if (allAppsRadio.IsChecked == true)
             {
                 buffer.ShowAllBuiltInApps = true;
-                UpdateAppListBoxEnabled();
+                UpdateAppListEnabled();
             }
         };
         customAppsRadio.IsCheckedChanged += (_, _) =>
@@ -140,27 +152,17 @@ public static class DesktopDisplayDialogs
             if (customAppsRadio.IsChecked == true)
             {
                 buffer.ShowAllBuiltInApps = false;
-                UpdateAppListBoxEnabled();
+                UpdateAppListEnabled();
             }
         };
-        appListBox.SelectionChanged += (_, _) =>
+        void UpdateAppListEnabled()
         {
-            if (appListBox.SelectedItems is { } selectedItems)
-                buffer.SyncVisibleFromSelection(selectedItems.Cast<AppVisibilityItem>());
-        };
-        void UpdateAppListBoxEnabled()
-        {
-            appListBox.IsEnabled = buffer.ShowBuiltInApps && !buffer.ShowAllBuiltInApps;
-            if (!appListBox.IsEnabled) return;
-            if (appListBox.SelectedItems is not { } selectedItems) return;
-            selectedItems.Clear();
-            foreach (var item in buffer.AppItems.Where(i => i.IsVisible))
-                selectedItems.Add(item);
+            appListViewer.IsEnabled = buffer.ShowBuiltInApps && !buffer.ShowAllBuiltInApps;
         }
 
         appsContainer.Children.Add(allAppsRadio);
         appsContainer.Children.Add(customAppsRadio);
-        appsContainer.Children.Add(appListBox);
+        appsContainer.Children.Add(appListViewer);
 
         content.Children.Add(showAppsToggle);
         content.Children.Add(appsContainer);
@@ -273,13 +275,6 @@ internal sealed class DesktopDisplayEditBuffer
         }
     }
 
-    public void SyncVisibleFromSelection(IEnumerable<AppVisibilityItem> selected)
-    {
-        var selectedSet = new HashSet<string>(selected.Select(x => x.App.Id.Value), StringComparer.Ordinal);
-        foreach (var item in AppItems)
-            item.IsVisible = selectedSet.Contains(item.App.Id.Value);
-    }
-
     public void ApplyTo(ShellSettings settings)
     {
         settings.ShowBuiltInApps = ShowBuiltInApps;
@@ -300,7 +295,7 @@ internal sealed class DesktopDisplayEditBuffer
     }
 }
 
-/// <summary>应用可见性勾选项（ListBox 行）。</summary>
+/// <summary>应用可见性勾选项。</summary>
 internal sealed partial class AppVisibilityItem : ObservableObject
 {
     public ApplicationInfo App { get; }
