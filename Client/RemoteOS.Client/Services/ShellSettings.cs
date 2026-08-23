@@ -107,7 +107,7 @@ public sealed partial class ShellSettings : ObservableObject
         // ── 桌面显示配置 ──
         var dd = prefs.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
         ShowBuiltInApps = dd.ShowBuiltInApps;
-        VisibleAppIds = new List<string>(dd.VisibleAppIds ?? Array.Empty<string>());
+        VisibleAppIds = new List<string>(dd.VisibleAppIds ?? new List<string>());
         ShowServerDesktopFiles = dd.ShowServerDesktopFiles;
         ShowServerDesktopShortcuts = dd.ShowServerDesktopShortcuts;
         HasCompletedFirstTimeSetup = dd.HasCompletedFirstTimeSetup;

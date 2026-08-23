@@ -9,23 +9,69 @@ namespace RemoteOS.Protocol.Workspace;
 /// 作为 <c>OwnsOne + ToJson</c> 挂在 Workspace 上，单列 JSON 文本持久化（新增字段无需改 schema）。
 /// 多设备登录同一 Workspace 时共享同一份偏好。
 /// </summary>
-public sealed record WorkspacePreferencesDto(
-    [property: JsonPropertyName("wallpaperKey")] string WallpaperKey,
-    [property: JsonPropertyName("theme")] ThemeKind Theme,
-    [property: JsonPropertyName("timeFormat")] string TimeFormat,
-    [property: JsonPropertyName("dateFormat")] string DateFormat,
-    [property: JsonPropertyName("language")] string Language,
-    [property: JsonPropertyName("region")] string Region,
-    [property: JsonPropertyName("defaultApps")] IReadOnlyList<DefaultAppMappingDto> DefaultApps,
-    [property: JsonPropertyName("notepadDefaultEncoding")] string? NotepadDefaultEncoding = TextEncodingPreferences.Default,
-    [property: JsonPropertyName("codeEditorDefaultEncoding")] string? CodeEditorDefaultEncoding = TextEncodingPreferences.Default,
-    [property: JsonPropertyName("desktopDisplay")] DesktopDisplaySettingsDto? DesktopDisplay = null)
+public sealed record WorkspacePreferencesDto
 {
-    // EF Core materializes the scalar JSON properties after constructing the owned type.
+    [JsonPropertyName("wallpaperKey")]
+    public string WallpaperKey { get; set; }
 
+    [JsonPropertyName("theme")]
+    public ThemeKind Theme { get; set; }
+
+    [JsonPropertyName("timeFormat")]
+    public string TimeFormat { get; set; }
+
+    [JsonPropertyName("dateFormat")]
+    public string DateFormat { get; set; }
+
+    [JsonPropertyName("language")]
+    public string Language { get; set; }
+
+    [JsonPropertyName("region")]
+    public string Region { get; set; }
+
+    // Keep the owned JSON collection mutable. EF Core identifies its items by a synthesized
+    // ordinal, so replacing this navigation would attempt to rewrite those key values.
+    [JsonPropertyName("defaultApps")]
+    public List<DefaultAppMappingDto> DefaultApps { get; set; }
+
+    [JsonPropertyName("notepadDefaultEncoding")]
+    public string? NotepadDefaultEncoding { get; set; }
+
+    [JsonPropertyName("codeEditorDefaultEncoding")]
+    public string? CodeEditorDefaultEncoding { get; set; }
+
+    [JsonPropertyName("desktopDisplay")]
+    public DesktopDisplaySettingsDto? DesktopDisplay { get; set; }
+
+    public WorkspacePreferencesDto(
+        string WallpaperKey,
+        ThemeKind Theme,
+        string TimeFormat,
+        string DateFormat,
+        string Language,
+        string Region,
+        IReadOnlyList<DefaultAppMappingDto>? DefaultApps,
+        string? NotepadDefaultEncoding = TextEncodingPreferences.Default,
+        string? CodeEditorDefaultEncoding = TextEncodingPreferences.Default,
+        DesktopDisplaySettingsDto? DesktopDisplay = null)
+    {
+        this.WallpaperKey = WallpaperKey;
+        this.Theme = Theme;
+        this.TimeFormat = TimeFormat;
+        this.DateFormat = DateFormat;
+        this.Language = Language;
+        this.Region = Region;
+        this.DefaultApps = DefaultApps?.ToList() ?? [];
+        this.NotepadDefaultEncoding = NotepadDefaultEncoding;
+        this.CodeEditorDefaultEncoding = CodeEditorDefaultEncoding;
+        this.DesktopDisplay = DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
+    }
+
+    // EF Core must use the parameterless constructor because DefaultApps is an owned
+    // collection navigation, not a scalar constructor binding.
     private WorkspacePreferencesDto()
         : this(string.Empty, default, string.Empty, string.Empty, string.Empty, string.Empty,
-            new List<DefaultAppMappingDto>(), TextEncodingPreferences.Default, TextEncodingPreferences.Default,
+            [], TextEncodingPreferences.Default, TextEncodingPreferences.Default,
             DesktopDisplaySettingsDto.Default)
     {
     }
@@ -43,14 +89,15 @@ public sealed record WorkspacePreferencesDto(
     /// 因此不会把宿主机路径暴露或同步到其他设备。</summary>
     public const string CustomWallpaperPrefix = "custom:";
 
-    public static WorkspacePreferencesDto Default { get; } = new(
+    // This must be a fresh object: tracked SQLite owned entities are mutated in place.
+    public static WorkspacePreferencesDto Default => new(
         WallpaperKey: BuiltInWallpaperPrefix + "bloom",
         Theme: ThemeKind.Light,
         TimeFormat: TimeFormat24H,
         DateFormat: "yyyy/M/d",
         Language: "en-US",
         Region: "en-US",
-        DefaultApps: Array.Empty<DefaultAppMappingDto>(),
+        DefaultApps: [],
         NotepadDefaultEncoding: TextEncodingPreferences.Default,
         CodeEditorDefaultEncoding: TextEncodingPreferences.Default,
         DesktopDisplay: DesktopDisplaySettingsDto.Default);

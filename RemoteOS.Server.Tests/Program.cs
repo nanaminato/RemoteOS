@@ -5,9 +5,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using RemoteOS.Protocol.Certificates;
+using RemoteOS.Protocol.Desktop;
+using RemoteOS.Protocol.Workspace;
 using RemoteOS.Protocol.WebServers;
 using Server.Certificate;
+using Server.Domain;
 using Server.Storage.Sqlite;
 using Server.WebServer;
 
@@ -22,6 +26,7 @@ try
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
+    await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 finally
@@ -254,6 +259,48 @@ static async Task VerifyOperationIdempotencyAsync(string root)
     var webDuplicate = await webOperations.StartAsync("same-key", "nginx-test", "reload", "test", _ => Task.FromResult(new WebServerOperationResult("webserver.should_not_run")), CancellationToken.None);
     Assert(webFirst.OperationId == webDuplicate.OperationId, "WebServer idempotency key created duplicate work.");
     Assert((await WaitForWebOperationAsync(webOperations, webFirst.OperationId)).State == WebServerOperationState.Succeeded, "WebServer operation did not complete.");
+}
+
+static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
+{
+    var databasePath = Path.Combine(root, "workspace-preferences.db");
+    var options = new DbContextOptionsBuilder<RemoteOsDbContext>()
+        .UseSqlite($"Data Source={databasePath}")
+        .Options;
+    var workspaceId = Guid.NewGuid();
+    var originalMapping = new DefaultAppMappingDto("https", "remoteos.browser");
+
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        await db.Database.EnsureCreatedAsync();
+        db.Workspaces.Add(new Workspace
+        {
+            Id = workspaceId,
+            UserId = Guid.NewGuid(),
+            Name = "Preference update regression test",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Preferences = new WorkspacePreferencesDto(
+                WorkspacePreferencesDto.BuiltInWallpaperPrefix + "bloom", ThemeKind.Light,
+                WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping])
+        });
+        await db.SaveChangesAsync();
+    }
+
+    var customWallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + Guid.NewGuid().ToString("N");
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        var repository = new SqliteWorkspaceRepository(db);
+        var workspace = repository.FindById(workspaceId) ?? throw new InvalidOperationException("Workspace was not loaded.");
+        workspace.Preferences.WallpaperKey = customWallpaperKey;
+        repository.Update(workspace);
+    }
+
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        var workspace = await db.Workspaces.AsNoTracking().SingleAsync(w => w.Id == workspaceId);
+        Assert(workspace.Preferences.WallpaperKey == customWallpaperKey, "Wallpaper key was not persisted.");
+        Assert(workspace.Preferences.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
+    }
 }
 
 static async Task VerifyWebServerProviderRoutingAsync()

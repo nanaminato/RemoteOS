@@ -49,7 +49,7 @@ public static class WorkspaceEndpoints
                 return Results.BadRequest(new { message = "Invalid workspace preferences." });
 
             var previousKey = workspace.Preferences.WallpaperKey;
-            workspace.Preferences = normalized;
+            ApplyPreferences(workspace.Preferences, normalized);
             workspaces.Update(workspace);
             // Switching back to a preset must not leave the previously selected private image
             // on disk indefinitely. Cleanup is best-effort: the updated preference remains valid
@@ -81,19 +81,28 @@ public static class WorkspaceEndpoints
             {
                 var stored = await wallpapers.SaveAsync(id, file, context.RequestAborted);
                 var previousKey = workspace.Preferences.WallpaperKey;
-                var updated = workspace.Preferences with
+                try
                 {
-                    WallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + stored.Id,
-                };
-                workspace.Preferences = updated;
-                workspaces.Update(workspace);
+                    // Preferences is an EF-tracked owned JSON object. Replacing it would
+                    // re-parent DefaultApps and mutate EF's synthesized ordinal key.
+                    workspace.Preferences.WallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + stored.Id;
+                    workspaces.Update(workspace);
+                }
+                catch
+                {
+                    // The blob has no database reference until SaveChanges succeeds.
+                    // Delete it on every persistence failure so retries do not leak files.
+                    try { await wallpapers.DeleteAsync(id, stored.Id); }
+                    catch { /* best-effort cleanup; preserve the database failure */ }
+                    throw;
+                }
 
                 if (TryGetCustomWallpaperId(previousKey, out var previousId))
                 {
                     try { await wallpapers.DeleteAsync(id, previousId); }
                     catch { /* best-effort orphan cleanup */ }
                 }
-                return Results.Ok(updated);
+                return Results.Ok(workspace.Preferences);
             }
             catch (InvalidWallpaperException ex)
             {
@@ -208,7 +217,7 @@ public static class WorkspaceEndpoints
         if (!TextEncodingPreferences.IsSupported(codeEditorEncoding))
             return false;
 
-        var sourceApps = request.DefaultApps ?? Array.Empty<DefaultAppMappingDto>();
+        var sourceApps = request.DefaultApps ?? new List<DefaultAppMappingDto>();
         if (sourceApps.Count > 64)
             return false;
 
@@ -226,7 +235,7 @@ public static class WorkspaceEndpoints
 
         // ── DesktopDisplaySettings 归一化 ──
         var desktopDisplay = request.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
-        var visibleAppIdsSource = desktopDisplay.VisibleAppIds ?? Array.Empty<string>();
+        var visibleAppIdsSource = desktopDisplay.VisibleAppIds ?? new List<string>();
         if (visibleAppIdsSource.Count > 256)
             return false;
 
@@ -269,6 +278,36 @@ public static class WorkspaceEndpoints
         if (!Guid.TryParseExact(value, "N", out _)) return false;
         id = value;
         return true;
+    }
+
+    /// <summary>
+    /// Applies an API payload to the existing EF-tracked Preferences graph. JSON array items
+    /// use a synthesized ordinal as their key, therefore neither this object nor its owned
+    /// collections may be replaced wholesale.
+    /// </summary>
+    private static void ApplyPreferences(WorkspacePreferencesDto target, WorkspacePreferencesDto source)
+    {
+        target.WallpaperKey = source.WallpaperKey;
+        target.Theme = source.Theme;
+        target.TimeFormat = source.TimeFormat;
+        target.DateFormat = source.DateFormat;
+        target.Language = source.Language;
+        target.Region = source.Region;
+        target.NotepadDefaultEncoding = source.NotepadDefaultEncoding;
+        target.CodeEditorDefaultEncoding = source.CodeEditorDefaultEncoding;
+
+        target.DefaultApps.Clear();
+        target.DefaultApps.AddRange(source.DefaultApps);
+
+        var sourceDisplay = source.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
+        var targetDisplay = target.DesktopDisplay ?? new DesktopDisplaySettingsDto();
+        targetDisplay.ShowBuiltInApps = sourceDisplay.ShowBuiltInApps;
+        targetDisplay.ShowServerDesktopFiles = sourceDisplay.ShowServerDesktopFiles;
+        targetDisplay.ShowServerDesktopShortcuts = sourceDisplay.ShowServerDesktopShortcuts;
+        targetDisplay.HasCompletedFirstTimeSetup = sourceDisplay.HasCompletedFirstTimeSetup;
+        targetDisplay.VisibleAppIds.Clear();
+        targetDisplay.VisibleAppIds.AddRange(sourceDisplay.VisibleAppIds);
+        target.DesktopDisplay = targetDisplay;
     }
 
     private static bool TryNormalize(WorkspaceWindowLayoutDto request, out WorkspaceWindowLayoutDto layouts)
