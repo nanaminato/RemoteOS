@@ -78,9 +78,22 @@ public sealed class RemoteGitClient(HttpClient http, IAuthSession session) : IRe
     public Task<GitOperationResult> PushAsync(string id, GitPushRequest? request = null, CancellationToken cancellationToken = default)
         => SendAsync<GitOperationResult>(HttpMethod.Post, GitApiRoutes.Push.Replace("{id}", Uri.EscapeDataString(id)), request, cancellationToken);
 
-    public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(string id, int limit = 200, int skip = 0, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(string id, int limit = 200, int skip = 0,
+        GitLogQuery? query = null, CancellationToken cancellationToken = default)
     {
         var route = $"{GitApiRoutes.Log.Replace("{id}", Uri.EscapeDataString(id))}?limit={limit}&skip={skip}";
+        if (query is not null)
+        {
+            static string Add(string route, string key, string? value)
+                => string.IsNullOrWhiteSpace(value) ? route : $"{route}&{key}={Uri.EscapeDataString(value)}";
+            route = Add(route, "reference", query.Reference);
+            route = Add(route, "search", query.Search);
+            route = Add(route, "author", query.Author);
+            route = Add(route, "path", query.Path);
+            route = Add(route, "dateRange", query.DateRange);
+            if (query.CaseSensitive) route += "&caseSensitive=true";
+            if (query.UseRegex) route += "&useRegex=true";
+        }
         return await SendAsync<IReadOnlyList<GitCommitDto>>(HttpMethod.Get, route, null, cancellationToken);
     }
 

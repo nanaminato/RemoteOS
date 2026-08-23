@@ -14,6 +14,9 @@ namespace Client.Apps.Git;
 
 public enum GitClientPage { Overview, Workspace, Log, ConflictResolution, Remotes }
 
+/// <summary>A display/value pair used by the compact history filter controls.</summary>
+public sealed record GitLogFilterOption(string Value, string Label);
+
 /// <summary>State and typed operations for the Git Client. Uses DispatcherTimer (10s) for status refresh with Interlocked reentrancy guard.
 /// Each window owns its own ViewModel instance — supports multiple projects open simultaneously (MultiWindow instance policy).</summary>
 public sealed partial class GitClientViewModel(IRemoteGitClient client) : ObservableObject
@@ -27,6 +30,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     public ObservableCollection<GitFileChangeDto> ConflictFiles { get; } = [];
     public ObservableCollection<GitRemoteDto> Remotes { get; } = [];
     public ObservableCollection<GitFileChangeDto> CommitChangedFiles { get; } = [];
+    public ObservableCollection<GitLogFilterOption> LogBranchOptions { get; } = [];
+    public ObservableCollection<GitLogFilterOption> LogAuthorOptions { get; } = [];
+    public ObservableCollection<GitLogFilterOption> LogDateOptions { get; } =
+    [
+        new("all", "全部时间"),
+        new("today", "今天"),
+        new("week", "过去 7 天"),
+        new("month", "过去 30 天"),
+    ];
 
     /// <summary>Files shown in the Changes list (union of unstaged + untracked, excluding .gitignored).</summary>
     public ObservableCollection<GitFileChangeItem> Changes { get; } = [];
@@ -47,7 +59,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     // the picker (including a recent/history entry), otherwise their initial
     // disabled state is retained by Avalonia.
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand), nameof(RefreshCommand), nameof(ApplyLogFiltersCommand))]
     private GitRepositoryDto? _selectedRepository;
     [ObservableProperty] private GitClientPage _activePage = GitClientPage.Overview;
     [ObservableProperty] private GitStatusDto? _status;
@@ -58,7 +70,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private GitRemoteDto? _selectedRemote;
     [ObservableProperty] private string _statusText = LocalizedText.Get("git.status.loading");
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PullCommand), nameof(PushCommand), nameof(FetchCommand), nameof(RefreshCommand), nameof(ApplyLogFiltersCommand))]
     private bool _isBusy;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private string _commitMessage = string.Empty;
@@ -67,6 +79,12 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private string _branchSearchText = string.Empty;
     [ObservableProperty] private string _commitSearchText = string.Empty;
     [ObservableProperty] private GitFileChangeDto? _selectedCommitFile;
+    [ObservableProperty] private GitLogFilterOption? _selectedLogBranch;
+    [ObservableProperty] private GitLogFilterOption? _selectedLogAuthor;
+    [ObservableProperty] private GitLogFilterOption? _selectedLogDate;
+    [ObservableProperty] private string _logPathFilter = string.Empty;
+    [ObservableProperty] private bool _isLogCaseSensitive;
+    [ObservableProperty] private bool _isLogRegex;
 
     // ── Push dialog state ──
     public ObservableCollection<GitCommitDto> PushCommits { get; } = [];
@@ -108,7 +126,10 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     [ObservableProperty] private string _installMessage = string.Empty;
 
     private DispatcherTimer? _timer;
+    private DispatcherTimer? _logFilterTimer;
     private int _refreshing;
+    private int _logFilterRequestVersion;
+    private bool _updatingLogFilterOptions;
 
     /// <summary>Dialog callbacks assigned by the app shell.</summary>
     public Func<Task<GitCommitRequest?>>? ShowCommitDialogAsync { get; set; }
@@ -159,6 +180,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
     public async Task StartAsync()
     {
+        SelectedLogDate ??= LogDateOptions[0];
         Log("StartAsync 开始");
         await RefreshEngineStatusAsync();
         Log($"引擎状态: IsAvailable={IsGitAvailable} Version={EngineVersion} Problem={ProblemCode}");
@@ -185,6 +207,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     {
         _timer?.Stop();
         _timer = null;
+        _logFilterTimer?.Stop();
+        _logFilterTimer = null;
     }
 
     private void StartStatusTimer()
@@ -223,7 +247,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             Log("RefreshAllAsync: 并行请求 GetStatus / ListBranches / GetLog(100) …");
             var statusTask = client.GetStatusAsync(SelectedRepository.Id);
             var branchesTask = client.ListBranchesAsync(SelectedRepository.Id);
-            var logTask = client.GetLogAsync(SelectedRepository.Id, limit: 100);
+            var logTask = client.GetLogAsync(SelectedRepository.Id, limit: 100, query: BuildLogQuery());
 
             Status = await statusTask;
             var branches = await branchesTask;
@@ -233,8 +257,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             Branches.Clear();
             foreach (var b in branches) Branches.Add(b);
 
-            Commits.Clear();
-            foreach (var c in commits) Commits.Add(c);
+            ReplaceCommits(commits);
+            RebuildLogBranchOptions();
 
             StagedFiles.Clear();
             UnstagedFiles.Clear();
@@ -364,6 +388,125 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     private async Task RefreshAsync()
     {
         await RefreshAllAsync();
+    }
+
+    /// <summary>Runs the history query currently shown in the toolbar.  This is also
+    /// used after a branch/user/date selection so every visible result comes from
+    /// Git, rather than an arbitrary client-side page of 100 commits.</summary>
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task ApplyLogFiltersAsync()
+    {
+        if (SelectedRepository is null) return;
+        _logFilterTimer?.Stop();
+        var requestVersion = Interlocked.Increment(ref _logFilterRequestVersion);
+        try
+        {
+            var commits = await client.GetLogAsync(SelectedRepository.Id, limit: 100, query: BuildLogQuery());
+            if (requestVersion != Volatile.Read(ref _logFilterRequestVersion)) return;
+            ReplaceCommits(commits);
+        }
+        catch (Exception ex)
+        {
+            if (requestVersion == Volatile.Read(ref _logFilterRequestVersion))
+                StatusText = LocalizedText.Format("git.vm.refresh_failed_format", ex.Message);
+        }
+    }
+
+    private GitLogQuery BuildLogQuery() => new(
+        Reference: SelectedLogBranch?.Value,
+        Search: string.IsNullOrWhiteSpace(CommitSearchText) ? null : CommitSearchText.Trim(),
+        Author: SelectedLogAuthor?.Value,
+        Path: string.IsNullOrWhiteSpace(LogPathFilter) ? null : LogPathFilter.Trim(),
+        DateRange: SelectedLogDate?.Value,
+        CaseSensitive: IsLogCaseSensitive,
+        UseRegex: IsLogRegex);
+
+    private void ReplaceCommits(IReadOnlyList<GitCommitDto> commits)
+    {
+        var selectedSha = SelectedCommit?.Sha;
+        Commits.Clear();
+        foreach (var commit in commits) Commits.Add(commit);
+        SelectedCommit = string.IsNullOrEmpty(selectedSha)
+            ? null
+            : Commits.FirstOrDefault(commit => string.Equals(commit.Sha, selectedSha, StringComparison.Ordinal));
+        RebuildLogAuthorOptions();
+    }
+
+    private void RebuildLogBranchOptions()
+    {
+        var selectedValue = SelectedLogBranch?.Value;
+        _updatingLogFilterOptions = true;
+        try
+        {
+            LogBranchOptions.Clear();
+            LogBranchOptions.Add(new GitLogFilterOption(string.Empty, "分支: HEAD"));
+            foreach (var branch in Branches.OrderBy(branch => branch.IsRemote).ThenBy(branch => branch.Name, StringComparer.OrdinalIgnoreCase))
+                LogBranchOptions.Add(new GitLogFilterOption(branch.Name, branch.Name));
+            SelectedLogBranch = LogBranchOptions.FirstOrDefault(option => option.Value == selectedValue)
+                ?? LogBranchOptions[0];
+        }
+        finally { _updatingLogFilterOptions = false; }
+    }
+
+    private void RebuildLogAuthorOptions()
+    {
+        var selectedValue = SelectedLogAuthor?.Value;
+        var knownAuthors = LogAuthorOptions.Select(option => option.Value)
+            .Concat(Commits.Select(commit => commit.Author))
+            .Where(author => !string.IsNullOrWhiteSpace(author))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(author => author, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        _updatingLogFilterOptions = true;
+        try
+        {
+            LogAuthorOptions.Clear();
+            LogAuthorOptions.Add(new GitLogFilterOption(string.Empty, "用户: 全部"));
+            foreach (var author in knownAuthors)
+                LogAuthorOptions.Add(new GitLogFilterOption(author, author));
+            SelectedLogAuthor = LogAuthorOptions.FirstOrDefault(option => option.Value == selectedValue)
+                ?? LogAuthorOptions[0];
+        }
+        finally { _updatingLogFilterOptions = false; }
+    }
+
+    partial void OnSelectedLogBranchChanged(GitLogFilterOption? value)
+    {
+        if (!_updatingLogFilterOptions && value is not null && SelectedRepository is not null)
+            _ = ApplyLogFiltersAsync();
+    }
+
+    partial void OnSelectedLogAuthorChanged(GitLogFilterOption? value)
+    {
+        if (!_updatingLogFilterOptions && value is not null && SelectedRepository is not null)
+            _ = ApplyLogFiltersAsync();
+    }
+
+    partial void OnSelectedLogDateChanged(GitLogFilterOption? value)
+    {
+        if (value is not null && SelectedRepository is not null)
+            _ = ApplyLogFiltersAsync();
+    }
+
+    partial void OnCommitSearchTextChanged(string value) => QueueLogFilterRefresh();
+    partial void OnLogPathFilterChanged(string value) => QueueLogFilterRefresh();
+    partial void OnIsLogCaseSensitiveChanged(bool value) => QueueLogFilterRefresh();
+    partial void OnIsLogRegexChanged(bool value) => QueueLogFilterRefresh();
+
+    private void QueueLogFilterRefresh()
+    {
+        if (SelectedRepository is null) return;
+        _logFilterTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _logFilterTimer.Tick -= OnLogFilterTimerTick;
+        _logFilterTimer.Tick += OnLogFilterTimerTick;
+        _logFilterTimer.Stop();
+        _logFilterTimer.Start();
+    }
+
+    private void OnLogFilterTimerTick(object? sender, EventArgs e)
+    {
+        _logFilterTimer?.Stop();
+        _ = ApplyLogFiltersAsync();
     }
 
     /// <summary>在项目选择器中点击已注册的项目，进入工作区。</summary>

@@ -80,6 +80,19 @@ internal partial class GitLogView : UserControl
         _attached = false;
     }
 
+    /// <summary>Keep the useful filters visible first.  The secondary navigation
+    /// actions are deliberately removed before they can force a horizontal toolbar
+    /// scrollbar in a narrow parent window.</summary>
+    private void LogLayoutRoot_SizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        var width = e.NewSize.Width;
+        CommitToolbarActions.IsVisible = width >= 1320;
+        FileToolbarActions.IsVisible = width >= 1100;
+        LogPathFilter.IsVisible = width >= 1400;
+        LogDateFilter.IsVisible = width >= 1180;
+        LogAuthorFilter.IsVisible = width >= 1050;
+    }
+
     private void RebuildBranchTree()
     {
         if (_vm is null) return;
