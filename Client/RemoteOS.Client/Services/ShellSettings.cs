@@ -7,7 +7,7 @@ using RemoteOS.Protocol.Workspace;
 
 namespace Client.Services;
 
-/// <summary>Holds user-facing shell appearance + locale state (wallpaper / theme / time / language / region).
+/// <summary>Holds user-facing shell appearance + locale state (wallpaper / theme / time / language / region / desktop display).
 /// 单例，作为桌面外壳的实时 UI 绑定源（<c>DesktopShellView</c> 绑 <c>Settings.CurrentWallpaper</c> 等）。
 /// 数据真源在服务端 <see cref="WorkspacePreferencesDto"/>（Workspace 级，多设备同步）；
 /// 本类是其在客户端的活副本——登录时由 <c>PreferencesSync</c> 从服务端加载并 <see cref="Apply"/>，
@@ -24,6 +24,13 @@ public sealed partial class ShellSettings : ObservableObject
     [ObservableProperty] private string _region = WorkspacePreferencesDto.Default.Region;
     [ObservableProperty] private string _notepadDefaultEncoding = TextEncodingPreferences.Default;
     [ObservableProperty] private string _codeEditorDefaultEncoding = TextEncodingPreferences.Default;
+
+    // ── 桌面显示配置 ──
+    [ObservableProperty] private bool _showBuiltInApps = DesktopDisplaySettingsDto.Default.ShowBuiltInApps;
+    [ObservableProperty] private List<string> _visibleAppIds = new(DesktopDisplaySettingsDto.Default.VisibleAppIds);
+    [ObservableProperty] private bool _showServerDesktopFiles = DesktopDisplaySettingsDto.Default.ShowServerDesktopFiles;
+    [ObservableProperty] private bool _showServerDesktopShortcuts = DesktopDisplaySettingsDto.Default.ShowServerDesktopShortcuts;
+    [ObservableProperty] private bool _hasCompletedFirstTimeSetup = DesktopDisplaySettingsDto.Default.HasCompletedFirstTimeSetup;
 
     private IBrush _currentWallpaper = Brushes.LightTaskbar;
     private string _currentWallpaperKey = WorkspacePreferencesDto.Default.WallpaperKey;
@@ -74,6 +81,16 @@ public sealed partial class ShellSettings : ObservableObject
         OnPropertyChanged(nameof(TaskbarForeground));
     }
 
+    partial void OnShowBuiltInAppsChanged(bool value) => NotifyDesktopDisplayChanged();
+    partial void OnShowServerDesktopFilesChanged(bool value) => NotifyDesktopDisplayChanged();
+    partial void OnShowServerDesktopShortcutsChanged(bool value) => NotifyDesktopDisplayChanged();
+    partial void OnVisibleAppIdsChanged(List<string> value) => NotifyDesktopDisplayChanged();
+
+    /// <summary>桌面显示配置变更事件，供 DesktopShellViewModel 订阅以刷新图标。</summary>
+    public event EventHandler? DesktopDisplayChanged;
+
+    private void NotifyDesktopDisplayChanged() => DesktopDisplayChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>将服务端偏好应用到本地活状态（登录加载 / 设置编辑后回写）。</summary>
     public void Apply(WorkspacePreferencesDto prefs)
     {
@@ -86,6 +103,15 @@ public sealed partial class ShellSettings : ObservableObject
             ? prefs.NotepadDefaultEncoding! : TextEncodingPreferences.Default;
         CodeEditorDefaultEncoding = TextEncodingPreferences.IsSupported(prefs.CodeEditorDefaultEncoding)
             ? prefs.CodeEditorDefaultEncoding! : TextEncodingPreferences.Default;
+
+        // ── 桌面显示配置 ──
+        var dd = prefs.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
+        ShowBuiltInApps = dd.ShowBuiltInApps;
+        VisibleAppIds = new List<string>(dd.VisibleAppIds ?? Array.Empty<string>());
+        ShowServerDesktopFiles = dd.ShowServerDesktopFiles;
+        ShowServerDesktopShortcuts = dd.ShowServerDesktopShortcuts;
+        HasCompletedFirstTimeSetup = dd.HasCompletedFirstTimeSetup;
+
         if (TryIndexForKey(prefs.WallpaperKey, out var index))
         {
             WallpaperIndex = index;
@@ -100,7 +126,23 @@ public sealed partial class ShellSettings : ObservableObject
     /// <summary>导出当前活状态为服务端 DTO（保存时用）。</summary>
     public WorkspacePreferencesDto ToPreferences(IReadOnlyList<DefaultAppMappingDto>? defaultApps = null)
         => new(CurrentWallpaperKey, Theme, TimeFormat, DateFormat, Language, Region,
-            defaultApps ?? Array.Empty<DefaultAppMappingDto>(), NotepadDefaultEncoding, CodeEditorDefaultEncoding);
+            defaultApps ?? Array.Empty<DefaultAppMappingDto>(), NotepadDefaultEncoding, CodeEditorDefaultEncoding,
+            new DesktopDisplaySettingsDto
+            {
+                ShowBuiltInApps = ShowBuiltInApps,
+                VisibleAppIds = VisibleAppIds,
+                ShowServerDesktopFiles = ShowServerDesktopFiles,
+                ShowServerDesktopShortcuts = ShowServerDesktopShortcuts,
+                HasCompletedFirstTimeSetup = HasCompletedFirstTimeSetup,
+            });
+
+    /// <summary>快捷方式文件扩展名判定（Windows .lnk / Linux .desktop）。</summary>
+    public static bool IsShortcutFile(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return false;
+        var ext = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
+        return ext is "lnk" or "desktop";
+    }
 
     /// <summary>按 key 设置壁纸（来自设置应用的选择）。</summary>
     public bool TrySetWallpaperKey(string key)

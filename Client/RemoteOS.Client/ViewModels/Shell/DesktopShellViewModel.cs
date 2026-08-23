@@ -41,6 +41,12 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly ITextFileSniffer _textSniffer;
     private int _desktopFileLoadGeneration;
 
+    /// <summary>打开桌面显示配置窗口的回调。由 View 层设置。</summary>
+    public Func<Task>? RequestOpenDesktopDisplaySettingsAsync { get; set; }
+
+    /// <summary>请求首次桌面配置引导弹窗的回调。由 View 层设置。</summary>
+    public Func<Task<bool>>? RequestFirstTimeDesktopSetupAsync { get; set; }
+
     public DesktopShellViewModel(
         WindowManager windowManager,
         ApplicationManager applications,
@@ -87,8 +93,26 @@ public partial class DesktopShellViewModel : ObservableObject
             OnPropertyChanged(nameof(ConnectionUser));
             OnPropertyChanged(nameof(ConnectionWorkspace));
         });
+        _settings.DesktopDisplayChanged += (_, _) => Dispatcher.UIThread.Post(PopulateDesktop);
 
         StartClock();
+    }
+
+    /// <summary>首次桌面配置引导。仅在回调已就绪且需要时触发。
+    /// 由 View 的 Loaded 回调调用，确保对话框基础设施（WindowManager/回调委托）已就绪。</summary>
+    public async Task TryTriggerFirstTimeSetupAsync()
+    {
+        if (_session.State != AuthSessionState.Authenticated) return;
+        if (_settings.HasCompletedFirstTimeSetup) return;
+        if (RequestFirstTimeDesktopSetupAsync is null) return;
+
+        var completed = await RequestFirstTimeDesktopSetupAsync();
+        if (completed)
+        {
+            _settings.HasCompletedFirstTimeSetup = true;
+            _ = SavePreferencesFireAndForgetAsync();
+        }
+        Dispatcher.UIThread.Post(PopulateDesktop);
     }
 
     public WindowManager WindowManager => _windowManager;
@@ -128,7 +152,7 @@ public partial class DesktopShellViewModel : ObservableObject
     /// <summary>Populate desktop + start menu from registered applications. Call after DI registration.</summary>
     public void PopulateDesktop()
     {
-        var entries = _applications.Registered
+        var compatibleEntries = _applications.Registered
             // An app that needs a connected Linux Server must not be advertised on a Windows
             // Server desktop or Start menu. Launch still performs the same check for defense in depth.
             .Where(application => _applications.GetManifest(application.Id) is { } manifest
@@ -136,12 +160,23 @@ public partial class DesktopShellViewModel : ObservableObject
             .Select(i => new AppEntryViewModel(Localize(i), _applications))
             .ToList();
 
-        DesktopIcons.Clear();
+        // ── Start 菜单始终显示全部兼容应用 ──
         StartApps.Clear();
-        foreach (var entry in entries)
-        {
-            DesktopIcons.Add(entry);
+        foreach (var entry in compatibleEntries)
             StartApps.Add(entry);
+
+        // ── 桌面图标：根据桌面显示配置过滤 ──
+        DesktopIcons.Clear();
+        if (_settings.ShowBuiltInApps)
+        {
+            // 当 VisibleAppIds 为空时显示全部；否则仅显示列表中的
+            var visibleSet = new HashSet<string>(_settings.VisibleAppIds, StringComparer.Ordinal);
+            var filteredForDesktop = visibleSet.Count == 0
+                ? compatibleEntries
+                : compatibleEntries.Where(vm => visibleSet.Contains(vm.Id.Value)).ToList();
+
+            foreach (var entry in filteredForDesktop)
+                DesktopIcons.Add(entry);
         }
 
         RefreshDesktopItems();
@@ -239,8 +274,7 @@ public partial class DesktopShellViewModel : ObservableObject
 
         // 用户显式绑定（设置页自由添加的未知扩展名）但应用未声明支持时：若该应用 SupportsTextFiles
         // 且文件经 MIME/字节判定是文本，则用 OpenFileAsText 绕过 Manifest 校验——保持绑定的权威性。
-        bool userBoundTextFallback = false;
-        AppActivationResult userBoundResult = default;
+        AppActivationResult? userBoundResult = null;
         if (opener is null && defaultAppIdTyped.HasValue)
         {
             var boundAppId = defaultAppIdTyped.Value;
@@ -255,7 +289,6 @@ public partial class DesktopShellViewModel : ObservableObject
                 }
                 if (isTextBound)
                 {
-                    userBoundTextFallback = true;
                     userBoundResult = _applications.OpenFileAsText(boundAppId, item.Entry.Path)
                         ? new AppActivationResult(AppActivationStatus.Activated, boundAppId)
                         : new AppActivationResult(AppActivationStatus.Unavailable, boundAppId);
@@ -263,11 +296,12 @@ public partial class DesktopShellViewModel : ObservableObject
             }
         }
 
+        var userBoundTextFallback = userBoundResult is not null;
         RecordDesktopFileMenuDiagnostic(
             $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}, userBoundTextFallback={userBoundTextFallback}.");
-        if (userBoundTextFallback)
+        if (userBoundResult is { } userBoundActivationResult)
         {
-            RecordDesktopFileMenuDiagnostic($"user-bound text fallback open result: entry={item.DisplayName}, result={userBoundResult.Status}, target={userBoundResult.TargetAppId?.Value ?? "<none>"}.");
+            RecordDesktopFileMenuDiagnostic($"user-bound text fallback open result: entry={item.DisplayName}, result={userBoundActivationResult.Status}, target={userBoundActivationResult.TargetAppId?.Value ?? "<none>"}.");
             return;
         }
         if (opener is not null)
@@ -615,11 +649,22 @@ public partial class DesktopShellViewModel : ObservableObject
             var directory = await _files.GetDirectoryAsync(desktop.Path);
             if (generation != _desktopFileLoadGeneration) return;
 
+            var showFiles = _settings.ShowServerDesktopFiles;
+            var showShortcuts = _settings.ShowServerDesktopShortcuts;
+
             var entries = directory.Directories
                 .Concat(directory.Files.Select(file => new FileSystemEntryDto(
                     file.Path, file.Name, file.Size, FileSystemEntryType.File, file.Created, file.Modified,
                     file.Accessed, file.IsHidden, file.IsSystem, file.MimeType)))
                 .Where(entry => !entry.IsHidden)
+                // ── 根据桌面显示配置过滤服务器桌面文件 ──
+                .Where(entry =>
+                {
+                    var isShortcut = entry.Type == FileSystemEntryType.File
+                                     && ShellSettings.IsShortcutFile(entry.Name);
+                    if (isShortcut) return showShortcuts;
+                    return showFiles;
+                })
                 .OrderByDescending(entry => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
                 .Select(entry => new DesktopFileEntryViewModel(entry))
@@ -639,6 +684,32 @@ public partial class DesktopShellViewModel : ObservableObject
                 DesktopFiles.Clear();
                 RefreshDesktopItems();
             }
+        }
+    }
+
+    // ── 桌面显示配置相关命令 ──
+
+    /// <summary>打开"配置桌面显示项目"窗口。</summary>
+    [RelayCommand]
+    private async Task OpenDesktopDisplaySettingsAsync()
+    {
+        if (RequestOpenDesktopDisplaySettingsAsync is not null)
+            await RequestOpenDesktopDisplaySettingsAsync();
+    }
+
+    /// <summary>保存桌面显示配置到服务端（fire-and-forget，忽略瞬时错误）。</summary>
+    public async Task SavePreferencesFireAndForgetAsync()
+    {
+        if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } workspace })
+            return;
+        try
+        {
+            await _settingsClient.SaveAsync(url, tokens.AccessToken, workspace.Id,
+                _settings.ToPreferences(_defaultApps.Snapshot));
+        }
+        catch
+        {
+            // 保存失败不阻塞用户操作，下次同步时回退
         }
     }
 

@@ -51,6 +51,7 @@ public sealed class PreferencesSync : IDisposable
         try
         {
             var prefs = await _client.GetAsync(url, tokens.AccessToken, ws.Id);
+            _settings.Apply(prefs);
             await _wallpapers.ApplyAsync(prefs);
             _registry.SetMappings(prefs.DefaultApps);
         }

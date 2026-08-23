@@ -172,7 +172,8 @@ public static class WorkspaceEndpoints
         && color[1..].All(Uri.IsHexDigit);
 
     /// <summary>校验并归一化用户偏好。字段长度封顶防止滥用；枚举/格式白名单校验。
-    /// DefaultApps 去重（按 scheme，后者覆盖前者）并剔除空值。</summary>
+    /// DefaultApps 去重（按 scheme，后者覆盖前者）并剔除空值。
+    /// DesktopDisplay 字段归一化校验 VisibleAppIds 列表。</summary>
     private static bool TryNormalize(WorkspacePreferencesDto request, out WorkspacePreferencesDto preferences)
     {
         preferences = WorkspacePreferencesDto.Default;
@@ -223,11 +224,38 @@ public static class WorkspaceEndpoints
             deduped[scheme] = new DefaultAppMappingDto(scheme, appId);
         }
 
+        // ── DesktopDisplaySettings 归一化 ──
+        var desktopDisplay = request.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
+        var visibleAppIdsSource = desktopDisplay.VisibleAppIds ?? Array.Empty<string>();
+        if (visibleAppIdsSource.Count > 256)
+            return false;
+
+        var normalizedVisibleAppIds = new List<string>();
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var rawId in visibleAppIdsSource)
+        {
+            var id = rawId?.Trim();
+            if (string.IsNullOrWhiteSpace(id) || id.Length > 128)
+                return false;
+            if (seenIds.Add(id))
+                normalizedVisibleAppIds.Add(id);
+        }
+
+        var normalizedDesktopDisplay = new DesktopDisplaySettingsDto
+        {
+            ShowBuiltInApps = desktopDisplay.ShowBuiltInApps,
+            VisibleAppIds = normalizedVisibleAppIds,
+            ShowServerDesktopFiles = desktopDisplay.ShowServerDesktopFiles,
+            ShowServerDesktopShortcuts = desktopDisplay.ShowServerDesktopShortcuts,
+            HasCompletedFirstTimeSetup = desktopDisplay.HasCompletedFirstTimeSetup,
+        };
+
         preferences = new WorkspacePreferencesDto(
             wallpaperKey, request.Theme, timeFormat!, dateFormat!,
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
-            deduped.Values.ToList(), notepadEncoding, codeEditorEncoding);
+            deduped.Values.ToList(), notepadEncoding, codeEditorEncoding,
+            normalizedDesktopDisplay);
         return true;
     }
 

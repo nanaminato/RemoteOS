@@ -72,6 +72,7 @@ public sealed class RemoteOsDbContext : DbContext
                 // JSON array elements use EF's synthesized ordinal key. CLR properties
                 // such as Scheme must remain payload fields, not entity keys.
                 p.OwnsMany(x => x.DefaultApps);
+                p.OwnsOne(x => x.DesktopDisplay);
             });
             e.OwnsOne(w => w.WindowLayouts, l =>
             {

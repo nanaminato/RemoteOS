@@ -3,8 +3,10 @@ using Avalonia.Interactivity;
 using Client.Apps.Explorer.Dialogs;
 using Client.Localization;
 using Client.ViewModels.Shell;
+using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 
 namespace Client.Views.Shell;
@@ -36,6 +38,8 @@ public partial class DesktopShellView : UserControl
         _host.SizeChanged += (_, _) => UpdateHostBounds();
         _fullScreenHost.SizeChanged += (_, _) => UpdateFullScreenHostBounds();
         this.LayoutUpdated += OnFirstLayout;
+        // 桌面与对话框基础设施就绪后，检查是否需要首次配置引导
+        _ = vm.TryTriggerFirstTimeSetupAsync();
     }
 
     private void OnFirstLayout(object? sender, EventArgs e)
@@ -246,6 +250,43 @@ public partial class DesktopShellView : UserControl
                     unixMode => shell.SetDesktopUnixPermissionsAsync(properties.Path, unixMode),
                     () => complete(true)),
             });
+
+        // ── 桌面显示配置对话框 ──
+        var applications = App.Services.GetRequiredService<ApplicationManager>();
+        shell.RequestOpenDesktopDisplaySettingsAsync = () =>
+            ShowDesktopDialogAsync<bool>(shell, "配置桌面显示项目",
+                new Size(560, 520),
+                complete => DesktopDisplayDialogs.BuildSettingsDialog(
+                    shell.Settings,
+                    applications,
+                    () => shell.SavePreferencesFireAndForgetAsync(),
+                    result => complete(result),
+                    isFirstTime: false))
+            .ContinueWith(task => task.Result == true);
+
+        shell.RequestFirstTimeDesktopSetupAsync = async () =>
+        {
+            // 首次配置：先把「跳过也算完成」写入 HasCompletedFirstTimeSetup
+            var confirmed = await ShowDesktopDialogAsync<bool>(shell, "欢迎使用 RemoteOS 桌面",
+                new Size(580, 560),
+                complete => DesktopDisplayDialogs.BuildSettingsDialog(
+                    shell.Settings,
+                    applications,
+                    async () =>
+                    {
+                        shell.Settings.HasCompletedFirstTimeSetup = true;
+                        await shell.SavePreferencesFireAndForgetAsync();
+                    },
+                    result => complete(result),
+                    isFirstTime: true));
+            // 无论是确认还是跳过，都标记首次配置已完成
+            if (confirmed == false)
+            {
+                shell.Settings.HasCompletedFirstTimeSetup = true;
+                await shell.SavePreferencesFireAndForgetAsync();
+            }
+            return confirmed;
+        };
     }
 
     private static Task<TResult?> ShowDesktopDialogAsync<TResult>(DesktopShellViewModel shell, string title, Size preferredSize,
