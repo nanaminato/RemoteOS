@@ -98,8 +98,9 @@ public static class DesktopDisplayDialogs
             IsEnabled = buffer.ShowBuiltInApps && !buffer.ShowAllBuiltInApps,
             SelectionMode = SelectionMode.Multiple,
         };
-        foreach (var item in buffer.AppItems.Where(i => i.IsVisible))
-            appListBox.SelectedItems.Add(item);
+        if (appListBox.SelectedItems is { } selectedItems)
+            foreach (var item in buffer.AppItems.Where(i => i.IsVisible))
+                selectedItems.Add(item);
 
         showAppsToggle.IsCheckedChanged += (_, _) =>
         {
@@ -126,15 +127,17 @@ public static class DesktopDisplayDialogs
         };
         appListBox.SelectionChanged += (_, _) =>
         {
-            buffer.SyncVisibleFromSelection(appListBox.SelectedItems.Cast<AppVisibilityItem>());
+            if (appListBox.SelectedItems is { } selectedItems)
+                buffer.SyncVisibleFromSelection(selectedItems.Cast<AppVisibilityItem>());
         };
         void UpdateAppListBoxEnabled()
         {
             appListBox.IsEnabled = buffer.ShowBuiltInApps && !buffer.ShowAllBuiltInApps;
             if (!appListBox.IsEnabled) return;
-            appListBox.SelectedItems.Clear();
+            if (appListBox.SelectedItems is not { } selectedItems) return;
+            selectedItems.Clear();
             foreach (var item in buffer.AppItems.Where(i => i.IsVisible))
-                appListBox.SelectedItems.Add(item);
+                selectedItems.Add(item);
         }
 
         appsContainer.Children.Add(allAppsRadio);
@@ -161,11 +164,8 @@ public static class DesktopDisplayDialogs
             IsChecked = buffer.ShowServerDesktopShortcuts,
             Padding = new Thickness(20, 2, 0, 2),
             Opacity = 0.92,
-            ToolTip = new ToolTip
-            {
-                Content = "快捷方式通常指向宿主机本地路径，在 RemoteOS 中可能无法直接打开。",
-            },
         };
+        ToolTip.SetTip(showShortcutsToggle, "快捷方式通常指向宿主机本地路径，在 RemoteOS 中可能无法直接打开。");
 
         root.Children.Add(showFilesToggle);
         root.Children.Add(showShortcutsToggle);
@@ -279,7 +279,7 @@ internal sealed class DesktopDisplayEditBuffer
 }
 
 /// <summary>应用可见性勾选项（ListBox 行）。</summary>
-internal sealed class AppVisibilityItem : ObservableObject
+internal sealed partial class AppVisibilityItem : ObservableObject
 {
     public ApplicationInfo App { get; }
     public string DisplayName => App.DisplayName;

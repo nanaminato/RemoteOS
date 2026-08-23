@@ -274,8 +274,7 @@ public partial class DesktopShellViewModel : ObservableObject
 
         // 用户显式绑定（设置页自由添加的未知扩展名）但应用未声明支持时：若该应用 SupportsTextFiles
         // 且文件经 MIME/字节判定是文本，则用 OpenFileAsText 绕过 Manifest 校验——保持绑定的权威性。
-        bool userBoundTextFallback = false;
-        AppActivationResult userBoundResult = default;
+        AppActivationResult? userBoundResult = null;
         if (opener is null && defaultAppIdTyped.HasValue)
         {
             var boundAppId = defaultAppIdTyped.Value;
@@ -290,7 +289,6 @@ public partial class DesktopShellViewModel : ObservableObject
                 }
                 if (isTextBound)
                 {
-                    userBoundTextFallback = true;
                     userBoundResult = _applications.OpenFileAsText(boundAppId, item.Entry.Path)
                         ? new AppActivationResult(AppActivationStatus.Activated, boundAppId)
                         : new AppActivationResult(AppActivationStatus.Unavailable, boundAppId);
@@ -298,11 +296,12 @@ public partial class DesktopShellViewModel : ObservableObject
             }
         }
 
+        var userBoundTextFallback = userBoundResult is not null;
         RecordDesktopFileMenuDiagnostic(
             $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}, userBoundTextFallback={userBoundTextFallback}.");
-        if (userBoundTextFallback)
+        if (userBoundResult is { } userBoundActivationResult)
         {
-            RecordDesktopFileMenuDiagnostic($"user-bound text fallback open result: entry={item.DisplayName}, result={userBoundResult.Status}, target={userBoundResult.TargetAppId?.Value ?? "<none>"}.");
+            RecordDesktopFileMenuDiagnostic($"user-bound text fallback open result: entry={item.DisplayName}, result={userBoundActivationResult.Status}, target={userBoundActivationResult.TargetAppId?.Value ?? "<none>"}.");
             return;
         }
         if (opener is not null)

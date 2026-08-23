@@ -3,8 +3,10 @@ using Avalonia.Interactivity;
 using Client.Apps.Explorer.Dialogs;
 using Client.Localization;
 using Client.ViewModels.Shell;
+using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
+using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 
 namespace Client.Views.Shell;
@@ -283,7 +285,7 @@ public partial class DesktopShellView : UserControl
                 shell.Settings.HasCompletedFirstTimeSetup = true;
                 await shell.SavePreferencesFireAndForgetAsync();
             }
-            return confirmed ?? false;
+            return confirmed;
         };
     }
 

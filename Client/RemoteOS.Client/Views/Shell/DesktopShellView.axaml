@@ -154,9 +154,9 @@
                 </ContextMenu>
             </Border.ContextMenu>
 
-                <Border.InputBindings>
+                <Border.KeyBindings>
                     <KeyBinding Command="{Binding OpenDesktopDisplaySettingsCommand}" Gesture="Ctrl+Shift+D" />
-                </Border.InputBindings>
+                </Border.KeyBindings>
             </Border>
 
             <ItemsControl ItemsSource="{Binding DesktopItems}" IsVisible="{Binding AreDesktopIconsVisible}"
