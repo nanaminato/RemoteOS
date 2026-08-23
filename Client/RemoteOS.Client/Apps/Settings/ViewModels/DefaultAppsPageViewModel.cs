@@ -99,10 +99,28 @@ public sealed partial class DefaultAppMappingViewModel : ObservableObject
         set { if (value is not null) AppId = value.Id; }
     }
 
-    public IReadOnlyList<AppOption> CompatibleApps => Scheme.StartsWith('.')
-        ? AvailableApps.Where(app => app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray()
-        : AvailableApps.Where(app => app.SupportedUriSchemes.Contains(Scheme, StringComparer.OrdinalIgnoreCase)
-            || new[] { "http", "https", "mailto", "ftp" }.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray();
+    public IReadOnlyList<AppOption> CompatibleApps
+    {
+        get
+        {
+            if (!Scheme.StartsWith('.'))
+                return AvailableApps.Where(app => app.SupportedUriSchemes.Contains(Scheme, StringComparer.OrdinalIgnoreCase)
+                    || new[] { "http", "https", "mailto", "ftp" }.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray();
+
+            var anyAppDeclaresExtension = AvailableApps.Any(app =>
+                app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase));
+            // 已知扩展名：仅列出显式声明该扩展名的应用（Manifest 权威性）。
+            if (anyAppDeclaresExtension)
+                return AvailableApps.Where(app =>
+                    app.SupportedFileExtensions.Contains(Scheme, StringComparer.OrdinalIgnoreCase)).ToArray();
+
+            // 未知扩展名（用户自由输入的 .enabled / .mytext 等）：列出所有支持文本文件兜底的应用
+            // 以及其他任何带 IFileOpenApplication 特征（SupportedFileExtensions 非空或 SupportsTextFiles）
+            // 的应用，让用户可以手动绑定。
+            return AvailableApps.Where(app =>
+                app.SupportedFileExtensions.Count > 0).ToArray();
+        }
+    }
 
     [RelayCommand]
     private void Remove() => _remove?.Invoke(this);

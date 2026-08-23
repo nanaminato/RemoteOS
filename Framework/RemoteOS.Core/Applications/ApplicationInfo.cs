@@ -12,6 +12,7 @@ public sealed record ApplicationInfo(
     IReadOnlyDictionary<string, ApplicationLocalizedMetadata>? LocalizedMetadata = null,
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
+    bool SupportsTextFiles = false,
     IReadOnlyList<string>? SupportedUriSchemes = null)
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();

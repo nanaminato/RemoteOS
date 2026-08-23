@@ -207,7 +207,9 @@ public sealed class DeveloperPackageManager
         new AppId(record.Id), record.DisplayName, record.Version, record.IconGlyph, record.Description,
         record.RequestedPermissions, record.SupportedFileExtensions, record.LocalizedMetadata,
         record.ClientPlatforms, record.ServerRequirements, record.SupportedFileNames, record.SupportsExtensionlessFiles,
-        record.InstancePolicy, record.SupportedUriSchemes);
+        SupportsTextFiles: false,
+        InstancePolicy: record.InstancePolicy,
+        SupportedUriSchemes: record.SupportedUriSchemes);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
