@@ -15,6 +15,9 @@ using Server.Storage;
 using Server.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+var kestrelCertificates = new Server.Certificate.KestrelCertificateRegistry();
+builder.WebHost.ConfigureKestrel(options => options.ConfigureHttpsDefaults(https =>
+    https.ServerCertificateSelector = (_, hostName) => kestrelCertificates.Select(hostName)));
 
 // Git HTTPS tokens are protected before they are persisted in application storage.
 builder.Services.AddDataProtection();
@@ -32,8 +35,18 @@ builder.Services.ConfigureHttpJsonOptions(opts =>
 
 // JWT 配置（绑定 + 启动校验）
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-var jwtCfg = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
-    ?? throw new InvalidOperationException("Missing 'Jwt' configuration section.");
+var jwtSection = builder.Configuration.GetSection("Jwt");
+
+if (!jwtSection.Exists())
+{
+    throw new InvalidOperationException(
+        $"Missing 'Jwt' configuration section. " +
+        $"Environment={builder.Environment.EnvironmentName}, " +
+        $"ContentRoot={builder.Environment.ContentRootPath}");
+}
+
+var jwtCfg = jwtSection.Get<JwtOptions>()
+             ?? throw new InvalidOperationException("Failed to bind Jwt configuration.");
 if (string.IsNullOrWhiteSpace(jwtCfg.Secret) || jwtCfg.Secret.Length < 32)
     throw new InvalidOperationException("Jwt:Secret 必须至少 32 字符（HMACSHA256 要求 ≥256 位）。");
 if (builder.Environment.IsProduction() && jwtCfg.Secret == JwtOptions.DefaultInsecureSecret)
@@ -179,6 +192,36 @@ if (OperatingSystem.IsLinux())
 else
     builder.Services.AddSingleton<Server.Firewall.IHostFirewallService, Server.Firewall.UnavailableHostFirewallService>();
 builder.Services.AddSingleton<Server.Firewall.IFirewallChangeAuthorizationService, Server.Firewall.FirewallChangeAuthorizationService>();
+
+// Web Server V1: host-global Nginx discovery/read state plus an explicitly confirmed,
+// marker-owned conf.d integration. It never accepts shell text or elevation credentials from HTTP.
+builder.Services.AddSingleton<Server.WebServer.IHostPrivilegeService, Server.WebServer.HostPrivilegeService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("NginxManaged").Get<Server.WebServer.NginxManagedOptions>() ?? new Server.WebServer.NginxManagedOptions());
+builder.Services.AddSingleton<Server.WebServer.NginxInstallPackageStore>();
+builder.Services.AddSingleton<Server.Certificate.HostOperationJournal>();
+builder.Services.AddSingleton<Server.WebServer.WebServerMetadataRepository>();
+builder.Services.AddSingleton<Server.WebServer.WebServerOperationStore>();
+builder.Services.AddSingleton<Server.WebServer.NginxWebServerManager>();
+builder.Services.AddSingleton<Server.WebServer.IWebServerProvider>(services => services.GetRequiredService<Server.WebServer.NginxWebServerManager>());
+builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServer.WebServerManager>();
+
+// Certificate management is host-global. PEM/account keys remain behind the server-side
+// store; the API exposes metadata and operation IDs only.
+var certificateOptions = builder.Configuration.GetSection("Certificate").Get<Server.Certificate.CertificateOptions>() ?? new Server.Certificate.CertificateOptions();
+builder.Services.AddSingleton(certificateOptions);
+builder.Services.AddSingleton<Server.Certificate.FileHttp01ChallengeStore>();
+builder.Services.AddSingleton<Server.Certificate.DirectHttp01ChallengeStore>();
+builder.Services.AddSingleton(kestrelCertificates);
+builder.Services.AddSingleton<Server.Certificate.CertificateMetadataRepository>();
+builder.Services.AddSingleton<Server.Certificate.ICertificateStore, Server.Certificate.FileCertificateStore>();
+builder.Services.AddSingleton<Server.Certificate.CertificateDeploymentRepository>();
+builder.Services.AddSingleton<Server.Certificate.IAcmeService, Server.Certificate.AnvilAcmeService>();
+builder.Services.AddSingleton<Server.Certificate.IAcmeRenewalInfoProvider>(services => (Server.Certificate.AnvilAcmeService)services.GetRequiredService<Server.Certificate.IAcmeService>());
+builder.Services.AddSingleton<Server.Certificate.CertificateRenewalAttemptRepository>();
+builder.Services.AddSingleton<Server.Certificate.CertificateOperationStore>();
+builder.Services.AddSingleton<Server.Certificate.ICertificateManager, Server.Certificate.CertificateManager>();
+builder.Services.AddHostedService<Server.Certificate.KestrelCertificateStartupService>();
+builder.Services.AddHostedService<Server.Certificate.CertificateRenewalWorker>();
 
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
 // User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
@@ -338,6 +381,11 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_git_repositories_UserId" ON "git_repositories" ("UserId");
         """);
+
+    // Host-global certificate/WebServer state uses independently versioned migrations. This
+    // is deliberately not an ad-hoc ALTER/CREATE compatibility patch: operations must remain
+    // durable and recoverable independently from user/workspace schema evolution.
+    await HostGlobalMigrationRunner.MigrateAsync(db.Database.GetDbConnection().ConnectionString, app.Lifetime.ApplicationStopping);
 }
 
 if (app.Environment.IsDevelopment())
@@ -364,6 +412,8 @@ app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
+app.MapWebServerEndpoints();
+app.MapCertificateEndpoints();
 app.MapGitEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();

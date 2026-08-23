@@ -29,6 +29,10 @@
         "application.remoteos.port-forwarding.description": "Manage local SSH tunnels to RemoteOS Server loopback services",
         "application.remoteos.firewall.display_name": "Firewall",
         "application.remoteos.firewall.description": "Manage Linux Server UFW firewall rules",
+        "application.remoteos.certificates.display_name": "Certificate Manager",
+        "application.remoteos.certificates.description": "Manage TLS certificates on the RemoteOS Server",
+        "application.remoteos.webservers.display_name": "Web Server Manager",
+        "application.remoteos.webservers.description": "Manage web servers on the RemoteOS Server"
         "application.remoteos.git.display_name": "Git Client",
         "application.remoteos.git.description": "Manage Git repositories on the RemoteOS Server"
     }

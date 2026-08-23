@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:webservers="clr-namespace:Client.Apps.WebServers"
+             x:Class="Client.Apps.WebServers.Views.WebServerManagerWorkspace"
+             x:DataType="webservers:WebServerManagerViewModel"
+             Background="#F4F7FB"
+             MinWidth="0"
+             MinHeight="0">
+    <Grid RowDefinitions="Auto,Auto,*" MinWidth="0" MinHeight="0">
+        <Border Grid.Row="0" Background="#122344" Padding="32,22">
+            <Grid ColumnDefinitions="Auto,*">
+                <Border Width="48" Height="48" Background="#147CB8" CornerRadius="14">
+                    <TextBlock Text="🌐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="3" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{loc:Loc application.remoteos.webservers.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="{loc:Loc webservers.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="0,0,0,1" Padding="18,10">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
+                <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="190,*" MinWidth="0" MinHeight="0">
+            <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
+                <StackPanel Spacing="4" Margin="14,22">
+                    <TextBlock Text="{loc:Loc webservers.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <Button Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                </StackPanel>
+            </Border>
+
+            <ContentControl x:Name="ContentHost" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" MinHeight="0" />
+        </Grid>
+    </Grid>
+</UserControl>

@@ -33,6 +33,9 @@
         <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.0" />
         <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
         <PackageVersion Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+        <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+        <!-- Certificate manager: ACME v2 client, isolated behind Server.Certificate. -->
+        <PackageVersion Include="Webprofusion.Certify.ACME.Anvil" Version="3.3.3" />
         <!-- 10.0.0 → 10.0.11：RoyalTerminal 0.5.2 传递依赖要求 >= 10.0.11 -->
         <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
 

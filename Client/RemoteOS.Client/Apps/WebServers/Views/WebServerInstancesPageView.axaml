@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:webservers="clr-namespace:Client.Apps.WebServers"
+             x:Class="Client.Apps.WebServers.Views.WebServerInstancesPageView"
+             x:DataType="webservers:WebServerManagerViewModel">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <Grid MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32" ColumnDefinitions="*,1.35*" ColumnSpacing="18">
+            <Border Grid.Column="0" Background="White" CornerRadius="14" Padding="24">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="{loc:Loc webservers.instances.title}" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                        <TextBlock Text="{loc:Loc webservers.instances.subtitle}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
+                        <Button Content="{loc:Loc webservers.discover}" Command="{Binding DiscoverCommand}" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{loc:Loc webservers.instances.discovered}" FontSize="12" Foreground="#61708B" />
+                        <ComboBox ItemsSource="{Binding Servers}" SelectedItem="{Binding SelectedServer, Mode=TwoWay}" PlaceholderText="{loc:Loc webservers.instances.placeholder}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding ManagementMode, Converter={x:Static webservers:WebServerEnumTextConverter.Instance}, ConverterParameter=management}" />
+                                        <TextBlock Text="{Binding ExecutablePath}" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="#163059" />
+                    <StackPanel IsVisible="{Binding IsManagedInstallAvailable}" Spacing="8">
+                        <TextBlock Text="{loc:Loc webservers.managed.installation}" FontWeight="SemiBold" Foreground="#36506F" />
+                        <StackPanel IsVisible="{Binding IsWindowsServer}" Spacing="6">
+                            <TextBlock Text="{loc:Loc webservers.managed.installation_help}" FontSize="12" Foreground="#61708B" />
+                            <ComboBox ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" IsEditable="True" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
+                                <Button Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding LocalPackageName}" TextWrapping="Wrap" Foreground="#61708B" />
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding IsLinuxServer}" Spacing="6">
+                            <TextBox PlaceholderText="{loc:Loc webservers.managed.version}" Text="{Binding InstallVersion}" />
+                            <TextBlock Text="{loc:Loc webservers.managed.linux_version_hint}" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                        </StackPanel>
+                        <Button Classes="primary" Content="{loc:Loc webservers.managed.install}" Command="{Binding InstallManagedCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="White" CornerRadius="14" Padding="24">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="{loc:Loc webservers.actions.title}" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
+                        <TextBlock Text="{Binding ManagementHint}" TextWrapping="Wrap" Foreground="#61708B" />
+                    </StackPanel>
+                    <Border Background="#F5F8FD" CornerRadius="10" Padding="14,10">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{loc:Loc webservers.runtime_status}" FontSize="11" FontWeight="SemiBold" Foreground="#61708B" />
+                            <TextBlock Text="{Binding SelectedStatusText}" TextWrapping="Wrap" Foreground="#163059" />
+                        </StackPanel>
+                    </Border>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Button Grid.Column="0" Content="{loc:Loc webservers.action.test_config}" Command="{Binding TestConfigurationCommand}" HorizontalContentAlignment="Center" />
+                        <Button Grid.Column="1" Content="{loc:Loc webservers.action.refresh_status}" Command="{Binding RefreshStatusCommand}" HorizontalContentAlignment="Center" />
+                    </Grid>
+                    <StackPanel IsVisible="{Binding IsExternalServer}" Spacing="8">
+                        <TextBlock Text="{loc:Loc webservers.external.help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <Button Classes="primary" Content="{loc:Loc webservers.action.integrate}" Command="{Binding IntegrateCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel IsVisible="{Binding IsIntegratedServer}" Spacing="8">
+                        <TextBlock Text="{loc:Loc webservers.integrated.help}" FontSize="12" Foreground="#61708B" />
+                        <Button Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel IsVisible="{Binding IsIntegratedOrManagedServer}" Spacing="6">
+                        <TextBlock Text="{loc:Loc webservers.acme.help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                        <Button Content="{loc:Loc webservers.action.enable_acme_http01}" Command="{Binding EnableAcmeHttp01Command}" HorizontalAlignment="Left" />
+                    </StackPanel>
+                    <StackPanel IsVisible="{Binding IsManagedServer}" Spacing="10">
+                        <TextBlock Text="{loc:Loc webservers.service_controls}" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" />
+                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                            <Button Grid.Column="0" Classes="primary" Content="{loc:Loc webservers.action.start}" Command="{Binding StartManagedCommand}" HorizontalContentAlignment="Center" />
+                            <Button Grid.Column="1" Content="{loc:Loc webservers.action.stop}" Command="{Binding StopCommand}" HorizontalContentAlignment="Center" />
+                            <Button Grid.Column="2" Content="{loc:Loc webservers.action.restart}" Command="{Binding RestartCommand}" HorizontalContentAlignment="Center" />
+                            <Button Grid.Column="3" Content="{loc:Loc webservers.action.reload}" Command="{Binding ReloadCommand}" HorizontalContentAlignment="Center" />
+                        </Grid>
+                        <Border Background="#FFF7F7" BorderBrush="#F4D2D2" BorderThickness="1" CornerRadius="10" Padding="12,9">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <TextBlock Text="{loc:Loc webservers.managed.uninstall_hint}" FontSize="12" Foreground="#8A4B4B" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Grid.Column="1" Content="{loc:Loc webservers.managed.uninstall}" Command="{Binding UninstallManagedCommand}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding TestResultText}" TextWrapping="Wrap" Foreground="#61708B" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+</UserControl>
