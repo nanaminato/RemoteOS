@@ -13,6 +13,10 @@
         "terminal.status.connected": "Connected",
         "terminal.status.start_failed": "Failed to start: {0}",
         "terminal.status.process_exited": "Process exited",
-        "terminal.status.process_exited_with_code": "Process exited (code {0})"
+        "terminal.status.process_exited_with_code": "Process exited (code {0})",
+        "terminal.context.copy": "Copy",
+        "terminal.context.paste": "Paste",
+        "terminal.context.select_all": "Select all",
+        "terminal.context.clear": "Clear"
     }
 }

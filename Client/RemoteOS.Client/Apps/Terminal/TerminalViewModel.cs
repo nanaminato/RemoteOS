@@ -115,7 +115,7 @@ public partial class TerminalViewModel : ObservableObject
             options = new SignalRTransportOptions(
                 hubUrl: url.TrimEnd('/') + "/hubs/terminals",
                 dimensions: dimensions,
-                tokenProvider: () => _session?.Tokens?.AccessToken,
+                tokenProvider: () => _session?.GetAccessTokenAsync(TimeSpan.FromMinutes(1)) ?? Task.FromResult<string?>(null),
                 accessToken: _session.Tokens.AccessToken,
                 sessionId: sessionId,
                 workingDirectory: _initialWorkingDirectory,

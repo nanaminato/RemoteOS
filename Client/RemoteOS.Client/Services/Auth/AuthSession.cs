@@ -10,6 +10,7 @@ public sealed class AuthSession : IAuthSession
     private readonly IRemoteOsClient _client;
     private readonly IRememberedSessionStore _rememberedSessionStore;
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     public AuthSession(IRemoteOsClient client, IRememberedSessionStore rememberedSessionStore)
     {
@@ -75,31 +76,96 @@ public sealed class AuthSession : IAuthSession
 
     public async Task LogoutAsync(CancellationToken ct = default)
     {
-        var url = ServerUrl;
-        var tokens = Tokens;
-        if (url is null || tokens is null)
-        {
-            Reset();
-            return;
-        }
-
-        try { await _client.LogoutAsync(url, tokens.AccessToken, tokens.RefreshToken, ct); }
-        finally { Reset(); }
-    }
-
-    public async Task<bool> RefreshAsync(CancellationToken ct = default)
-    {
-        if (ServerUrl is null || Tokens is null) return false;
+        await _refreshGate.WaitAsync(ct);
         try
         {
-            Tokens = (await _client.RefreshAsync(ServerUrl, Tokens.RefreshToken, ct)).Tokens;
+            var url = ServerUrl;
+            var tokens = Tokens;
+            if (url is null || tokens is null)
+            {
+                Reset(AuthSessionEndReason.UserSignedOut);
+                return;
+            }
+
+            try { await _client.LogoutAsync(url, tokens.AccessToken, tokens.RefreshToken, ct); }
+            finally { Reset(AuthSessionEndReason.UserSignedOut); }
+        }
+        finally { _refreshGate.Release(); }
+    }
+
+    public Task<bool> RefreshAsync(CancellationToken ct = default)
+        => RefreshCoreAsync(force: true, rejectedAccessToken: null, ct);
+
+    public async Task<string?> GetAccessTokenAsync(TimeSpan renewBefore, string? rejectedAccessToken = null,
+        CancellationToken ct = default)
+    {
+        AuthTokens? tokens;
+        lock (_gate)
+            tokens = State == AuthSessionState.Authenticated ? Tokens : null;
+
+        if (tokens is null)
+            return null;
+
+        var shouldRefresh = rejectedAccessToken is not null
+            ? string.Equals(tokens.AccessToken, rejectedAccessToken, StringComparison.Ordinal)
+            : tokens.AccessTokenExpiresAt <= DateTimeOffset.UtcNow.Add(renewBefore);
+        if (!shouldRefresh)
+            return tokens.AccessToken;
+
+        return await RefreshCoreAsync(force: false, rejectedAccessToken, ct)
+            ? Tokens?.AccessToken
+            : null;
+    }
+
+    private async Task<bool> RefreshCoreAsync(bool force, string? rejectedAccessToken, CancellationToken ct)
+    {
+        await _refreshGate.WaitAsync(ct);
+        try
+        {
+            string? serverUrl;
+            AuthTokens? tokens;
+            lock (_gate)
+            {
+                serverUrl = ServerUrl;
+                tokens = State == AuthSessionState.Authenticated ? Tokens : null;
+            }
+            if (serverUrl is null || tokens is null)
+                return false;
+
+            // Another request may have completed a refresh while this caller waited.
+            if (rejectedAccessToken is not null)
+            {
+                if (!string.Equals(tokens.AccessToken, rejectedAccessToken, StringComparison.Ordinal))
+                    return true;
+                // The server rejected this exact token; refresh even if its local expiry says otherwise.
+            }
+            else if (!force && tokens.AccessTokenExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
+                return true;
+
+            var refreshed = (await _client.RefreshAsync(serverUrl, tokens.RefreshToken, ct)).Tokens;
+            lock (_gate)
+            {
+                // Logout or a new login wins over an in-flight refresh.
+                if (State != AuthSessionState.Authenticated
+                    || !string.Equals(ServerUrl, serverUrl, StringComparison.Ordinal)
+                    || !string.Equals(Tokens?.RefreshToken, tokens.RefreshToken, StringComparison.Ordinal))
+                    return false;
+                Tokens = refreshed;
+            }
             return true;
         }
-        catch
+        catch (RemoteOsAuthException ex) when (ex.Status == 401)
         {
-            Reset();
+            Reset(AuthSessionEndReason.RefreshTokenInvalid);
             return false;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch
+        {
+            // A transient connection failure must not discard an otherwise valid local session.
+            return false;
+        }
+        finally { _refreshGate.Release(); }
     }
 
     private void Apply(LoginResponse response, string serverUrl)
@@ -114,7 +180,7 @@ public sealed class AuthSession : IAuthSession
         AssignedRole = response.AssignedRole;
     }
 
-    private void Reset()
+    private void Reset(AuthSessionEndReason endReason = AuthSessionEndReason.None)
     {
         ServerUrl = null;
         Tokens = null;
@@ -125,9 +191,10 @@ public sealed class AuthSession : IAuthSession
         CurrentDevice = null;
         AssignedRole = DeviceRole.Observer;
         State = AuthSessionState.Unauthenticated;
-        RaiseStateChanged();
+        RaiseStateChanged(endReason: endReason);
     }
 
-    private void RaiseStateChanged(RememberedProfileSaveResult? rememberedProfileSaveResult = null)
-        => StateChanged?.Invoke(this, new AuthSessionStateChangedEventArgs(State, rememberedProfileSaveResult));
+    private void RaiseStateChanged(RememberedProfileSaveResult? rememberedProfileSaveResult = null,
+        AuthSessionEndReason endReason = AuthSessionEndReason.None)
+        => StateChanged?.Invoke(this, new AuthSessionStateChangedEventArgs(State, rememberedProfileSaveResult, endReason));
 }

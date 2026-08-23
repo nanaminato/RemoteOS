@@ -17,7 +17,14 @@ public sealed record FirewallRuleDto(
     string Protocol,
     string Source,
     string Destination,
-    string Port);
+    string Port)
+{
+    /// <summary>
+    /// Address family covered by this logical UFW rule: IPv4, IPv6, or IPv4 + IPv6.
+    /// This makes UFW's otherwise identical-looking paired entries distinguishable in clients.
+    /// </summary>
+    public string AddressFamily { get; init; } = "IPv4";
+}
 
 /// <summary>One-shot credential confirmation. It is ignored for root and must never be persisted.</summary>
 public sealed record FirewallCredentialConfirmation(string Password);

@@ -52,9 +52,11 @@ public static class Bootstrapper
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<ITerminalSettingsClient, TerminalSettingsClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "terminal-settings"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
         services.AddSingleton<IAuthSession, AuthSession>();
+        services.AddTransient<AuthenticatedHttpHandler>();
         services.AddSingleton<ApplicationCompatibilityService>();
         services.AddSingleton<IApplicationCompatibilityEvaluator>(sp => sp.GetRequiredService<ApplicationCompatibilityService>());
         services.AddSingleton<IApplicationCompatibilityNotifier>(sp => sp.GetRequiredService<ApplicationCompatibilityService>());
@@ -63,7 +65,8 @@ public static class Bootstrapper
         // Explorer（文件管理器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
         services.AddHttpClient<Client.Apps.Explorer.IExplorerClient, Client.Apps.Explorer.ExplorerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "explorer"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddSingleton<Client.Apps.Explorer.IRemoteFileClipboard, Client.Apps.Explorer.RemoteFileClipboard>();
 
         // Browser（浏览器）：typed HttpClient（JWT from IAuthSession）+ 应用注册。
@@ -71,40 +74,50 @@ public static class Bootstrapper
         // Server 仅持久化书签与历史记录（按用户隔离）。
         services.AddHttpClient<Client.Apps.Browser.IBrowserClient, Client.Apps.Browser.BrowserClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "browser"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
 
         // TaskManager（任务管理器）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 拉取服务端采集的宿主 OS 资源占用（CPU/内存/磁盘/网络/GPU）与进程列表；结束进程权限不足提示需在宿主 OS 提权。
         services.AddHttpClient<Client.Apps.TaskManager.ITaskManagerClient, Client.Apps.TaskManager.TaskManagerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "task-manager"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.Docker.IRemoteDockerClient, Client.Apps.Docker.RemoteDockerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "docker"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.ProcessGuardian.IProcessGuardianClient, Client.Apps.ProcessGuardian.ProcessGuardianClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "process-guardian"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.Firewall.IRemoteFirewallClient, Client.Apps.Firewall.RemoteFirewallClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "firewall"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<Client.Apps.Git.IRemoteGitClient, Client.Apps.Git.RemoteGitClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "git"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
 
         // Settings（设置中心）：typed HttpClient（JWT from IAuthSession，与 Browser/Explorer 同模式）。
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
         services.AddHttpClient<ISettingsClient, SettingsClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "settings"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<IImageMirrorClient, ImageMirrorClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "image-mirrors"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<IWallpaperClient, WorkspaceWallpaperClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "wallpaper"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<IWindowLayoutClient, WindowLayoutClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "window-layout"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddSingleton<WindowLayoutStore>();
         services.AddSingleton<DefaultAppRegistry>();
         services.AddSingleton<IUriSchemeDefaultResolver>(sp => sp.GetRequiredService<DefaultAppRegistry>());
@@ -112,6 +125,7 @@ public static class Bootstrapper
         services.AddSingleton<IAppActivationDiagnostics, UriSchemeRoutingDiagnostics>();
         services.AddSingleton<WallpaperService>();
         services.AddSingleton<TextEditorEncodingSettings>();
+        services.AddSingleton<ITextFileSniffer, TextFileSniffer>();
         services.AddSingleton<IAppPermissionManager, JsonAppPermissionManager>();
         services.AddSingleton<IAppPermissionRequestService, AppPermissionRequestService>();
         services.AddSingleton<IAppDataManager, AppDataManager>();
@@ -124,10 +138,12 @@ public static class Bootstrapper
         services.AddSingleton<NetworkInspectorWindowService>();
         services.AddHttpClient<IAppCapabilityClient, AppCapabilityClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "capabilities"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<IAppSettingsClient, AppSettingsClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "app-settings"))
-            .AddHttpMessageHandler<AcceptLanguageHandler>();
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
         services.AddSingleton<ExternalAppContextFactory>();
         services.AddSingleton<DeveloperPackageManager>();
@@ -178,7 +194,8 @@ public static class Bootstrapper
                 sp.GetRequiredService<Client.Apps.Explorer.IRemoteFileClipboard>(),
                 sp.GetRequiredService<DefaultAppRegistry>(),
                 sp.GetRequiredService<ISettingsClient>(),
-                sp.GetRequiredService<IAppActivationDiagnostics>());
+                sp.GetRequiredService<IAppActivationDiagnostics>(),
+                sp.GetRequiredService<ITextFileSniffer>());
         });
 
         services.AddSingleton<DesktopRestoreOrchestrator>();

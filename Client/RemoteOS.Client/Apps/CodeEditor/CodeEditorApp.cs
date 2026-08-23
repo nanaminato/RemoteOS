@@ -44,6 +44,7 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
         Description: "Syntax-highlighted editor for remote files",
         SupportedFileExtensions: SupportedExtensions,
         SupportedFileNames: SupportedFileNames,
+        SupportsTextFiles: true,
         InstancePolicy: ApplicationInstancePolicy.MultiWindow);
 
     public override void Activate(AppContext context) => OpenEditor(context, null);

@@ -9,23 +9,51 @@ public sealed class AuthSessionStore
     private readonly ConcurrentDictionary<string, RefreshRecord> _refresh = new();
 
     /// <summary>注册一个新的刷新令牌。</summary>
-    public void Register(Guid sessionId, string refreshToken, Guid userId, Guid workspaceId, Guid deviceId, DateTimeOffset expiresAt)
+    public void Register(Guid sessionId, string refreshToken, Guid userId, Guid workspaceId, Guid deviceId,
+        DateTimeOffset expiresAt, DateTimeOffset absoluteExpiresAt)
     {
-        _refresh[refreshToken] = new RefreshRecord(sessionId, userId, workspaceId, deviceId, expiresAt);
+        _refresh[refreshToken] = new RefreshRecord(sessionId, userId, workspaceId, deviceId, expiresAt, absoluteExpiresAt);
     }
 
-    /// <summary>校验刷新令牌是否有效（存在且未过期）。</summary>
-    public bool IsValid(string refreshToken)
-        => _refresh.TryGetValue(refreshToken, out var rec) && rec.ExpiresAt > DateTimeOffset.UtcNow;
+    /// <summary>
+    /// Atomically consumes a one-time refresh token. A token can therefore produce at most one
+    /// successor even when two requests race at the server boundary.
+    /// </summary>
+    public bool TryConsume(string refreshToken, out RefreshRecord record)
+    {
+        if (!_refresh.TryRemove(refreshToken, out record!))
+            return false;
 
-    /// <summary>查询刷新令牌对应的会话记录（不校验过期）。</summary>
-    public bool TryGet(string refreshToken, out RefreshRecord record)
-        => _refresh.TryGetValue(refreshToken, out record!);
+        if (record.ExpiresAt > DateTimeOffset.UtcNow)
+            return true;
+
+        record = default!;
+        return false;
+    }
 
     /// <summary>吊销刷新令牌（登出或刷新后旧 token 作废）。</summary>
     public bool Revoke(string refreshToken)
         => _refresh.TryRemove(refreshToken, out _);
+
+    /// <summary>Removes expired records so a long-running server does not retain stale sessions.</summary>
+    public int RemoveExpired()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var removed = 0;
+        foreach (var pair in _refresh)
+        {
+            if (pair.Value.ExpiresAt <= now && _refresh.TryRemove(pair.Key, out _))
+                removed++;
+        }
+        return removed;
+    }
 }
 
 /// <summary>刷新令牌对应的会话记录。</summary>
-public sealed record RefreshRecord(Guid SessionId, Guid UserId, Guid WorkspaceId, Guid DeviceId, DateTimeOffset ExpiresAt);
+public sealed record RefreshRecord(
+    Guid SessionId,
+    Guid UserId,
+    Guid WorkspaceId,
+    Guid DeviceId,
+    DateTimeOffset ExpiresAt,
+    DateTimeOffset AbsoluteExpiresAt);

@@ -46,6 +46,45 @@ public sealed class ApplicationManager : IAppActivationService
             .Select(app => app.Manifest.ToInfo())
             .ToList();
 
+    /// <summary>
+    /// Applications that declared <see cref="ApplicationManifest.SupportsTextFiles"/>: they
+    /// accept any file the Shell has confirmed is text via content sniffing. Ordered by
+    /// display name so the desktop picker shows a stable list.
+    /// </summary>
+    public IReadOnlyList<ApplicationInfo> TextFileOpeners =>
+        _apps.Values
+            .Where(app => app is IFileOpenApplication && app.Manifest.SupportsTextFiles)
+            .Select(app => app.Manifest.ToInfo())
+            .OrderBy(info => info.DisplayName)
+            .ToList();
+
+    /// <summary>
+    /// Opens a file in a <see cref="ApplicationManifest.SupportsTextFiles"/> application,
+    /// bypassing <see cref="ApplicationManifest.SupportsFile"/>. Only callers that have
+    /// already confirmed the file is text (e.g. the Shell after content sniffing) should
+    /// use this entry point; the regular <see cref="OpenFile"/> path remains the default.
+    /// </summary>
+    public bool OpenFileAsText(AppId id, string path)
+    {
+        if (!_apps.TryGetValue(id, out var app) || app is not IFileOpenApplication fileOpener
+            || !app.Manifest.SupportsTextFiles)
+            return false;
+
+        if (!EnsureCompatible(app.Manifest))
+            return false;
+        var existing = FindExistingPrimaryWindow(id);
+        if (existing is not null && app.Manifest.InstancePolicy == ApplicationInstancePolicy.SingleWindow)
+        {
+            _windowManager.Restore(existing);
+            _windowManager.Focus(existing);
+            RequestUndecidedPermissions(app.Manifest.Id);
+            return true;
+        }
+        fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
+        RequestUndecidedPermissions(app.Manifest.Id);
+        return true;
+    }
+
     /// <summary>Whether the registered application explicitly accepts the supplied file path.</summary>
     public bool SupportsFile(AppId id, string path) =>
         _apps.TryGetValue(id, out var app)

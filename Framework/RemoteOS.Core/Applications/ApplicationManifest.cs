@@ -18,6 +18,7 @@ public sealed record ApplicationManifest(
     ApplicationServerRequirements? ServerRequirements = null,
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
+    bool SupportsTextFiles = false,
     ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
     IReadOnlyList<string>? SupportedUriSchemes = null)
 {
@@ -83,5 +84,5 @@ public sealed record ApplicationManifest(
         ?? Array.Empty<string>();
 
     public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata,
-        FileNames, SupportsExtensionlessFiles, UriSchemes);
+        FileNames, SupportsExtensionlessFiles, SupportsTextFiles, UriSchemes);
 }

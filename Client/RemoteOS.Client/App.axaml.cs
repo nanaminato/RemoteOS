@@ -41,30 +41,54 @@ public partial class App : Application
             var session = Services.GetRequiredService<IAuthSession>();
             var notificationPreferences = Services.GetRequiredService<LoginNotificationPreferenceStore>();
             var loginViewModel = Services.GetRequiredService<LoginViewModel>();
-            var loginWindow = new LoginWindow
+            LoginWindow CreateLoginWindow() => new()
             {
                 DataContext = loginViewModel,
             };
+            var loginWindow = CreateLoginWindow();
+            MainWindow? mainWindow = null;
+            var replacingMainWindow = false;
             desktop.MainWindow = loginWindow;
             loginWindow.Show();
 
             session.StateChanged += (_, e) =>
             {
-                if (e.State != AuthSessionState.Authenticated) return;
                 // 切换到桌面必须在 UI 线程执行。
                 Dispatcher.UIThread.Post(async () =>
                 {
+                    if (e.State == AuthSessionState.Unauthenticated
+                        && e.EndReason == AuthSessionEndReason.RefreshTokenInvalid
+                        && mainWindow is not null)
+                    {
+                        replacingMainWindow = true;
+                        mainWindow.Close();
+                        mainWindow = null;
+                        loginWindow = CreateLoginWindow();
+                        desktop.MainWindow = loginWindow;
+                        loginWindow.Show();
+                        await loginViewModel.LoadSavedProfilesAsync();
+                        loginViewModel.ShowSessionExpiredMessage();
+                        replacingMainWindow = false;
+                        return;
+                    }
+
+                    if (e.State != AuthSessionState.Authenticated || mainWindow is not null)
+                        return;
                     if (e.RememberedProfileSaveResult is { } saveResult
                         && saveResult != RememberedProfileSaveResult.Saved
                         && !notificationPreferences.IsPasswordSaveWarningDismissed())
                         await ShowRememberedProfileSaveWarningAsync(loginWindow, saveResult, notificationPreferences);
 
                     var shell = Services.GetRequiredService<DesktopShellViewModel>();
-                    var mainWindow = new MainWindow { DataContext = shell };
+                    mainWindow = new MainWindow { DataContext = shell };
                     desktop.MainWindow = mainWindow;
                     mainWindow.Show();
                     loginWindow.Close();
-                    mainWindow.Closed += (_, _) => desktop.Shutdown();
+                    mainWindow.Closed += (_, _) =>
+                    {
+                        if (!replacingMainWindow)
+                            desktop.Shutdown();
+                    };
                 });
             };
 
