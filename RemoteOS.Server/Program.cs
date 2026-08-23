@@ -15,6 +15,9 @@ using Server.Storage;
 using Server.Storage.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Git HTTPS tokens are protected before they are persisted in application storage.
+builder.Services.AddDataProtection();
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
@@ -163,6 +166,11 @@ builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Se
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
 
+// Git client: server-side git CLI service (Singleton—holds per-repo write semaphore).
+// Invokes host git CLI as the host user; credentials handled entirely by the host git credential helper.
+builder.Services.AddSingleton<Server.Git.IHostGitCli, Server.Git.HostGitCli>();
+builder.Services.AddSingleton<Server.Git.IGitRepositoryService, Server.Git.LocalGitRepositoryService>();
+
 // Firewall keeps a deliberately narrow UFW-only surface. On Linux the RemoteOS Server service
 // is the privileged host facade; on Windows the unavailable provider is retained only so all
 // endpoint wiring has one stable abstraction (the app itself is hidden by its Linux manifest).
@@ -186,7 +194,10 @@ if (storageProvider == "sqlite")
     var dbDir = Path.GetDirectoryName(dbPath);
     if (!string.IsNullOrEmpty(dbDir))
         Directory.CreateDirectory(dbDir);
-    builder.Services.AddDbContext<RemoteOsDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
+    // AddDbContextFactory: 注册 IDbContextFactory<RemoteOsDbContext>（Singleton）供 Singleton 消费者
+    // （如 LocalGitRepositoryService）按操作创建短生命周期 DbContext；同时保留 RemoteOsDbContext 为
+    // Scoped，使既有 Scoped 仓储（SqliteUserRepository 等）直接注入不变。
+    builder.Services.AddDbContextFactory<RemoteOsDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
     // 仓储为 Scoped（依赖 Scoped 的 DbContext）；Minimal API [FromServices] 每请求创建 scope，兼容
     builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
     builder.Services.AddScoped<IWorkspaceRepository, SqliteWorkspaceRepository>();
@@ -317,6 +328,15 @@ if (storageProvider == "sqlite")
             "UpdatedAt" TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_image_mirrors_UserId_Target" ON "image_mirrors" ("UserId", "Target");
+
+        CREATE TABLE IF NOT EXISTS "git_repositories" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Path" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_git_repositories_UserId" ON "git_repositories" ("UserId");
         """);
 }
 
@@ -344,6 +364,7 @@ app.MapBrowserEndpoints();
 app.MapSystemMonitorEndpoints();
 app.MapDockerEndpoints();
 app.MapProcessGuardianEndpoints();
+app.MapGitEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

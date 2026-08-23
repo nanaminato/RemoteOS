@@ -93,6 +93,10 @@ public static class Bootstrapper
             .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.Firewall.IRemoteFirewallClient, Client.Apps.Firewall.RemoteFirewallClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "firewall"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Git.IRemoteGitClient, Client.Apps.Git.RemoteGitClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "git"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
             .AddHttpMessageHandler<AcceptLanguageHandler>()
             .AddRemoteOsAuthentication();
 
@@ -168,6 +172,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Firewall.FirewallApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>

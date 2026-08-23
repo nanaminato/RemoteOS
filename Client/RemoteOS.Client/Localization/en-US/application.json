@@ -28,6 +28,8 @@
         "application.remoteos.port-forwarding.display_name": "Port Forwarding",
         "application.remoteos.port-forwarding.description": "Manage local SSH tunnels to RemoteOS Server loopback services",
         "application.remoteos.firewall.display_name": "Firewall",
-        "application.remoteos.firewall.description": "Manage Linux Server UFW firewall rules"
+        "application.remoteos.firewall.description": "Manage Linux Server UFW firewall rules",
+        "application.remoteos.git.display_name": "Git Client",
+        "application.remoteos.git.description": "Manage Git repositories on the RemoteOS Server"
     }
 }

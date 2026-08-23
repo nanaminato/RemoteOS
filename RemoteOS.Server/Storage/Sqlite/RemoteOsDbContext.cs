@@ -19,6 +19,7 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<HistoryEntry> History => Set<HistoryEntry>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<ImageMirror> ImageMirrors => Set<ImageMirror>();
+    public DbSet<GitRepository> GitRepositories => Set<GitRepository>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -160,6 +161,20 @@ public sealed class RemoteOsDbContext : DbContext
             e.Property(mirror => mirror.CreatedAt).HasColumnType("TEXT");
             e.Property(mirror => mirror.UpdatedAt).HasColumnType("TEXT");
             e.HasIndex(mirror => new { mirror.UserId, mirror.Target });
+        });
+
+        // ── git_repositories ── registered Git repository metadata (user-isolated).
+        // Only Id/Name/Path/UserId/CreatedAt are persisted; branch/commit/status/diff are real-time git results.
+        mb.Entity<GitRepository>(e =>
+        {
+            e.ToTable("git_repositories");
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Id).HasColumnType("TEXT");
+            e.Property(r => r.UserId).HasColumnType("TEXT");
+            e.Property(r => r.Name).HasMaxLength(256).IsRequired();
+            e.Property(r => r.Path).HasMaxLength(4096).IsRequired();
+            e.Property(r => r.CreatedAt).HasColumnType("TEXT");
+            e.HasIndex(r => r.UserId);
         });
     }
 }

@@ -167,6 +167,7 @@ public static class AuthEndpoints
             ServerCapabilities.Metrics,
             ServerCapabilities.Processes,
             ServerCapabilities.Terminal,
+            ServerCapabilities.Git,
         };
         if (!isWindows)
         {
