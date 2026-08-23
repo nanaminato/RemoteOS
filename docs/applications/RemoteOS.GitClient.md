@@ -30,8 +30,8 @@ GitClient 是 RemoteOS 的内置版本控制客户端，参考 TortoiseGit / Git
 | 工作区状态 | 已暂存/未暂存/未跟踪/冲突文件清单 + 当前分支 + upstream 落后/领先计数 | `GET /api/v1/git/repositories/{id}/status` |
 | 分支管理 | 本地+远程分支列表、切换(checkout)、新建、删除 | `GET/POST/DELETE /api/v1/git/repositories/{id}/branches` |
 | 提交 | 暂存选择文件 + 提交消息 + 提交 | `POST /api/v1/git/repositories/{id}/commit` |
-| 拉取 | fetch+merge/fetch+rebase，冲突文件回传 | `POST /api/v1/git/repositories/{id}/pull` |
-| 推送 | push 当前分支到 upstream | `POST /api/v1/git/repositories/{id}/push` |
+| 拉取 | 当前分支 fetch+merge/fetch+rebase；未检出分支可仅安全快进更新 | `POST /api/v1/git/repositories/{id}/pull` |
+| 推送 | 推送当前或指定本地分支到指定 remote/分支，无需 checkout | `POST /api/v1/git/repositories/{id}/push` |
 | 提交历史 | log 列表（hash/作者/时间/消息）+ 单提交详情 | `GET /api/v1/git/repositories/{id}/log` |
 | Revert | 反向提交指定 commit | `POST /api/v1/git/repositories/{id}/revert` |
 | Diff | 单文件 diff（工作区/已暂存/某提交） | `GET /api/v1/git/repositories/{id}/diff` |
@@ -103,7 +103,8 @@ Fetch              = /api/v1/git/repositories/{id}/fetch             (POST)     
 | `GitRepositoryRegistration` | Name / Path | 注册仓库请求体 |
 | `GitCommitRequest` | Message / Paths (要暂存的文件) / Amend (bool) | 提交请求 |
 | `GitBranchCreateRequest` | Name / StartPoint? / Track (bool) | 新建分支 |
-| `GitPullRequest` | Strategy (Merge/Rebase) / Remote? / Refspec? | 拉取策略 |
+| `GitPullRequest` | Strategy (Merge/Rebase) / Remote? / Refspec? / Branch? | 拉取策略；`Branch` 指定未检出的本地分支时，服务端 fetch 后仅允许快进该 ref |
+| `GitPushRequest` | Credentials? / LocalBranch? / Remote? / RemoteBranch? | 推送选项；显式 refspec 支持在 HEAD 位于 a 时推送 b |
 | `GitCheckoutRequest` | Branch / CreateIfMissing (bool) | 切换请求 |
 | `GitRevertRequest` | Sha / NoCommit (bool) | 反向提交请求 |
 | `GitResolveRequest` | Paths / ContinueMerge (bool) | 标记冲突已解决 |
