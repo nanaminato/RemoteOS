@@ -7,7 +7,8 @@ namespace RemoteOS.WindowManager;
 
 /// <summary>
 /// Handle for a modal desktop window. A dialog is a real managed window: it can be moved and
-/// resized like any other program window, while only its direct owner is blocked.
+/// resized like any other program window, while its direct owner (or the desktop host for a
+/// shell modal) is blocked.
 /// </summary>
 public sealed class ModalDialog<TResult>
 {
@@ -16,13 +17,13 @@ public sealed class ModalDialog<TResult>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ManagedWindow? _window;
 
-    internal ModalDialog(WindowManager manager, ManagedWindow owner)
+    internal ModalDialog(WindowManager manager, ManagedWindow? owner)
     {
         _manager = manager;
         Owner = owner;
     }
 
-    internal ManagedWindow Owner { get; }
+    internal ManagedWindow? Owner { get; }
     public ManagedWindow? Window => _window;
     public Task<TResult?> Result => _completion.Task;
 
@@ -51,6 +52,14 @@ internal interface IModalSession
     void Cancel();
 }
 
+internal interface IShellModalSession
+{
+    ManagedWindow DialogWindow { get; }
+    ModalBlocker Blocker { get; }
+    Canvas Host { get; }
+    void Cancel();
+}
+
 internal sealed class ModalSession<TResult>(
     ManagedWindow owner,
     ManagedWindow dialogWindow,
@@ -65,16 +74,25 @@ internal sealed class ModalSession<TResult>(
     public void Cancel() => dialog.Cancel();
 }
 
-/// <summary>A transparent input shield that follows only the blocked owner window.</summary>
+internal sealed class ShellModalSession<TResult>(
+    ManagedWindow dialogWindow,
+    ModalBlocker blocker,
+    Canvas host,
+    ModalDialog<TResult> dialog) : IShellModalSession
+{
+    public ManagedWindow DialogWindow { get; } = dialogWindow;
+    public ModalBlocker Blocker { get; } = blocker;
+    public Canvas Host { get; } = host;
+    public void Cancel() => dialog.Cancel();
+}
+
+/// <summary>A transparent input shield over a blocked owner window or the desktop host.</summary>
 internal sealed class ModalBlocker : Border
 {
-    public ModalBlocker(ManagedWindow owner)
+    public ModalBlocker()
     {
-        Owner = owner;
         Background = new SolidColorBrush(Color.Parse("#3D000000"));
     }
-
-    public ManagedWindow Owner { get; }
 
     public void ApplyBounds(Rect bounds)
     {

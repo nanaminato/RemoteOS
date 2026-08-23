@@ -143,7 +143,7 @@
                     <MenuItem Header="刷新" Command="{Binding RefreshDesktopCommand}" />
                     <MenuItem Header="粘贴" Click="DesktopPasteMenuItem_OnClick" />
                     <Separator />
-                    <MenuItem Header="配置桌面显示项目..." Command="{Binding OpenDesktopDisplaySettingsCommand}"
+                    <MenuItem Header="{loc:Loc shell.desktop_display.configure_ellipsis}" Command="{Binding OpenDesktopDisplaySettingsCommand}"
                               InputGesture="Ctrl+Shift+D" />
                     <Separator />
                     <MenuItem Header="打开桌面文件夹" Command="{Binding OpenDesktopFolderCommand}" />

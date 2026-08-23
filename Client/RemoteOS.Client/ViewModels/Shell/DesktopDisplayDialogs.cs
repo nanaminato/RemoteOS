@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Client.Localization;
 using Client.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Core.Applications;
@@ -28,47 +30,63 @@ public static class DesktopDisplayDialogs
     {
         var buffer = new DesktopDisplayEditBuffer(settings, applications);
 
-        var root = new StackPanel
+        // Keep the decision controls outside the scrolling region.  This is the standard
+        // modal layout used throughout the desktop: long content can scroll without making
+        // the primary action disappear below the window edge.
+        var root = new Grid
         {
             Margin = new Thickness(20),
-            Spacing = 14,
+            RowDefinitions = new RowDefinitions("*,Auto"),
+            RowSpacing = 16,
         };
+        var content = new StackPanel
+        {
+            Spacing = 14,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        var scrollViewer = new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        root.Children.Add(scrollViewer);
 
         if (isFirstTime)
         {
-            root.Children.Add(new TextBlock
+            content.Children.Add(new TextBlock
             {
-                Text = "欢迎使用 RemoteOS！",
+                Text = T("shell.desktop_display.welcome_heading", "Welcome to RemoteOS!"),
                 FontSize = 20,
                 FontWeight = FontWeight.SemiBold,
             });
-            root.Children.Add(new TextBlock
+            content.Children.Add(new TextBlock
             {
-                Text = "先花几秒配置一下桌面上显示哪些内容。之后随时可以在桌面右键菜单或使用 Ctrl+Shift+D 快捷键重新配置。",
+                Text = T("shell.desktop_display.welcome_description", "Choose what appears on your desktop. You can change this later from the desktop context menu or with Ctrl+Shift+D."),
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 14,
                 Opacity = 0.85,
             });
-            root.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
+            content.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
         }
         else
         {
-            root.Children.Add(new TextBlock
+            content.Children.Add(new TextBlock
             {
-                Text = "选择桌面上要显示的项目。配置会保存在你的 Workspace 中并在多设备间同步。",
+                Text = T("shell.desktop_display.description", "Choose what appears on your desktop. Your preferences are saved to this workspace and sync across devices."),
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 14,
                 Opacity = 0.85,
             });
-            root.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
+            content.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
         }
 
         // ── 区块 1：内置应用程序显示 ──
-        root.Children.Add(BuildSectionTitle("内置应用程序"));
+        content.Children.Add(BuildSectionTitle(T("shell.desktop_display.built_in_apps", "Built-in apps")));
 
         var showAppsToggle = new CheckBox
         {
-            Content = "在桌面上显示内置应用程序",
+            Content = T("shell.desktop_display.show_built_in_apps", "Show built-in apps on the desktop"),
             IsChecked = buffer.ShowBuiltInApps,
             Padding = new Thickness(0, 2),
         };
@@ -77,13 +95,13 @@ public static class DesktopDisplayDialogs
 
         var allAppsRadio = new RadioButton
         {
-            Content = "显示全部内置应用（默认）",
+            Content = T("shell.desktop_display.show_all_built_in_apps", "Show all built-in apps (default)"),
             IsChecked = buffer.ShowAllBuiltInApps,
             IsEnabled = buffer.ShowBuiltInApps,
         };
         var customAppsRadio = new RadioButton
         {
-            Content = "仅显示选定的应用：",
+            Content = T("shell.desktop_display.show_selected_apps", "Show only selected apps:"),
             IsChecked = !buffer.ShowAllBuiltInApps,
             IsEnabled = buffer.ShowBuiltInApps,
         };
@@ -144,31 +162,31 @@ public static class DesktopDisplayDialogs
         appsContainer.Children.Add(customAppsRadio);
         appsContainer.Children.Add(appListBox);
 
-        root.Children.Add(showAppsToggle);
-        root.Children.Add(appsContainer);
+        content.Children.Add(showAppsToggle);
+        content.Children.Add(appsContainer);
 
-        root.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
+        content.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 0) });
 
         // ── 区块 2：服务器桌面文件 ──
-        root.Children.Add(BuildSectionTitle("服务器桌面文件"));
+        content.Children.Add(BuildSectionTitle(T("shell.desktop_display.server_desktop_files", "Server desktop files")));
 
         var showFilesToggle = new CheckBox
         {
-            Content = "显示服务器桌面的一般文件（文件夹 / 文档 / 图片等）",
+            Content = T("shell.desktop_display.show_server_files", "Show files from the server desktop (folders, documents, images, and more)"),
             IsChecked = buffer.ShowServerDesktopFiles,
             Padding = new Thickness(0, 2),
         };
         var showShortcutsToggle = new CheckBox
         {
-            Content = "显示服务器桌面快捷方式（.lnk / .desktop）",
+            Content = T("shell.desktop_display.show_server_shortcuts", "Show server desktop shortcuts (.lnk / .desktop)"),
             IsChecked = buffer.ShowServerDesktopShortcuts,
             Padding = new Thickness(20, 2, 0, 2),
             Opacity = 0.92,
         };
-        ToolTip.SetTip(showShortcutsToggle, "快捷方式通常指向宿主机本地路径，在 RemoteOS 中可能无法直接打开。");
+        ToolTip.SetTip(showShortcutsToggle, T("shell.desktop_display.shortcuts_tooltip", "Shortcuts often point to paths on the host machine and may not open directly in RemoteOS."));
 
-        root.Children.Add(showFilesToggle);
-        root.Children.Add(showShortcutsToggle);
+        content.Children.Add(showFilesToggle);
+        content.Children.Add(showShortcutsToggle);
 
         // ── 底部按钮 ──
         var buttonPanel = new StackPanel
@@ -181,18 +199,19 @@ public static class DesktopDisplayDialogs
 
         var cancelOrSkipBtn = new Button
         {
-            Content = isFirstTime ? "跳过" : "取消",
+            Content = isFirstTime ? T("common.skip", "Skip") : T("common.cancel", "Cancel"),
             Padding = new Thickness(16, 6),
         };
         cancelOrSkipBtn.Click += (_, _) => close(false);
 
         var saveBtn = new Button
         {
-            Content = isFirstTime ? "开始使用" : "保存",
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Content = isFirstTime
+                ? T("shell.desktop_display.get_started", "Get started")
+                : T("common.save", "Save"),
             Padding = new Thickness(16, 6),
         };
+        saveBtn.Classes.Add("primary");
         saveBtn.Click += async (_, _) =>
         {
             buffer.ApplyTo(settings);
@@ -203,9 +222,12 @@ public static class DesktopDisplayDialogs
         buttonPanel.Children.Add(cancelOrSkipBtn);
         buttonPanel.Children.Add(saveBtn);
 
+        Grid.SetRow(buttonPanel, 1);
         root.Children.Add(buttonPanel);
         return root;
     }
+
+    private static string T(string key, string fallback) => LocalizedText.Get(key, fallback);
 
     private static Control BuildSectionTitle(string text) => new TextBlock
     {
