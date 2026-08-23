@@ -67,7 +67,7 @@ public sealed class TerminalApp : RemoteApplicationBase, IOpenTerminalApplicatio
                     var options = new SignalRTransportOptions(
                         url.TrimEnd('/') + "/hubs/terminals",
                         new TerminalSessionDimensions(80, 24, 800, 480),
-                        tokenProvider: () => session.Tokens?.AccessToken,
+                        tokenProvider: () => session.GetAccessTokenAsync(TimeSpan.FromMinutes(1)),
                         accessToken: tokens.AccessToken,
                         diagnostics: diagnostics);
                     sessionIds = (await TerminalHubConnection.ListSessionsAsync(options, cancellationToken))

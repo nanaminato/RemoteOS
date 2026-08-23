@@ -30,6 +30,7 @@
         "login.error.connection_refused": "无法连接到服务器：连接被拒绝。请确认服务器正在运行，并且地址和端口正确（开发环境默认地址为 [http://localhost:5090）。](http://localhost:5090）。)",
         "login.error.connection_reset": "无法连接到服务器：远程主机已关闭连接。请确认服务器正在运行，并且客户端和服务器使用相同的协议（不要混用 HTTP 和 HTTPS）。",
         "login.error.timeout": "连接服务器超时。请检查网络或服务器地址。",
+        "login.error.session_expired": "会话已过期，请重新登录后继续操作。",
         "login.error.unable_to_connect": "无法连接到服务器："
     }
 }

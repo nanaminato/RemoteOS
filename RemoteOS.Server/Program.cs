@@ -35,9 +35,15 @@ if (string.IsNullOrWhiteSpace(jwtCfg.Secret) || jwtCfg.Secret.Length < 32)
     throw new InvalidOperationException("Jwt:Secret 必须至少 32 字符（HMACSHA256 要求 ≥256 位）。");
 if (builder.Environment.IsProduction() && jwtCfg.Secret == JwtOptions.DefaultInsecureSecret)
     throw new InvalidOperationException("Production 环境必须替换默认 Jwt:Secret。");
+if (jwtCfg.AccessTokenTtl <= TimeSpan.Zero || jwtCfg.RefreshTokenTtl <= TimeSpan.Zero
+    || jwtCfg.RefreshTokenMaximumLifetime <= TimeSpan.Zero)
+    throw new InvalidOperationException("Jwt token lifetimes must be greater than zero.");
+if (jwtCfg.RefreshTokenMaximumLifetime < jwtCfg.AccessTokenTtl)
+    throw new InvalidOperationException("Jwt:RefreshTokenMaximumLifetime must not be shorter than Jwt:AccessTokenTtl.");
 
 builder.Services.AddSingleton<AuthSessionStore>();
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 builder.Services.AddAuthentication(options =>
     {
