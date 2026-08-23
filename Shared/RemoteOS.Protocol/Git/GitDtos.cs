@@ -71,6 +71,18 @@ public sealed record GitCommitDto(
     [property: JsonPropertyName("subject")] string Subject,
     [property: JsonPropertyName("body")] string? Body = null);
 
+/// <summary>Optional server-side constraints for the commit history.  Keeping these
+/// on the log request avoids downloading an entire repository history just to filter
+/// it in the desktop client.</summary>
+public sealed record GitLogQuery(
+    [property: JsonPropertyName("reference")] string? Reference = null,
+    [property: JsonPropertyName("search")] string? Search = null,
+    [property: JsonPropertyName("author")] string? Author = null,
+    [property: JsonPropertyName("path")] string? Path = null,
+    [property: JsonPropertyName("dateRange")] string? DateRange = null,
+    [property: JsonPropertyName("caseSensitive")] bool CaseSensitive = false,
+    [property: JsonPropertyName("useRegex")] bool UseRegex = false);
+
 /// <summary>Single commit detail.</summary>
 public sealed record GitCommitDetailDto(
     [property: JsonPropertyName("sha")] string Sha,

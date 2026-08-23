@@ -136,10 +136,14 @@ public static class GitEndpoints
             return Results.Ok(await service.PushAsync(repoId, GetUserId(principal), request, ct));
         });
 
-        group.MapGet("/repositories/{id}/log", async (string id, int? limit, int? skip, ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        group.MapGet("/repositories/{id}/log", async (string id, int? limit, int? skip, string? reference, string? search,
+            string? author, string? path, string? dateRange, bool? caseSensitive, bool? useRegex,
+            ClaimsPrincipal principal, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
             if (!Guid.TryParse(id, out var repoId)) return Results.BadRequest();
-            try { return Results.Ok(await service.GetLogAsync(repoId, GetUserId(principal), limit ?? 200, skip ?? 0, ct)); }
+            var query = new GitLogQuery(reference, search, author, path, dateRange, caseSensitive ?? false, useRegex ?? false);
+            try { return Results.Ok(await service.GetLogAsync(repoId, GetUserId(principal), limit ?? 200, skip ?? 0, query, ct)); }
+            catch (ArgumentException ex) { return Results.Problem(detail: ex.Message, statusCode: 400, title: "Invalid log filter", type: ProblemBase + "invalid-log-filter"); }
             catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git error", type: ProblemBase + "log-failed"); }
         });
 

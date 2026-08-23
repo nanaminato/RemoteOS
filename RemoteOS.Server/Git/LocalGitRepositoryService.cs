@@ -666,16 +666,52 @@ public sealed class LocalGitRepositoryService(
 
     private sealed record StoredGitCredential(string Username, string ProtectedPassword);
 
-    public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(Guid id, Guid userId, int limit = 200, int skip = 0, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GitCommitDto>> GetLogAsync(Guid id, Guid userId, int limit = 200, int skip = 0,
+        GitLogQuery? query = null, CancellationToken cancellationToken = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var repo = await GetRepoOrThrowAsync(db, id, userId, cancellationToken);
         var gitPath = ResolveGitPathOrThrow();
         // tformat 会在每条 commit 后自动追加换行（不含最后一条尾部多余空行）；字段间用 \x01(SOH) 分隔，避免与 subject/body 中的制表符/空格冲突
         var format = "%H%x01%h%x01%an%x01%ae%x01%aI%x01%s%x01%b";
-        var result = await RunGitAsync(gitPath, repo.Path,
-            ["log", $"--pretty=tformat:{format}", "--date=iso-strict", $"-n {limit}", $"--skip={skip}"],
-            cancellationToken);
+        limit = Math.Clamp(limit, 1, 500);
+        skip = Math.Max(skip, 0);
+        var args = new List<string> { "log", $"--pretty=tformat:{format}", "--date=iso-strict", $"-n {limit}", $"--skip={skip}" };
+        if (!string.IsNullOrWhiteSpace(query?.Search))
+        {
+            args.Add($"--grep={query.Search}");
+            if (!query.CaseSensitive) args.Add("--regexp-ignore-case");
+            if (!query.UseRegex) args.Add("--fixed-strings");
+        }
+        if (!string.IsNullOrWhiteSpace(query?.Author))
+        {
+            args.Add($"--author={query.Author}");
+            if (!query.CaseSensitive) args.Add("--regexp-ignore-case");
+        }
+        switch (query?.DateRange)
+        {
+            case "today": args.Add("--since=midnight"); break;
+            case "week": args.Add("--since=7 days ago"); break;
+            case "month": args.Add("--since=30 days ago"); break;
+            case null or "all": break;
+            default: throw new ArgumentException("Unsupported log date range.", nameof(query));
+        }
+        if (!string.IsNullOrWhiteSpace(query?.Reference))
+        {
+            if (query.Reference.StartsWith("-", StringComparison.Ordinal))
+                throw new ArgumentException("Invalid Git reference.", nameof(query));
+            var verify = await RunGitAsync(gitPath, repo.Path, ["rev-parse", "--verify", $"{query.Reference}^{{commit}}"], cancellationToken);
+            if (!verify.Success) throw new ArgumentException("The selected branch no longer exists.", nameof(query));
+            args.Add(query.Reference);
+        }
+        if (!string.IsNullOrWhiteSpace(query?.Path))
+        {
+            if (!IsPathSafe(repo.Path, query.Path))
+                throw new ArgumentException("Path outside repository.", nameof(query));
+            args.Add("--");
+            args.Add(query.Path);
+        }
+        var result = await RunGitAsync(gitPath, repo.Path, args, cancellationToken);
         if (!result.Success)
             throw new InvalidOperationException($"git log failed: {result.Error}");
 

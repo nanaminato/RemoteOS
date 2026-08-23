@@ -32,7 +32,7 @@
         "application.remoteos.certificates.display_name": "証明書マネージャー",
         "application.remoteos.certificates.description": "RemoteOS Server の TLS 証明書を管理します",
         "application.remoteos.webservers.display_name": "Web サーバーマネージャー",
-        "application.remoteos.webservers.description": "RemoteOS Server の Web サーバーを管理します"
+        "application.remoteos.webservers.description": "RemoteOS Server の Web サーバーを管理します",
         "application.remoteos.git.display_name": "Git クライアント",
         "application.remoteos.git.description": "RemoteOS Server 上の Git リポジトリを管理します"
     }
