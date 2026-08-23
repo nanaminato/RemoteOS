@@ -232,11 +232,44 @@ public partial class DesktopShellViewModel : ObservableObject
 
         var extension = Path.GetExtension(item.Entry.Name);
         var defaultAppId = string.IsNullOrEmpty(extension) ? null : _defaultApps.Resolve(extension);
+        AppId? defaultAppIdTyped = defaultAppId is null ? null : new AppId(defaultAppId);
         var opener = defaultAppId is not null && _applications.SupportsFile(new AppId(defaultAppId), item.Entry.Path)
             ? new AppId(defaultAppId)
             : _applications.FileOpenersForPath(item.Entry.Path).FirstOrDefault()?.Id;
+
+        // 用户显式绑定（设置页自由添加的未知扩展名）但应用未声明支持时：若该应用 SupportsTextFiles
+        // 且文件经 MIME/字节判定是文本，则用 OpenFileAsText 绕过 Manifest 校验——保持绑定的权威性。
+        bool userBoundTextFallback = false;
+        AppActivationResult userBoundResult = default;
+        if (opener is null && defaultAppIdTyped.HasValue)
+        {
+            var boundAppId = defaultAppIdTyped.Value;
+            if (_applications.GetManifest(boundAppId) is { SupportsTextFiles: true })
+            {
+                var isTextBound = _textSniffer.IsTextByMimeType(item.Entry.MimeType);
+                RecordDesktopFileMenuDiagnostic($"user-bound text sniff (mimeType fast path): entry={item.DisplayName}, bound={boundAppId.Value}, mime={item.Entry.MimeType ?? "<null>"}, isText={isTextBound}.");
+                if (!isTextBound)
+                {
+                    isTextBound = await _textSniffer.IsTextFileAsync(item.Entry.Path);
+                    RecordDesktopFileMenuDiagnostic($"user-bound text sniff (byte fallback): entry={item.DisplayName}, bound={boundAppId.Value}, isText={isTextBound}.");
+                }
+                if (isTextBound)
+                {
+                    userBoundTextFallback = true;
+                    userBoundResult = _applications.OpenFileAsText(boundAppId, item.Entry.Path)
+                        ? new AppActivationResult(AppActivationStatus.Activated, boundAppId)
+                        : new AppActivationResult(AppActivationStatus.Unavailable, boundAppId);
+                }
+            }
+        }
+
         RecordDesktopFileMenuDiagnostic(
-            $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}.");
+            $"file open requested: entry={item.DisplayName}, extension={extension}, default={defaultAppId ?? "<none>"}, selected={opener?.Value ?? "<none>"}, userBoundTextFallback={userBoundTextFallback}.");
+        if (userBoundTextFallback)
+        {
+            RecordDesktopFileMenuDiagnostic($"user-bound text fallback open result: entry={item.DisplayName}, result={userBoundResult.Status}, target={userBoundResult.TargetAppId?.Value ?? "<none>"}.");
+            return;
+        }
         if (opener is not null)
         {
             var result = _applications.Activate(new AppActivationRequest(RemoteOsActivationUris.OpenFile(opener.Value, item.Entry.Path)));
@@ -244,15 +277,21 @@ public partial class DesktopShellViewModel : ObservableObject
             return;
         }
 
-        // 没有任何应用显式声明支持该扩展名：嗅探文件是否为文本，是文本就用默认文本编辑器
-        // （首个 SupportsTextFiles 应用）作为兜底打开。双击路径不弹"打开方式"对话框以避免打断流。
+        // 没有任何应用显式声明支持该扩展名：先尝试服务端已返回的 MIME 快速判断，
+        // 无法判断时再退化读字节嗅探；是文本就用默认文本编辑器（首个 SupportsTextFiles 应用）兜底打开。
+        // 双击路径不弹"打开方式"对话框以避免打断流。
         if (_applications.TextFileOpeners.Count == 0)
         {
             RecordDesktopFileMenuDiagnostic("file open stopped: no compatible opener and no text-capable fallback registered.");
             return;
         }
-        var isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
-        RecordDesktopFileMenuDiagnostic($"text sniff: entry={item.DisplayName}, isText={isText}.");
+        var isText = _textSniffer.IsTextByMimeType(item.Entry.MimeType);
+        RecordDesktopFileMenuDiagnostic($"text sniff (mimeType fast path): entry={item.DisplayName}, mime={item.Entry.MimeType ?? "<null>"}, isText={isText}.");
+        if (!isText)
+        {
+            isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
+            RecordDesktopFileMenuDiagnostic($"text sniff (byte fallback): entry={item.DisplayName}, isText={isText}.");
+        }
         if (!isText)
         {
             RecordDesktopFileMenuDiagnostic("file open stopped: no compatible opener and content sniff rejected text fallback.");
@@ -282,12 +321,17 @@ public partial class DesktopShellViewModel : ObservableObject
         var openers = _applications.FileOpenersForPath(item.Entry.Path);
         RecordDesktopFileMenuDiagnostic($"open-with requested: entry={item.DisplayName}, candidates={openers.Count}, dialogAvailable={RequestDesktopOpenWithAsync is not null}.");
 
-        // 没有任何应用显式声明支持时，嗅探文本：若是文本，把 SupportsTextFiles 应用
-        // (Notepad/CodeEditor) 作为 fallback 候选加入"打开方式"列表让用户选择。
+        // 没有任何应用显式声明支持时：先 MIME 快速判断，无法判断再退化嗅探字节；
+        // 是文本就把 SupportsTextFiles 应用（Notepad/CodeEditor）作为 fallback 候选加入"打开方式"列表。
         if (openers.Count == 0 && _applications.TextFileOpeners.Count > 0)
         {
-            var isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
-            RecordDesktopFileMenuDiagnostic($"open-with text sniff: entry={item.DisplayName}, isText={isText}.");
+            var isText = _textSniffer.IsTextByMimeType(item.Entry.MimeType);
+            RecordDesktopFileMenuDiagnostic($"open-with text sniff (mimeType fast path): entry={item.DisplayName}, mime={item.Entry.MimeType ?? "<null>"}, isText={isText}.");
+            if (!isText)
+            {
+                isText = await _textSniffer.IsTextFileAsync(item.Entry.Path);
+                RecordDesktopFileMenuDiagnostic($"open-with text sniff (byte fallback): entry={item.DisplayName}, isText={isText}.");
+            }
             if (isText)
                 openers = _applications.TextFileOpeners;
         }
@@ -574,7 +618,7 @@ public partial class DesktopShellViewModel : ObservableObject
             var entries = directory.Directories
                 .Concat(directory.Files.Select(file => new FileSystemEntryDto(
                     file.Path, file.Name, file.Size, FileSystemEntryType.File, file.Created, file.Modified,
-                    file.Accessed, file.IsHidden, file.IsSystem)))
+                    file.Accessed, file.IsHidden, file.IsSystem, file.MimeType)))
                 .Where(entry => !entry.IsHidden)
                 .OrderByDescending(entry => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)

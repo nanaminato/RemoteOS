@@ -3,30 +3,60 @@ using Client.Apps.Explorer;
 namespace Client.Services;
 
 /// <summary>
-/// 嗅探远程文件是否为文本。仅在前 N KB 字节上做内容判断，不下载完整文件。
-/// 由桌面层在没有任何应用显式声明支持该扩展名时按需调用，作为把
-/// <see cref="RemoteOS.Core.Applications.ApplicationManifest.SupportsTextFiles"/>
+/// 嗅探远程文件是否为文本。优先使用服务端列目录时已经写入 <c>MimeType</c> 字段（text/* 直接判真），
+/// 退化路径再读前 N KB 做内容判断。由桌面/资源管理器在没有任何应用显式声明支持该扩展名时按需调用，
+/// 作为把 <see cref="RemoteOS.Core.Applications.ApplicationManifest.SupportsTextFiles"/>
 /// 应用加入"打开方式"候选的前置条件。
 /// </summary>
 public interface ITextFileSniffer
 {
+    /// <summary>根据服务端返回的 MIME 类型做 O(1) 判断：text/* 直接视为文本；application/octet-stream 无法确定；其余非文本返回 false。</summary>
+    bool IsTextByMimeType(string? mimeType);
+
     /// <summary>返回 <c>true</c> 当远程文件被判定为文本（可被文本编辑器安全打开）。</summary>
     Task<bool> IsTextFileAsync(string path, CancellationToken ct = default);
 }
 
 /// <summary>
-/// 默认实现：通过 <see cref="IExplorerClient.DownloadAsync"/> 读取文件首 8KB，
-/// 应用经典 binary-detection 算法：
+/// 默认实现：
 /// <list type="bullet">
-/// <item>UTF-8 / UTF-16 / UTF-32 BOM → 文本。</item>
-/// <item>包含 NULL 字节 (0x00) 且不是 UTF-16/32 BOM 开头 → 二进制。</item>
-/// <item>可打印 ASCII + 常见空白字符占比 &lt; 70% → 二进制。</item>
-/// <item>其余情况 → 文本。</item>
+/// <item><see cref="IsTextByMimeType"/>: 按 MIME 前缀 O(1) 判断。</item>
+/// <item><see cref="IsTextFileAsync"/>: 通过 <see cref="IExplorerClient.DownloadAsync"/> 读文件首 8KB，
+/// 应用经典 binary-detection 算法：
+/// BOM → 文本；含 NULL 字节（无 BOM）→ 二进制；可打印 ASCII + 常见空白占比 &lt; 70% → 二进制；其余文本。</item>
 /// </list>
 /// </summary>
 public sealed class TextFileSniffer(IExplorerClient files) : ITextFileSniffer
 {
     private const int SniffByteCount = 8 * 1024;
+
+    public bool IsTextByMimeType(string? mimeType)
+    {
+        if (string.IsNullOrWhiteSpace(mimeType)) return false;
+        var span = mimeType.AsSpan().Trim();
+        if (span.StartsWith("text/", StringComparison.OrdinalIgnoreCase)) return true;
+        // 常见"本质是文本"但不挂在 text/ 前缀下的 JSON/XML/YAML/TOML/Markdown 类 MIME：
+        if (span.Equals("application/json", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/jsonc", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/json5", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/xml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/yaml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-yaml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/toml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-sh", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/javascript", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/ecmascript", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/typescript", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/xhtml+xml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/rss+xml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/atom+xml", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/sql", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-sql", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-ndjson", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-hocon", StringComparison.OrdinalIgnoreCase)
+            || span.Equals("application/x-m4b", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     public async Task<bool> IsTextFileAsync(string path, CancellationToken ct = default)
     {
@@ -75,10 +105,11 @@ public sealed class TextFileSniffer(IExplorerClient files) : ITextFileSniffer
         {
             var b = buffer[i];
             if (b == 0x00) { hasNull = true; break; }
-            // 可打印 ASCII (0x20–0x7E) + 常见空白与控制字符。
+            // ASCII 可打印 (0x20–0x7E) + 常见空白与控制字符。
             if ((b >= 0x20 && b <= 0x7E) || b == '\t' || b == '\n' || b == '\r' || b == '\f' || b == 0x0B) printable++;
-            // 高位字节可能是 UTF-8 多字节序列起始字节，宽松计为"可能是文本"。
-            else if (b >= 0xC2) printable++;
+            // UTF-8 多字节序列整体宽松计为"可能是文本"：
+            // 起始字节 (>=0xC0) 与续字节 (0x80–0xBF) 都计入，避免中文 3 字节 2/3 比例被误杀。
+            else if (b >= 0x80) printable++;
         }
         if (hasNull) return false;
         return printable >= (length * 7 / 10); // ≥ 70% 视为文本。

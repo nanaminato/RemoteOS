@@ -326,7 +326,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 var drives = GetNavigationDrives(await _client.GetDrivesAsync());
                 foreach (var d in drives)
                     Entries.Add(new FileSystemEntryDto(d.Path, d.Name, d.TotalSize,
-                        FileSystemEntryType.Drive, null, null, null, false, false));
+                        FileSystemEntryType.Drive, null, null, null, false, false, null));
                 confirmedPath = null;
                 AddressbarPath = null;
                 StatusText = LocalizedText.Format("explorer.status.drives_ready", drives.Count);
@@ -339,7 +339,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 {
                     foreach (var f in dir.Files.Where(f => !IsFilePickerMode || MatchesSelectedFilter(f.Name)))
                         Entries.Add(new FileSystemEntryDto(f.Path, f.Name, f.Size, FileSystemEntryType.File,
-                            f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem));
+                            f.Created, f.Modified, f.Accessed, f.IsHidden, f.IsSystem, f.MimeType));
                 }
                 confirmedPath = dir.Path;
                 AddressbarPath = dir.Path;
