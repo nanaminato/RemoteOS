@@ -41,6 +41,7 @@
         <entry key="Framework/RemoteOS.UI/Themes/RemoteOSTheme.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Framework/RemoteOS.UI/Themes/Styles.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Framework/RemoteOS.UI/Themes/Tokens/TokenContract.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Framework/RemoteOS.WindowManager/Themes/RemoteWindowTheme.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
       </map>
     </option>
   </component>

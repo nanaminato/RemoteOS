@@ -18,7 +18,7 @@
                             <!-- Title bar -->
                             <Border x:Name="PART_TitleBar"
                                     Grid.Row="0"
-                                    Height="36"
+                                    Height="42"
                                     Background="{DynamicResource WindowTitleBarBackgroundBrush}"
                                     CornerRadius="{DynamicResource WindowCornerRadius}"
                                     IsVisible="{Binding !IsFullScreen}">
@@ -40,19 +40,19 @@
                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <Button x:Name="PART_Minimize"
                                                 Classes="caption"
-                                                FontSize="10"
                                                 Content="{x:Static wm:ManagedWindow.MinimizeGlyph}"
                                                 Command="{Binding MinimizeCommand}"
                                                 IsVisible="{Binding CanMinimize}" />
                                         <Button x:Name="PART_Maximize"
                                                 Classes="caption"
-                                                FontSize="10"
-                                                Content="{Binding MaximizeGlyph}"
                                                 Command="{Binding ToggleMaximizeCommand}"
-                                                IsVisible="{Binding CanMaximize}" />
+                                                IsVisible="{Binding CanMaximize}">
+                                            <!-- Explicit content keeps this optical size independent of Button's
+                                                 string-content template and the shared caption font size. -->
+                                            <TextBlock Text="{Binding MaximizeGlyph}" FontSize="11" />
+                                        </Button>
                                         <Button x:Name="PART_Close"
                                                 Classes="caption close"
-                                                FontSize="10"
                                                 Content="{x:Static wm:ManagedWindow.CloseGlyph}"
                                                 Command="{Binding CloseCommand}" />
                                     </StackPanel>

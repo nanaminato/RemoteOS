@@ -54,6 +54,11 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <!-- This is the outer desktop-host control, rather than a managed app-window caption.
+             Its restore/maximize glyph is optically larger than the minus and close symbols. -->
+        <Style Selector="Button.window-control.window-maximize">
+            <Setter Property="FontSize" Value="11" />
+        </Style>
         <Style Selector="Button.window-control:pointerover">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
         </Style>
@@ -80,7 +85,7 @@
                            VerticalAlignment="Center" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Classes="window-control" Content="&#x2212;" Click="Minimize_OnClick" ToolTip.Tip="{loc:Loc common.minimize}" />
-                    <Button x:Name="MaximizeButton" Classes="window-control" Content="&#x2750;"
+                    <Button x:Name="MaximizeButton" Classes="window-control window-maximize" Content="&#x2750;"
                             Click="Maximize_OnClick" ToolTip.Tip="{loc:Loc common.restore}" />
                     <Button Classes="window-control window-close" Content="&#x00D7;"
                             Click="CloseWindow_OnClick" ToolTip.Tip="{loc:Loc shell.connection.close}" />
