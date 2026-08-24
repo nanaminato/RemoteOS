@@ -291,6 +291,24 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
         .Options;
     var workspaceId = Guid.NewGuid();
     var originalMapping = new DefaultAppMappingDto("https", "remoteos.browser");
+    var themePreferences = new ThemePreferencesDto
+    {
+        PaletteId = "custom:test-palette",
+        CustomPalettes =
+        [
+            new ThemePaletteDto
+            {
+                Id = "test-palette",
+                Name = "Persistence test",
+                Mode = "light",
+                Colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Accent"] = "#0078D4",
+                    ["Shadow"] = "#22000000",
+                },
+            },
+        ],
+    };
 
     await using (var db = new RemoteOsDbContext(options))
     {
@@ -303,7 +321,8 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
             CreatedAt = DateTimeOffset.UtcNow,
             Preferences = new WorkspacePreferencesDto(
                 WorkspacePreferencesDto.BuiltInWallpaperPrefix + "bloom", ThemeKind.Light,
-                WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping])
+                WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping],
+                ThemePreferences: themePreferences)
         });
         await db.SaveChangesAsync();
     }
@@ -322,6 +341,8 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
         var workspace = await db.Workspaces.AsNoTracking().SingleAsync(w => w.Id == workspaceId);
         Assert(workspace.Preferences.WallpaperKey == customWallpaperKey, "Wallpaper key was not persisted.");
         Assert(workspace.Preferences.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
+        Assert(workspace.Preferences.ThemePreferences?.CustomPalettes.Single().Colors["Accent"] == "#0078D4",
+            "Custom theme palette colors were not persisted.");
     }
 }
 

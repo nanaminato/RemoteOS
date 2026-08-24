@@ -3,6 +3,7 @@ using RemoteOS.Protocol.Browser;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
+using System.Text.Json;
 
 namespace Server.Storage.Sqlite;
 
@@ -73,6 +74,14 @@ public sealed class RemoteOsDbContext : DbContext
                 // such as Scheme must remain payload fields, not entity keys.
                 p.OwnsMany(x => x.DefaultApps);
                 p.OwnsOne(x => x.DesktopDisplay);
+                // ThemePreferences contains custom palettes whose Colors payload is a
+                // Dictionary<string, string>. EF cannot model a dictionary as an owned
+                // navigation, so keep this extensible leaf as serialized JSON inside the
+                // workspace preferences document. The public API shape remains unchanged.
+                p.Property(x => x.ThemePreferences).HasConversion(
+                    preferences => JsonSerializer.Serialize(preferences, JsonSerializerOptions.Default),
+                    json => JsonSerializer.Deserialize<ThemePreferencesDto>(json, JsonSerializerOptions.Default)
+                        ?? ThemePreferencesDto.Default);
             });
             e.OwnsOne(w => w.WindowLayouts, l =>
             {

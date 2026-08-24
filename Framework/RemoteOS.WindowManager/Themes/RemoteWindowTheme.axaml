@@ -13,7 +13,7 @@
                             BorderBrush="{DynamicResource BorderDefaultBrush}"
                             BorderThickness="1"
                             CornerRadius="{DynamicResource WindowCornerRadius}"
-                            BoxShadow="0 12 28 0 {DynamicResource OverlayScrimColor}, 0 2 6 0 {DynamicResource ShadowColor}">
+                            BoxShadow="0 12 28 0 #66000000, 0 2 6 0 #22000000">
                         <Grid RowDefinitions="Auto,*">
                             <!-- Title bar -->
                             <Border x:Name="PART_TitleBar"

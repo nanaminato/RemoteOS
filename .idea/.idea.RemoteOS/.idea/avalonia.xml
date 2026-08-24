@@ -36,6 +36,8 @@
         <entry key="Client/RemoteOS.Client/Apps/WebServers/Views/WebServerSiteSaveErrorDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Services/Diagnostics/NetworkInspectorView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Views/Shell/DesktopShellView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Framework/RemoteOS.UI/Themes/RemoteOSTheme.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Framework/RemoteOS.UI/Themes/Tokens/TokenContract.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
       </map>
     </option>
   </component>

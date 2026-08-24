@@ -5,7 +5,7 @@
              x:Class="Client.Apps.Git.Views.GitHistoryView"
              x:DataType="git:GitClientViewModel">
     <Grid ColumnDefinitions="*,300" MinHeight="300">
-        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="4" Margin="0,0,4,0" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
+        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="4" Margin="0,0,4,0" BoxShadow="0 2 8 0 #22000000">
             <DataGrid x:Name="CommitGrid" ItemsSource="{Binding Commits}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column"
@@ -19,7 +19,7 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
-        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" Margin="4,0,0,0" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
+        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" Margin="4,0,0,0" BoxShadow="0 2 8 0 #22000000">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="8" IsVisible="{Binding SelectedCommit, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBlock Text="{loc:Loc git.history.commit_details}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />

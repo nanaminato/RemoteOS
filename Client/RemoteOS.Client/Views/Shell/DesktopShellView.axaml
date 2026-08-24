@@ -71,7 +71,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 12 28 0 {DynamicResource ShadowColor}" />
+            <Setter Property="BoxShadow" Value="0 12 28 0 #22000000" />
         </Style>
         <Style Selector="Button.window-preview">
             <Setter Property="Background" Value="Transparent" />
@@ -114,7 +114,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 16 36 0 {DynamicResource ShadowColor}" />
+            <Setter Property="BoxShadow" Value="0 16 36 0 #22000000" />
             <Setter Property="ClipToBounds" Value="True" />
         </Style>
         <Style Selector="ContextMenu.shell-context-menu">
