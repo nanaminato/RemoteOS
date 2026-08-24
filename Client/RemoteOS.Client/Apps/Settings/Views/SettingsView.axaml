@@ -10,49 +10,57 @@
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:SystemPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:SystemPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:PersonalizationPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:PersonalizationPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:TimeLanguagePageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:TimeLanguagePageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:NetworkPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:NetworkPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:AppsPageViewModel">
             <ScrollViewer  HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:AppsPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:ImageMirrorsPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:ImageMirrorsPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:DefaultAppsPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:DefaultAppsPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
         <DataTemplate DataType="vm:DeveloperPageViewModel">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="0,0,0,32">
                 <pages:DeveloperPageView VerticalAlignment="Top" />
             </ScrollViewer>
         </DataTemplate>
