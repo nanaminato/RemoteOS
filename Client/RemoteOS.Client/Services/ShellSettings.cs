@@ -60,6 +60,10 @@ public sealed partial class ShellSettings : ObservableObject
             new WallpaperOption("sunset", "Sunset", Gradient("#FFF0E8", "#FFE1D2", "#F6C5B3")),
             new WallpaperOption("mist", "Mist", Gradient("#F7F7F7", "#E9EDF2", "#D8E0EA")),
             new WallpaperOption("cobalt", "Cobalt", Gradient("#E8F1FF", "#D5E6FF", "#BDD4F5")),
+            new WallpaperOption("midnight", "Midnight (Dark)", Gradient("#0B1020", "#172554", "#0F172A")),
+            new WallpaperOption("nocturne", "Nocturne (Dark)", Gradient("#1C1530", "#312E5F", "#171225")),
+            new WallpaperOption("deep-space", "Deep Space (Dark)", Gradient("#071A2B", "#0C3B5A", "#071827")),
+            new WallpaperOption("obsidian", "Obsidian (Dark)", Gradient("#111318", "#242A35", "#101216")),
         ];
         WallpaperIndex = 0;
         SetBuiltInWallpaper(0);

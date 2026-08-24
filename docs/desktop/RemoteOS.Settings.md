@@ -187,7 +187,7 @@ workspaces
 
 ```text
 ShellSettings (ObservableObject, 单例)
-  Wallpapers          IReadOnlyList<WallpaperOption>  5 个内置预设渐变壁纸
+  Wallpapers          IReadOnlyList<WallpaperOption>  9 个内置预设渐变壁纸（含 4 个暗色系）
   WallpaperIndex      int                              当前内置壁纸索引；自定义图片时为 -1
   Theme               ThemeKind                        Light/Dark/System
   TimeFormat          string                           "24h"(默认) / "12h"

@@ -27,6 +27,8 @@
         <entry key="Client/RemoteOS.Client/Apps/PortForwarding/Views/PortForwardingMainView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/AppsPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/NetworkPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/PersonalizationPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/TimeLanguagePageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/SettingsView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/TaskManager/Views/TaskManagerMainView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/WebServers/Views/ExistingNginxInstallationDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />

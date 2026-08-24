@@ -189,9 +189,11 @@
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="116" />
+                                <Border Background="#99000000" CornerRadius="4" Padding="4,1">
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="White"
+                                               HorizontalAlignment="Center" TextAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="108" />
+                                </Border>
                             </StackPanel>
                         </Button>
                     </DataTemplate>
@@ -223,9 +225,11 @@
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                           HorizontalAlignment="Center" TextAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="116" />
+                                <Border Background="#99000000" CornerRadius="4" Padding="4,1">
+                                    <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="White"
+                                               HorizontalAlignment="Center" TextAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="108" />
+                                </Border>
                             </StackPanel>
                         </Button>
                     </DataTemplate>
