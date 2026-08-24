@@ -11,6 +11,7 @@
 > - 文件管理器见 [`RemoteOS.Explorer.md`](./applications/RemoteOS.Explorer.md)
 > - 浏览器见 [`RemoteOS.Browser.md`](./applications/RemoteOS.Browser.md)
 > - 设置中心见 [`RemoteOS.Settings.md`](./desktop/RemoteOS.Settings.md)
+> - 全局主题与配色系统设计见 [`RemoteOS.Theming.md`](./desktop/RemoteOS.Theming.md)
 > - 应用私有配置存储见 [`RemoteOS.AppSettings.md`](./development/RemoteOS.AppSettings.md)
 > - 网络检查器设计见 [`RemoteOS.NetworkInspector.md`](./applications/RemoteOS.NetworkInspector.md)
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)
