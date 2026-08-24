@@ -49,7 +49,7 @@ public sealed class LocExtension : MarkupExtension
             "settings.wallpaper.description" => "Choose a desktop background preset or your own image.",
             "settings.wallpaper.choose_image" => "Browse for an image",
             "settings.wallpaper.sync_hint" => "Images are securely stored in this workspace and sync to your other devices.",
-            "settings.theme.description" => "Choose the light or dark appearance for the taskbar and Start menu.",
+            "settings.theme.description" => "Choose the appearance used throughout RemoteOS.",
             "settings.theme.light" => "Light",
             "settings.theme.dark" => "Dark",
             "settings.theme.system" => "Use system setting",

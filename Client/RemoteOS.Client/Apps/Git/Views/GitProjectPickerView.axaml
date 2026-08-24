@@ -7,7 +7,7 @@
              x:DataType="git:GitClientViewModel">
     <Grid RowDefinitions="Auto,*,Auto">
         <!-- 顶部标题 -->
-        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="24,18,24,12" BoxShadow="0 1 4 0 #22000000">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="24,18,24,12">
             <StackPanel Spacing="4">
                 <TextBlock Text="{loc:Loc git.picker.title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <TextBlock Text="{loc:Loc git.picker.description}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
@@ -18,7 +18,7 @@
         <ScrollViewer Grid.Row="1" Padding="24,12" Background="{DynamicResource AppBackgroundBrush}">
             <StackPanel Spacing="14">
                 <!-- 已注册项目列表 -->
-                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" BoxShadow="0 2 8 0 #22000000">
+                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12">
                     <StackPanel Spacing="8">
                         <Grid ColumnDefinitions="*,Auto">
                             <TextBlock Grid.Column="0" Text="{loc:Loc git.picker.registered_section}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -52,7 +52,7 @@
                 </Border>
 
                 <!-- 探测提示 -->
-                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" BoxShadow="0 2 8 0 #22000000"
+                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12"
                         IsVisible="{Binding IsProbing}">
                     <StackPanel Spacing="6">
                         <TextBlock Text="{Binding ProbeHint}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
@@ -63,7 +63,7 @@
         </ScrollViewer>
 
         <!-- 底部操作按钮 -->
-        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" Padding="24,10" BoxShadow="0 -1 4 0 #22000000">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" Padding="24,10">
             <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
                 <Button Command="{Binding OpenFolderCommand}"
                         Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextOnAccentBrush}" Padding="14,6">

@@ -71,7 +71,6 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 12 28 0 #22000000" />
         </Style>
         <Style Selector="Button.window-preview">
             <Setter Property="Background" Value="Transparent" />
@@ -114,7 +113,6 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 16 36 0 #22000000" />
             <Setter Property="ClipToBounds" Value="True" />
         </Style>
         <Style Selector="ContextMenu.shell-context-menu">
@@ -189,7 +187,7 @@
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <Border Background="#99000000" CornerRadius="4" Padding="4,1">
+                                <Border Background="{DynamicResource OverlayScrimBrush}" CornerRadius="4" Padding="4,1">
                                     <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="White"
                                                HorizontalAlignment="Center" TextAlignment="Center"
                                                TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="108" />
@@ -225,7 +223,7 @@
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
-                                <Border Background="#99000000" CornerRadius="4" Padding="4,1">
+                                <Border Background="{DynamicResource OverlayScrimBrush}" CornerRadius="4" Padding="4,1">
                                     <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="White"
                                                HorizontalAlignment="Center" TextAlignment="Center"
                                                TextTrimming="CharacterEllipsis" MaxLines="1" MaxWidth="108" />

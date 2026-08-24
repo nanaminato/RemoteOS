@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Framework\RemoteOS.App.SDK\RemoteOS.App.SDK.csproj" />
+    <ProjectReference Include="..\..\Framework\RemoteOS.UI\RemoteOS.UI.csproj" />
     <PackageReference Include="Avalonia" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>

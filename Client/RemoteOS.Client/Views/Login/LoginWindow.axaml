@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterScreen"
         CanResize="True"
         ShowInTaskbar="True"
-        Background="{StaticResource BackgroundBrush}"
+        Background="{DynamicResource AppBackgroundBrush}"
         FontFamily="{DynamicResource ContentFont}">
     <login:LoginView />
 </Window>

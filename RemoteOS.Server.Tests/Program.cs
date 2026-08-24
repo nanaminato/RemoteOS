@@ -28,6 +28,7 @@ try
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
     VerifyWorkspacePreferencesJsonContract();
+    VerifyThemePaletteContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
@@ -54,6 +55,28 @@ static void VerifyWorkspacePreferencesJsonContract()
 
     Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
     Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
+}
+
+static void VerifyThemePaletteContract()
+{
+    var preferences = new ThemePreferencesDto
+    {
+        PaletteId = "custom:paired",
+        CustomPalettes =
+        [
+            new ThemePaletteDto
+            {
+                Id = "paired", Name = "Paired palette",
+                LightColors = new(StringComparer.OrdinalIgnoreCase) { ["Accent"] = "#0078D4" },
+                DarkColors = new(StringComparer.OrdinalIgnoreCase) { ["Accent"] = "#89B4FA" },
+            },
+        ],
+    };
+    var light = ThemePaletteDefaults.Resolve(preferences, dark: false);
+    var dark = ThemePaletteDefaults.Resolve(preferences, dark: true);
+    Assert(light["Accent"] == "#0078D4" && dark["Accent"] == "#89B4FA", "Paired custom palette did not retain mode-specific accents.");
+    Assert(ThemePaletteValidator.TryValidate(light, out _) && ThemePaletteValidator.TryValidate(dark, out _), "Built palette did not meet contrast requirements.");
+    Assert(light["TextOnAccent"] == "#000000" && dark["TextOnAccent"] == "#000000", "Accent foreground was not chosen for contrast.");
 }
 
 static async Task VerifyCertificateStoreAndSniAsync(string root)
@@ -300,11 +323,15 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
             {
                 Id = "test-palette",
                 Name = "Persistence test",
-                Mode = "light",
-                Colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                LightColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["Accent"] = "#0078D4",
                     ["Shadow"] = "#22000000",
+                },
+                DarkColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Accent"] = "#89B4FA",
+                    ["Shadow"] = "#66000000",
                 },
             },
         ],
@@ -341,7 +368,7 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
         var workspace = await db.Workspaces.AsNoTracking().SingleAsync(w => w.Id == workspaceId);
         Assert(workspace.Preferences.WallpaperKey == customWallpaperKey, "Wallpaper key was not persisted.");
         Assert(workspace.Preferences.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
-        Assert(workspace.Preferences.ThemePreferences?.CustomPalettes.Single().Colors["Accent"] == "#0078D4",
+        Assert(workspace.Preferences.ThemePreferences?.CustomPalettes.Single().LightColors?["Accent"] == "#0078D4",
             "Custom theme palette colors were not persisted.");
     }
 }

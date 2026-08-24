@@ -7,14 +7,14 @@
              x:DataType="terminal:TerminalViewModel"
              Background="#0C0C0C">
     <Grid RowDefinitions="Auto,*">
-        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*">
                 <Menu Grid.Column="0" Background="Transparent" BorderThickness="0">
                     <MenuItem Header="{loc:Loc terminal.menu}">
                         <MenuItem Header="{loc:Loc terminal.settings}" Command="{Binding OpenSettingsCommand}" />
                     </MenuItem>
                 </Menu>
-                <TextBlock Grid.Column="1" Text="{Binding Status}" VerticalAlignment="Center"
+                <TextBlock Grid.Column="1" Text="{Binding Status}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
                            Margin="6,0" Opacity="0.7" />
             </Grid>
         </Border>

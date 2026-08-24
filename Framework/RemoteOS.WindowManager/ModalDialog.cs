@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Media;
+using RemoteOS.UI.Themes;
 using RemoteOS.Core.Primitives;
 using Rect = RemoteOS.Core.Primitives.Rect;
 
@@ -91,7 +92,7 @@ internal sealed class ModalBlocker : Border
 {
     public ModalBlocker()
     {
-        Background = new SolidColorBrush(Color.Parse("#3D000000"));
+        Background = ThemeResources.Brush("DialogScrimBrush");
     }
 
     public void ApplyBounds(Rect bounds)

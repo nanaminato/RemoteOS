@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Client.Services.Theming;
 using Client.Localization;
 using Client.Apps.TaskManager.ViewModels;
 
@@ -116,7 +117,7 @@ public sealed class TabVisibilityConverter : IValueConverter
 /// <summary>TaskManagerTab + ConverterParameter → 激活标签页背景（白）/ 非激活（透明）。</summary>
 public sealed class TabBgConverter : IValueConverter
 {
-    private static readonly IBrush Active = new SolidColorBrush(Colors.White);
+    private static IBrush Active => ThemeBrushes.Get("SurfaceRaisedBrush");
     private static readonly IBrush Inactive = Brushes.Transparent;
     public static readonly TabBgConverter Instance = new();
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

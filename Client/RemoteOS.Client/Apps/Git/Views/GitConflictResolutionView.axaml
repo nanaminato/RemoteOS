@@ -13,7 +13,7 @@
                     <TextBlock Text="{loc:Loc git.conflicts.message}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" />
                 </StackPanel>
             </Border>
-            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="8" BoxShadow="0 2 8 0 #22000000">
+            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="8">
                 <ItemsControl ItemsSource="{Binding ConflictFiles}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="proto:GitFileChangeDto">

@@ -18,9 +18,15 @@ public sealed record ThemePreferencesDto
 /// <summary>Safe, serialisable palette payload. It intentionally contains only named sRGB values.</summary>
 public sealed record ThemePaletteDto
 {
-    [JsonPropertyName("formatVersion")] public int FormatVersion { get; set; } = 1;
+    [JsonPropertyName("formatVersion")] public int FormatVersion { get; set; } = 2;
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
-    [JsonPropertyName("mode")] public string Mode { get; set; } = string.Empty;
-    [JsonPropertyName("colors")] public Dictionary<string, string> Colors { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Light and dark variants are one user-facing palette and must share an id.</summary>
+    [JsonPropertyName("lightColors")] public Dictionary<string, string>? LightColors { get; set; }
+    [JsonPropertyName("darkColors")] public Dictionary<string, string>? DarkColors { get; set; }
+
+    // v1 import compatibility. The server normalises this representation to v2 before persistence.
+    [JsonPropertyName("mode"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
+    [JsonPropertyName("colors"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, string>? Colors { get; set; }
 }

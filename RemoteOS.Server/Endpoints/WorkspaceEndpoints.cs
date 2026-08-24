@@ -333,23 +333,63 @@ public static class WorkspaceEndpoints
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var palette in palettes)
         {
-            if (palette.FormatVersion != 1 || !IsPaletteId(palette.Id) || !ids.Add(palette.Id)
-                || string.IsNullOrWhiteSpace(palette.Name) || palette.Name.Trim().Length > 80
-                || palette.Mode is not ("light" or "dark") || palette.Colors is null || palette.Colors.Count is > 48 or 0)
+            if (palette.FormatVersion is not (1 or 2) || !IsPaletteId(palette.Id) || !ids.Add(palette.Id)
+                || string.IsNullOrWhiteSpace(palette.Name) || palette.Name.Trim().Length > 80)
                 return false;
-            var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (key, value) in palette.Colors)
+            Dictionary<string, string>? light;
+            Dictionary<string, string>? dark;
+            if (palette.FormatVersion == 1)
             {
-                if (string.IsNullOrWhiteSpace(key) || key.Length > 48 || !IsHexColor8(value)) return false;
-                colors[key] = value.ToUpperInvariant();
+                // v1 held one mode per record. Preserve the user's overrides in both
+                // variants so existing workspaces no longer silently fall back on mode change.
+                if (palette.Mode is not ("light" or "dark") || !TryNormalizeThemeColors(palette.Colors, out var legacy)) return false;
+                light = new(legacy, StringComparer.OrdinalIgnoreCase);
+                dark = new(legacy, StringComparer.OrdinalIgnoreCase);
             }
-            normalized.Add(new ThemePaletteDto { FormatVersion = 1, Id = palette.Id, Name = palette.Name.Trim(), Mode = palette.Mode, Colors = colors });
+            else
+            {
+                if (!TryNormalizeThemeColors(palette.LightColors, out light)
+                    || !TryNormalizeThemeColors(palette.DarkColors, out dark)) return false;
+            }
+            normalized.Add(new ThemePaletteDto { FormatVersion = 2, Id = palette.Id, Name = palette.Name.Trim(), LightColors = light, DarkColors = dark });
         }
         if (paletteId.StartsWith("custom:", StringComparison.Ordinal) && !ids.Contains(paletteId[7..])) return false;
         preferences = new ThemePreferencesDto { StyleId = "remoteos", PaletteId = paletteId,
             AccentOverride = source.AccentOverride?.ToUpperInvariant(), CustomPalettes = normalized };
+        return HasValidResolvedTheme(preferences);
+    }
+
+    private static bool TryNormalizeThemeColors(Dictionary<string, string>? source, out Dictionary<string, string> colors)
+    {
+        colors = new(StringComparer.OrdinalIgnoreCase);
+        if (source is null || source.Count is 0 or > 56) return false;
+        foreach (var (key, value) in source)
+        {
+            if (string.IsNullOrWhiteSpace(key) || !ThemePaletteContract.ColorTokens.Contains(key) || !IsHexColor8(value)) return false;
+            colors[key] = value.ToUpperInvariant();
+        }
         return true;
     }
+
+    private static bool HasValidResolvedTheme(ThemePreferencesDto preferences)
+    {
+        if (!IsAccessible(preferences)) return false;
+        foreach (var palette in preferences.CustomPalettes)
+        {
+            var candidate = new ThemePreferencesDto
+            {
+                PaletteId = "custom:" + palette.Id,
+                AccentOverride = preferences.AccentOverride,
+                CustomPalettes = preferences.CustomPalettes,
+            };
+            if (!IsAccessible(candidate)) return false;
+        }
+        return true;
+    }
+
+    private static bool IsAccessible(ThemePreferencesDto preferences) =>
+        ThemePaletteValidator.TryValidate(ThemePaletteDefaults.Resolve(preferences, dark: false), out _)
+        && ThemePaletteValidator.TryValidate(ThemePaletteDefaults.Resolve(preferences, dark: true), out _);
 
     private static bool IsOptionalColor(string? value) => string.IsNullOrEmpty(value) || IsHexColor8(value);
     private static bool IsHexColor8(string? value) => value is { Length: 7 or 9 } && value[0] == '#'

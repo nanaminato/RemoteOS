@@ -120,7 +120,7 @@
                 <Button Command="{Binding ToggleOptionsCommand}"
                         Content="{Binding OptionsToggleText}" HorizontalAlignment="Left" Margin="108,12,0,0"
                         Padding="0" Background="Transparent" BorderThickness="0"
-                        Foreground="{StaticResource AccentBrush}" />
+                        Foreground="{DynamicResource AccentBrush}" />
 
                 <CheckBox IsVisible="{Binding ShowOptions}" IsChecked="{Binding RememberServer}" Content="{Binding RememberServerText}"
                           Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" Margin="108,12,0,0" />
@@ -142,7 +142,7 @@
 
                 <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsConnecting}"
                              Height="3" Margin="0,18,0,0"
-                             Foreground="{StaticResource AccentBrush}" />
+                             Foreground="{DynamicResource AccentBrush}" />
             </StackPanel>
         </StackPanel>
 

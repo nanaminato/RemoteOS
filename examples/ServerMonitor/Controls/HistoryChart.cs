@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using RemoteOS.UI.Themes;
 
 namespace RemoteOS.Examples.ServerMonitor.Controls;
 
@@ -12,7 +13,7 @@ public sealed class HistoryChart : Control
         AvaloniaProperty.Register<HistoryChart, IEnumerable<double>?>(nameof(Values));
 
     public static readonly StyledProperty<Color> LineColorProperty =
-        AvaloniaProperty.Register<HistoryChart, Color>(nameof(LineColor), Color.Parse("#55B6FF"));
+        AvaloniaProperty.Register<HistoryChart, Color>(nameof(LineColor), Colors.Transparent);
 
     public static readonly StyledProperty<double> MaximumProperty =
         AvaloniaProperty.Register<HistoryChart, double>(nameof(Maximum), 100);
@@ -53,12 +54,12 @@ public sealed class HistoryChart : Control
     {
         base.Render(context);
         var rect = Bounds.Deflate(1);
-        var border = new Pen(new SolidColorBrush(Color.Parse("#D4DEEC")));
-        context.DrawRectangle(new SolidColorBrush(Color.Parse("#F8FAFC")), border, rect);
+        var border = new Pen(ThemeResources.Brush("BorderDefaultBrush"));
+        context.DrawRectangle(ThemeResources.Brush("SurfaceRaisedBrush"), border, rect);
         if (rect.Width <= 1 || rect.Height <= 1)
             return;
 
-        var grid = new Pen(new SolidColorBrush(Color.Parse("#E5EBF5")));
+        var grid = new Pen(ThemeResources.Brush("ChartGridLineBrush"));
         for (var row = 1; row < 4; row++)
         {
             var y = rect.Top + rect.Height * row / 4;
@@ -69,7 +70,8 @@ public sealed class HistoryChart : Control
         if (values.Length < 2)
             return;
         var maximum = Math.Max(Maximum, 1);
-        var line = new Pen(new SolidColorBrush(LineColor), 2);
+        var lineBrush = LineColor == Colors.Transparent ? ThemeResources.Brush("ChartSeries1Brush") : new SolidColorBrush(LineColor);
+        var line = new Pen(lineBrush, 2);
         for (var index = 1; index < values.Length; index++)
             context.DrawLine(line, ToPoint(index - 1, values, rect, maximum), ToPoint(index, values, rect, maximum));
     }

@@ -116,7 +116,7 @@ internal partial class GitLogView : UserControl
                     ? LocalizedText.Format("git.log.head_format", head.Name)
                     : LocalizedText.Format("git.log.head_current_branch_format", head.Name),
                 icon: "⭐",
-                foreground: "#122344",
+                foreground: ThemeBrushes.Get("TextPrimaryBrush"),
                 fontWeight: FontWeight.SemiBold,
                 badge: string.Empty,
                 branch: head,
@@ -127,7 +127,7 @@ internal partial class GitLogView : UserControl
             BranchTreeRoots.Add(new BranchTreeNode(
                 displayName: LocalizedText.Format("git.log.head_current_branch_format", currentBranchName),
                 icon: "⭐",
-                foreground: "#122344",
+                foreground: ThemeBrushes.Get("TextPrimaryBrush"),
                 fontWeight: FontWeight.SemiBold,
                 nodeKind: BranchNodeKind.Head));
         }
@@ -142,7 +142,7 @@ internal partial class GitLogView : UserControl
         foreach (var b in locals)
         {
             if (!Pass(b.Name)) continue;
-            var fg = b.IsCurrent ? "#0A6F3E" : "#122344";
+            var fg = b.IsCurrent ? ThemeBrushes.Get("SuccessBrush") : ThemeBrushes.Get("TextPrimaryBrush");
             var weight = b.IsCurrent ? FontWeight.SemiBold : FontWeight.Normal;
             var icon = b.IsCurrent ? "⭐" : "🌱";
             var badge = b.Ahead > 0 || b.Behind > 0
@@ -190,7 +190,7 @@ internal partial class GitLogView : UserControl
             rg.Children.Add(new BranchTreeNode(
                 displayName: shortName,
                 icon: "🔗",
-                foreground: "#36506F",
+                foreground: ThemeBrushes.Get("TextSecondaryBrush"),
                 fontWeight: FontWeight.Normal,
                 badge: string.Empty,
                 branch: b,
@@ -282,7 +282,7 @@ public sealed class BranchTreeNode
 {
     public string DisplayName { get; }
     public string Icon { get; }
-    public string Foreground { get; }
+    public IBrush Foreground { get; }
     public FontWeight FontWeight { get; }
     public string Badge { get; }
     public bool HasBadge => !string.IsNullOrEmpty(Badge);
@@ -321,14 +321,14 @@ public sealed class BranchTreeNode
     public ObservableCollection<BranchTreeNode> Children { get; } = [];
 
     public BranchTreeNode(string displayName, string icon = "📄",
-        string foreground = "#122344", FontWeight fontWeight = default, string badge = "",
+        IBrush? foreground = null, FontWeight fontWeight = default, string badge = "",
         GitBranchDto? branch = null, BranchNodeKind nodeKind = BranchNodeKind.Item,
         bool canDelete = false, bool isBranchAndNotCurrent = false, bool isExpanded = false,
         string? currentBranchName = null)
     {
         DisplayName = displayName;
         Icon = icon;
-        Foreground = foreground;
+        Foreground = foreground ?? ThemeBrushes.Get("TextPrimaryBrush");
         FontWeight = fontWeight == default ? FontWeight.Normal : fontWeight;
         Badge = badge;
         Branch = branch;
@@ -418,9 +418,9 @@ public sealed class BranchBadgesConverter : IValueConverter
         if (value is not GitStatusDto st) return Array.Empty<BranchBadge>();
         var list = new List<BranchBadge>(capacity: 4);
         if (!string.IsNullOrEmpty(st.Branch))
-            list.Add(new BranchBadge("🟡", st.Branch, "#FFF4D6", "#8A5A00"));
+            list.Add(new BranchBadge("🟡", st.Branch, ThemeBrushes.Get("WarningMutedBrush"), ThemeBrushes.Get("WarningBrush")));
         if (!string.IsNullOrEmpty(st.Upstream))
-            list.Add(new BranchBadge("🔷", st.Upstream, "#DCE9FF", "#1F4787"));
+            list.Add(new BranchBadge("🔷", st.Upstream, ThemeBrushes.Get("AccentMutedBrush"), ThemeBrushes.Get("AccentBrush")));
         // 如果上游形如 origin/master，则额外显示 master
         if (!string.IsNullOrEmpty(st.Upstream))
         {
@@ -428,7 +428,7 @@ public sealed class BranchBadgesConverter : IValueConverter
             if (slash > 0)
             {
                 var localLike = st.Upstream[(slash + 1)..];
-                list.Add(new BranchBadge("🟣", localLike, "#F0E0FF", "#6D2FA6"));
+                list.Add(new BranchBadge("🟣", localLike, ThemeBrushes.Get("SuccessMutedBrush"), ThemeBrushes.Get("SuccessBrush")));
             }
         }
         return list;
@@ -437,4 +437,4 @@ public sealed class BranchBadgesConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-public sealed record BranchBadge(string Icon, string Label, string Bg, string Fg);
+public sealed record BranchBadge(string Icon, string Label, IBrush Bg, IBrush Fg);

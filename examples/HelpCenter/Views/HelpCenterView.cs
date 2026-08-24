@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using RemoteOS.UI.Themes;
 using RemoteOS.Examples.HelpCenter.Controls;
 using RemoteOS.Examples.HelpCenter.Services;
 
@@ -58,7 +59,7 @@ public sealed class HelpCenterView : UserControl
         left.Children.Add(_tree);
 
         _document = new MarkdownDocumentView { Margin = new Thickness(30, 24) };
-        _status = new TextBlock { Foreground = Brushes.IndianRed, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(30, 0, 30, 16) };
+        _status = new TextBlock { Foreground = ThemeResources.Brush("DangerBrush"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(30, 0, 30, 16) };
         var right = new DockPanel { LastChildFill = true };
         DockPanel.SetDock(_status, Dock.Bottom);
         right.Children.Add(_status);

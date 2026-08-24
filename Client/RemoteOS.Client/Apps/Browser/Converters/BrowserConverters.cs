@@ -3,6 +3,7 @@ using Avalonia.Data.Converters;
 using Client.Localization;
 using Avalonia.Media;
 using Client.Apps.Browser.ViewModels;
+using Client.Services.Theming;
 
 namespace Client.Apps.Browser.Converters;
 
@@ -36,7 +37,7 @@ public sealed class SidebarTabVisibilityConverter : IValueConverter
 /// 用于标签切换按钮的 Background 绑定。</summary>
 public sealed class SidebarTabBgConverter : IValueConverter
 {
-    private static readonly IBrush Active = new SolidColorBrush(Colors.White);
+    private static IBrush Active => ThemeBrushes.Get("SurfaceRaisedBrush");
     private static readonly IBrush Inactive = Brushes.Transparent;
 
     public static readonly SidebarTabBgConverter Instance = new();

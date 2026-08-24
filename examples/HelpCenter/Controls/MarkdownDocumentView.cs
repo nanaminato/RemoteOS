@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using RemoteOS.Examples.HelpCenter.Services;
+using RemoteOS.UI.Themes;
 
 namespace RemoteOS.Examples.HelpCenter.Controls;
 
@@ -42,14 +43,14 @@ public sealed class MarkdownDocumentView : UserControl
             if (codeLines.Count == 0) return;
             _content.Children.Add(new Border
             {
-                Background = new SolidColorBrush(Color.Parse("#18212B")),
+                Background = ThemeResources.Brush("SurfaceSunkenBrush"),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(14),
                 Child = new TextBlock
                 {
                     Text = string.Join(Environment.NewLine, codeLines),
                     FontFamily = FontFamily.Default,
-                    Foreground = Brushes.WhiteSmoke,
+                    Foreground = ThemeResources.Brush("TextPrimaryBrush"),
                     TextWrapping = TextWrapping.Wrap,
                 },
             });
@@ -79,7 +80,7 @@ public sealed class MarkdownDocumentView : UserControl
             if (line is "---" or "***")
             {
                 FlushParagraph();
-                _content.Children.Add(new Border { Height = 1, Background = Brushes.LightGray, Margin = new Thickness(0, 8) });
+                _content.Children.Add(new Border { Height = 1, Background = ThemeResources.Brush("BorderDefaultBrush"), Margin = new Thickness(0, 8) });
                 continue;
             }
             var heading = line.TakeWhile(character => character == '#').Count();

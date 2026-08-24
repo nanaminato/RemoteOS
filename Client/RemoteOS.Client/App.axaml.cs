@@ -31,6 +31,8 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         Services = Bootstrapper.Build(this);
+        // Install the sole palette source before the first (login) window is created.
+        _ = Services.GetRequiredService<Client.Services.Theming.ThemeService>();
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
