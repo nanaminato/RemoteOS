@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Client.Localization;
 using Client.Apps.TaskManager.ViewModels;
 using Client.Apps.TaskManager.Views;
@@ -56,9 +55,8 @@ public sealed class TaskManagerApp : RemoteApplicationBase
         var viewModel = new TaskManagerViewModel(client, performanceStream);
         var view = new TaskManagerMainView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.taskmanager.display_name"), view,
-            bounds: new Rect(70, 55, 980, 680),
+            bounds: new Rect(70, 55, 1080, 720),
             iconGlyph: Manifest.IconGlyph);
-        viewModel.CloseAction = () => Dispatcher.UIThread.Post(() => context.WindowManager.Close(window));
         window.KeyDown += (_, e) =>
         {
             if (e.Key == RemoteKey.Letter('F') && e.Modifiers == RemoteKeyModifiers.Control)

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,10 +8,9 @@ using RemoteOS.Protocol.SystemMonitor;
 
 namespace Client.Apps.TaskManager.ViewModels;
 
-/// <summary>性能数据来自服务端统一采样器与 SignalR；进程列表按需分页查询，不能随性能图表刷新。</summary>
+/// <summary>性能数据来自服务端统一采样器；进程列表独立查询。</summary>
 public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDisposable
 {
-    private const int HistoryLimit = 60;
     private readonly ITaskManagerClient _client;
     private readonly PerformanceStream _stream;
     private readonly DispatcherTimer _processTimer;
@@ -29,17 +29,16 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         _processTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         _processTimer.Tick += async (_, _) => await RefreshProcessesAsync();
         FilteredProcesses = [];
-        CpuHistory = [];
-        MemoryHistory = [];
+        PerformanceItems = [];
     }
 
     public ObservableCollection<ProcessInfoDto> FilteredProcesses { get; }
-    public ObservableCollection<double> CpuHistory { get; }
-    public ObservableCollection<double> MemoryHistory { get; }
+    public ObservableCollection<PerformanceResourceItem> PerformanceItems { get; }
 
     [ObservableProperty] private PerformanceInfoDto? _info;
     [ObservableProperty] private PerformanceRealtimeSnapshotDto? _snapshot;
     [ObservableProperty] private ProcessInfoDto? _selectedProcess;
+    [ObservableProperty] private PerformanceResourceItem? _selectedPerformanceItem;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _statusText = LocalizedText.Get("task_manager.status.collecting");
@@ -47,19 +46,12 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
     [ObservableProperty] private string _killFeedback = string.Empty;
     [ObservableProperty] private TaskManagerTab _activeTab = TaskManagerTab.Performance;
     [ObservableProperty] private string _processFilter = string.Empty;
-    [ObservableProperty] private double _memoryPercent;
     [ObservableProperty] private int _processTotalCount;
-
-    public Action? CloseAction { get; set; }
 
     public async Task StartAsync()
     {
         await RefreshPerformanceAsync();
-        try
-        {
-            await _stream.StartAsync();
-            ConnectionStatus = "实时连接";
-        }
+        try { await _stream.StartAsync(); ConnectionStatus = "实时连接"; }
         catch (Exception ex)
         {
             ConnectionStatus = "实时连接不可用，已使用快照";
@@ -79,8 +71,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         await _stream.DisposeAsync();
     }
 
-    [RelayCommand]
-    private async Task RefreshAsync()
+    [RelayCommand] private async Task RefreshAsync()
     {
         if (ActiveTab == TaskManagerTab.Processes) await RefreshProcessesAsync();
         else await RefreshPerformanceAsync();
@@ -95,26 +86,18 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         try
         {
             var result = await _client.KillProcessAsync(process.Id, force: false);
-            if (result.Success)
-            {
-                KillFeedback = LocalizedText.Format("task_manager.process.terminated", process.Name, process.Id);
-                SelectedProcess = null;
-            }
-            else if (result.RequiresElevation)
-                KillFeedback = LocalizedText.Format("task_manager.process.elevation_required", process.Name, process.Id, result.Error);
-            else
-                KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", result.Error);
+            if (result.Success) { KillFeedback = LocalizedText.Format("task_manager.process.terminated", process.Name, process.Id); SelectedProcess = null; }
+            else if (result.RequiresElevation) KillFeedback = LocalizedText.Format("task_manager.process.elevation_required", process.Name, process.Id, result.Error);
+            else KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", result.Error);
             await RefreshProcessesAsync();
         }
         catch (Exception ex) { KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", ex.Message); }
     }
 
     private bool CanKill => SelectedProcess is not null;
-    partial void OnSelectedProcessChanged(ProcessInfoDto? value) => KillProcessCommand.NotifyCanExecuteChanged();
-
+    partial void OnSelectedProcessChanged(ProcessInfoDto? _) => KillProcessCommand.NotifyCanExecuteChanged();
     [RelayCommand] private void SwitchToPerformance() => ActiveTab = TaskManagerTab.Performance;
     [RelayCommand] private void SwitchToProcesses() => ActiveTab = TaskManagerTab.Processes;
-    [RelayCommand] private void Close() => CloseAction?.Invoke();
     [RelayCommand] private void ClearFilter() => ProcessFilter = string.Empty;
 
     partial void OnActiveTabChanged(TaskManagerTab value)
@@ -133,7 +116,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         else if (!value && _processTimer.IsEnabled) _processTimer.Stop();
     }
 
-    partial void OnProcessFilterChanged(string value) => ApplyFilter();
+    partial void OnProcessFilterChanged(string _) => RebuildFilteredProcesses(SelectedProcess);
 
     private async Task RefreshPerformanceAsync()
     {
@@ -143,10 +126,11 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
             var historyTask = _client.GetPerformanceHistoryAsync();
             await Task.WhenAll(infoTask, historyTask);
             Info = await infoTask;
+            BuildPerformanceItems();
             var history = await historyTask;
             if (history.Count == 0)
             {
-                try { ApplySnapshot(await _client.GetPerformanceSnapshotAsync(), resetHistory: true); }
+                try { ApplySnapshot(await _client.GetPerformanceSnapshotAsync(), true); }
                 catch { ConnectionStatus = "等待首个有效样本"; }
             }
             else ReplaceHistory(history);
@@ -167,85 +151,133 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         {
             var page = await _client.QueryProcessesAsync(filter: string.IsNullOrWhiteSpace(ProcessFilter) ? null : ProcessFilter, sort: "memory");
             ProcessTotalCount = page.TotalCount;
-            UpdateProcesses(page.Items);
-            StatusText = LocalizedText.Format("task_manager.status.updated", page.SampledAt.LocalDateTime,
-                Snapshot?.Cpu.TotalPercent ?? 0, page.TotalCount);
+            _allProcesses = page.Items.ToList();
+            RebuildFilteredProcesses(SelectedProcess);
+            StatusText = LocalizedText.Format("task_manager.status.updated", page.SampledAt.LocalDateTime, Snapshot?.Cpu.TotalPercent ?? 0, page.TotalCount);
         }
         catch (Exception ex) { StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message); }
-        finally
-        {
-            IsLoading = false;
-            Interlocked.Exchange(ref _refreshingProcesses, 0);
-        }
+        finally { IsLoading = false; Interlocked.Exchange(ref _refreshingProcesses, 0); }
     }
 
-    private void OnSnapshotReceived(PerformanceRealtimeSnapshotDto snapshot)
-        => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot, resetHistory: false));
+    private void OnSnapshotReceived(PerformanceRealtimeSnapshotDto snapshot) => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot, false));
+    private void OnStreamReconnected() => Dispatcher.UIThread.Post(async () => { ConnectionStatus = "已重连，正在补齐历史"; await RefreshPerformanceAsync(); ConnectionStatus = "实时连接"; });
+    private void OnStreamDisconnected() => Dispatcher.UIThread.Post(() => ConnectionStatus = "实时连接已断开，保留最后快照");
 
-    private void OnStreamReconnected()
-        => Dispatcher.UIThread.Post(async () =>
-        {
-            ConnectionStatus = "已重连，正在补齐历史";
-            await RefreshPerformanceAsync();
-            ConnectionStatus = "实时连接";
-        });
-
-    private void OnStreamDisconnected()
-        => Dispatcher.UIThread.Post(() => ConnectionStatus = "实时连接已断开，保留最后快照");
+    private void BuildPerformanceItems()
+    {
+        (PerformanceResourceKind Kind, string Id)? selected = SelectedPerformanceItem is null
+            ? null
+            : (SelectedPerformanceItem.Kind, SelectedPerformanceItem.Id);
+        PerformanceItems.Clear();
+        if (Info is null) return;
+        PerformanceItems.Add(new(PerformanceResourceKind.Cpu, "cpu", "CPU", Info.Cpu.Model ?? "处理器", Color.Parse("#0078D4")));
+        PerformanceItems.Add(new(PerformanceResourceKind.Memory, "memory", "内存", FormatBytes(Info.Memory.TotalBytes), Color.Parse("#8A2BE2")));
+        foreach (var filesystem in Info.Filesystems) PerformanceItems.Add(new(PerformanceResourceKind.Filesystem, filesystem.Id, filesystem.Name, filesystem.MountPoint, Color.Parse("#1A9B58")));
+        foreach (var disk in Info.Disks) PerformanceItems.Add(new(PerformanceResourceKind.Disk, disk.Id, disk.Name, disk.Model ?? "磁盘 I/O", Color.Parse("#A65E00")));
+        foreach (var network in Info.Networks) PerformanceItems.Add(new(PerformanceResourceKind.Network, network.Id, network.Name, "网络适配器", Color.Parse("#C45A00")));
+        SelectedPerformanceItem = selected is null ? PerformanceItems.FirstOrDefault() : PerformanceItems.FirstOrDefault(x => x.Kind == selected.Value.Kind && x.Id == selected.Value.Id) ?? PerformanceItems.FirstOrDefault();
+    }
 
     private void ReplaceHistory(IReadOnlyList<PerformanceRealtimeSnapshotDto> history)
     {
-        CpuHistory.Clear();
-        MemoryHistory.Clear();
+        foreach (var item in PerformanceItems) item.ClearHistory();
         _lastSequence = 0;
-        foreach (var snapshot in history.OrderBy(x => x.Sequence)) ApplySnapshot(snapshot, resetHistory: false);
+        foreach (var snapshot in history.OrderBy(x => x.Sequence)) ApplySnapshot(snapshot, false);
     }
 
     private void ApplySnapshot(PerformanceRealtimeSnapshotDto snapshot, bool resetHistory)
     {
         if (!resetHistory && snapshot.Sequence <= _lastSequence) return;
-        if (resetHistory)
-        {
-            CpuHistory.Clear();
-            MemoryHistory.Clear();
-            _lastSequence = 0;
-        }
+        if (resetHistory) { foreach (var item in PerformanceItems) item.ClearHistory(); _lastSequence = 0; }
         _lastSequence = Math.Max(_lastSequence, snapshot.Sequence);
         Snapshot = snapshot;
-        MemoryPercent = snapshot.Memory.TotalBytes <= 0 ? 0 : Math.Round(snapshot.Memory.UsedBytes * 100d / snapshot.Memory.TotalBytes, 1);
-        AppendHistory(CpuHistory, snapshot.Cpu.TotalPercent);
-        AppendHistory(MemoryHistory, MemoryPercent);
-        StatusText = LocalizedText.Format("task_manager.status.updated", snapshot.Timestamp.LocalDateTime,
-            snapshot.Cpu.TotalPercent, ProcessTotalCount);
+        foreach (var item in PerformanceItems) UpdateItem(item, snapshot);
+        StatusText = LocalizedText.Format("task_manager.status.updated", snapshot.Timestamp.LocalDateTime, snapshot.Cpu.TotalPercent, ProcessTotalCount);
     }
 
-    private void UpdateProcesses(IReadOnlyList<ProcessInfoDto> processes)
+    private void UpdateItem(PerformanceResourceItem item, PerformanceRealtimeSnapshotDto snapshot)
     {
-        var selected = SelectedProcess;
-        _allProcesses = processes.ToList();
-        RebuildFilteredProcesses(selected);
+        switch (item.Kind)
+        {
+            case PerformanceResourceKind.Cpu:
+                var cpu = snapshot.Cpu;
+                item.Update(cpu.TotalPercent, 100, $"{cpu.TotalPercent:0}%", $"{cpu.TotalPercent:0}%  {FormatFrequency(cpu.CurrentFrequencyMHz)}", "利用率", $"{cpu.TotalPercent:0}%", "速度", FormatFrequency(cpu.CurrentFrequencyMHz), "逻辑处理器", Info?.Cpu.LogicalProcessorCount.ToString() ?? "—", "运行时间", FormatUptime(snapshot.UptimeSeconds));
+                break;
+            case PerformanceResourceKind.Memory:
+                var memory = snapshot.Memory;
+                var percent = memory.TotalBytes <= 0 ? 0 : memory.UsedBytes * 100d / memory.TotalBytes;
+                item.Update(percent, 100, $"{FormatBytes(memory.UsedBytes)} / {FormatBytes(memory.TotalBytes)}", $"{percent:0}%", "使用中", FormatBytes(memory.UsedBytes), "可用", FormatBytes(memory.AvailableBytes), "已缓存", FormatBytes(memory.CachedBytes), "交换空间", FormatBytes(memory.SwapUsedBytes));
+                break;
+            case PerformanceResourceKind.Filesystem:
+                var filesystem = snapshot.Filesystems.FirstOrDefault(x => x.Id == item.Id);
+                if (filesystem is not null) item.Update(filesystem.Percent, 100, $"{FormatBytes(filesystem.UsedBytes)} / {FormatBytes(filesystem.TotalBytes)}", $"{filesystem.Percent:0}%", "已用空间", FormatBytes(filesystem.UsedBytes), "可用空间", FormatBytes(filesystem.AvailableBytes), "总容量", FormatBytes(filesystem.TotalBytes), "使用率", $"{filesystem.Percent:0}%");
+                break;
+            case PerformanceResourceKind.Disk:
+                var disk = snapshot.Disks.FirstOrDefault(x => x.Id == item.Id);
+                if (disk is not null)
+                {
+                    var rate = disk.ReadBytesPerSecond + disk.WriteBytesPerSecond;
+                    item.Update(rate, Math.Max(1_048_576, rate * 1.25), $"读取 {FormatRate(disk.ReadBytesPerSecond)}", $"写入 {FormatRate(disk.WriteBytesPerSecond)}", "读取速度", FormatRate(disk.ReadBytesPerSecond), "写入速度", FormatRate(disk.WriteBytesPerSecond), "读取 IOPS", $"{disk.ReadIops:0}", "写入 IOPS", $"{disk.WriteIops:0}");
+                }
+                break;
+            case PerformanceResourceKind.Network:
+                var network = snapshot.Networks.FirstOrDefault(x => x.Id == item.Id);
+                if (network is not null)
+                {
+                    var rate = network.ReceiveBytesPerSecond + network.SendBytesPerSecond;
+                    item.Update(rate, Math.Max(1_048_576, rate * 1.25), $"发送 {FormatRate(network.SendBytesPerSecond)}", $"接收 {FormatRate(network.ReceiveBytesPerSecond)}", "发送", FormatRate(network.SendBytesPerSecond), "接收", FormatRate(network.ReceiveBytesPerSecond), "已发送", FormatBytes(network.BytesSent), "已接收", FormatBytes(network.BytesReceived));
+                }
+                break;
+        }
     }
-
-    private void ApplyFilter() => RebuildFilteredProcesses(SelectedProcess);
 
     private void RebuildFilteredProcesses(ProcessInfoDto? selected)
     {
         var filter = ProcessFilter.Trim();
-        IEnumerable<ProcessInfoDto> source = _allProcesses;
-        if (!string.IsNullOrWhiteSpace(filter))
-            source = source.Where(p => p.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                || p.Id.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase)
-                || (p.UserName?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
+        var source = string.IsNullOrWhiteSpace(filter) ? _allProcesses : _allProcesses.Where(p => p.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) || p.Id.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase) || (p.UserName?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
         FilteredProcesses.Clear();
         foreach (var process in source) FilteredProcesses.Add(process);
         SelectedProcess = selected is null ? null : FilteredProcesses.FirstOrDefault(p => p.Id == selected.Id && p.StartTime == selected.StartTime);
     }
 
-    private static void AppendHistory(ObservableCollection<double> history, double value)
-    {
-        history.Add(Math.Clamp(value, 0, 100));
-        while (history.Count > HistoryLimit) history.RemoveAt(0);
-    }
+    private static string FormatBytes(long? bytes) => bytes is null or < 0 ? "—" : Converters.BytesConverter.FormatBytes(bytes.Value);
+    private static string FormatRate(long bytes) => Converters.BytesConverter.FormatBytes(bytes) + "/秒";
+    private static string FormatFrequency(double? mhz) => mhz is null ? "—" : mhz >= 1000 ? $"{mhz / 1000:0.00} GHz" : $"{mhz:0} MHz";
+    private static string FormatUptime(long seconds) => Converters.UptimeConverter.Instance.Convert(seconds, typeof(string), null, System.Globalization.CultureInfo.CurrentCulture)?.ToString() ?? "—";
 }
 
 public enum TaskManagerTab { Performance, Processes }
+public enum PerformanceResourceKind { Cpu, Memory, Filesystem, Disk, Network }
+
+public sealed partial class PerformanceResourceItem : ObservableObject
+{
+    public PerformanceResourceItem(PerformanceResourceKind kind, string id, string title, string subtitle, Color accentColor)
+    { Kind = kind; Id = id; Title = title; Subtitle = subtitle; AccentColor = accentColor; History = []; }
+
+    public PerformanceResourceKind Kind { get; }
+    public string Id { get; }
+    public string Title { get; }
+    public string Subtitle { get; }
+    public Color AccentColor { get; }
+    public ObservableCollection<double> History { get; }
+    [ObservableProperty] private string _metric = "正在收集…";
+    [ObservableProperty] private string _sideDetail = string.Empty;
+    [ObservableProperty] private double _chartMaximum = 100;
+    [ObservableProperty] private string _detail1Label = string.Empty;
+    [ObservableProperty] private string _detail1Value = "—";
+    [ObservableProperty] private string _detail2Label = string.Empty;
+    [ObservableProperty] private string _detail2Value = "—";
+    [ObservableProperty] private string _detail3Label = string.Empty;
+    [ObservableProperty] private string _detail3Value = "—";
+    [ObservableProperty] private string _detail4Label = string.Empty;
+    [ObservableProperty] private string _detail4Value = "—";
+
+    public void ClearHistory() => History.Clear();
+    public void Update(double value, double maximum, string metric, string sideDetail, string l1, string v1, string l2, string v2, string l3, string v3, string l4, string v4)
+    {
+        Metric = metric; SideDetail = sideDetail; ChartMaximum = Math.Max(maximum, 1);
+        Detail1Label = l1; Detail1Value = v1; Detail2Label = l2; Detail2Value = v2; Detail3Label = l3; Detail3Value = v3; Detail4Label = l4; Detail4Value = v4;
+        History.Add(Math.Max(0, value));
+        while (History.Count > 60) History.RemoveAt(0);
+    }
+}
