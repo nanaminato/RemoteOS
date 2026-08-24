@@ -1,0 +1,37 @@
+{
+  "formatVersion": 2,
+  "id": "aurora-indigo",
+  "name": "Aurora Indigo",
+  "lightColors": {
+    "AppBackground": "#F5F7FF",
+    "ShellBackground": "#EFF3FF",
+    "Surface": "#FFFFFF",
+    "SurfaceRaised": "#FFFFFF",
+    "SurfaceSunken": "#E8EDFF",
+    "TextPrimary": "#17203A",
+    "TextSecondary": "#3E4A6B",
+    "TextTertiary": "#66708D",
+    "BorderDefault": "#C9D2F0",
+    "Accent": "#4F46E5",
+    "Success": "#15803D",
+    "Warning": "#B45309",
+    "Danger": "#BE123C",
+    "Info": "#2563EB"
+  },
+  "darkColors": {
+    "AppBackground": "#171A29",
+    "ShellBackground": "#171A29",
+    "Surface": "#1F2335",
+    "SurfaceRaised": "#292E45",
+    "SurfaceSunken": "#121522",
+    "TextPrimary": "#F3F4FF",
+    "TextSecondary": "#C3C7D9",
+    "TextTertiary": "#9DA4C0",
+    "BorderDefault": "#4E5675",
+    "Accent": "#A5B4FC",
+    "Success": "#86EFAC",
+    "Warning": "#FCD34D",
+    "Danger": "#FB7185",
+    "Info": "#93C5FD"
+  }
+}

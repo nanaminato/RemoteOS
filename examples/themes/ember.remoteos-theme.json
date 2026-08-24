@@ -1,0 +1,37 @@
+{
+  "formatVersion": 2,
+  "id": "ember-terracotta",
+  "name": "Ember Terracotta",
+  "lightColors": {
+    "AppBackground": "#FFF7ED",
+    "ShellBackground": "#FFEDD5",
+    "Surface": "#FFFFFF",
+    "SurfaceRaised": "#FFFFFF",
+    "SurfaceSunken": "#FFEDD5",
+    "TextPrimary": "#431407",
+    "TextSecondary": "#7C2D12",
+    "TextTertiary": "#9A4D2E",
+    "BorderDefault": "#F2C9A5",
+    "Accent": "#C2410C",
+    "Success": "#15803D",
+    "Warning": "#B45309",
+    "Danger": "#BE123C",
+    "Info": "#0369A1"
+  },
+  "darkColors": {
+    "AppBackground": "#211914",
+    "ShellBackground": "#211914",
+    "Surface": "#352A22",
+    "SurfaceRaised": "#44362B",
+    "SurfaceSunken": "#17110D",
+    "TextPrimary": "#FFF7ED",
+    "TextSecondary": "#FED7AA",
+    "TextTertiary": "#F5B982",
+    "BorderDefault": "#765841",
+    "Accent": "#FDBA74",
+    "Success": "#86EFAC",
+    "Warning": "#FCD34D",
+    "Danger": "#FDA4AF",
+    "Info": "#7DD3FC"
+  }
+}
