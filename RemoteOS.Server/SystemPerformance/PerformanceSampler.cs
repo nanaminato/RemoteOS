@@ -114,7 +114,7 @@ public sealed class PerformanceSampler(
         return new CpuRealtimeMetricsDto(Math.Round(usage, 1),
             Percent(previous.User, current.User, total), Percent(previous.System, current.System, total),
             Percent(previous.Idle, current.Idle, total), Percent(previous.Iowait, current.Iowait, total), perCpu,
-            current.CurrentFrequencyMHz);
+            current.CurrentFrequencyMHz, current.ProcessCount, current.ThreadCount, current.HandleCount);
     }
 
     private static IReadOnlyList<DiskRealtimeMetricsDto> CreateDisks(

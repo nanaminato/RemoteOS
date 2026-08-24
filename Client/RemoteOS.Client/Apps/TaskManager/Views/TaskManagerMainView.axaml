@@ -70,30 +70,65 @@
                 </Border>
 
                 <ScrollViewer Grid.Column="1">
-                    <StackPanel Margin="26,16,24,22" Spacing="7">
-                        <Grid ColumnDefinitions="*,Auto">
+                    <Grid Margin="26,16,24,22" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="7" VerticalAlignment="Top">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
                             <StackPanel>
                                 <TextBlock Text="{Binding SelectedPerformanceItem.Title}" FontSize="30" FontWeight="SemiBold" />
                                 <TextBlock Text="{Binding SelectedPerformanceItem.Subtitle}" FontSize="12" Opacity="0.65" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <TextBlock Grid.Column="1" Text="{Binding SelectedPerformanceItem.Metric}" FontSize="19" VerticalAlignment="Bottom" Margin="12,0,0,2" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,4,0,0">
                             <TextBlock Text="最近 60 秒" Classes="metric-label" />
                             <TextBlock Grid.Column="1" Text="{Binding SelectedPerformanceItem.SideDetail}" Classes="metric-label" />
                         </Grid>
-                        <charts:PerformanceLineChart Height="270" Values="{Binding SelectedPerformanceItem.History}" Maximum="{Binding SelectedPerformanceItem.ChartMaximum}" LineColor="{Binding SelectedPerformanceItem.AccentColor}" />
-                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                        <Border Grid.Row="2" Height="270" ClipToBounds="True">
+                            <charts:PerformanceLineChart Values="{Binding SelectedPerformanceItem.History}" Maximum="{Binding SelectedPerformanceItem.ChartMaximum}" LineColor="{Binding SelectedPerformanceItem.AccentColor}" />
+                        </Border>
+                        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="0,4,0,10">
                             <TextBlock Text="60 秒" Classes="metric-label" />
                             <TextBlock Grid.Column="1" Text="现在" Classes="metric-label" />
                         </Grid>
-                        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="28">
-                            <StackPanel><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Value}" FontSize="21" /></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Value}" FontSize="21" /></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Value}" FontSize="16" Margin="0,4,0,0" /></StackPanel>
-                            <StackPanel Grid.Column="3"><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Value}" FontSize="16" Margin="0,4,0,0" /></StackPanel>
+                        <Grid Grid.Row="4" IsVisible="{Binding SelectedPerformanceItem.IsCpu}" ColumnDefinitions="220,*" ColumnSpacing="18">
+                            <Grid ColumnDefinitions="82,82,82" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+                                <StackPanel Grid.Row="0" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Value}" FontSize="21" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Value}" FontSize="21" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Value}" FontSize="19" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Value}" FontSize="19" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="2"><TextBlock Text="{Binding SelectedPerformanceItem.Detail5Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail5Value}" FontSize="19" /></StackPanel>
+                                <StackPanel Grid.Row="2" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail6Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail6Value}" FontSize="19" /></StackPanel>
+                            </Grid>
+                            <Grid Grid.Column="1" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="3" ColumnSpacing="10">
+                                <TextBlock Grid.Row="0" Text="{Binding SelectedPerformanceItem.Detail7Label}" Classes="metric-label" /><TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail7Value}" FontSize="12" />
+                                <TextBlock Grid.Row="1" Text="{Binding SelectedPerformanceItem.Detail8Label}" Classes="metric-label" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail8Value}" FontSize="12" />
+                                <TextBlock Grid.Row="2" Text="{Binding SelectedPerformanceItem.Detail9Label}" Classes="metric-label" /><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail9Value}" FontSize="12" />
+                                <TextBlock Grid.Row="3" Text="{Binding SelectedPerformanceItem.Detail10Label}" Classes="metric-label" /><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail10Value}" FontSize="12" />
+                                <TextBlock Grid.Row="4" Text="{Binding SelectedPerformanceItem.Detail11Label}" Classes="metric-label" /><TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail11Value}" FontSize="12" />
+                                <TextBlock Grid.Row="5" Text="{Binding SelectedPerformanceItem.Detail12Label}" Classes="metric-label" /><TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail12Value}" FontSize="12" />
+                                <TextBlock Grid.Row="6" Text="{Binding SelectedPerformanceItem.Detail13Label}" Classes="metric-label" /><TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail13Value}" FontSize="12" />
+                                <TextBlock Grid.Row="7" Text="{Binding SelectedPerformanceItem.Detail14Label}" Classes="metric-label" /><TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail14Value}" FontSize="12" />
+                            </Grid>
                         </Grid>
-                    </StackPanel>
+                        <Grid Grid.Row="4" IsVisible="{Binding SelectedPerformanceItem.IsMemory}" ColumnDefinitions="270,*" ColumnSpacing="22">
+                            <Grid ColumnDefinitions="125,125" RowDefinitions="Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                                <StackPanel Grid.Row="0" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                                <StackPanel Grid.Row="0" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                            </Grid>
+                            <Grid Grid.Column="1" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="5" ColumnSpacing="10">
+                                <TextBlock Grid.Row="0" Text="{Binding SelectedPerformanceItem.Detail5Label}" Classes="metric-label" /><TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail5Value}" FontSize="13" TextWrapping="NoWrap" />
+                                <TextBlock Grid.Row="1" Text="{Binding SelectedPerformanceItem.Detail6Label}" Classes="metric-label" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail6Value}" FontSize="13" TextWrapping="NoWrap" />
+                                <TextBlock Grid.Row="2" Text="{Binding SelectedPerformanceItem.Detail7Label}" Classes="metric-label" /><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedPerformanceItem.Detail7Value}" FontSize="13" TextWrapping="NoWrap" />
+                            </Grid>
+                        </Grid>
+                        <Grid Grid.Row="4" IsVisible="{Binding SelectedPerformanceItem.UsesStandardDetails}" ColumnDefinitions="160,160" RowDefinitions="Auto,Auto" RowSpacing="10" ColumnSpacing="18">
+                            <StackPanel Grid.Row="0" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail1Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail2Value}" FontSize="21" TextWrapping="NoWrap" /></StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="0"><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail3Value}" FontSize="18" TextWrapping="NoWrap" /></StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1"><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Label}" Classes="metric-label" /><TextBlock Text="{Binding SelectedPerformanceItem.Detail4Value}" FontSize="18" TextWrapping="NoWrap" /></StackPanel>
+                        </Grid>
+                    </Grid>
                 </ScrollViewer>
             </Grid>
 

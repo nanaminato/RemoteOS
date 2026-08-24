@@ -19,7 +19,11 @@ public sealed record CpuInfoDto(
     [property: JsonPropertyName("physicalCoreCount")] int? PhysicalCoreCount,
     [property: JsonPropertyName("logicalProcessorCount")] int LogicalProcessorCount,
     [property: JsonPropertyName("baseFrequencyMHz")] double? BaseFrequencyMHz,
-    [property: JsonPropertyName("virtualizationEnabled")] bool? VirtualizationEnabled);
+    [property: JsonPropertyName("virtualizationEnabled")] bool? VirtualizationEnabled,
+    [property: JsonPropertyName("socketCount")] int? SocketCount = null,
+    [property: JsonPropertyName("l1CacheBytes")] long? L1CacheBytes = null,
+    [property: JsonPropertyName("l2CacheBytes")] long? L2CacheBytes = null,
+    [property: JsonPropertyName("l3CacheBytes")] long? L3CacheBytes = null);
 
 /// <summary>低频内存信息。</summary>
 public sealed record MemoryInfoDto(
@@ -63,7 +67,10 @@ public sealed record CpuRealtimeMetricsDto(
     [property: JsonPropertyName("idlePercent")] double? IdlePercent,
     [property: JsonPropertyName("iowaitPercent")] double? IowaitPercent,
     [property: JsonPropertyName("perLogicalCpuPercent")] IReadOnlyList<double> PerLogicalCpuPercent,
-    [property: JsonPropertyName("currentFrequencyMHz")] double? CurrentFrequencyMHz);
+    [property: JsonPropertyName("currentFrequencyMHz")] double? CurrentFrequencyMHz,
+    [property: JsonPropertyName("processCount")] int? ProcessCount = null,
+    [property: JsonPropertyName("threadCount")] int? ThreadCount = null,
+    [property: JsonPropertyName("handleCount")] long? HandleCount = null);
 
 /// <summary>内存的一份实时样本。</summary>
 public sealed record MemoryRealtimeMetricsDto(

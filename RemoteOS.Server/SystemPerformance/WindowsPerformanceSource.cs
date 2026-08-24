@@ -37,7 +37,9 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
         var kernelTicks = ToLong(kernel);
         var userTicks = ToLong(user);
         var logical = ReadLogicalCpuTimes();
-        return new RawCpuTimes(kernelTicks + userTicks, idleTicks, userTicks, Math.Max(0, kernelTicks - idleTicks), null, logical, null);
+        var processSummary = SystemProcessSummary.Read();
+        return new RawCpuTimes(kernelTicks + userTicks, idleTicks, userTicks, Math.Max(0, kernelTicks - idleTicks), null, logical, null,
+            processSummary.ProcessCount, processSummary.ThreadCount, processSummary.HandleCount);
     }
 
     private static IReadOnlyList<RawCpuTimes> ReadLogicalCpuTimes()

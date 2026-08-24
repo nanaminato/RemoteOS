@@ -201,12 +201,31 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         {
             case PerformanceResourceKind.Cpu:
                 var cpu = snapshot.Cpu;
-                item.Update(cpu.TotalPercent, 100, $"{cpu.TotalPercent:0}%", $"{cpu.TotalPercent:0}%  {FormatFrequency(cpu.CurrentFrequencyMHz)}", "利用率", $"{cpu.TotalPercent:0}%", "速度", FormatFrequency(cpu.CurrentFrequencyMHz), "逻辑处理器", Info?.Cpu.LogicalProcessorCount.ToString() ?? "—", "运行时间", FormatUptime(snapshot.UptimeSeconds));
+                item.Update(cpu.TotalPercent, 100, $"{cpu.TotalPercent:0}%", $"{cpu.TotalPercent:0}%  {FormatFrequency(cpu.CurrentFrequencyMHz)}",
+                    "利用率", $"{cpu.TotalPercent:0}%", "速度", FormatFrequency(cpu.CurrentFrequencyMHz),
+                    "进程", FormatCount(cpu.ProcessCount), "线程", FormatCount(cpu.ThreadCount));
+                item.SetAdditionalDetails(
+                    ("句柄", FormatCount(cpu.HandleCount)),
+                    ("运行时间", FormatUptime(snapshot.UptimeSeconds)),
+                    ("基准速度", FormatFrequency(Info?.Cpu.BaseFrequencyMHz)),
+                    ("插槽", FormatCount(Info?.Cpu.SocketCount)),
+                    ("内核", FormatCount(Info?.Cpu.PhysicalCoreCount)),
+                    ("逻辑处理器", FormatCount(Info?.Cpu.LogicalProcessorCount)),
+                    ("虚拟化", FormatBoolean(Info?.Cpu.VirtualizationEnabled)),
+                    ("L1 缓存", FormatBytes(Info?.Cpu.L1CacheBytes)),
+                    ("L2 缓存", FormatBytes(Info?.Cpu.L2CacheBytes)),
+                    ("L3 缓存", FormatBytes(Info?.Cpu.L3CacheBytes)));
                 break;
             case PerformanceResourceKind.Memory:
                 var memory = snapshot.Memory;
                 var percent = memory.TotalBytes <= 0 ? 0 : memory.UsedBytes * 100d / memory.TotalBytes;
-                item.Update(percent, 100, $"{FormatBytes(memory.UsedBytes)} / {FormatBytes(memory.TotalBytes)}", $"{percent:0}%", "使用中", FormatBytes(memory.UsedBytes), "可用", FormatBytes(memory.AvailableBytes), "已缓存", FormatBytes(memory.CachedBytes), "交换空间", FormatBytes(memory.SwapUsedBytes));
+                item.Update(percent, 100, $"{FormatBytes(memory.UsedBytes)} / {FormatBytes(memory.TotalBytes)}", $"{percent:0}%",
+                    "使用中", FormatBytes(memory.UsedBytes), "可用", FormatBytes(memory.AvailableBytes),
+                    "已缓存", FormatBytes(memory.CachedBytes), "交换空间", FormatBytes(memory.SwapUsedBytes));
+                item.SetAdditionalDetails(
+                    ("总内存", FormatBytes(memory.TotalBytes)),
+                    ("缓冲区", FormatBytes(memory.BufferedBytes)),
+                    ("交换总量", FormatBytes(memory.SwapTotalBytes)));
                 break;
             case PerformanceResourceKind.Filesystem:
                 var filesystem = snapshot.Filesystems.FirstOrDefault(x => x.Id == item.Id);
@@ -243,6 +262,8 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
     private static string FormatBytes(long? bytes) => bytes is null or < 0 ? "—" : Converters.BytesConverter.FormatBytes(bytes.Value);
     private static string FormatRate(long bytes) => Converters.BytesConverter.FormatBytes(bytes) + "/秒";
     private static string FormatFrequency(double? mhz) => mhz is null ? "—" : mhz >= 1000 ? $"{mhz / 1000:0.00} GHz" : $"{mhz:0} MHz";
+    private static string FormatCount(long? value) => value is null or < 0 ? "—" : value.Value.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+    private static string FormatBoolean(bool? value) => value is null ? "—" : value.Value ? "已启用" : "未启用";
     private static string FormatUptime(long seconds) => Converters.UptimeConverter.Instance.Convert(seconds, typeof(string), null, System.Globalization.CultureInfo.CurrentCulture)?.ToString() ?? "—";
 }
 
@@ -255,6 +276,9 @@ public sealed partial class PerformanceResourceItem : ObservableObject
     { Kind = kind; Id = id; Title = title; Subtitle = subtitle; AccentColor = accentColor; History = []; }
 
     public PerformanceResourceKind Kind { get; }
+    public bool IsCpu => Kind == PerformanceResourceKind.Cpu;
+    public bool IsMemory => Kind == PerformanceResourceKind.Memory;
+    public bool UsesStandardDetails => !IsCpu && !IsMemory;
     public string Id { get; }
     public string Title { get; }
     public string Subtitle { get; }
@@ -271,6 +295,26 @@ public sealed partial class PerformanceResourceItem : ObservableObject
     [ObservableProperty] private string _detail3Value = "—";
     [ObservableProperty] private string _detail4Label = string.Empty;
     [ObservableProperty] private string _detail4Value = "—";
+    [ObservableProperty] private string _detail5Label = string.Empty;
+    [ObservableProperty] private string _detail5Value = "—";
+    [ObservableProperty] private string _detail6Label = string.Empty;
+    [ObservableProperty] private string _detail6Value = "—";
+    [ObservableProperty] private string _detail7Label = string.Empty;
+    [ObservableProperty] private string _detail7Value = "—";
+    [ObservableProperty] private string _detail8Label = string.Empty;
+    [ObservableProperty] private string _detail8Value = "—";
+    [ObservableProperty] private string _detail9Label = string.Empty;
+    [ObservableProperty] private string _detail9Value = "—";
+    [ObservableProperty] private string _detail10Label = string.Empty;
+    [ObservableProperty] private string _detail10Value = "—";
+    [ObservableProperty] private string _detail11Label = string.Empty;
+    [ObservableProperty] private string _detail11Value = "—";
+    [ObservableProperty] private string _detail12Label = string.Empty;
+    [ObservableProperty] private string _detail12Value = "—";
+    [ObservableProperty] private string _detail13Label = string.Empty;
+    [ObservableProperty] private string _detail13Value = "—";
+    [ObservableProperty] private string _detail14Label = string.Empty;
+    [ObservableProperty] private string _detail14Value = "—";
 
     public void ClearHistory() => History.Clear();
     public void Update(double value, double maximum, string metric, string sideDetail, string l1, string v1, string l2, string v2, string l3, string v3, string l4, string v4)
@@ -279,5 +323,20 @@ public sealed partial class PerformanceResourceItem : ObservableObject
         Detail1Label = l1; Detail1Value = v1; Detail2Label = l2; Detail2Value = v2; Detail3Label = l3; Detail3Value = v3; Detail4Label = l4; Detail4Value = v4;
         History.Add(Math.Max(0, value));
         while (History.Count > 60) History.RemoveAt(0);
+    }
+
+    public void SetAdditionalDetails(params (string Label, string Value)[] details)
+    {
+        var values = details.Concat(Enumerable.Repeat((Label: string.Empty, Value: "—"), 10)).ToArray();
+        Detail5Label = values[0].Label; Detail5Value = values[0].Value;
+        Detail6Label = values[1].Label; Detail6Value = values[1].Value;
+        Detail7Label = values[2].Label; Detail7Value = values[2].Value;
+        Detail8Label = values[3].Label; Detail8Value = values[3].Value;
+        Detail9Label = values[4].Label; Detail9Value = values[4].Value;
+        Detail10Label = values[5].Label; Detail10Value = values[5].Value;
+        Detail11Label = values[6].Label; Detail11Value = values[6].Value;
+        Detail12Label = values[7].Label; Detail12Value = values[7].Value;
+        Detail13Label = values[8].Label; Detail13Value = values[8].Value;
+        Detail14Label = values[9].Label; Detail14Value = values[9].Value;
     }
 }

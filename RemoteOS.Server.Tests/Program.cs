@@ -151,6 +151,8 @@ static async Task VerifyPerformanceSamplerAsync()
         Assert(linuxInfo.Cpu.LogicalProcessorCount > 0, "Linux performance source did not report logical processors.");
         Assert(linuxSample.Memory.TotalBytes > 0, "Linux performance source did not read MemTotal.");
         Assert(linuxSample.Cpu.LogicalProcessors.Count > 0, "Linux performance source did not read per-logical-CPU counters.");
+        Assert(linuxInfo.Filesystems.All(filesystem => filesystem.MountPoint == "/"), "Linux performance source reported a non-root filesystem.");
+        Assert(linuxSample.Filesystems.Count <= 1, "Linux performance source reported more than the root filesystem.");
     }
 
     var source = new FakePerformanceSource();

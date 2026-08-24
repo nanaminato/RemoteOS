@@ -31,7 +31,10 @@ public sealed record RawCpuTimes(
     long? System,
     long? Iowait,
     IReadOnlyList<RawCpuTimes> LogicalProcessors,
-    double? CurrentFrequencyMHz);
+    double? CurrentFrequencyMHz,
+    int? ProcessCount = null,
+    int? ThreadCount = null,
+    long? HandleCount = null);
 
 public sealed record RawMemory(
     long TotalBytes,

@@ -14,10 +14,12 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
         cancellationToken.ThrowIfCancellationRequested();
         var memory = ReadMemInfo();
         var logicalCount = Environment.ProcessorCount;
+        var caches = ReadCpuCaches();
         var capabilities = new PerformanceCapabilitiesDto(true, ReadCurrentFrequencyMHz() is not null, true,
             true, false, true, true, false);
         return ValueTask.FromResult(new PerformanceInfoDto(
-            new CpuInfoDto(ReadCpuModel(), ReadPhysicalCoreCount(), logicalCount, null, ReadVirtualizationEnabled()),
+            new CpuInfoDto(ReadCpuModel(), ReadPhysicalCoreCount(), logicalCount, ReadBaseFrequencyMHz(), ReadVirtualizationEnabled(),
+                ReadSocketCount(), caches.L1Bytes, caches.L2Bytes, caches.L3Bytes),
             new MemoryInfoDto(memory.GetValueOrDefault("MemTotal"), memory.GetValueOrDefault("SwapTotal")),
             ReadFilesystemsInfo(), ReadDiskInfo(), ReadNetworkInfo(), capabilities));
     }
@@ -55,45 +57,47 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
         }
         catch { /* source will expose an empty/zero sample rather than leak OS errors. */ }
         aggregate ??= new RawCpuTimes(0, 0, null, null, null, Array.Empty<RawCpuTimes>(), null);
-        return aggregate with { LogicalProcessors = logical, CurrentFrequencyMHz = ReadCurrentFrequencyMHz() };
+        var processSummary = SystemProcessSummary.Read();
+        return aggregate with
+        {
+            LogicalProcessors = logical,
+            CurrentFrequencyMHz = ReadCurrentFrequencyMHz(),
+            ProcessCount = processSummary.ProcessCount,
+            ThreadCount = processSummary.ThreadCount,
+            HandleCount = processSummary.HandleCount
+        };
     }
 
     private static IReadOnlyList<RawFilesystemUsage> ReadFilesystemUsage()
     {
-        var result = new List<RawFilesystemUsage>();
         try
         {
-            foreach (var drive in DriveInfo.GetDrives())
-            {
-                try
-                {
-                    if (!drive.IsReady || drive.TotalSize <= 0) continue;
-                    result.Add(new RawFilesystemUsage(FilesystemId(drive), drive.TotalSize, drive.AvailableFreeSpace));
-                }
-                catch { }
-            }
+            var root = GetRootFilesystem();
+            if (root is { IsReady: true } && root.TotalSize > 0)
+                return [new RawFilesystemUsage(FilesystemId(root), root.TotalSize, root.AvailableFreeSpace)];
         }
         catch { }
-        return result;
+        return [];
     }
 
     private static IReadOnlyList<FilesystemInfoDto> ReadFilesystemsInfo()
     {
-        var result = new List<FilesystemInfoDto>();
         try
         {
-            foreach (var drive in DriveInfo.GetDrives())
-            {
-                try
-                {
-                    if (!drive.IsReady) continue;
-                    result.Add(new FilesystemInfoDto(FilesystemId(drive), drive.Name, drive.RootDirectory.FullName));
-                }
-                catch { }
-            }
+            var root = GetRootFilesystem();
+            if (root is { IsReady: true })
+                return [new FilesystemInfoDto(FilesystemId(root), root.Name, root.RootDirectory.FullName)];
         }
         catch { }
-        return result;
+        return [];
+    }
+
+    /// <summary>性能页只监测宿主根文件系统；tmpfs、cgroup 等 Linux 虚拟挂载点不属于用户可见磁盘容量。</summary>
+    private static DriveInfo? GetRootFilesystem()
+    {
+        var rootPath = Path.DirectorySeparatorChar.ToString();
+        return DriveInfo.GetDrives().FirstOrDefault(drive =>
+            string.Equals(drive.RootDirectory.FullName, rootPath, StringComparison.Ordinal));
     }
 
     private static IReadOnlyList<DiskInfoDto> ReadDiskInfo()
@@ -224,6 +228,21 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
         catch { return null; }
     }
 
+    private static int? ReadSocketCount()
+    {
+        try
+        {
+            var sockets = File.ReadLines("/proc/cpuinfo")
+                .Where(line => line.StartsWith("physical id", StringComparison.Ordinal))
+                .Select(line => line.Split(':', 2).ElementAtOrDefault(1)?.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.Ordinal)
+                .Count();
+            return sockets > 0 ? sockets : null;
+        }
+        catch { return null; }
+    }
+
     private static bool? ReadVirtualizationEnabled()
     {
         try
@@ -248,6 +267,49 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
         catch { return null; }
     }
 
+    private static double? ReadBaseFrequencyMHz() => ReadCpuFrequencyMHz("cpuinfo_max_freq", "base_frequency");
+
+    private static double? ReadCpuFrequencyMHz(params string[] fileNames)
+    {
+        try
+        {
+            var frequencies = Directory.EnumerateDirectories("/sys/devices/system/cpu", "cpu*", SearchOption.TopDirectoryOnly)
+                .Select(path => fileNames.Select(name => ReadText(Path.Combine(path, "cpufreq", name)))
+                    .FirstOrDefault(value => value is not null))
+                .Where(value => double.TryParse(value, out _))
+                .Select(value => double.Parse(value!) / 1000d)
+                .ToArray();
+            return frequencies.Length == 0 ? null : Math.Round(frequencies.Average(), 1);
+        }
+        catch { return null; }
+    }
+
+    private static CpuCaches ReadCpuCaches()
+    {
+        var uniqueCaches = new HashSet<string>(StringComparer.Ordinal);
+        long l1 = 0, l2 = 0, l3 = 0;
+        try
+        {
+            foreach (var cpuPath in Directory.EnumerateDirectories("/sys/devices/system/cpu", "cpu*", SearchOption.TopDirectoryOnly))
+            foreach (var cachePath in Directory.EnumerateDirectories(Path.Combine(cpuPath, "cache"), "index*", SearchOption.TopDirectoryOnly))
+            {
+                var level = ReadText(Path.Combine(cachePath, "level"));
+                var sharedBy = ReadText(Path.Combine(cachePath, "shared_cpu_list")) ?? cachePath;
+                if (!uniqueCaches.Add($"{level}:{sharedBy}")) continue;
+                var size = ParseSizeBytes(ReadText(Path.Combine(cachePath, "size")));
+                if (size <= 0) continue;
+                switch (level)
+                {
+                    case "1": l1 += size; break;
+                    case "2": l2 += size; break;
+                    case "3": l3 += size; break;
+                }
+            }
+        }
+        catch { }
+        return new CpuCaches(l1 > 0 ? l1 : null, l2 > 0 ? l2 : null, l3 > 0 ? l3 : null);
+    }
+
     private static bool IsLogicalCpuName(string name) => name.Length > 3 && name.StartsWith("cpu", StringComparison.Ordinal) && name[3..].All(char.IsDigit);
     private static bool IsVirtualBlockDevice(string name) => name.StartsWith("loop", StringComparison.Ordinal) || name.StartsWith("ram", StringComparison.Ordinal) || name.StartsWith("zram", StringComparison.Ordinal) || name.StartsWith("fd", StringComparison.Ordinal) || name.StartsWith("dm-", StringComparison.Ordinal);
     private static string FilesystemId(DriveInfo drive) => $"fs:{drive.RootDirectory.FullName}";
@@ -257,6 +319,16 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
     private static long At(IReadOnlyList<long> values, int index) => index < values.Count ? values[index] : 0;
     private static long ParseLong(string? value) => long.TryParse(value, out var result) ? result : 0;
     private static int ParseInt(string? value) => int.TryParse(value, out var result) ? result : 0;
+    private static long ParseSizeBytes(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        var normalized = value.Trim().ToUpperInvariant();
+        var multiplier = normalized.EndsWith('G') ? 1024L * 1024 * 1024 : normalized.EndsWith('M') ? 1024L * 1024 : normalized.EndsWith('K') ? 1024L : 1;
+        var digits = multiplier == 1 ? normalized : normalized[..^1];
+        return long.TryParse(digits, out var size) ? size * multiplier : 0;
+    }
     private static string? ReadText(string path) { try { return File.ReadAllText(path).Trim() is { Length: > 0 } value ? value : null; } catch { return null; } }
     private static long ReadLong(string directory, string name) => ParseLong(ReadText(Path.Combine(directory, name)));
+
+    private readonly record struct CpuCaches(long? L1Bytes, long? L2Bytes, long? L3Bytes);
 }
