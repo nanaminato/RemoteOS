@@ -61,41 +61,41 @@
             <!-- Left navigation -->
             <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}">
                 <StackPanel Spacing="0" Margin="0,8">
-                    <Button Tag="overview" Click="NavigationButton_Click"
+                    <Button Classes="workspace-nav" Tag="overview" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" BorderThickness="0" Padding="16,10">
+                            Padding="16,10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="📋" />
                             <TextBlock Text="{loc:Loc git.page.overview}" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="workspace" Click="NavigationButton_Click"
+                    <Button Classes="workspace-nav" Tag="workspace" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" BorderThickness="0" Padding="16,10">
+                            Padding="16,10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="📝" />
                             <TextBlock Text="{loc:Loc git.page.workspace}" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="log" Click="NavigationButton_Click"
+                    <Button Classes="workspace-nav" Tag="log" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" BorderThickness="0" Padding="16,10">
+                            Padding="16,10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="📜" />
                             <TextBlock Text="{loc:Loc git.page.log}" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="remotes" Click="NavigationButton_Click"
+                    <Button Classes="workspace-nav" Tag="remotes" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" BorderThickness="0" Padding="16,10">
+                            Padding="16,10">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="🌐" />
                             <TextBlock Text="{loc:Loc git.page.remotes}" />
                         </StackPanel>
                     </Button>
-                    <Button Tag="conflicts" Click="NavigationButton_Click"
+                    <Button Classes="workspace-nav" Tag="conflicts" Click="NavigationButton_Click"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                            Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" BorderThickness="0" Padding="16,10"
+                            Padding="16,10"
                             IsVisible="{Binding HasConflicts}">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="⚠" />

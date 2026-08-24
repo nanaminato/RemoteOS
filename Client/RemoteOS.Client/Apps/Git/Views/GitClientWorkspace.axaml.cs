@@ -1,9 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.VisualTree;
-using Client.Services.Theming;
 
 namespace Client.Apps.Git.Views;
 
@@ -78,15 +76,13 @@ internal partial class GitClientWorkspace : UserControl
 
         if (_selectedButton is not null && _selectedButton.Tag is string)
         {
-            _selectedButton.Background = Brushes.Transparent;
-            _selectedButton.Foreground = ThemeBrushes.Get("TextSecondaryBrush");
+            _selectedButton.Classes.Remove("nav-selected");
         }
 
         var target = navButtons.FirstOrDefault(b => string.Equals((string)b.Tag!, section, StringComparison.Ordinal));
         if (target is not null)
         {
-            target.Background = ThemeBrushes.Get("SelectionBackgroundBrush");
-            target.Foreground = ThemeBrushes.Get("SelectionForegroundBrush");
+            target.Classes.Add("nav-selected");
             _selectedButton = target;
         }
         else
@@ -99,14 +95,12 @@ internal partial class GitClientWorkspace : UserControl
     {
         if (_selectedButton is not null && _selectedButton != sourceButton)
         {
-            _selectedButton.Background = Brushes.Transparent;
-            _selectedButton.Foreground = ThemeBrushes.Get("TextSecondaryBrush");
+            _selectedButton.Classes.Remove("nav-selected");
         }
 
         if (sourceButton is not null)
         {
-            sourceButton.Background = ThemeBrushes.Get("SelectionBackgroundBrush");
-            sourceButton.Foreground = ThemeBrushes.Get("SelectionForegroundBrush");
+            sourceButton.Classes.Add("nav-selected");
             _selectedButton = sourceButton;
         }
 

@@ -7,7 +7,6 @@
              Background="{DynamicResource AppBackgroundBrush}"
              MinWidth="0"
              MinHeight="0">
-    <UserControl.Styles><Style Selector="Button.nav-selected"><Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" /><Setter Property="Foreground" Value="{DynamicResource SelectionForegroundBrush}" /></Style></UserControl.Styles>
     <Grid RowDefinitions="Auto,Auto,*" MinWidth="0" MinHeight="0">
         <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="32,22">
             <Grid ColumnDefinitions="Auto,*">
@@ -32,8 +31,8 @@
             <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
                     <TextBlock Text="{loc:Loc webservers.workspace}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button x:Name="InstancesPageButton" Classes="workspace-nav" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" />
                 </StackPanel>
             </Border>
 

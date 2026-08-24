@@ -7,7 +7,6 @@
              Background="{DynamicResource AppBackgroundBrush}">
     <Grid RowDefinitions="Auto,Auto,*">
         <Grid.Styles>
-            <Style Selector="Button.nav-selected"><Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" /><Setter Property="Foreground" Value="{DynamicResource SelectionForegroundBrush}" /></Style>
             <!-- 基础状态 -->
             <Style Selector="Button.docker-status">
                 <Setter Property="Background" Value="{DynamicResource AccentMutedBrush}" />
@@ -67,12 +66,12 @@
             <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
                     <TextBlock Text="{loc:Loc docker.workspace}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="OverviewButton" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc docker.overview}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="containers" Click="NavigationButton_Click" Content="{loc:Loc docker.containers}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="stacks" Click="NavigationButton_Click" Content="{loc:Loc docker.orchestration}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="images" Click="NavigationButton_Click" Content="{loc:Loc docker.images}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="networks" Click="NavigationButton_Click" Content="{loc:Loc docker.networks}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
-                    <Button Tag="volumes" Click="NavigationButton_Click" Content="{loc:Loc docker.volumes}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button x:Name="OverviewButton" Classes="workspace-nav" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc docker.overview}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="containers" Click="NavigationButton_Click" Content="{loc:Loc docker.containers}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="stacks" Click="NavigationButton_Click" Content="{loc:Loc docker.orchestration}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="images" Click="NavigationButton_Click" Content="{loc:Loc docker.images}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="networks" Click="NavigationButton_Click" Content="{loc:Loc docker.networks}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="volumes" Click="NavigationButton_Click" Content="{loc:Loc docker.volumes}" HorizontalContentAlignment="Left" Padding="10,8" />
                 </StackPanel>
             </Border>
             <!-- Pages with DataGrid columns must be measured against the workspace width.  An

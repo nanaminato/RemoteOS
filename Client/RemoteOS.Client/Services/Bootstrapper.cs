@@ -33,6 +33,9 @@ public static class Bootstrapper
     {
         var services = new ServiceCollection();
 
+        // ThemeService applies resources to the live Avalonia application instance.
+        // Register the startup instance explicitly because it is not created by DI.
+        services.AddSingleton<Application>(app);
         var windowManager = new WindowManager();
         services.AddSingleton(windowManager);
         services.AddSingleton<IWindowManager>(windowManager);
