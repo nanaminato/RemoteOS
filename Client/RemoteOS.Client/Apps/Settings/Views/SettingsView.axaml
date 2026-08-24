@@ -5,7 +5,7 @@
              xmlns:pages="clr-namespace:Client.Apps.Settings.Views.Pages"
              x:Class="Client.Apps.Settings.Views.SettingsView"
              x:DataType="vm:SettingsViewModel"
-             Background="#F3F3F3">
+             Background="{DynamicResource SurfaceBrush}">
 
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:SystemPageViewModel">
@@ -60,7 +60,7 @@
 
     <Grid ColumnDefinitions="220,*">
         <!-- 左侧导航 -->
-        <Border Grid.Column="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True">
                 <TextBlock DockPanel.Dock="Top" Text="{loc:Loc settings.title}" FontSize="20" FontWeight="SemiBold"
                            Margin="18,18,18,12" />

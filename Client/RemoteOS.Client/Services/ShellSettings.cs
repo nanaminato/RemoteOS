@@ -4,6 +4,7 @@ using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
+using Client.Services.Theming;
 
 namespace Client.Services;
 
@@ -18,6 +19,7 @@ public sealed partial class ShellSettings : ObservableObject
 
     [ObservableProperty] private int _wallpaperIndex;
     [ObservableProperty] private ThemeKind _theme = ThemeKind.Light;
+    [ObservableProperty] private ThemePreferencesDto _themePreferences = ThemePreferencesDto.Default;
     [ObservableProperty] private string _timeFormat = WorkspacePreferencesDto.TimeFormat24H;
     [ObservableProperty] private string _dateFormat = "yyyy/M/d";
     [ObservableProperty] private string _language;
@@ -32,7 +34,7 @@ public sealed partial class ShellSettings : ObservableObject
     [ObservableProperty] private bool _showServerDesktopShortcuts = DesktopDisplaySettingsDto.Default.ShowServerDesktopShortcuts;
     [ObservableProperty] private bool _hasCompletedFirstTimeSetup = DesktopDisplaySettingsDto.Default.HasCompletedFirstTimeSetup;
 
-    private IBrush _currentWallpaper = Brushes.LightTaskbar;
+    private IBrush _currentWallpaper = Brushes.Transparent;
     private string _currentWallpaperKey = WorkspacePreferencesDto.Default.WallpaperKey;
     private Bitmap? _customWallpaper;
 
@@ -43,16 +45,13 @@ public sealed partial class ShellSettings : ObservableObject
 
     public bool IsCustomWallpaper => _customWallpaper is not null;
 
-    /// <summary>任务栏 / 开始菜单底色（随主题切换的最小可见主题效果）。</summary>
-    public IBrush TaskbarBackground => IsDarkTheme ? Brushes.DarkTaskbar : Brushes.LightTaskbar;
-
-    /// <summary>任务栏前景（时钟 / 图标）。</summary>
-    public IBrush TaskbarForeground => IsDarkTheme ? Brushes.LightTaskbarText : Brushes.DarkTaskbarText;
-
     public bool IsDarkTheme => Theme == ThemeKind.Dark;
 
-    public ShellSettings()
+    private readonly ThemeService _themeService;
+
+    public ShellSettings(ThemeService themeService)
     {
+        _themeService = themeService;
         _language = WorkspacePreferencesDto.Default.Language;
         Wallpapers =
         [
@@ -77,9 +76,10 @@ public sealed partial class ShellSettings : ObservableObject
     partial void OnThemeChanged(ThemeKind value)
     {
         OnPropertyChanged(nameof(IsDarkTheme));
-        OnPropertyChanged(nameof(TaskbarBackground));
-        OnPropertyChanged(nameof(TaskbarForeground));
+        _themeService.Apply(value, ThemePreferences);
     }
+
+    partial void OnThemePreferencesChanged(ThemePreferencesDto value) => _themeService.Apply(Theme, value);
 
     partial void OnShowBuiltInAppsChanged(bool value) => NotifyDesktopDisplayChanged();
     partial void OnShowServerDesktopFilesChanged(bool value) => NotifyDesktopDisplayChanged();
@@ -95,6 +95,7 @@ public sealed partial class ShellSettings : ObservableObject
     public void Apply(WorkspacePreferencesDto prefs)
     {
         Theme = prefs.Theme;
+        ThemePreferences = prefs.ThemePreferences ?? ThemePreferencesDto.Default;
         TimeFormat = prefs.TimeFormat;
         DateFormat = prefs.DateFormat;
         Language = prefs.Language;
@@ -134,7 +135,7 @@ public sealed partial class ShellSettings : ObservableObject
                 ShowServerDesktopFiles = ShowServerDesktopFiles,
                 ShowServerDesktopShortcuts = ShowServerDesktopShortcuts,
                 HasCompletedFirstTimeSetup = HasCompletedFirstTimeSetup,
-            });
+            }, ThemePreferences);
 
     /// <summary>快捷方式文件扩展名判定（Windows .lnk / Linux .desktop）。</summary>
     public static bool IsShortcutFile(string fileName)
@@ -226,11 +227,4 @@ public sealed partial class ShellSettings : ObservableObject
         return brush;
     }
 
-    private static class Brushes
-    {
-        public static readonly IBrush LightTaskbar = new SolidColorBrush(Color.Parse("#F7F7F7"));
-        public static readonly IBrush DarkTaskbar = new SolidColorBrush(Color.Parse("#1F1F1F"));
-        public static readonly IBrush DarkTaskbarText = new SolidColorBrush(Color.Parse("#1F1F1F"));
-        public static readonly IBrush LightTaskbarText = new SolidColorBrush(Color.Parse("#F0F0F0"));
-    }
 }

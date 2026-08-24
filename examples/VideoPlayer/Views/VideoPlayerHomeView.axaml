@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="RemoteOS.Examples.VideoPlayer.Views.VideoPlayerHomeView"
-             Background="#FFFFFF" Foreground="#18202B">
+             Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
   <StackPanel Margin="24" Spacing="12">
     <TextBlock Text="{Binding TitleText}" FontSize="22" FontWeight="SemiBold" />
     <TextBlock Text="{Binding HintText}" TextWrapping="Wrap" Opacity="0.75" />

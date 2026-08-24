@@ -3,24 +3,24 @@
         xmlns:wm="clr-namespace:RemoteOS.WindowManager;assembly=RemoteOS.WindowManager">
 
     <Style Selector="wm|RemoteWindow">
-        <Setter Property="Foreground" Value="#1F1F1F" />
-        <Setter Property="FontFamily" Value="Segoe UI, Inter" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource ContentFont}" />
         <Setter Property="Template">
             <ControlTemplate>
                 <Grid x:DataType="wm:ManagedWindow">
                     <Border x:Name="PART_Frame"
-                            Background="#FFFFFF"
-                            BorderBrush="#D6D6D6"
+                            Background="{DynamicResource WindowFrameBackgroundBrush}"
+                            BorderBrush="{DynamicResource BorderDefaultBrush}"
                             BorderThickness="1"
-                            CornerRadius="8"
-                            BoxShadow="0 12 28 0 #A6000000, 0 2 6 0 #44000000">
+                            CornerRadius="{DynamicResource WindowCornerRadius}"
+                            BoxShadow="0 12 28 0 {DynamicResource OverlayScrimColor}, 0 2 6 0 {DynamicResource ShadowColor}">
                         <Grid RowDefinitions="Auto,*">
                             <!-- Title bar -->
                             <Border x:Name="PART_TitleBar"
                                     Grid.Row="0"
                                     Height="36"
-                                    Background="#F5F5F5"
-                                    CornerRadius="8,8,0,0"
+                                    Background="{DynamicResource WindowTitleBarBackgroundBrush}"
+                                    CornerRadius="{DynamicResource WindowCornerRadius}"
                                     IsVisible="{Binding !IsFullScreen}">
                                 <Grid ColumnDefinitions="Auto,*,Auto">
                                     <Border x:Name="PART_TitleDrag" Grid.Column="0" Grid.ColumnSpan="2" Background="Transparent" />
@@ -28,14 +28,14 @@
                                                Margin="12,0,0,0"
                                                VerticalAlignment="Center"
                                                FontSize="13"
-                                               Foreground="#4F4F4F"
+                                               Foreground="{DynamicResource WindowInactiveTitleForegroundBrush}"
                                                Text="{Binding IconGlyph}" />
                                     <TextBlock x:Name="PART_TitleText"
                                                Grid.Column="1"
                                                Margin="10,0,0,0"
                                                VerticalAlignment="Center"
                                                FontSize="13"
-                                               Foreground="#202020"
+                                               Foreground="{DynamicResource WindowTitleForegroundBrush}"
                                                Text="{Binding Title}" />
                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <Button x:Name="PART_Minimize"
@@ -96,10 +96,10 @@
         <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="wm|RemoteWindow /template/ Border#PART_Frame">
-        <Setter Property="BorderBrush" Value="#D6D6D6" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
     </Style>
     <Style Selector="wm|RemoteWindow:active /template/ Border#PART_Frame">
-        <Setter Property="BorderBrush" Value="#8AB9E5" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
     </Style>
     <Style Selector="wm|RemoteWindow:fullscreen /template/ Border#PART_Frame">
         <Setter Property="BorderThickness" Value="0" />

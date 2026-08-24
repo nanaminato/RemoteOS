@@ -9,7 +9,7 @@
              x:Class="Client.Apps.Explorer.Views.ExplorerMainView"
              x:Name="Root"
              x:DataType="vm:ExplorerViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
 
     <UserControl.Resources>
         <!-- 文件/目录图标 -->
@@ -21,7 +21,7 @@
 
     <DockPanel LastChildFill="True">
         <!-- 顶部菜单栏（简化版） -->
-        <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1">
+        <Menu DockPanel.Dock="Top" IsVisible="{Binding !IsPickerMode}" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
             <MenuItem Header="{loc:Loc explorer.menu.file}">
                 <MenuItem Header="{loc:Loc explorer.menu.new_folder}" Command="{Binding NewFolderCommand}" InputGesture="Ctrl+Shift+N" />
                 <MenuItem Header="{loc:Loc explorer.menu.upload}" Command="{Binding UploadCommand}" />
@@ -49,7 +49,7 @@
         </Menu>
 
         <!-- 工具栏 -->
-        <Border DockPanel.Dock="Top" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="6,4">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <Button Classes="icon" Content="←" Command="{Binding GoBackCommand}" ToolTip.Tip="{loc:Loc common.back}" />
                 <Button Classes="icon" Content="→" Command="{Binding GoForwardCommand}" ToolTip.Tip="{loc:Loc common.forward}" />
@@ -72,7 +72,7 @@
         </Border>
 
         <!-- 地址栏 -->
-        <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,4">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,4">
             <StackPanel Orientation="Horizontal" Spacing="6">
                 <TextBlock Text="📁" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="14" />
                 <TextBox x:Name="AddressBox"
@@ -86,7 +86,7 @@
         </Border>
 
         <!-- 状态栏 -->
-        <Border DockPanel.Dock="Bottom" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,5">
+        <Border DockPanel.Dock="Bottom" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Opacity="0.7" />
                 <TextBlock Grid.Column="1" Text="{Binding IsBusy, Converter={x:Static c:ExplorerLoadingStatusConverter.Instance}}"
@@ -101,7 +101,7 @@
 
         <!-- Picker mode reuses the full Explorer navigation surface and adds native-like confirmation fields. -->
         <Border DockPanel.Dock="Bottom" IsVisible="{Binding IsPickerMode}"
-                Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="12,8">
+                Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,8">
             <Grid RowDefinitions="Auto,Auto" RowSpacing="8">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                     <TextBlock Text="{Binding PickerEntryLabel}" VerticalAlignment="Center" />
@@ -159,7 +159,7 @@
                 </TreeView.ItemTemplate>
             </TreeView>
 
-            <GridSplitter Grid.Column="1" Width="4" Background="#E5E5E5" ResizeDirection="Columns" />
+            <GridSplitter Grid.Column="1" Width="4" Background="{DynamicResource SurfaceBrush}" ResizeDirection="Columns" />
 
             <!-- File Explorer-style details view. Each column starts with a fixed width:
                  spare viewport space remains empty instead of stretching a column;
@@ -167,7 +167,7 @@
                  the header dividers to change any column width. -->
             <ScrollViewer Grid.Column="2"
                           x:Name="EntriesScrollViewer"
-                          Background="#FFFFFF"
+                          Background="{DynamicResource SurfaceBrush}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto"
                           DragDrop.AllowDrop="True"
@@ -199,7 +199,7 @@
                       GridLinesVisibility="None"
                       RowHeight="32"
                       ColumnHeaderHeight="30"
-                      Background="#FFFFFF"
+                      Background="{DynamicResource SurfaceBrush}"
                       BorderThickness="0"
                       DoubleTapped="EntriesGrid_DoubleTapped"
                       PointerPressed="EntriesGrid_PointerPressed"
@@ -226,7 +226,7 @@
                 </DataGrid.ContextMenu>
                 <DataGrid.Styles>
                     <Style Selector="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#FAFAFA" />
+                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="FontSize" Value="12" />
                     </Style>

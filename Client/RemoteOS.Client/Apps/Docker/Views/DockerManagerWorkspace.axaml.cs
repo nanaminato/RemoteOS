@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 
 namespace Client.Apps.Docker.Views;
 
@@ -41,13 +40,11 @@ internal partial class DockerManagerWorkspace : UserControl
     {
         if (_selectedButton is not null)
         {
-            _selectedButton.Background = Brushes.Transparent;
-            _selectedButton.Foreground = Brush.Parse("#36506F");
+            _selectedButton.Classes.Remove("nav-selected");
         }
 
         _selectedButton = button;
-        button.Background = Brush.Parse("#DCEBFF");
-        button.Foreground = Brush.Parse("#1769D9");
+        button.Classes.Add("nav-selected");
         ContentHost.Content = section switch
         {
             "containers" => new DockerContainersView(_showCreateContainer),

@@ -4,21 +4,22 @@
              xmlns:docker="clr-namespace:Client.Apps.Docker"
              x:Class="Client.Apps.Docker.Views.DockerManagerWorkspace"
              x:DataType="docker:DockerManagerViewModel"
-             Background="#F4F7FB">
+             Background="{DynamicResource AppBackgroundBrush}">
     <Grid RowDefinitions="Auto,Auto,*">
         <Grid.Styles>
+            <Style Selector="Button.nav-selected"><Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" /><Setter Property="Foreground" Value="{DynamicResource SelectionForegroundBrush}" /></Style>
             <!-- 基础状态 -->
             <Style Selector="Button.docker-status">
-                <Setter Property="Background" Value="#1C3765" />
-                <Setter Property="BorderBrush" Value="#2C568D" />
+                <Setter Property="Background" Value="{DynamicResource AccentMutedBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="#C8F6DD" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             </Style>
 
             <!-- 悬停状态 (使用 /template/ 穿透默认模板防线) -->
             <Style Selector="Button.docker-status:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="Background" Value="#2B78C0" />
-                <Setter Property="BorderBrush" Value="#8BC7FF" />
+                <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="Foreground" Value="White" />
             </Style>
 
@@ -28,19 +29,19 @@
             </Style>
 
             <Style Selector="Button.docker-status:disabled /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="Background" Value="#1C3765" />
-                <Setter Property="BorderBrush" Value="#2C568D" />
-                <Setter Property="Foreground" Value="#C8F6DD" />
+                <Setter Property="Background" Value="{DynamicResource AccentMutedBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             </Style>
         </Grid.Styles>
-        <Border Grid.Row="0" Background="#122344" Padding="28,18">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="28,18">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
+                <Border Width="46" Height="46" Background="{DynamicResource AccentBrush}" CornerRadius="14">
                     <TextBlock Text="🐳" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc application.remoteos.docker.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="{loc:Loc docker.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                    <TextBlock Text="{loc:Loc application.remoteos.docker.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <TextBlock Text="{loc:Loc docker.subtitle}" FontSize="13" Foreground="{DynamicResource TextTertiaryBrush}" />
                 </StackPanel>
                 <Button Grid.Column="2"
                         Classes="docker-status"
@@ -58,20 +59,20 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="#EDF4FF" BorderBrush="#CFE1FF" BorderThickness="0,0,0,1" Padding="18,10">
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="0,0,0,1" Padding="18,10">
             <docker:DockerOperationActivityView />
         </Border>
 
         <Grid Grid.Row="2" ColumnDefinitions="190,*">
-            <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
-                    <TextBlock Text="{loc:Loc docker.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="OverviewButton" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc docker.overview}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="containers" Click="NavigationButton_Click" Content="{loc:Loc docker.containers}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="stacks" Click="NavigationButton_Click" Content="{loc:Loc docker.orchestration}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="images" Click="NavigationButton_Click" Content="{loc:Loc docker.images}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="networks" Click="NavigationButton_Click" Content="{loc:Loc docker.networks}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="volumes" Click="NavigationButton_Click" Content="{loc:Loc docker.volumes}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc docker.workspace}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="OverviewButton" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc docker.overview}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="containers" Click="NavigationButton_Click" Content="{loc:Loc docker.containers}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="stacks" Click="NavigationButton_Click" Content="{loc:Loc docker.orchestration}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="images" Click="NavigationButton_Click" Content="{loc:Loc docker.images}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="networks" Click="NavigationButton_Click" Content="{loc:Loc docker.networks}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="volumes" Click="NavigationButton_Click" Content="{loc:Loc docker.volumes}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
             </Border>
             <!-- Pages with DataGrid columns must be measured against the workspace width.  An

@@ -11,13 +11,13 @@
                 <RowDefinition Height="Auto" />  
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBlock Text="{loc:Loc docker.stacks_hint}" TextWrapping="Wrap" Foreground="#61708B" />
+            <TextBlock Text="{loc:Loc docker.stacks_hint}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
             <StackPanel Grid.Row="1" Spacing="4" Margin="0,12,0,12">
-                <TextBlock Text="{loc:Loc docker.stack.name}" Foreground="#36506F" />
+                <TextBlock Text="{loc:Loc docker.stack.name}" Foreground="{DynamicResource TextSecondaryBrush}" />
                 <TextBox Text="{Binding StackName, Mode=TwoWay}" PlaceholderText="my-stack" />
             </StackPanel>
             <StackPanel Grid.Row="2" Spacing="4">
-                <TextBlock Text="{loc:Loc docker.stack.compose}" Foreground="#36506F" />
+                <TextBlock Text="{loc:Loc docker.stack.compose}" Foreground="{DynamicResource TextSecondaryBrush}" />
                 <TextBox Text="{Binding ComposeYaml, Mode=TwoWay}" PlaceholderText="services:&#xA;  web:&#xA;    image: nginx:latest" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="270" />
             </StackPanel>
         </Grid>

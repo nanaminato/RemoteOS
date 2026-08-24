@@ -5,7 +5,7 @@
              xmlns:forward="clr-namespace:Client.Apps.PortForwarding"
              x:Class="Client.Apps.PortForwarding.Views.PortForwardingMainView"
              x:DataType="vm:PortForwardingViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24" Spacing="18" MaxWidth="760">
             <StackPanel Spacing="4">

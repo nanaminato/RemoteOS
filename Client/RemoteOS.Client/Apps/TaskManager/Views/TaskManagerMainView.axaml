@@ -7,7 +7,7 @@
              xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              x:Class="Client.Apps.TaskManager.Views.TaskManagerMainView"
              x:DataType="vm:TaskManagerViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
 
     <UserControl.Resources>
         <!-- 标签页按钮：紧凑 -->
@@ -21,8 +21,8 @@
     <!-- 指标卡片样式：按选择器自动应用到 Class="card" 的 Border -->
     <UserControl.Styles>
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="#FAFAFA" />
-            <Setter Property="BorderBrush" Value="#E5E5E5" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="14,10" />
@@ -33,9 +33,9 @@
     <DockPanel LastChildFill="True">
 
         <!-- 顶部工具栏：标签页切换 + 刷新 + 状态 -->
-        <Border DockPanel.Dock="Top" Background="#F0F0F0" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="6,4">
+        <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="6,4">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Background="#E5E5E5" Margin="0,0,8,0">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Background="{DynamicResource SurfaceBrush}" Margin="0,0,8,0">
                     <Button Content="{loc:Loc task_manager.performance}" Theme="{StaticResource TabButton}"
                             Command="{Binding SwitchToPerformanceCommand}"
                             Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Performance, Mode=OneWay}" />
@@ -73,11 +73,11 @@
                                     <TextBlock Text="{loc:Loc task_manager.cpu}" FontSize="14" FontWeight="SemiBold" />
                                     <TextBlock Text="{Binding Metrics.Cpu.CoreCount, Converter={x:Static conv:LocalizedFormatConverter.Instance}, ConverterParameter=task_manager.core_count}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="#0078D7"
+                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"
                                            Text="{Binding Metrics.Cpu.TotalPercent, StringFormat='{}{0:0.0}%'}" />
                             </Grid>
                             <!-- 实时柱状图：纵向条形，值 0-100，容器 70px 高 ClipToBounds 裁剪 -->
-                            <Border Height="70" ClipToBounds="True" Background="#F0F6FC" BorderBrush="#E5E5E5" BorderThickness="1">
+                            <Border Height="70" ClipToBounds="True" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
                                 <ItemsControl ItemsSource="{Binding CpuHistory}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -86,7 +86,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="sys:Double">
-                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="#0078D7" />
+                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -116,10 +116,10 @@
                         <StackPanel Orientation="Vertical" Spacing="6">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <TextBlock Grid.Column="0" Text="{loc:Loc task_manager.memory}" FontSize="14" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="#107C10"
+                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"
                                            Text="{Binding Metrics.Memory.Percent, StringFormat='{}{0:0.0}%'}" />
                             </Grid>
-                            <Border Height="50" ClipToBounds="True" Background="#F2F8F2" BorderBrush="#E5E5E5" BorderThickness="1">
+                            <Border Height="50" ClipToBounds="True" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
                                 <ItemsControl ItemsSource="{Binding MemoryHistory}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -128,7 +128,7 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="sys:Double">
-                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="#107C10" />
+                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -175,11 +175,11 @@
                                         <Grid ColumnDefinitions="110,Auto,Auto,*" Margin="0,3" VerticalAlignment="Center">
                                             <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center">
-                                                <TextBlock Text="↓ " Foreground="#107C10" FontSize="12" />
+                                                <TextBlock Text="↓ " Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" />
                                                 <TextBlock FontSize="12" Text="{Binding ReceiveRateBytesPerSec, Converter={x:Static conv:RateConverter.Instance}}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="↑ " Foreground="#0078D7" FontSize="12" />
+                                                <TextBlock Text="↑ " Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" />
                                                 <TextBlock FontSize="12" Text="{Binding SendRateBytesPerSec, Converter={x:Static conv:RateConverter.Instance}}" />
                                             </StackPanel>
                                         </Grid>
@@ -231,7 +231,7 @@
                   RowDefinitions="Auto,Auto,*">
 
                 <!-- 工具栏：过滤 + 结束任务 -->
-                <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,6">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,6">
                     <Grid ColumnDefinitions="*,Auto,Auto">
                         <TextBox x:Name="FilterBox" Grid.Column="0" Text="{Binding ProcessFilter, Mode=TwoWay}"
                                  PlaceholderText="{loc:Loc task_manager.filter_placeholder}"
@@ -244,7 +244,7 @@
                 </Border>
 
                 <!-- 结束进程反馈 -->
-                <Border Grid.Row="1" Background="#FFF9E6" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="8,4"
+                <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,4"
                         IsVisible="{Binding KillFeedback, Converter={x:Static conv:StringNonEmptyVisibilityConverter.Instance}}">
                     <TextBlock Text="{Binding KillFeedback}" FontSize="12" TextWrapping="Wrap" />
                 </Border>
@@ -253,7 +253,7 @@
                 <Border Grid.Row="2">
                     <Grid RowDefinitions="Auto,*">
                         <!-- 表头 -->
-                        <Border Grid.Row="0" Background="#F0F0F0" Padding="8,6">
+                        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="8,6">
                             <Grid ColumnDefinitions="2*,70,80,120,120,60">
                                 <TextBlock Grid.Column="0" Text="{loc:Loc common.name}" FontSize="12" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" />

@@ -4,12 +4,12 @@
              xmlns:vm="clr-namespace:Client.Apps.Explorer.Dialogs"
              x:Class="Client.Apps.Explorer.Dialogs.ConfirmDialogView"
              x:DataType="vm:ConfirmDialogViewModel"
-             Background="#FFFFFF"
+             Background="{DynamicResource SurfaceBrush}"
              Width="440">
     <Grid RowDefinitions="Auto,Auto" Margin="20" RowSpacing="16">
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="⚠" FontSize="28" Foreground="#FFA000" VerticalAlignment="Top" />
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#333333" MaxWidth="360" />
+            <TextBlock Text="⚠" FontSize="28" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Top" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" MaxWidth="360" />
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.cancel}" Command="{Binding NoCommand}" Padding="16,6" />

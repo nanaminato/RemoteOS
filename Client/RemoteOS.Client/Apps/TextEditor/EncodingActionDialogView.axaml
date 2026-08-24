@@ -4,7 +4,7 @@
              xmlns:app="clr-namespace:Client.Apps.TextEditor"
              x:Class="Client.Apps.TextEditor.EncodingActionDialogView"
              x:DataType="app:EncodingActionDialogViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <Grid Margin="12"
           RowDefinitions="Auto,Auto,Auto"
           RowSpacing="10">
@@ -22,12 +22,12 @@
 
             <!-- VS Code 亮色主题 hover -->
             <Style Selector="Button.encodingAction:pointerover /template/ ContentPresenter">
-                <Setter Property="Background" Value="#E8E8E8" />
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
             </Style>
 
             <!-- 按下 -->
             <Style Selector="Button.encodingAction:pressed /template/ ContentPresenter">
-                <Setter Property="Background" Value="#D8D8D8" />
+                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
             </Style>
         </Grid.Styles>
 
@@ -36,7 +36,7 @@
                    Margin="8,0"
                    Text="{loc:Loc common.encoding_action_hint}"
                    TextWrapping="Wrap"
-                   Foreground="#616161" />
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
 
         <!-- 操作列表 -->
         <StackPanel Grid.Row="1"

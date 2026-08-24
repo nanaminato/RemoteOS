@@ -9,21 +9,21 @@
             <!-- Fluent scrollbars overlay their content. Reserve a gutter so they never cover
                  NumericUpDown arrows or the right edge of text fields. -->
             <StackPanel Margin="0,0,20,0" MinWidth="0" Spacing="10">
-                <TextBlock Text="{loc:Loc webservers.site.dialog.help}" TextWrapping="Wrap" Foreground="#61708B" />
+                <TextBlock Text="{loc:Loc webservers.site.dialog.help}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.name}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.name}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
                     <TextBox Text="{Binding SiteName, Mode=TwoWay}" PlaceholderText="{loc:Loc webservers.site.dialog.name_hint}" />
                 </StackPanel>
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.kind}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.kind}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
                     <ComboBox ItemsSource="{Binding SiteKinds}" SelectedItem="{Binding SelectedSiteKind, Mode=TwoWay}" />
                 </StackPanel>
 
                 <StackPanel Spacing="4">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch}" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch_help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_batch_help}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <TextBox Text="{Binding SiteBindingsBatch, Mode=TwoWay}" PlaceholderText="app.example.com:5000&#10;app.example.com:6000" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" />
                         <Button Grid.Column="1" Content="{loc:Loc webservers.site.dialog.generate}" Command="{Binding GenerateSiteBindingsCommand}" VerticalAlignment="Top" />
@@ -31,8 +31,8 @@
                 </StackPanel>
 
                 <StackPanel Spacing="6">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings}" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_help}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.bindings_help}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                     <ItemsControl ItemsSource="{Binding SiteBindings}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="webservers:WebServerSiteBindingEditor">
@@ -48,13 +48,13 @@
                 </StackPanel>
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsReverseProxySite}">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.upstream}" FontWeight="SemiBold" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.upstream}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
                     <TextBox Text="{Binding SiteUpstream, Mode=TwoWay}" PlaceholderText="http://127.0.0.1:3000" />
                 </StackPanel>
 
                 <StackPanel Spacing="4" IsVisible="{Binding IsStaticSite}">
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root}" FontWeight="SemiBold" Foreground="#36506F" />
-                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root_help}" TextWrapping="Wrap" FontSize="12" Foreground="#61708B" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{loc:Loc webservers.site.dialog.static_root_help}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
 
                 <StackPanel Spacing="6">
@@ -63,7 +63,7 @@
                               DisplayMemberBinding="{ReflectionBinding PrimaryDomain}" IsEnabled="{Binding SiteHttpsEnabled}" />
                 </StackPanel>
 
-                <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
+                <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
             </StackPanel>
         </ScrollViewer>
 

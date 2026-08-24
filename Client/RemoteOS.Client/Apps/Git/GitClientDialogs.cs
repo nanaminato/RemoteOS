@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.Templates;
 using Avalonia.Media;
 using Client.Localization;
+using Client.Services.Theming;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
 using RemoteOS.Protocol.Git;
@@ -112,7 +113,7 @@ internal static class GitClientDialogs
             TextWrapping = TextWrapping.Wrap,
             FontSize = 14,
         };
-        var initBtn = new Button { Content = LocalizedText.Get("git.dialog.init.confirm"), Background = Brush.Parse("#1C3765"), Foreground = Brushes.White, Padding = new(14, 6) };
+        var initBtn = new Button { Content = LocalizedText.Get("git.dialog.init.confirm"), Background = ThemeBrushes.Get("AccentBrush"), Foreground = ThemeBrushes.Get("TextOnAccentBrush"), Padding = new(14, 6) };
         initBtn.Click += (_, _) => dialog.Close(true);
         var cancelBtn = new Button { Content = LocalizedText.Get("git.dialog.init.cancel"), Padding = new(14, 6), Margin = new(8, 0, 0, 0) };
         cancelBtn.Click += (_, _) => dialog.Close(false);
@@ -154,8 +155,8 @@ internal static class GitClientDialogs
         var saveBtn = new Button
         {
             Content = existing is null ? LocalizedText.Get("git.dialog.remote.add") : LocalizedText.Get("git.dialog.remote.save"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(14, 6),
         };
         saveBtn.Click += (_, _) =>
@@ -212,7 +213,7 @@ internal static class GitClientDialogs
         {
             Text = LocalizedText.Format("git.dialog.commit.files_to_commit_format", vm.SelectedCount),
             FontSize = 12,
-            Foreground = Brush.Parse("#666"),
+            Foreground = ThemeBrushes.Get("TextSecondaryBrush"),
             Margin = new(0, 8, 0, 4)
         };
 
@@ -420,8 +421,8 @@ internal static class GitClientDialogs
         var okBtn = new Button
         {
             Content = LocalizedText.Get("git.dialog.notice.ok"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(20, 6),
             HorizontalAlignment = HorizontalAlignment.Right,
         };
@@ -528,8 +529,8 @@ internal static class GitClientDialogs
         var renameBtn = new Button
         {
             Content = LocalizedText.Get("git.dialog.rename.rename_btn"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(14, 6),
         };
         renameBtn.Click += (_, _) =>
@@ -555,7 +556,7 @@ internal static class GitClientDialogs
                 {
                     Text = LocalizedText.Format("git.dialog.rename.current_branch_format", branch.Name, currentSuffix),
                     FontSize = 13,
-                    Foreground = Brush.Parse("#666"),
+                    Foreground = ThemeBrushes.Get("TextSecondaryBrush"),
                 },
                 new TextBlock { Text = LocalizedText.Get("git.dialog.rename.new_name_label"), FontSize = 13 },
                 nameBox,
@@ -594,8 +595,8 @@ internal static class GitClientDialogs
         var mergeBtn = new Button
         {
             Content = LocalizedText.Get("git.dialog.merge.merge_btn"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(14, 6),
         };
         mergeBtn.Click += (_, _) =>
@@ -695,8 +696,8 @@ internal static class GitClientDialogs
         var setBtn = new Button
         {
             Content = LocalizedText.Get("git.dialog.tracking.set_btn"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(14, 6),
         };
         setBtn.Click += (_, _) =>
@@ -733,13 +734,13 @@ internal static class GitClientDialogs
                 {
                     Text = LocalizedText.Format("git.dialog.tracking.local_branch_format", localBranch.Name, currentSuffix),
                     FontSize = 13,
-                    Foreground = Brush.Parse("#666"),
+                    Foreground = ThemeBrushes.Get("TextSecondaryBrush"),
                 },
                 new TextBlock
                 {
                     Text = LocalizedText.Format("git.dialog.tracking.current_tracking_format", currentTracking),
                     FontSize = 13,
-                    Foreground = Brush.Parse("#666"),
+                    Foreground = ThemeBrushes.Get("TextSecondaryBrush"),
                 },
                 new Separator(),
                 new StackPanel
@@ -781,7 +782,7 @@ internal static class GitClientDialogs
             Text = LocalizedText.Get("git.dialog.credentials.notice"),
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
-            Foreground = Brush.Parse("#52627A"),
+            Foreground = ThemeBrushes.Get("TextTertiaryBrush"),
         };
         var username = new TextBox { PlaceholderText = LocalizedText.Get("git.dialog.credentials.username_placeholder") };
         var password = new TextBox
@@ -797,8 +798,8 @@ internal static class GitClientDialogs
         var save = new Button
         {
             Content = LocalizedText.Get("git.dialog.credentials.confirm"),
-            Background = Brush.Parse("#1C3765"),
-            Foreground = Brushes.White,
+            Background = ThemeBrushes.Get("AccentBrush"),
+            Foreground = ThemeBrushes.Get("TextOnAccentBrush"),
             Padding = new(14, 6),
         };
         save.Click += (_, _) =>

@@ -2,24 +2,24 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:charts="clr-namespace:RemoteOS.Examples.ServerMonitor.Controls"
              x:Class="RemoteOS.Examples.ServerMonitor.Views.ServerMonitorMainView"
-             Background="#F5F7FB" Foreground="#1F2937">
+             Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
   <UserControl.Styles>
-    <Style Selector="TextBlock"><Setter Property="Foreground" Value="#1F2937" /></Style>
-    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#64748B" /></Style>
+    <Style Selector="TextBlock"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></Style>
     <Style Selector="Border.card">
-      <Setter Property="Background" Value="#FFFFFF" />
-      <Setter Property="BorderBrush" Value="#D9E2EF" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="14" />
     </Style>
-    <Style Selector="Border.cpu"><Setter Property="BorderBrush" Value="#73BDF0" /></Style>
-    <Style Selector="Border.memory"><Setter Property="BorderBrush" Value="#B9A0ED" /></Style>
-    <Style Selector="Border.network"><Setter Property="BorderBrush" Value="#6AC7A6" /></Style>
-    <Style Selector="ComboBox"><Setter Property="Foreground" Value="#1F2937" /><Setter Property="Background" Value="#FFFFFF" /><Setter Property="BorderBrush" Value="#B8C5D6" /></Style>
-    <Style Selector="ComboBoxItem"><Setter Property="Foreground" Value="#1F2937" /><Setter Property="Background" Value="#FFFFFF" /></Style>
-    <Style Selector="ComboBoxItem:pointerover"><Setter Property="Background" Value="#EAF3FC" /></Style>
-    <Style Selector="TabItem"><Setter Property="Foreground" Value="#334155" /></Style>
+    <Style Selector="Border.cpu"><Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" /></Style>
+    <Style Selector="Border.memory"><Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" /></Style>
+    <Style Selector="Border.network"><Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" /></Style>
+    <Style Selector="ComboBox"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" /></Style>
+    <Style Selector="ComboBoxItem"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /><Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /></Style>
+    <Style Selector="ComboBoxItem:pointerover"><Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /></Style>
+    <Style Selector="TabItem"><Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" /></Style>
   </UserControl.Styles>
 
   <DockPanel LastChildFill="True">
@@ -49,10 +49,10 @@
             </Grid>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
-              <Border Classes="card"><StackPanel Spacing="8"><TextBlock Text="CPU 利用率" FontWeight="SemiBold" /><TextBlock Text="最近采样" Classes="muted" /><charts:HistoryChart Values="{Binding CpuHistory}" LineColor="#55B6FF" /></StackPanel></Border>
-              <Border Grid.Column="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="内存利用率" FontWeight="SemiBold" /><TextBlock Text="最近采样" Classes="muted" /><charts:HistoryChart Values="{Binding MemoryHistory}" LineColor="#B98CFF" /></StackPanel></Border>
-              <Border Grid.Row="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="网络吞吐量" FontWeight="SemiBold" /><TextBlock Text="刻度上限：1 MB/s" Classes="muted" /><charts:HistoryChart Values="{Binding NetworkHistory}" LineColor="#40D6A1" Maximum="1048576" /></StackPanel></Border>
-              <Border Grid.Row="1" Grid.Column="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="CPU 核心" FontWeight="SemiBold" /><ItemsControl ItemsSource="{Binding CpuCores}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Background="#F1F5F9" CornerRadius="4" Padding="8,5" Margin="0,0,6,6"><StackPanel><TextBlock Text="{Binding Name}" Classes="muted" FontSize="11" /><TextBlock Text="{Binding Value}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
+              <Border Classes="card"><StackPanel Spacing="8"><TextBlock Text="CPU 利用率" FontWeight="SemiBold" /><TextBlock Text="最近采样" Classes="muted" /><charts:HistoryChart Values="{Binding CpuHistory}" LineColor="{DynamicResource AccentColor}" /></StackPanel></Border>
+              <Border Grid.Column="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="内存利用率" FontWeight="SemiBold" /><TextBlock Text="最近采样" Classes="muted" /><charts:HistoryChart Values="{Binding MemoryHistory}" LineColor="{DynamicResource AccentColor}" /></StackPanel></Border>
+              <Border Grid.Row="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="网络吞吐量" FontWeight="SemiBold" /><TextBlock Text="刻度上限：1 MB/s" Classes="muted" /><charts:HistoryChart Values="{Binding NetworkHistory}" LineColor="{DynamicResource AccentColor}" Maximum="1048576" /></StackPanel></Border>
+              <Border Grid.Row="1" Grid.Column="1" Classes="card"><StackPanel Spacing="8"><TextBlock Text="CPU 核心" FontWeight="SemiBold" /><ItemsControl ItemsSource="{Binding CpuCores}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="8,5" Margin="0,0,6,6"><StackPanel><TextBlock Text="{Binding Name}" Classes="muted" FontSize="11" /><TextBlock Text="{Binding Value}" /></StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Border>
             </Grid>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="12">

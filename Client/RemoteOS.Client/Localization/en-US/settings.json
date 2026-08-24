@@ -134,6 +134,11 @@
         "settings.apps.clear_data.complete_local": "Local application data was cleared.",
         "settings.apps.clear_data.complete_permissions": "Application data and selected permission decisions were cleared.",
         "settings.apps.clear_data.complete_server": "Application data and the selected optional data were cleared.",
-        "settings.apps.clear_data.failed": "Could not clear application data: {0}"
+        "settings.apps.clear_data.failed": "Could not clear application data: {0}",
+        "settings.palette": "Colour palette",
+        "settings.palette.description": "This palette is shared by the desktop and every built-in application.",
+        "settings.accent": "Accent colour",
+        "settings.accent.placeholder": "#0078D4 (optional)",
+        "settings.accent.hint": "Use #RRGGBB or #AARRGGBB. Leave it blank to use the selected palette."
     }
 }

@@ -4,35 +4,36 @@
              xmlns:certificates="clr-namespace:Client.Apps.Certificates"
              x:Class="Client.Apps.Certificates.Views.CertificateManagerWorkspace"
              x:DataType="certificates:CertificateManagerViewModel"
-             Background="#F4F7FB">
+             Background="{DynamicResource AppBackgroundBrush}">
+    <UserControl.Styles><Style Selector="Button.nav-selected"><Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" /><Setter Property="Foreground" Value="{DynamicResource SelectionForegroundBrush}" /></Style></UserControl.Styles>
     <Grid RowDefinitions="Auto,Auto,*">
-        <Border Grid.Row="0" Background="#122344" Padding="28,18">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="28,18">
             <Grid ColumnDefinitions="Auto,*">
-                <Border Width="46" Height="46" Background="#147CB8" CornerRadius="14">
+                <Border Width="46" Height="46" Background="{DynamicResource AccentBrush}" CornerRadius="14">
                     <TextBlock Text="🔐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc application.remoteos.certificates.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="{loc:Loc certificates.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                    <TextBlock Text="{loc:Loc application.remoteos.certificates.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <TextBlock Text="{loc:Loc certificates.subtitle}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}"
-                Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12" Margin="18,12,18,0">
+                Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="18,12,18,0">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
+                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}"
                         IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
             </Grid>
         </Border>
 
         <Grid Grid.Row="2" ColumnDefinitions="190,*">
-            <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
-                    <TextBlock Text="{loc:Loc certificates.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="OverviewButton" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc certificates.overview}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="certificates" Click="NavigationButton_Click" Content="{loc:Loc certificates.list}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc certificates.workspace}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="OverviewButton" Tag="overview" Click="NavigationButton_Click" Content="{loc:Loc certificates.overview}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="certificates" Click="NavigationButton_Click" Content="{loc:Loc certificates.list}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
             </Border>
             <ContentControl x:Name="ContentHost" Grid.Column="1" Margin="30,24" HorizontalAlignment="Stretch" />

@@ -4,12 +4,12 @@
              xmlns:views="clr-namespace:Client.Apps.WebServers.Views"
              x:Class="Client.Apps.WebServers.Views.ExistingNginxInstallationDialogView"
              x:DataType="views:ExistingNginxInstallationDialogViewModel"
-             Background="#FFFFFF"
+             Background="{DynamicResource SurfaceBrush}"
              Width="530">
     <Grid Margin="20" RowDefinitions="Auto,Auto" RowSpacing="18">
         <StackPanel Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="⚠" FontSize="28" Foreground="#C77A00" VerticalAlignment="Top" />
-            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="#23324D" MaxWidth="430" />
+            <TextBlock Text="⚠" FontSize="28" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" />
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" MaxWidth="430" />
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.cancel}" Command="{Binding CancelCommand}" Padding="16,6" />

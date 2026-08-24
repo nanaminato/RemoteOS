@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Client.Services.Theming;
 
 namespace Client.Apps.Git.Views;
 
@@ -78,14 +79,14 @@ internal partial class GitClientWorkspace : UserControl
         if (_selectedButton is not null && _selectedButton.Tag is string)
         {
             _selectedButton.Background = Brushes.Transparent;
-            _selectedButton.Foreground = Brush.Parse("#36506F");
+            _selectedButton.Foreground = ThemeBrushes.Get("TextSecondaryBrush");
         }
 
         var target = navButtons.FirstOrDefault(b => string.Equals((string)b.Tag!, section, StringComparison.Ordinal));
         if (target is not null)
         {
-            target.Background = Brush.Parse("#DCE6F4");
-            target.Foreground = Brush.Parse("#122344");
+            target.Background = ThemeBrushes.Get("SelectionBackgroundBrush");
+            target.Foreground = ThemeBrushes.Get("SelectionForegroundBrush");
             _selectedButton = target;
         }
         else
@@ -99,13 +100,13 @@ internal partial class GitClientWorkspace : UserControl
         if (_selectedButton is not null && _selectedButton != sourceButton)
         {
             _selectedButton.Background = Brushes.Transparent;
-            _selectedButton.Foreground = Brush.Parse("#36506F");
+            _selectedButton.Foreground = ThemeBrushes.Get("TextSecondaryBrush");
         }
 
         if (sourceButton is not null)
         {
-            sourceButton.Background = Brush.Parse("#DCE6F4");
-            sourceButton.Foreground = Brush.Parse("#122344");
+            sourceButton.Background = ThemeBrushes.Get("SelectionBackgroundBrush");
+            sourceButton.Foreground = ThemeBrushes.Get("SelectionForegroundBrush");
             _selectedButton = sourceButton;
         }
 

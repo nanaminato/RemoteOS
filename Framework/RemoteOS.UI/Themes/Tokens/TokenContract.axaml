@@ -1,0 +1,49 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- The public, semantic colour contract. Product views must only consume these keys. -->
+  <Color x:Key="AppBackgroundColor">#F3F3F3</Color><SolidColorBrush x:Key="AppBackgroundBrush" Color="{DynamicResource AppBackgroundColor}" />
+  <Color x:Key="ShellBackgroundColor">#F7F7F7</Color><SolidColorBrush x:Key="ShellBackgroundBrush" Color="{DynamicResource ShellBackgroundColor}" />
+  <Color x:Key="SurfaceColor">#FFFFFF</Color><SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}" />
+  <Color x:Key="SurfaceRaisedColor">#FFFFFF</Color><SolidColorBrush x:Key="SurfaceRaisedBrush" Color="{DynamicResource SurfaceRaisedColor}" />
+  <Color x:Key="SurfaceSunkenColor">#EEF3FA</Color><SolidColorBrush x:Key="SurfaceSunkenBrush" Color="{DynamicResource SurfaceSunkenColor}" />
+  <Color x:Key="SurfaceHoverColor">#F0F0F0</Color><SolidColorBrush x:Key="SurfaceHoverBrush" Color="{DynamicResource SurfaceHoverColor}" />
+  <Color x:Key="SurfacePressedColor">#E5E5E5</Color><SolidColorBrush x:Key="SurfacePressedBrush" Color="{DynamicResource SurfacePressedColor}" />
+  <Color x:Key="TextPrimaryColor">#1F1F1F</Color><SolidColorBrush x:Key="TextPrimaryBrush" Color="{DynamicResource TextPrimaryColor}" />
+  <Color x:Key="TextSecondaryColor">#616161</Color><SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondaryColor}" />
+  <Color x:Key="TextTertiaryColor">#72819A</Color><SolidColorBrush x:Key="TextTertiaryBrush" Color="{DynamicResource TextTertiaryColor}" />
+  <Color x:Key="TextDisabledColor">#A0A0A0</Color><SolidColorBrush x:Key="TextDisabledBrush" Color="{DynamicResource TextDisabledColor}" />
+  <Color x:Key="TextOnAccentColor">#FFFFFF</Color><SolidColorBrush x:Key="TextOnAccentBrush" Color="{DynamicResource TextOnAccentColor}" />
+  <Color x:Key="TextOnDangerColor">#FFFFFF</Color><SolidColorBrush x:Key="TextOnDangerBrush" Color="{DynamicResource TextOnDangerColor}" />
+  <Color x:Key="BorderSubtleColor">#E5EAF2</Color><SolidColorBrush x:Key="BorderSubtleBrush" Color="{DynamicResource BorderSubtleColor}" />
+  <Color x:Key="BorderDefaultColor">#D6DCE5</Color><SolidColorBrush x:Key="BorderDefaultBrush" Color="{DynamicResource BorderDefaultColor}" />
+  <Color x:Key="BorderStrongColor">#8AB9E5</Color><SolidColorBrush x:Key="BorderStrongBrush" Color="{DynamicResource BorderStrongColor}" />
+  <Color x:Key="FocusBorderColor">#0078D4</Color><SolidColorBrush x:Key="FocusBorderBrush" Color="{DynamicResource FocusBorderColor}" />
+  <Color x:Key="FocusRingColor">#0078D4</Color><SolidColorBrush x:Key="FocusRingBrush" Color="{DynamicResource FocusRingColor}" />
+  <Color x:Key="AccentColor">#0078D4</Color><SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
+  <Color x:Key="AccentHoverColor">#1A86D9</Color><SolidColorBrush x:Key="AccentHoverBrush" Color="{DynamicResource AccentHoverColor}" />
+  <Color x:Key="AccentPressedColor">#005A9E</Color><SolidColorBrush x:Key="AccentPressedBrush" Color="{DynamicResource AccentPressedColor}" />
+  <Color x:Key="AccentMutedColor">#E6F0FA</Color><SolidColorBrush x:Key="AccentMutedBrush" Color="{DynamicResource AccentMutedColor}" />
+  <Color x:Key="SelectionBackgroundColor">#E6F0FA</Color><SolidColorBrush x:Key="SelectionBackgroundBrush" Color="{DynamicResource SelectionBackgroundColor}" />
+  <Color x:Key="SelectionForegroundColor">#1F1F1F</Color><SolidColorBrush x:Key="SelectionForegroundBrush" Color="{DynamicResource SelectionForegroundColor}" />
+  <Color x:Key="SuccessColor">#107C10</Color><SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}" />
+  <Color x:Key="SuccessMutedColor">#DFF6DD</Color><SolidColorBrush x:Key="SuccessMutedBrush" Color="{DynamicResource SuccessMutedColor}" />
+  <Color x:Key="WarningColor">#C77A00</Color><SolidColorBrush x:Key="WarningBrush" Color="{DynamicResource WarningColor}" />
+  <Color x:Key="WarningMutedColor">#FFF4CE</Color><SolidColorBrush x:Key="WarningMutedBrush" Color="{DynamicResource WarningMutedColor}" />
+  <Color x:Key="DangerColor">#C42B1C</Color><SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}" />
+  <Color x:Key="DangerHoverColor">#B3271D</Color><SolidColorBrush x:Key="DangerHoverBrush" Color="{DynamicResource DangerHoverColor}" />
+  <Color x:Key="DangerPressedColor">#8F2117</Color><SolidColorBrush x:Key="DangerPressedBrush" Color="{DynamicResource DangerPressedColor}" />
+  <Color x:Key="InfoColor">#2369A7</Color><SolidColorBrush x:Key="InfoBrush" Color="{DynamicResource InfoColor}" />
+  <Color x:Key="TaskbarBackgroundColor">#F7F7F7</Color><SolidColorBrush x:Key="TaskbarBackgroundBrush" Color="{DynamicResource TaskbarBackgroundColor}" />
+  <Color x:Key="TaskbarForegroundColor">#1F1F1F</Color><SolidColorBrush x:Key="TaskbarForegroundBrush" Color="{DynamicResource TaskbarForegroundColor}" />
+  <Color x:Key="StartMenuBackgroundColor">#FFFFFF</Color><SolidColorBrush x:Key="StartMenuBackgroundBrush" Color="{DynamicResource StartMenuBackgroundColor}" />
+  <Color x:Key="WindowFrameBackgroundColor">#FFFFFF</Color><SolidColorBrush x:Key="WindowFrameBackgroundBrush" Color="{DynamicResource WindowFrameBackgroundColor}" />
+  <Color x:Key="WindowTitleBarBackgroundColor">#F5F5F5</Color><SolidColorBrush x:Key="WindowTitleBarBackgroundBrush" Color="{DynamicResource WindowTitleBarBackgroundColor}" />
+  <Color x:Key="WindowTitleForegroundColor">#202020</Color><SolidColorBrush x:Key="WindowTitleForegroundBrush" Color="{DynamicResource WindowTitleForegroundColor}" />
+  <Color x:Key="WindowInactiveTitleForegroundColor">#4F4F4F</Color><SolidColorBrush x:Key="WindowInactiveTitleForegroundBrush" Color="{DynamicResource WindowInactiveTitleForegroundColor}" />
+  <Color x:Key="OverlayScrimColor">#66000000</Color><SolidColorBrush x:Key="OverlayScrimBrush" Color="{DynamicResource OverlayScrimColor}" />
+  <Color x:Key="ShadowColor">#22000000</Color><SolidColorBrush x:Key="ShadowBrush" Color="{DynamicResource ShadowColor}" />
+  <Color x:Key="DesktopIconHoverColor">#220078D4</Color><SolidColorBrush x:Key="DesktopIconHoverBrush" Color="{DynamicResource DesktopIconHoverColor}" />
+  <Color x:Key="DesktopIconSelectedColor">#330078D4</Color><SolidColorBrush x:Key="DesktopIconSelectedBrush" Color="{DynamicResource DesktopIconSelectedColor}" />
+  <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius><CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius><CornerRadius x:Key="WindowCornerRadius">8</CornerRadius>
+  <x:Double x:Key="ControlHeight">32</x:Double><Thickness x:Key="ControlPadding">14,6</Thickness><FontFamily x:Key="ContentFont">Segoe UI, Inter, Noto Sans</FontFamily><x:Double x:Key="ContentFontSize">13</x:Double>
+</ResourceDictionary>

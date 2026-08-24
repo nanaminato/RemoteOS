@@ -9,7 +9,7 @@
              x:Class="Client.Views.Shell.DesktopShellView"
              x:DataType="vm:DesktopShellViewModel"
              Background="{Binding Settings.CurrentWallpaper}"
-             FontFamily="{StaticResource ContentFont}">
+             FontFamily="{DynamicResource ContentFont}">
 
     <UserControl.Styles>
         <Style Selector="Button.desktop-icon">
@@ -21,14 +21,14 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.desktop-icon:pointerover">
-            <Setter Property="Background" Value="#220078D4" />
+            <Setter Property="Background" Value="{DynamicResource DesktopIconHoverBrush}" />
         </Style>
         <Style Selector="Button.desktop-icon:pressed">
-            <Setter Property="Background" Value="#330078D4" />
+            <Setter Property="Background" Value="{DynamicResource DesktopIconSelectedBrush}" />
         </Style>
         <Style Selector="Button.desktop-icon.desktop-selected">
-            <Setter Property="Background" Value="#330078D4" />
-            <Setter Property="BorderBrush" Value="#660078D4" />
+            <Setter Property="Background" Value="{DynamicResource DesktopIconSelectedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
@@ -43,10 +43,10 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.start-button:pointerover">
-            <Setter Property="Background" Value="#220078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
         <Style Selector="Button.start-button:pressed">
-            <Setter Property="Background" Value="#330078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
         </Style>
 
         <Style Selector="Button.taskbar-item">
@@ -60,18 +60,18 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.taskbar-item:pointerover">
-            <Setter Property="Background" Value="#220078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
         <Style Selector="Button.taskbar-item:pressed">
-            <Setter Property="Background" Value="#330078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
         </Style>
 
         <Style Selector="Border.taskbar-preview">
-            <Setter Property="Background" Value="#FAFAFA" />
-            <Setter Property="BorderBrush" Value="#D6D6D6" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 12 28 0 #44000000" />
+            <Setter Property="BoxShadow" Value="0 12 28 0 {DynamicResource ShadowColor}" />
         </Style>
         <Style Selector="Button.window-preview">
             <Setter Property="Background" Value="Transparent" />
@@ -81,7 +81,7 @@
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
         </Style>
         <Style Selector="Button.window-preview:pointerover /template/ Border">
-            <Setter Property="Background" Value="#220078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
         <Style Selector="Button.window-preview-close">
             <Setter Property="Background" Value="Transparent" />
@@ -92,7 +92,7 @@
             <Setter Property="CornerRadius" Value="4" />
         </Style>
         <Style Selector="Button.window-preview-close:pointerover">
-            <Setter Property="Background" Value="#22D13438" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
 
         <Style Selector="Button.start-item">
@@ -103,18 +103,18 @@
             <Setter Property="MinHeight" Value="44" />
         </Style>
         <Style Selector="Button.start-item:pointerover">
-            <Setter Property="Background" Value="#220078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
         </Style>
         <Style Selector="Button.start-item:pressed">
-            <Setter Property="Background" Value="#330078D4" />
+            <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
         </Style>
 
         <Style Selector="Border.start-menu">
-            <Setter Property="Background" Value="#FAFAFA" />
-            <Setter Property="BorderBrush" Value="#D6D6D6" />
+            <Setter Property="Background" Value="{DynamicResource StartMenuBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="BoxShadow" Value="0 16 36 0 #44000000" />
+            <Setter Property="BoxShadow" Value="0 16 36 0 {DynamicResource ShadowColor}" />
             <Setter Property="ClipToBounds" Value="True" />
         </Style>
         <Style Selector="ContextMenu.shell-context-menu">
@@ -184,7 +184,7 @@
                                 </ContextMenu>
                             </Button.ContextMenu>
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
-                                <Border Width="48" Height="48" CornerRadius="8" Background="#220078D4"
+                                <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
                                         HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -218,7 +218,7 @@
                                 </ContextMenu>
                             </Button.ContextMenu>
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
-                                <Border Width="48" Height="48" CornerRadius="8" Background="#220078D4"
+                                <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
                                         HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding IconGlyph}" FontSize="26"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -242,8 +242,8 @@
                 PointerPressed="StartBackdrop_OnPointerPressed" />
 
         <!-- Taskbar -->
-        <Border Grid.Row="1" Height="48" Background="{Binding Settings.TaskbarBackground}"
-                BorderBrush="#D6D6D6" BorderThickness="0,1,0,0">
+        <Border Grid.Row="1" Height="48" Background="{DynamicResource TaskbarBackgroundBrush}"
+                BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0">
             <Border.ContextMenu>
                 <ContextMenu Classes="shell-context-menu"
                              DataContext="{Binding DataContext, ElementName=Root}">
@@ -283,12 +283,12 @@
                                 <Grid RowDefinitions="*,4">
                                     <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="18"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               Foreground="{Binding DataContext.Settings.TaskbarForeground, ElementName=Root}" />
+                                               Foreground="{DynamicResource TaskbarForegroundBrush}" />
                                     <Border Grid.Row="0" Width="16" Height="16" CornerRadius="8"
                                             Background="{DynamicResource AccentBrush}"
                                             HorizontalAlignment="Right" VerticalAlignment="Top"
                                             Margin="0,4,4,0" IsVisible="{Binding HasMultipleWindows}">
-                                        <TextBlock Text="{Binding WindowCount}" FontSize="10" Foreground="White"
+                                        <TextBlock Text="{Binding WindowCount}" FontSize="10" Foreground="{DynamicResource TextOnAccentBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                     <Border Grid.Row="1" Height="2" CornerRadius="1" Width="16"
@@ -305,9 +305,9 @@
                             Margin="0,0,12,0" Spacing="10">
                     <StackPanel Orientation="Vertical" HorizontalAlignment="Right">
                         <TextBlock Text="{Binding Clock}" FontSize="13" HorizontalAlignment="Right"
-                                   Foreground="{Binding Settings.TaskbarForeground}" />
+                                   Foreground="{DynamicResource TaskbarForegroundBrush}" />
                         <TextBlock Text="{Binding DateText}" FontSize="11" HorizontalAlignment="Right" Opacity="0.7"
-                                   Foreground="{Binding Settings.TaskbarForeground}" />
+                                   Foreground="{DynamicResource TaskbarForegroundBrush}" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
@@ -333,7 +333,7 @@
                             <Button Classes="window-preview" Grid.Column="0"
                                     Command="{Binding DataContext.ActivateTaskbarWindowCommand, ElementName=Root}"
                                     CommandParameter="{Binding}">
-                                <Border Background="#FFF3F3F3" CornerRadius="6" Padding="10">
+                                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="10">
                                     <Grid RowDefinitions="*,Auto">
                                         <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="34"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -386,13 +386,13 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
-                <Border Grid.Row="2" BorderBrush="#D6D6D6" BorderThickness="0,1,0,0" Padding="10,8">
+                <Border Grid.Row="2" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="10,8">
                     <Button Classes="start-item" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                             Command="{Binding ShutdownCommand}">
                         <Grid ColumnDefinitions="40,*">
                             <Path Grid.Column="0"
                                   Data="M 12,2 L 12,12 M 6.34,4.34 A 8,8 0 1 0 17.66,4.34"
-                                  Stroke="#4B5563" StrokeThickness="2" StrokeLineCap="Round"
+                                  Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="2" StrokeLineCap="Round"
                                   Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="{loc:Loc shell.shutdown}" Margin="10,0,0,0" VerticalAlignment="Center" />
                         </Grid>

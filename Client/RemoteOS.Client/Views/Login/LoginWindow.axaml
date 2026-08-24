@@ -9,6 +9,6 @@
         CanResize="True"
         ShowInTaskbar="True"
         Background="{StaticResource BackgroundBrush}"
-        FontFamily="{StaticResource ContentFont}">
+        FontFamily="{DynamicResource ContentFont}">
     <login:LoginView />
 </Window>

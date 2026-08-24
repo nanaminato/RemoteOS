@@ -6,7 +6,7 @@
              x:DataType="docker:DockerManagerViewModel">
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
         <Grid RowDefinitions="Auto,Auto" RowSpacing="4" VerticalAlignment="Top">
-            <TextBlock Text="{loc:Loc docker.image.reference}" Foreground="#36506F" />
+            <TextBlock Text="{loc:Loc docker.image.reference}" Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBox Grid.Row="1" Text="{Binding ImageReference, Mode=TwoWay}" PlaceholderText="nginx:latest" />
         </Grid>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

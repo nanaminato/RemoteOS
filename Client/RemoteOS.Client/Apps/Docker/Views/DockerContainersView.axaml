@@ -4,15 +4,15 @@
              xmlns:docker="clr-namespace:Client.Apps.Docker"
              x:Class="Client.Apps.Docker.Views.DockerContainersView"
              x:DataType="docker:DockerManagerViewModel">
-    <Border Background="White" CornerRadius="14" Padding="20">
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
         <StackPanel Spacing="12">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Text="{loc:Loc docker.containers}" FontSize="19" FontWeight="SemiBold" Foreground="#163059" />
+                <TextBlock Text="{loc:Loc docker.containers}" FontSize="19" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <Button Grid.Column="1" Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
             </Grid>
-            <TextBlock Text="{loc:Loc docker.containers_hint}" Foreground="#61708B" TextWrapping="Wrap" />
+            <TextBlock Text="{loc:Loc docker.containers_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
             <Button Classes="primary" Content="{loc:Loc docker.container.create}" Click="CreateContainer_Click" HorizontalAlignment="Left" />
-            <Border Height="1" Background="#E5EAF2" Margin="0,2" />
+            <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,2" />
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <DataGrid HorizontalAlignment="Left" ItemsSource="{Binding Containers}" SelectedItem="{Binding SelectedContainer, Mode=TwoWay}" DoubleTapped="ContainersGrid_DoubleTapped" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" CanUserReorderColumns="False" GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Disabled" MinWidth="900" Height="230">
                     <DataGrid.Columns>
@@ -33,7 +33,7 @@
                 <Button Content="{loc:Loc docker.container.logs}" Command="{Binding LoadContainerLogsCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.stats}" Command="{Binding LoadContainerStatsCommand}" Margin="0,0,8,8" />
                 <CheckBox Content="{loc:Loc docker.container.delete_confirm}" IsChecked="{Binding ConfirmContainerDeletion, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,8,8" />
-                <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteContainerCommand}" Foreground="#B42318" Margin="0,0,8,8" />
+                <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteContainerCommand}" Foreground="{DynamicResource DangerBrush}" Margin="0,0,8,8" />
             </WrapPanel>
             <TextBox Text="{Binding ContainerStats}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="32" MaxHeight="32" />
             <TextBox Text="{Binding ContainerLogs}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140" MaxHeight="140" />

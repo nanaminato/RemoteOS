@@ -9,11 +9,11 @@
              MinHeight="0">
     <Grid MaxWidth="1440" HorizontalAlignment="Stretch" Margin="32,28,32,32"
           RowDefinitions="Auto,*" RowSpacing="16" MinWidth="0" MinHeight="0" ClipToBounds="True">
-        <Border Grid.Row="0" Background="White" CornerRadius="14" Padding="20">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
             <StackPanel Spacing="14">
                 <StackPanel Spacing="3">
-                    <TextBlock Text="{loc:Loc webservers.sites}" FontSize="16" FontWeight="SemiBold" Foreground="#163059" />
-                    <TextBlock Text="{loc:Loc webservers.sites.subtitle}" FontSize="12" Foreground="#61708B" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc webservers.sites}" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{loc:Loc webservers.sites.subtitle}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                 </StackPanel>
                 <WrapPanel ItemHeight="34">
                     <Button Classes="primary" Content="{loc:Loc webservers.site.new}" Command="{Binding NewSiteCommand}" />
@@ -22,12 +22,12 @@
                     <Button Content="{loc:Loc webservers.site.reload}" Command="{Binding ReloadCommand}" Margin="8,0,0,0"
                             ToolTip.Tip="{loc:Loc webservers.site.reload_tooltip}" />
                 </WrapPanel>
-                <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="#61708B" />
+                <TextBlock Text="{Binding SiteStatusText}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
             </StackPanel>
         </Border>
-        <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="20" MinWidth="0" MinHeight="0">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20" MinWidth="0" MinHeight="0">
             <Grid RowDefinitions="Auto,*" RowSpacing="12" MinWidth="0" MinHeight="0">
-                <TextBlock Text="{loc:Loc webservers.sites.deployed}" FontWeight="SemiBold" Foreground="#163059" />
+                <TextBlock Text="{loc:Loc webservers.sites.deployed}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <DataGrid Grid.Row="1" ItemsSource="{Binding Sites}" SelectedItem="{Binding SelectedSite, Mode=TwoWay}"
                           AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" CanUserReorderColumns="False"
                           GridLinesVisibility="Horizontal" SelectionMode="Single" HorizontalScrollBarVisibility="Auto"

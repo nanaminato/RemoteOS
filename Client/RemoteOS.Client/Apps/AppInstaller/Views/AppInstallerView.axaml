@@ -4,7 +4,7 @@
              xmlns:vm="clr-namespace:Client.Apps.AppInstaller.ViewModels"
              x:Class="Client.Apps.AppInstaller.Views.AppInstallerView"
              x:DataType="vm:AppInstallerViewModel"
-             Background="#F3F3F3">
+             Background="{DynamicResource SurfaceBrush}">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="24" Spacing="16" MaxWidth="620">
             <StackPanel Spacing="4">
@@ -34,7 +34,7 @@
                         <Run Text="{Binding CurrentPackage.SourceName}" />
                     </TextBlock>
 
-                    <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{loc:Loc app_installer.requested_permissions}" FontWeight="SemiBold" />
                             <ItemsControl ItemsSource="{Binding RequestedPermissions}">

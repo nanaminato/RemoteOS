@@ -6,6 +6,7 @@ using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Client.Localization;
+using Client.Services.Theming;
 using RemoteOS.Protocol.Git;
 
 namespace Client.Apps.Git.Views;
@@ -373,14 +374,14 @@ public sealed class FileStatusBgConverter : IValueConverter
         var s = (value as string) ?? string.Empty;
         return s.ToLowerInvariant() switch
         {
-            "added" => Brush.Parse("#1A7F37"),
-            "modified" => Brush.Parse("#1F6FEB"),
-            "deleted" => Brush.Parse("#CF222E"),
-            "renamed" => Brush.Parse("#8250DF"),
-            "copied" => Brush.Parse("#8250DF"),
-            "untracked" => Brush.Parse("#6E7781"),
-            "conflicted" => Brush.Parse("#D1242B"),
-            _ => Brush.Parse("#6E7781"),
+            "added" => ThemeBrushes.Get("SuccessBrush"),
+            "modified" => ThemeBrushes.Get("InfoBrush"),
+            "deleted" => ThemeBrushes.Get("DangerBrush"),
+            "renamed" => ThemeBrushes.Get("AccentBrush"),
+            "copied" => ThemeBrushes.Get("AccentBrush"),
+            "untracked" => ThemeBrushes.Get("TextTertiaryBrush"),
+            "conflicted" => ThemeBrushes.Get("DangerBrush"),
+            _ => ThemeBrushes.Get("TextTertiaryBrush"),
         };
     }
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

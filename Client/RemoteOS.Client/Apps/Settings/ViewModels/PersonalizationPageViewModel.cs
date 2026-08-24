@@ -1,6 +1,7 @@
 using Client.Services;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Desktop;
+using RemoteOS.Protocol.Workspace;
 
 namespace Client.Apps.Settings.ViewModels;
 
@@ -18,6 +19,11 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
                 OnPropertyChanged(nameof(IsLightTheme));
                 OnPropertyChanged(nameof(IsDarkTheme));
                 OnPropertyChanged(nameof(IsSystemTheme));
+            }
+            else if (e.PropertyName == nameof(ShellSettings.ThemePreferences))
+            {
+                OnPropertyChanged(nameof(PaletteId));
+                OnPropertyChanged(nameof(AccentOverride));
             }
         };
     }
@@ -47,6 +53,49 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
     public bool IsDarkTheme { get => Theme == ThemeKind.Dark; set { if (value) Theme = ThemeKind.Dark; } }
     public bool IsSystemTheme { get => Theme == ThemeKind.System; set { if (value) Theme = ThemeKind.System; } }
 
+    /// <summary>Built-ins deliberately share the same semantic token contract in every RemoteOS app.</summary>
+    public IReadOnlyList<ThemePaletteChoice> PaletteChoices { get; } =
+    [
+        new("builtin:remoteos-blue", "RemoteOS Blue"),
+        new("builtin:nord", "Nord"),
+        new("builtin:catppuccin", "Catppuccin"),
+    ];
+
+    public string PaletteId
+    {
+        get => Settings.ThemePreferences.PaletteId;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == Settings.ThemePreferences.PaletteId) return;
+            UpdateThemePreferences(value, Settings.ThemePreferences.AccentOverride);
+        }
+    }
+
+    public string? AccentOverride
+    {
+        get => Settings.ThemePreferences.AccentOverride;
+        set
+        {
+            var color = string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+            if (color is not null && (color.Length is not (7 or 9) || color[0] != '#' || !color[1..].All(Uri.IsHexDigit))) return;
+            if (color == Settings.ThemePreferences.AccentOverride) return;
+            UpdateThemePreferences(Settings.ThemePreferences.PaletteId, color);
+        }
+    }
+
+    private void UpdateThemePreferences(string paletteId, string? accent)
+    {
+        var current = Settings.ThemePreferences;
+        Settings.ThemePreferences = new ThemePreferencesDto
+        {
+            StyleId = "remoteos", PaletteId = paletteId, AccentOverride = accent,
+            CustomPalettes = current.CustomPalettes ?? [],
+        };
+        OnPropertyChanged(nameof(PaletteId));
+        OnPropertyChanged(nameof(AccentOverride));
+        Save();
+    }
+
     [RelayCommand]
     private async Task ChooseImageAsync()
     {
@@ -54,3 +103,5 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
             await RequestCustomWallpaperAsync();
     }
 }
+
+public sealed record ThemePaletteChoice(string Id, string Name);

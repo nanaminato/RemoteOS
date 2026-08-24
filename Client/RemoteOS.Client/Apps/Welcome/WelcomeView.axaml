@@ -5,7 +5,7 @@
              xmlns:welcome="clr-namespace:Client.Apps.Welcome"
              x:Class="Client.Apps.Welcome.WelcomeView"
              x:DataType="welcome:WelcomeViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <Grid RowDefinitions="Auto,*,Auto" Margin="28">
         <StackPanel Grid.Row="0" Spacing="6">
             <TextBlock Text="{loc:Loc welcome.title}" FontSize="28" FontWeight="Bold" />

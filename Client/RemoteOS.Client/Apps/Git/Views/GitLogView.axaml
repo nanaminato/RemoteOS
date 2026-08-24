@@ -7,23 +7,23 @@
              x:Name="LogViewRoot"
              x:DataType="git:GitClientViewModel"
              x:CompileBindings="False"
-             Background="#F4F7FB">
+             Background="{DynamicResource AppBackgroundBrush}">
     <Grid x:Name="LogLayoutRoot" ColumnDefinitions="220,5,*,5,360" MinHeight="380"
           SizeChanged="LogLayoutRoot_SizeChanged">
 
         <!-- ============================================================
              LEFT PANE : Branch / Tag Tree (Fork-style)
              ============================================================ -->
-        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="8"
-                BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="8"
+                BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <Grid RowDefinitions="Auto,Auto,*">
                 <!-- 搜索框 -->
-                <Border Grid.Row="0" Background="#EEF3FA" CornerRadius="6" Padding="8,4" Margin="0,0,0,6">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="6" Padding="8,4" Margin="0,0,0,6">
                     <Grid ColumnDefinitions="Auto,*">
-                        <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="🔍" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.branch_search_watermark}" BorderThickness="0" Background="Transparent"
                                  Text="{Binding BranchSearchText, Mode=TwoWay}"
-                                 FontSize="12" Foreground="#122344" Padding="0"
+                                 FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" Padding="0"
                                  VerticalContentAlignment="Center" />
                     </Grid>
                 </Border>
@@ -50,7 +50,7 @@
                                 <TextBlock Text="{Binding DisplayName}" FontSize="12"
                                            Foreground="{Binding Foreground}"
                                            FontWeight="{Binding FontWeight}" />
-                                <TextBlock Text="{Binding Badge}" FontSize="10" Foreground="#888"
+                                <TextBlock Text="{Binding Badge}" FontSize="10" Foreground="{DynamicResource TextPrimaryBrush}"
                                            IsVisible="{Binding HasBadge}" />
                             </StackPanel>
                         </TreeDataTemplate>
@@ -133,30 +133,30 @@
         <!-- ============================================================
              MIDDLE PANE : Commit list (history) with toolbar
              ============================================================ -->
-        <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="0"
-                BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="0"
+                BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <Grid RowDefinitions="Auto,*">
                 <!-- 顶部筛选工具栏 -->
-                <Border Grid.Row="0" Background="#EEF3FA" Padding="8,6" CornerRadius="8,8,0,0">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="8,6" CornerRadius="8,8,0,0">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                             <!-- 搜索框 -->
-                            <Border Background="White" CornerRadius="6" Padding="8,3" MinWidth="180">
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="8,3" MinWidth="180">
                                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                                    <TextBlock Text="🔍" Foreground="#8899B8" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="🔍" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <TextBox Grid.Column="1" Watermark="{loc:Loc git.log.commit_search_watermark}" BorderThickness="0" Background="Transparent"
                                              Text="{Binding CommitSearchText, Mode=TwoWay}"
-                                             FontSize="12" Foreground="#122344" Padding="0"
+                                             FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" Padding="0"
                                              VerticalContentAlignment="Center" />
                                     <ToggleButton Grid.Column="2" Content=".*" ToolTip.Tip="{loc:Loc git.log.regex}" FontSize="11" Padding="6,0"
                                                   IsChecked="{Binding IsLogRegex, Mode=TwoWay}"
-                                                  Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                                  Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                                     <ToggleButton Grid.Column="3" Content="Cc" ToolTip.Tip="{loc:Loc git.log.case_sensitive}" FontSize="11" Padding="4,0"
                                                   IsChecked="{Binding IsLogCaseSensitive, Mode=TwoWay}"
-                                                  Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                                  Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                                     <Button Grid.Column="4" Content="🔍" ToolTip.Tip="{loc:Loc git.log.search_history}"
                                             Command="{Binding ApplyLogFiltersCommand}" FontSize="11" Padding="4,0"
-                                            Background="Transparent" Foreground="#668" BorderThickness="0" />
+                                            Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                                 </Grid>
                             </Border>
                             <!-- These controls issue a server-side git log query. -->
@@ -172,7 +172,7 @@
                                       ItemsSource="{Binding LogDateOptions}" SelectedItem="{Binding SelectedLogDate, Mode=TwoWay}">
                                 <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
-                            <Border x:Name="LogPathFilter" Background="White" CornerRadius="6" Padding="6,2" Width="130">
+                            <Border x:Name="LogPathFilter" Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="6,2" Width="130">
                                 <TextBox Watermark="{loc:Loc git.log.filter_path}" BorderThickness="0" Background="Transparent"
                                          Text="{Binding LogPathFilter, Mode=TwoWay}" FontSize="12" Padding="0"
                                          VerticalContentAlignment="Center" />
@@ -180,14 +180,14 @@
                         </StackPanel>
                         <StackPanel x:Name="CommitToolbarActions" Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                             <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous}" FontSize="13" Padding="8,2" Background="Transparent"
-                                    Foreground="#567" BorderThickness="0" />
+                                    Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                             <Button Content="⟳" ToolTip.Tip="{loc:Loc git.refresh}" Command="{Binding RefreshCommand}"
                                     FontSize="13" Padding="8,2" Background="Transparent"
-                                    Foreground="#567" BorderThickness="0" />
+                                    Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                             <Button Content="👁" ToolTip.Tip="{loc:Loc git.log.view_options}" FontSize="13" Padding="8,2" Background="Transparent"
-                                    Foreground="#567" BorderThickness="0" />
+                                    Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                             <Button Content="🔍" ToolTip.Tip="{loc:Loc git.log.search_history}" FontSize="13" Padding="8,2" Background="Transparent"
-                                    Foreground="#567" BorderThickness="0" />
+                                    Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -204,13 +204,13 @@
                                   HorizontalAlignment="Stretch" ClipToBounds="True" Margin="2,1">
                                 <!-- 左侧：分支点图形 + HEAD/分支标记 -->
                                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                                    <Ellipse Width="10" Height="10" Fill="#4C6FFF"
-                                             Stroke="#2E4BCC" StrokeThickness="1"
+                                    <Ellipse Width="10" Height="10" Fill="{DynamicResource AccentBrush}"
+                                             Stroke="{DynamicResource BorderStrongBrush}" StrokeThickness="1"
                                              HorizontalAlignment="Center" />
                                 </Grid>
                                 <!-- 中：提交 subject -->
                                 <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="13" MinWidth="0"
-                                           Foreground="#122344" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" />
                                 <!-- 右：标签 + 作者 + 日期 -->
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
@@ -235,8 +235,8 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <TextBlock Text="{Binding Author}" FontSize="11" Foreground="#567" MaxWidth="100" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding AuthorDate}" FontSize="11" Foreground="#8899B8" MaxWidth="112" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Author}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" MaxWidth="100" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding AuthorDate}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" MaxWidth="112" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -255,7 +255,7 @@
                                               Command="{Binding $parent[UserControl].DataContext.CreatePatchFromCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🧵" />
                                     <Separator />
-                                    <MenuItem Header="{loc:Loc git.log.menu.cherry_pick}" IsEnabled="False" Foreground="#666">
+                                    <MenuItem Header="{loc:Loc git.log.menu.cherry_pick}" IsEnabled="False" Foreground="{DynamicResource TextPrimaryBrush}">
                                         <MenuItem Header="{loc:Loc git.log.menu.checkout_revision}"
                                                   Command="{Binding $parent[UserControl].DataContext.CheckoutCommitCommand}"
                                                   CommandParameter="{Binding}" Icon="👉" />
@@ -298,7 +298,7 @@
                                               Command="{Binding $parent[UserControl].DataContext.PushAllBeforeCommand}"
                                               CommandParameter="{Binding}" Icon="⬆" />
                                     <Separator />
-                                    <MenuItem Header="{loc:Loc git.log.menu.branch_origin_master}" IsEnabled="False" Foreground="#666" />
+                                    <MenuItem Header="{loc:Loc git.log.menu.branch_origin_master}" IsEnabled="False" Foreground="{DynamicResource TextPrimaryBrush}" />
                                     <MenuItem Header="{loc:Loc git.log.menu.new_branch}"
                                               Command="{Binding $parent[UserControl].DataContext.CreateBranchAtCommitCommand}"
                                               CommandParameter="{Binding}" Icon="🌿" />
@@ -318,24 +318,24 @@
         <!-- ============================================================
              RIGHT PANE : Changed files + Commit details
              ============================================================ -->
-        <Border Grid.Column="4" Background="White" CornerRadius="8" Padding="0"
-                BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Column="4" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="0"
+                BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <Grid RowDefinitions="Auto,*,5,*">
                 <!-- 文件树标题栏 -->
-                <Border Grid.Row="0" Background="#EEF3FA" Padding="10,6" CornerRadius="8,8,0,0">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="10,6" CornerRadius="8,8,0,0">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock FontSize="12" Foreground="#122344">
+                        <TextBlock FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}">
                             <Run Text="📁" />
                             <Run Text="  " />
                             <Run Text="{Binding CommitChangedFiles.Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.log.file_count_format'}" />
                         </TextBlock>
                         <StackPanel x:Name="FileToolbarActions" Grid.Column="1" Orientation="Horizontal" Spacing="2">
                             <Button Content="↶" ToolTip.Tip="{loc:Loc git.log.previous_file}" FontSize="12" Padding="6,1"
-                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                                    Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                             <Button Content="↷" ToolTip.Tip="{loc:Loc git.log.next_file}" FontSize="12" Padding="6,1"
-                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                                    Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                             <Button Content="👁" ToolTip.Tip="{loc:Loc git.log.view_options}" FontSize="12" Padding="6,1"
-                                    Background="Transparent" Foreground="#567" BorderThickness="0" />
+                                    Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}" BorderThickness="0" />
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -349,13 +349,13 @@
                         <TreeDataTemplate x:DataType="gitViews:CommitFileTreeNode" ItemsSource="{Binding Children}">
                             <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="24">
                                 <TextBlock Grid.Column="0" Text="{Binding Icon}" FontSize="12" Margin="0,0,6,0" />
-                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Foreground="#122344"
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                 <Border Grid.Column="2" IsVisible="{Binding IsFile}"
                                         Background="{Binding Status, Converter={x:Static gitViews:GitLogConverters.StatusBgConverter}}"
                                         CornerRadius="3" Padding="4,0" Margin="4,0,0,0">
                                     <TextBlock Text="{Binding Status, Converter={x:Static gitViews:GitLogConverters.StatusLabelConverter}}"
-                                               FontSize="10" Foreground="White" />
+                                               FontSize="10" Foreground="{DynamicResource TextOnAccentBrush}" />
                                 </Border>
                             </Grid>
                         </TreeDataTemplate>
@@ -421,7 +421,7 @@
                               HorizontalAlignment="Stretch"
                               ResizeDirection="Rows"
                               ResizeBehavior="PreviousAndNext"
-                              Background="#D4DFEC"/>
+                              Background="{DynamicResource SurfaceBrush}"/>
 
                 <!-- 选中提交详情 -->
                 <Border Grid.Row="3" Background="Transparent" Padding="12" CornerRadius="0,0,8,8"
@@ -430,28 +430,28 @@
                                   VerticalScrollBarVisibility="Auto">
                         <StackPanel Spacing="6" VerticalAlignment="Top">
                             <TextBlock Text="{Binding SelectedCommit.Subject}" FontSize="16"
-                                       FontWeight="SemiBold" Foreground="#122344" TextWrapping="Wrap" />
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding SelectedCommit.ShortSha}" FontSize="11"
-                                           FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="#888" />
-                                <TextBlock Text="·" FontSize="11" Foreground="#8899B8" />
-                                <TextBlock Text="{loc:Loc git.log.author}" FontSize="11" Foreground="#8899B8" />
+                                           FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="·" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{loc:Loc git.log.author}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="11"
-                                           Foreground="#36506F" />
-                                <TextBlock Text="&lt;" FontSize="11" Foreground="#567" />
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="&lt;" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="{Binding SelectedCommit.AuthorEmail}" FontSize="11"
-                                           Foreground="#567" />
-                                <TextBlock Text="&gt;" FontSize="11" Foreground="#567" />
-                                <TextBlock Text="," FontSize="11" Foreground="#567" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="&gt;" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="," FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
                                 <TextBlock Text="{Binding SelectedCommit.AuthorDate}" FontSize="11"
-                                           Foreground="#567" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
                             </StackPanel>
-                            <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="#567"
+                            <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextWrapping="Wrap" IsVisible="{Binding SelectedCommit.Body, Converter={x:Static ObjectConverters.IsNotNull}}" />
                             <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
-                                <TextBlock Text="{loc:Loc git.log.head_badge}" FontSize="11" Foreground="#D19A00" />
-                                <TextBlock Text="{loc:Loc git.log.master_badge}" FontSize="11" Foreground="#9855CC" />
-                                <TextBlock Text="{loc:Loc git.log.origin_master_badge}" FontSize="11" Foreground="#2E6BCC" />
+                                <TextBlock Text="{loc:Loc git.log.head_badge}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{loc:Loc git.log.master_badge}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="{loc:Loc git.log.origin_master_badge}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

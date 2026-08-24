@@ -6,10 +6,10 @@
              x:DataType="docker:DockerManagerViewModel">
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="14">
         <StackPanel Spacing="8">
-            <TextBlock Text="{loc:Loc docker.container.edit_hint}" TextWrapping="Wrap" Foreground="#61708B" />
-            <TextBlock Text="{loc:Loc docker.container.name}" Foreground="#36506F" Margin="0,6,0,0" />
+            <TextBlock Text="{loc:Loc docker.container.edit_hint}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="{loc:Loc docker.container.name}" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,0" />
             <TextBox Text="{Binding ContainerName, Mode=TwoWay}" />
-            <TextBlock Text="{Binding SelectedContainer.Image}" Foreground="#61708B" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SelectedContainer.Image}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Classes="primary" Content="{loc:Loc docker.container.save}" Click="Save_Click" HorizontalContentAlignment="Center" />

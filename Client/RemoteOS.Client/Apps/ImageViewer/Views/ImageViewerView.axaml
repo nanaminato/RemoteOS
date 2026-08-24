@@ -4,9 +4,9 @@
              xmlns:vm="clr-namespace:Client.Apps.ImageViewer.ViewModels"
              x:Class="Client.Apps.ImageViewer.Views.ImageViewerView"
              x:DataType="vm:ImageViewerViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <Grid RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Background="#F8F8F8" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="14,10">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="14,10">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding DocumentName}" FontWeight="SemiBold" />
@@ -22,10 +22,10 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" Background="#202020">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                 <Grid MinWidth="100" MinHeight="100">
-                    <TextBlock Text="{Binding StatusText}" Foreground="#D6D6D6" Opacity="0.8"
+                    <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextPrimaryBrush}" Opacity="0.8"
                                IsVisible="{Binding !ImageSource}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     <Image Source="{Binding ImageSource}" Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}"
                            Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top" />
@@ -33,7 +33,7 @@
             </ScrollViewer>
         </Border>
 
-        <Border Grid.Row="2" Background="#F8F8F8" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0" Padding="14,7">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="14,7">
             <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.68" TextTrimming="CharacterEllipsis" />
         </Border>
     </Grid>

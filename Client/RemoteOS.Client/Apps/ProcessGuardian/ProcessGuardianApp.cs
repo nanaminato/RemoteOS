@@ -5,6 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Client.Localization;
+using Client.Services.Theming;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -67,7 +68,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
 
         var notice = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#F3F4F6")),
+            Background = ThemeBrushes.Get("AppBackgroundBrush"),
             Padding = new Avalonia.Thickness(14, 10),
             CornerRadius = new CornerRadius(3),
             Margin = new Avalonia.Thickness(0, 0, 0, 12),
@@ -75,7 +76,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         };
         DockPanel.SetDock(notice, Dock.Top); root.Children.Add(notice);
 
-        var status = new TextBlock { Margin = new Avalonia.Thickness(0, 0, 0, 10), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#64748B")) };
+        var status = new TextBlock { Margin = new Avalonia.Thickness(0, 0, 0, 10), TextWrapping = TextWrapping.Wrap, Foreground = ThemeBrushes.Get("TextSecondaryBrush") };
         status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(vm.StatusText)));
         DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
         root.Children.Add(CreateWorkloadTable(vm));
@@ -142,7 +143,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
     private static Control CreateEditorView(ProcessGuardianViewModel vm, RemoteOS.WindowManager.ModalDialog<bool> dialog)
     {
         var panel = new StackPanel { Spacing = 14, Margin = new Avalonia.Thickness(20), DataContext = vm };
-        panel.Children.Add(new TextBlock { Text = LocalizedText.Get("guardian.editor.intro"), TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#475569")) });
+        panel.Children.Add(new TextBlock { Text = LocalizedText.Get("guardian.editor.intro"), TextWrapping = TextWrapping.Wrap, Foreground = ThemeBrushes.Get("TextSecondaryBrush") });
         panel.Children.Add(EditorField("guardian.create.name", "guardian.create.name.help", "guardian.create.name.example", nameof(vm.DefinitionName)));
         panel.Children.Add(EditorField("guardian.create.executable", "guardian.create.executable.help", "guardian.create.executable.example", nameof(vm.ExecutablePath)));
         panel.Children.Add(EditorField("guardian.create.working_directory", "guardian.create.working_directory.help", "guardian.create.working_directory.example", nameof(vm.WorkingDirectory)));
@@ -166,7 +167,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
     private static Control CreateLogsView(GuardianLogWindowViewModel vm)
     {
         var root = new DockPanel { Margin = new Avalonia.Thickness(16), DataContext = vm };
-        var status = new TextBlock { Margin = new Avalonia.Thickness(0, 0, 0, 8), Foreground = new SolidColorBrush(Color.Parse("#64748B")) };
+        var status = new TextBlock { Margin = new Avalonia.Thickness(0, 0, 0, 8), Foreground = ThemeBrushes.Get("TextSecondaryBrush") };
         status.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding(nameof(vm.StatusText)));
         DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
         var logs = new ListBox();
@@ -196,7 +197,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         Text = LocalizedText.Get(key),
         FontSize = 12,
         TextWrapping = TextWrapping.Wrap,
-        Foreground = new SolidColorBrush(Color.Parse("#64748B"))
+        Foreground = ThemeBrushes.Get("TextSecondaryBrush")
     };
 
     private static Task<RunAsAdministratorApproval?> RequestAdministratorApprovalAsync(AppContext context, RemoteOS.WindowManager.ManagedWindow owner, IAuthSession session) =>

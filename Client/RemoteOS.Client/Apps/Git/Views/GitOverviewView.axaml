@@ -6,23 +6,23 @@
              x:DataType="git:GitClientViewModel">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="12">
-            <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
+            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="{loc:Loc git.overview.repository}" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
-                    <TextBlock Text="{Binding SelectedRepository.Name}" FontSize="16" Foreground="#36506F" />
-                    <TextBlock Text="{Binding SelectedRepository.Path}" FontSize="12" Foreground="#888" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc git.overview.repository}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SelectedRepository.Name}" FontSize="16" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{Binding SelectedRepository.Path}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0">
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.branch}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding Status.Branch}" FontSize="13" Foreground="#36506F" />
+                            <TextBlock Text="{loc:Loc git.overview.branch}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding Status.Branch}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.upstream}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding Status.Upstream}" FontSize="13" Foreground="#36506F" />
+                            <TextBlock Text="{loc:Loc git.overview.upstream}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding Status.Upstream}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.ahead_behind}" FontSize="11" Foreground="#888" />
-                            <TextBlock FontSize="13" Foreground="#36506F">
+                            <TextBlock Text="{loc:Loc git.overview.ahead_behind}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}">
                                 <Run Text="{Binding Status.Ahead}" /> / <Run Text="{Binding Status.Behind}" />
                             </TextBlock>
                         </StackPanel>
@@ -30,25 +30,25 @@
                 </StackPanel>
             </Border>
 
-            <Border Background="White" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 #10000000">
+            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="20" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="{loc:Loc git.overview.working_tree}" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
+                    <TextBlock Text="{loc:Loc git.overview.working_tree}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                     <StackPanel Orientation="Horizontal" Spacing="24" Margin="0,8,0,0">
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.staged}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding StagedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                            <TextBlock Text="{loc:Loc git.overview.staged}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding StagedFiles.Count}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.unstaged}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding UnstagedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                            <TextBlock Text="{loc:Loc git.overview.unstaged}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding UnstagedFiles.Count}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.untracked}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding UntrackedFiles.Count}" FontSize="13" Foreground="#36506F" />
+                            <TextBlock Text="{loc:Loc git.overview.untracked}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding UntrackedFiles.Count}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="2">
-                            <TextBlock Text="{loc:Loc git.overview.conflicts}" FontSize="11" Foreground="#888" />
-                            <TextBlock Text="{Binding ConflictFiles.Count}" FontSize="13" Foreground="#D44" />
+                            <TextBlock Text="{loc:Loc git.overview.conflicts}" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding ConflictFiles.Count}" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

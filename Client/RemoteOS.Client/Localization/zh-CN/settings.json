@@ -134,6 +134,11 @@
         "settings.apps.clear_data.complete_local": "已清除本地应用数据。",
         "settings.apps.clear_data.complete_permissions": "已清除应用数据和所选的权限审批决定。",
         "settings.apps.clear_data.complete_server": "已清除应用数据和所选的可选数据。",
-        "settings.apps.clear_data.failed": "无法清除应用数据：{0}"
+        "settings.apps.clear_data.failed": "无法清除应用数据：{0}",
+        "settings.palette": "调色板",
+        "settings.palette.description": "此调色板会同时应用于桌面和所有内置应用。",
+        "settings.accent": "强调色",
+        "settings.accent.placeholder": "#0078D4（可选）",
+        "settings.accent.hint": "使用 #RRGGBB 或 #AARRGGBB；留空则使用所选调色板。"
     }
 }

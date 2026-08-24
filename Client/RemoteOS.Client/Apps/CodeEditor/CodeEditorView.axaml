@@ -6,9 +6,9 @@
              x:Class="Client.Apps.CodeEditor.CodeEditorView"
              x:Name="Root"
              x:DataType="codeEditor:CodeEditorViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <Grid RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*">
                 <Menu Grid.Column="0" Background="Transparent" BorderThickness="0">
                     <MenuItem Header="{loc:Loc common.file}">
@@ -29,7 +29,7 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="48,250,4,*">
             <!-- Activity bar only exposes areas that are implemented. -->
-            <Border Grid.Column="0" Background="#F3F4F6" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0" Padding="4">
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0" Padding="4">
                 <StackPanel Spacing="6">
                     <Button Content="📁" FontSize="17" ToolTip.Tip="{loc:Loc code_editor.sidebar.explorer}"
                             Command="{Binding SwitchSidebarCommand}" CommandParameter="explorer" />
@@ -38,7 +38,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Background="#F8F8F8" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
+            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid IsVisible="{Binding IsExplorerSidebar}" RowDefinitions="Auto,*">
                         <DockPanel Grid.Row="0" Margin="10,8,8,6">
@@ -75,7 +75,7 @@
                                         <Button DockPanel.Dock="Right" Content="×" Padding="4,0"
                                                 Command="{Binding DataContext.CloseDocumentCommand, ElementName=Root}" CommandParameter="{Binding}" />
                                         <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Text="●" Foreground="#C98A00" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
+                                        <TextBlock Text="●" Foreground="{DynamicResource TextPrimaryBrush}" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
                                     </DockPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -84,10 +84,10 @@
                 </Grid>
             </Border>
 
-            <GridSplitter Grid.Column="2" Width="4" Background="#E0E0E0" ResizeDirection="Columns" />
+            <GridSplitter Grid.Column="2" Width="4" Background="{DynamicResource SurfaceBrush}" ResizeDirection="Columns" />
 
             <Grid Grid.Column="3" RowDefinitions="Auto,*">
-                <Border Grid.Row="0" Background="#F3F3F3" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
                     <ListBox ItemsSource="{Binding OpenDocuments}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}" SelectionMode="Single"
                              Background="Transparent" BorderThickness="0" Padding="0">
                         <ListBox.ItemsPanel>
@@ -99,7 +99,7 @@
                                     <Button DockPanel.Dock="Right" Content="×" Padding="5,0" Margin="8,0,0,0"
                                             Command="{Binding DataContext.CloseDocumentCommand, ElementName=Root}" CommandParameter="{Binding}" />
                                     <TextBlock Text="{Binding DisplayName}" />
-                                    <TextBlock Text="●" Foreground="#C98A00" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
+                                    <TextBlock Text="●" Foreground="{DynamicResource TextPrimaryBrush}" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />
                                 </DockPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -112,7 +112,7 @@
             </Grid>
         </Grid>
 
-        <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="12,5">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="12,5">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="14">
                 <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                 <Button Grid.Column="1" Content="{Binding EncodingName}" FontSize="12" Padding="4,0"

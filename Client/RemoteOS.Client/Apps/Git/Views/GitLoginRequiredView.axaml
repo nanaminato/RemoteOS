@@ -6,6 +6,6 @@
         <TextBlock Text="🌿" FontSize="32" HorizontalAlignment="Center" />
         <TextBlock Text="{loc:Loc git.login_required.message}"
                    TextWrapping="Wrap" TextAlignment="Center"
-                   FontSize="14" Foreground="#36506F" Margin="24,0" />
+                   FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}" Margin="24,0" />
     </StackPanel>
 </UserControl>

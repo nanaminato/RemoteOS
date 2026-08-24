@@ -63,7 +63,7 @@
                         <Button Content="{loc:Loc settings.uninstall}" Command="{Binding UninstallSelectedAppCommand}" IsVisible="{Binding CanUninstallSelectedApp}" Padding="16,7" />
                     </StackPanel>
                     <TextBlock Text="{Binding UninstallAvailabilityText}" FontSize="12" Opacity="0.62" TextWrapping="Wrap" />
-                    <Border IsVisible="{Binding IsBrowserSettingsVisible}" Background="#F8FAFC" CornerRadius="8" Padding="12">
+                    <Border IsVisible="{Binding IsBrowserSettingsVisible}" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{loc:Loc settings.apps.browser.settings}" FontWeight="SemiBold" />
                             <TextBlock Text="{loc:Loc settings.apps.browser.link_open_target}" FontSize="12" Opacity="0.65" />
@@ -77,7 +77,7 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Background="#F8FAFC" CornerRadius="8" Padding="12">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                             <StackPanel Spacing="3">
                                 <TextBlock Text="{loc:Loc settings.app_permissions}" FontWeight="SemiBold" />

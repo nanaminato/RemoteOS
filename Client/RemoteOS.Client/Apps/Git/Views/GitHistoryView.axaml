@@ -5,7 +5,7 @@
              x:Class="Client.Apps.Git.Views.GitHistoryView"
              x:DataType="git:GitClientViewModel">
     <Grid ColumnDefinitions="*,300" MinHeight="300">
-        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="4" Margin="0,0,4,0" BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="4" Margin="0,0,4,0" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <DataGrid x:Name="CommitGrid" ItemsSource="{Binding Commits}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column"
@@ -19,14 +19,14 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
-        <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="12" Margin="4,0,0,0" BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" Margin="4,0,0,0" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="8" IsVisible="{Binding SelectedCommit, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <TextBlock Text="{loc:Loc git.history.commit_details}" FontSize="14" FontWeight="SemiBold" Foreground="#122344" />
-                    <TextBlock Text="{Binding SelectedCommit.Sha}" FontSize="11" FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="#888" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="13" Foreground="#36506F" />
-                    <TextBlock Text="{Binding SelectedCommit.Subject}" FontSize="13" Foreground="#36506F" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="#888" TextWrapping="Wrap" />
+                    <TextBlock Text="{loc:Loc git.history.commit_details}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SelectedCommit.Sha}" FontSize="11" FontFamily="Cascadia Code,Consolas,Menlo,monospace" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding SelectedCommit.Author}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{Binding SelectedCommit.Subject}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SelectedCommit.Body}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
                     <Button Command="{Binding RevertCommand}" CommandParameter="{Binding SelectedCommit}" Margin="0,8,0,0">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <TextBlock Text="↩" />

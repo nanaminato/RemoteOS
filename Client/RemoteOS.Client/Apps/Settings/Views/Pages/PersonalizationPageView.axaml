@@ -44,5 +44,23 @@
                 </StackPanel>
             </StackPanel>
         </Border>
+
+        <Border Classes="card">
+            <StackPanel Spacing="10">
+                <TextBlock Text="{loc:Loc settings.palette}" Classes="title" />
+                <TextBlock Text="{loc:Loc settings.palette.description}" Classes="subtle" TextWrapping="Wrap" />
+                <ComboBox ItemsSource="{Binding PaletteChoices}"
+                          SelectedValue="{Binding PaletteId, Mode=TwoWay}"
+                          SelectedValueBinding="{Binding Id}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThemePaletteChoice"><TextBlock Text="{Binding Name}" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{loc:Loc settings.accent}" Classes="title" />
+                <TextBox Text="{Binding AccentOverride, Mode=TwoWay}"
+                         Watermark="{loc:Loc settings.accent.placeholder}" />
+                <TextBlock Text="{loc:Loc settings.accent.hint}" Classes="subtle" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

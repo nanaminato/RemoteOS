@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
 using Server.Storage;
@@ -259,12 +260,15 @@ public static class WorkspaceEndpoints
             HasCompletedFirstTimeSetup = desktopDisplay.HasCompletedFirstTimeSetup,
         };
 
+        if (!TryNormalizeThemePreferences(request.ThemePreferences, out var themePreferences))
+            return false;
+
         preferences = new WorkspacePreferencesDto(
             wallpaperKey, request.Theme, timeFormat!, dateFormat!,
             string.IsNullOrEmpty(language) ? WorkspacePreferencesDto.Default.Language : language,
             string.IsNullOrEmpty(region) ? WorkspacePreferencesDto.Default.Region : region,
             deduped.Values.ToList(), notepadEncoding, codeEditorEncoding,
-            normalizedDesktopDisplay);
+            normalizedDesktopDisplay, themePreferences);
         return true;
     }
 
@@ -295,6 +299,7 @@ public static class WorkspaceEndpoints
         target.Region = source.Region;
         target.NotepadDefaultEncoding = source.NotepadDefaultEncoding;
         target.CodeEditorDefaultEncoding = source.CodeEditorDefaultEncoding;
+        target.ThemePreferences = source.ThemePreferences;
 
         target.DefaultApps.Clear();
         target.DefaultApps.AddRange(source.DefaultApps);
@@ -309,6 +314,48 @@ public static class WorkspaceEndpoints
         targetDisplay.VisibleAppIds.AddRange(sourceDisplay.VisibleAppIds);
         target.DesktopDisplay = targetDisplay;
     }
+
+    private static bool TryNormalizeThemePreferences(ThemePreferencesDto? request, out ThemePreferencesDto preferences)
+    {
+        var source = request ?? ThemePreferencesDto.Default;
+        preferences = ThemePreferencesDto.Default;
+        if (!string.Equals(source.StyleId?.Trim(), "remoteos", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(source.PaletteId) || source.PaletteId.Length > 72)
+            return false;
+        var paletteId = source.PaletteId.Trim();
+        if (paletteId is not "builtin:remoteos-blue" and not "builtin:nord" and not "builtin:catppuccin"
+            && !paletteId.StartsWith("custom:", StringComparison.Ordinal))
+            return false;
+        if (!IsOptionalColor(source.AccentOverride)) return false;
+        var palettes = source.CustomPalettes ?? [];
+        if (palettes.Count > 20) return false;
+        var normalized = new List<ThemePaletteDto>(palettes.Count);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var palette in palettes)
+        {
+            if (palette.FormatVersion != 1 || !IsPaletteId(palette.Id) || !ids.Add(palette.Id)
+                || string.IsNullOrWhiteSpace(palette.Name) || palette.Name.Trim().Length > 80
+                || palette.Mode is not ("light" or "dark") || palette.Colors is null || palette.Colors.Count is > 48 or 0)
+                return false;
+            var colors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, value) in palette.Colors)
+            {
+                if (string.IsNullOrWhiteSpace(key) || key.Length > 48 || !IsHexColor8(value)) return false;
+                colors[key] = value.ToUpperInvariant();
+            }
+            normalized.Add(new ThemePaletteDto { FormatVersion = 1, Id = palette.Id, Name = palette.Name.Trim(), Mode = palette.Mode, Colors = colors });
+        }
+        if (paletteId.StartsWith("custom:", StringComparison.Ordinal) && !ids.Contains(paletteId[7..])) return false;
+        preferences = new ThemePreferencesDto { StyleId = "remoteos", PaletteId = paletteId,
+            AccentOverride = source.AccentOverride?.ToUpperInvariant(), CustomPalettes = normalized };
+        return true;
+    }
+
+    private static bool IsOptionalColor(string? value) => string.IsNullOrEmpty(value) || IsHexColor8(value);
+    private static bool IsHexColor8(string? value) => value is { Length: 7 or 9 } && value[0] == '#'
+        && value[1..].All(Uri.IsHexDigit);
+    private static bool IsPaletteId(string? value) => value is { Length: > 0 and <= 64 }
+        && Regex.IsMatch(value, "^[a-z0-9-]+$");
 
     private static bool TryNormalize(WorkspaceWindowLayoutDto request, out WorkspaceWindowLayoutDto layouts)
     {

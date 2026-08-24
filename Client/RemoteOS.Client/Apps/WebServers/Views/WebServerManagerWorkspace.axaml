@@ -4,35 +4,36 @@
              xmlns:webservers="clr-namespace:Client.Apps.WebServers"
              x:Class="Client.Apps.WebServers.Views.WebServerManagerWorkspace"
              x:DataType="webservers:WebServerManagerViewModel"
-             Background="#F4F7FB"
+             Background="{DynamicResource AppBackgroundBrush}"
              MinWidth="0"
              MinHeight="0">
+    <UserControl.Styles><Style Selector="Button.nav-selected"><Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" /><Setter Property="Foreground" Value="{DynamicResource SelectionForegroundBrush}" /></Style></UserControl.Styles>
     <Grid RowDefinitions="Auto,Auto,*" MinWidth="0" MinHeight="0">
-        <Border Grid.Row="0" Background="#122344" Padding="32,22">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceSunkenBrush}" Padding="32,22">
             <Grid ColumnDefinitions="Auto,*">
-                <Border Width="48" Height="48" Background="#147CB8" CornerRadius="14">
+                <Border Width="48" Height="48" Background="{DynamicResource AccentBrush}" CornerRadius="14">
                     <TextBlock Text="🌐" FontSize="25" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="3" Margin="16,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc application.remoteos.webservers.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="{loc:Loc webservers.subtitle}" FontSize="13" Foreground="#B8C9E6" />
+                    <TextBlock Text="{loc:Loc application.remoteos.webservers.display_name}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource TextOnAccentBrush}" />
+                    <TextBlock Text="{loc:Loc webservers.subtitle}" FontSize="13" Foreground="{DynamicResource TextTertiaryBrush}" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="0,0,0,1" Padding="18,10">
+        <Border Grid.Row="1" IsVisible="{Binding HasOperationActivity}" Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="0,0,0,1" Padding="18,10">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#163059" />
+                <TextBlock Text="{Binding OperationText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
                 <Button Grid.Column="1" Content="{loc:Loc common.stop}" Command="{Binding CancelOperationCommand}" IsVisible="{Binding IsOperationRunning}" VerticalAlignment="Center" />
             </Grid>
         </Border>
 
         <Grid Grid.Row="2" ColumnDefinitions="190,*" MinWidth="0" MinHeight="0">
-            <Border Grid.Column="0" Background="#EEF3FA" BorderBrush="#DCE5F1" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Spacing="4" Margin="14,22">
-                    <TextBlock Text="{loc:Loc webservers.workspace}" Foreground="#72819A" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
-                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
-                    <Button Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="#36506F" />
+                    <TextBlock Text="{loc:Loc webservers.workspace}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="InstancesPageButton" Tag="instances" Click="NavigationButton_Click" Content="{loc:Loc webservers.instances}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <Button Tag="sites" Click="NavigationButton_Click" Content="{loc:Loc webservers.sites}" HorizontalContentAlignment="Left" Padding="10,8" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
             </Border>
 

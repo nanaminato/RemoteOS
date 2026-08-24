@@ -5,11 +5,11 @@
              x:Class="Client.Apps.Docker.DockerOperationActivityView"
              x:DataType="docker:DockerManagerViewModel">
     <Border IsVisible="{Binding HasOperationActivity}"
-            Background="#EDF4FF" BorderBrush="#B8D4FA" BorderThickness="1" CornerRadius="8" Padding="12">
+            Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
         <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Text="{Binding OperationTitle}" FontWeight="SemiBold" Foreground="#163059" TextWrapping="Wrap" />
-                <TextBlock Grid.Column="1" Text="{loc:Loc docker.operation.running_label}" IsVisible="{Binding IsOperationRunning}" Foreground="#2369A7" />
+                <TextBlock Text="{Binding OperationTitle}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{loc:Loc docker.operation.running_label}" IsVisible="{Binding IsOperationRunning}" Foreground="{DynamicResource InfoBrush}" />
             </Grid>
             <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsOperationRunning}" Height="4" />
             <Expander Header="{loc:Loc docker.operation.logs}">

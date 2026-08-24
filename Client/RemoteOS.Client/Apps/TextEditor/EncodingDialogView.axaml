@@ -4,9 +4,9 @@
              xmlns:app="clr-namespace:Client.Apps.TextEditor"
              x:Class="Client.Apps.TextEditor.EncodingDialogView"
              x:DataType="app:EncodingDialogViewModel"
-             Background="#FFFFFF">
+             Background="{DynamicResource SurfaceBrush}">
     <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="14">
-        <TextBlock Grid.Row="0" Text="{loc:Loc common.encoding_selection_hint}" TextWrapping="Wrap" Foreground="#444444" />
+        <TextBlock Grid.Row="0" Text="{loc:Loc common.encoding_selection_hint}" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" />
         <ListBox Grid.Row="1" ItemsSource="{Binding AvailableEncodings}"
                  SelectedItem="{Binding SelectedEncoding, Mode=TwoWay}" />
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

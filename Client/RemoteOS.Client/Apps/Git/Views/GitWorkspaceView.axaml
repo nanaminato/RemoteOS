@@ -6,7 +6,7 @@
              x:DataType="git:GitClientViewModel">
     <Grid RowDefinitions="Auto,*,Auto" MinHeight="400">
         <!-- Toolbar -->
-        <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -15,12 +15,12 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="{loc:Loc git.workspace.changes}" FontSize="13" FontWeight="SemiBold" Foreground="#36506F" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding Changes.Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.workspace.file_count_format'}" FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc git.workspace.changes}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding Changes.Count, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.workspace.file_count_format'}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="{loc:Loc git.workspace.selected}" FontSize="12" Foreground="#666" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding SelectedCount}" FontSize="12" FontWeight="SemiBold" Foreground="#0078D4" VerticalAlignment="Center"/>
+                    <TextBlock Text="{loc:Loc git.workspace.selected}" FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding SelectedCount}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <Button Grid.Column="2" Content="{loc:Loc git.workspace.select_all}" Click="SelectAll_Click" Margin="8,0,0,0"/>
                 <Button Grid.Column="3" Content="{loc:Loc git.workspace.refresh}" Command="{Binding RefreshChangesCommand}" Margin="4,0,0,0"/>
@@ -28,13 +28,13 @@
         </Border>
 
         <!-- Changes List with grouping -->
-        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="8" Margin="0,0,0,8">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="8" Margin="0,0,0,8">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="8">
                     <!-- Tracked files section -->
                     <StackPanel x:Name="TrackedSection">
-                        <TextBlock Text="{loc:Loc git.workspace.tracked_changes}" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" Margin="4,4,0,2"/>
-                        <TextBlock x:Name="TrackedCountText" Text="" FontSize="11" Foreground="#888" Margin="4,0,0,4"/>
+                        <TextBlock Text="{loc:Loc git.workspace.tracked_changes}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="4,4,0,2"/>
+                        <TextBlock x:Name="TrackedCountText" Text="" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="4,0,0,4"/>
                         <ItemsControl x:Name="TrackedItems" ItemsSource="{Binding TrackedChanges}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="git:GitFileChangeItem">
@@ -53,7 +53,7 @@
                                                    FontSize="12"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,6,0"
-                                                   Foreground="#0078D4"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
                                                    FontWeight="SemiBold"/>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding Path}"
@@ -68,8 +68,8 @@
 
                     <!-- Untracked files section -->
                     <StackPanel x:Name="UntrackedSection">
-                        <TextBlock Text="{loc:Loc git.workspace.untracked_files}" FontSize="12" FontWeight="SemiBold" Foreground="#36506F" Margin="4,8,0,2"/>
-                        <TextBlock x:Name="UntrackedCountText" Text="" FontSize="11" Foreground="#888" Margin="4,0,0,4"/>
+                        <TextBlock Text="{loc:Loc git.workspace.untracked_files}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" Margin="4,8,0,2"/>
+                        <TextBlock x:Name="UntrackedCountText" Text="" FontSize="11" Foreground="{DynamicResource TextPrimaryBrush}" Margin="4,0,0,4"/>
                         <ItemsControl x:Name="UntrackedItems" ItemsSource="{Binding UntrackedChanges}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="git:GitFileChangeItem">
@@ -88,13 +88,13 @@
                                                    FontSize="12"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,6,0"
-                                                   Foreground="#888"/>
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding Path}"
                                                    FontSize="12"
                                                    TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center"
-                                                   Foreground="#666"/>
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -105,7 +105,7 @@
                     <TextBlock x:Name="EmptyState"
                                Text="{loc:Loc git.workspace.empty}"
                                FontSize="12"
-                               Foreground="#999"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                HorizontalAlignment="Center"
                                Margin="0,40,0,0"/>
                 </StackPanel>
@@ -113,7 +113,7 @@
         </Border>
 
         <!-- Commit area -->
-        <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="12">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12">
             <StackPanel Spacing="8">
                 <TextBox x:Name="CommitMessageInput" PlaceholderText="{loc:Loc git.workspace.commit_placeholder}" Text="{Binding CommitMessage}" MinHeight="32" AcceptsReturn="True"/>
                 <StackPanel Orientation="Horizontal" Spacing="8">

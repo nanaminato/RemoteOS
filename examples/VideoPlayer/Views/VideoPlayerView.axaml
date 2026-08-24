@@ -2,24 +2,24 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              x:Class="RemoteOS.Examples.VideoPlayer.Views.VideoPlayerView"
-             Background="#111827" Foreground="#F8FAFC">
+             Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}">
   <Grid RowDefinitions="Auto,*,Auto">
-    <Border Background="#FFFFFF" Padding="14,10">
+    <Border Background="{DynamicResource SurfaceBrush}" Padding="14,10">
       <StackPanel Spacing="2">
-        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" Foreground="#18202B" />
-        <TextBlock Text="{Binding StatusText}" Foreground="#5C6778" />
+        <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+        <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextPrimaryBrush}" />
       </StackPanel>
     </Border>
-    <Border Grid.Row="1" Background="#000000">
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}">
       <vlc:VideoView x:Name="PlayerSurface" />
     </Border>
-    <Border Grid.Row="2" Background="#0F172A" Padding="14,10">
+    <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" Padding="14,10">
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
         <Button Content="{Binding PlayPauseText}" Command="{Binding TogglePlayPauseCommand}"
-                IsEnabled="{Binding CanControlPlayback}" Background="#E2E8F0" Foreground="#0F172A"
+                IsEnabled="{Binding CanControlPlayback}" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
                 FontWeight="SemiBold" Padding="16,7" />
         <Button Content="{Binding StopText}" Command="{Binding StopCommand}"
-                IsEnabled="{Binding CanControlPlayback}" Background="#DC2626" Foreground="White"
+                IsEnabled="{Binding CanControlPlayback}" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource TextOnAccentBrush}"
                 FontWeight="SemiBold" Padding="16,7" />
       </StackPanel>
     </Border>

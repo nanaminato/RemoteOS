@@ -43,6 +43,9 @@ public sealed record WorkspacePreferencesDto
     [JsonPropertyName("desktopDisplay")]
     public DesktopDisplaySettingsDto? DesktopDisplay { get; set; }
 
+    [JsonPropertyName("themePreferences")]
+    public ThemePreferencesDto? ThemePreferences { get; set; }
+
     public WorkspacePreferencesDto(
         string WallpaperKey,
         ThemeKind Theme,
@@ -53,7 +56,8 @@ public sealed record WorkspacePreferencesDto
         IReadOnlyList<DefaultAppMappingDto>? DefaultApps,
         string? NotepadDefaultEncoding = TextEncodingPreferences.Default,
         string? CodeEditorDefaultEncoding = TextEncodingPreferences.Default,
-        DesktopDisplaySettingsDto? DesktopDisplay = null)
+        DesktopDisplaySettingsDto? DesktopDisplay = null,
+        ThemePreferencesDto? ThemePreferences = null)
     {
         this.WallpaperKey = WallpaperKey;
         this.Theme = Theme;
@@ -65,6 +69,7 @@ public sealed record WorkspacePreferencesDto
         this.NotepadDefaultEncoding = NotepadDefaultEncoding;
         this.CodeEditorDefaultEncoding = CodeEditorDefaultEncoding;
         this.DesktopDisplay = DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
+        this.ThemePreferences = ThemePreferences ?? ThemePreferencesDto.Default;
     }
 
     // Both EF Core and System.Text.Json must use the parameterless constructor. JSON cannot
@@ -73,7 +78,7 @@ public sealed record WorkspacePreferencesDto
     public WorkspacePreferencesDto()
         : this(string.Empty, default, string.Empty, string.Empty, string.Empty, string.Empty,
             [], TextEncodingPreferences.Default, TextEncodingPreferences.Default,
-            DesktopDisplaySettingsDto.Default)
+            DesktopDisplaySettingsDto.Default, ThemePreferencesDto.Default)
     {
     }
 
@@ -101,5 +106,6 @@ public sealed record WorkspacePreferencesDto
         DefaultApps: [],
         NotepadDefaultEncoding: TextEncodingPreferences.Default,
         CodeEditorDefaultEncoding: TextEncodingPreferences.Default,
-        DesktopDisplay: DesktopDisplaySettingsDto.Default);
+        DesktopDisplay: DesktopDisplaySettingsDto.Default,
+        ThemePreferences: ThemePreferencesDto.Default);
 }

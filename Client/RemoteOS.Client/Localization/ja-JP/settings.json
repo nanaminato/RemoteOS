@@ -134,6 +134,11 @@
         "settings.apps.clear_data.complete_local": "ローカル アプリ データを消去しました。",
         "settings.apps.clear_data.complete_permissions": "アプリ データと選択したアクセス許可の決定を消去しました。",
         "settings.apps.clear_data.complete_server": "アプリ データと選択した追加データを消去しました。",
-        "settings.apps.clear_data.failed": "アプリ データを消去できませんでした: {0}"
+        "settings.apps.clear_data.failed": "アプリ データを消去できませんでした: {0}",
+        "settings.palette": "カラーパレット",
+        "settings.palette.description": "このパレットはデスクトップとすべての組み込みアプリで共有されます。",
+        "settings.accent": "アクセント カラー",
+        "settings.accent.placeholder": "#0078D4（任意）",
+        "settings.accent.hint": "#RRGGBB または #AARRGGBB を使用します。空欄なら選択したパレットを使います。"
     }
 }

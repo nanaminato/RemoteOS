@@ -44,7 +44,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="dto:NetworkAddressDto">
                             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,3">
-                                <Border Background="#E0E7FF" CornerRadius="10" Padding="8,3" Margin="0,0,10,0">
+                                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="8,3" Margin="0,0,10,0">
                                     <TextBlock Text="{Binding Family}" FontSize="11" FontWeight="SemiBold" />
                                 </Border>
                                 <TextBlock Grid.Column="1" Text="{Binding Address}" FontFamily="Consolas" VerticalAlignment="Center" />

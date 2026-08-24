@@ -11,16 +11,16 @@
             <TextBlock x:Name="BranchLineText"
                        FontSize="14"
                        FontWeight="SemiBold"
-                       Foreground="#1C3765"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Cursor="Hand"
                        Text="{Binding PushBranchLineText}"
                        PointerPressed="BranchLine_PointerPressed"/>
             <TextBlock FontSize="12"
-                       Foreground="#666"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="8,0,0,0"
                        Text="{Binding PushCommitCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_commits_format'}"/>
             <TextBlock FontSize="12"
-                       Foreground="#666"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        Margin="8,0,0,0"
                        Text="{Binding PushStatusMessage}"/>
         </StackPanel>
@@ -40,7 +40,7 @@
                         Classes.active="{Binding PushAllCommitsActive}"
                         FontSize="12"
                         Padding="8,6"
-                        Foreground="#1C3765"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
                         BorderThickness="0"
                         HorizontalAlignment="Stretch"
                         Margin="0,0,0,4"
@@ -50,7 +50,7 @@
                             <Setter Property="Background" Value="Transparent"/>
                         </Style>
                         <Style Selector="Button.active">
-                            <Setter Property="Background" Value="#DCE9FF"/>
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
                         </Style>
                     </Button.Styles>
                 </Button>
@@ -66,14 +66,14 @@
                             <Setter Property="Padding" Value="0"/>
                         </Style>
                         <Style Selector="ListBoxItem:selected">
-                            <Setter Property="Background" Value="#DCE9FF"/>
+                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
                         </Style>
                     </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="proto:GitCommitDto">
                             <Border Padding="8,6">
                                 <TextBlock FontSize="12"
-                                           Foreground="#122344"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis"
                                            TextWrapping="NoWrap"
                                            VerticalAlignment="Center"
@@ -92,10 +92,10 @@
                           Background="Transparent"/>
 
             <!-- Right: file-change tree, with commit metadata only for a concrete commit selection. -->
-            <Border Grid.Column="2" Background="White" CornerRadius="6" Padding="8" MinWidth="180">
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="8" MinWidth="180">
                 <Grid x:Name="PushPreviewGrid" RowDefinitions="Auto,*,0,0" RowSpacing="0">
                     <TextBlock FontSize="11"
-                               Foreground="#666"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
                                Margin="0,4,0,0"
                                Text="{Binding PushFileCount, Converter={x:Static git:GitPickerConverters.LocalizedFormat}, ConverterParameter='git.dialog.push.n_files_format'}"/>
 
@@ -110,14 +110,14 @@
                                     <TextBlock Text="{Binding Icon}" FontSize="12" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding Name}"
                                                FontSize="12"
-                                               Foreground="#122344"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"/>
                                     <Border IsVisible="{Binding IsFile}"
                                             CornerRadius="3"
                                             Padding="4,0"
-                                            Background="#0078D4">
-                                        <TextBlock FontSize="10" Foreground="White" Text="{Binding Status}"/>
+                                            Background="{DynamicResource SurfaceBrush}">
+                                        <TextBlock FontSize="10" Foreground="{DynamicResource TextOnAccentBrush}" Text="{Binding Status}"/>
                                     </Border>
                                 </StackPanel>
                             </TreeDataTemplate>
@@ -129,7 +129,7 @@
                                   HorizontalAlignment="Stretch"
                                   ResizeDirection="Rows"
                                   ResizeBehavior="PreviousAndNext"
-                                  Background="#D4DFEC"
+                                  Background="{DynamicResource SurfaceBrush}"
                                   IsVisible="{Binding PushHasSelectedCommit}"/>
 
                     <!-- Never shown for the aggregate all-commits activity. -->
@@ -143,11 +143,11 @@
                         <StackPanel Spacing="2" VerticalAlignment="Top">
                             <TextBlock FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="#122344"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        TextTrimming="CharacterEllipsis"
                                        Text="{Binding PushSelectedCommit.Subject}"/>
                             <TextBlock FontSize="11"
-                                       Foreground="#666"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
                                        Margin="0,4,0,0"
                                        Text="{Binding PushSelectedCommit, Converter={x:Static git:GitPickerConverters.CommitMeta}}"/>
                         </StackPanel>
@@ -159,8 +159,8 @@
         <!-- Row 2: Push button + Cancel -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="{loc:Loc git.dialog.push.push}"
-                    Background="#1C3765"
-                    Foreground="White"
+                    Background="{DynamicResource SurfaceBrush}"
+                    Foreground="{DynamicResource TextOnAccentBrush}"
                     Padding="20,6"
                     Click="Push_Click"/>
             <Button Content="{loc:Loc git.dialog.push.cancel}"

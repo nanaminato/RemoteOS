@@ -15,6 +15,7 @@ using Client.Services.Developer;
 using Client.Services.DesktopRestore;
 using Client.Services.Diagnostics;
 using Client.Services.WindowLayout;
+using Client.Services.Theming;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,7 @@ public static class Bootstrapper
         services.AddSingleton<IWindowManager>(windowManager);
         services.AddSingleton<LocalLanguageStore>();
         services.AddSingleton<LoginNotificationPreferenceStore>();
+        services.AddSingleton<ThemeService>();
         services.AddSingleton<ShellSettings>();
         services.AddSingleton<LocalizationService>();
         services.AddSingleton<LoginLocalizationService>();

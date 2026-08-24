@@ -21,7 +21,7 @@
             </Button>
         </StackPanel>
 
-        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 #10000000">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="4" BoxShadow="0 2 8 0 {DynamicResource ShadowColor}">
             <DataGrid x:Name="RemoteGrid" ItemsSource="{Binding Remotes}"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal"
@@ -36,14 +36,14 @@
                             <DataTemplate x:DataType="proto:GitRemoteDto">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <Button Click="Edit_Click" Tag="{Binding}"
-                                            Padding="6,2" Background="Transparent" Foreground="#36506F">
+                                            Padding="6,2" Background="Transparent" Foreground="{DynamicResource TextSecondaryBrush}">
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <TextBlock Text="✎" />
                                             <TextBlock Text="{loc:Loc git.remotes.edit}" />
                                         </StackPanel>
                                     </Button>
                                     <Button Click="Remove_Click" Tag="{Binding}"
-                                            Padding="6,2" Background="Transparent" Foreground="#D44">
+                                            Padding="6,2" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}">
                                         <StackPanel Orientation="Horizontal" Spacing="4">
                                             <TextBlock Text="✕" />
                                             <TextBlock Text="{loc:Loc git.remotes.delete}" />
@@ -59,7 +59,7 @@
 
         <TextBlock Grid.Row="2"
                    Text="{loc:Loc git.remotes.empty}"
-                   FontSize="12" Foreground="#999" Margin="4,8"
+                   FontSize="12" Foreground="{DynamicResource TextPrimaryBrush}" Margin="4,8"
                    IsVisible="{Binding Remotes.Count, Converter={x:Static git:GitPickerConverters.IsZeroToVisible}}" />
     </Grid>
 </UserControl>
