@@ -94,7 +94,8 @@ builder.Services.AddAuthentication(options =>
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) &&
-                    (path.StartsWithSegments("/hubs/terminals") || path.StartsWithSegments(RemoteOsEndpoints.GuardianLogsHubPath)))
+                    (path.StartsWithSegments("/hubs/terminals") || path.StartsWithSegments(RemoteOsEndpoints.GuardianLogsHubPath)
+                     || path.StartsWithSegments(RemoteOsEndpoints.PerformanceHubPath)))
                 {
                     context.Token = accessToken;
                 }
@@ -160,6 +161,19 @@ if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
     builder.Services.AddSingleton<Server.SystemMonitor.ISystemMetricsProvider, Server.SystemMonitor.WindowsMetricsProvider>();
 else
     builder.Services.AddSingleton<Server.SystemMonitor.ISystemMetricsProvider, Server.SystemMonitor.LinuxMetricsProvider>();
+
+// 新任务管理器性能链路：原始 OS 读取、统一 1 秒采样、短期历史和 Hub 广播各自分层。
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    builder.Services.AddSingleton<Server.SystemPerformance.ISystemPerformanceSource, Server.SystemPerformance.WindowsPerformanceSource>();
+else
+    builder.Services.AddSingleton<Server.SystemPerformance.ISystemPerformanceSource, Server.SystemPerformance.LinuxPerformanceSource>();
+builder.Services.AddSingleton<Server.SystemPerformance.PerformanceHistory>();
+builder.Services.AddSingleton<Server.SystemPerformance.PerformanceSampler>();
+builder.Services.AddSingleton<Server.SystemPerformance.IPerformanceSampler>(sp => sp.GetRequiredService<Server.SystemPerformance.PerformanceSampler>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.SystemPerformance.PerformanceSampler>());
+builder.Services.AddSingleton<Server.SystemPerformance.ProcessSampler>();
+builder.Services.AddSingleton<Server.SystemPerformance.IProcessService>(sp => sp.GetRequiredService<Server.SystemPerformance.ProcessSampler>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.SystemPerformance.ProcessSampler>());
 
 // Built-in Docker manager: the provider uses Docker's local CLI transport only; no socket/pipe
 // is ever exposed to clients. Guardian intentionally remains a separate Agent boundary.
@@ -271,6 +285,7 @@ builder.Services.AddSingleton<IUserIdProvider, Server.Terminal.TerminalUserIdPro
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = null);
 builder.Services.AddSingleton<GuardianLogSubscriptionRegistry>();
 builder.Services.AddHostedService<GuardianLogBroadcastService>();
+builder.Services.AddHostedService<PerformanceBroadcastService>();
 
 // 文件管理：以宿主 OS 进程身份执行 IO，复用宿主用户/权限（不另建 ACL——见 project_memory 硬约束）。
 // LocalFileService 移植自 Jaya FileSystemService 的目录枚举逻辑并扩展为完整文件操作；平台感知（Windows 盘符 / Linux "/" 根）。
@@ -419,5 +434,6 @@ if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");
 app.MapHub<GuardianLogsHub>(RemoteOsEndpoints.GuardianLogsHubPath);
+app.MapHub<PerformanceHub>(RemoteOsEndpoints.PerformanceHubPath);
 
 app.Run();

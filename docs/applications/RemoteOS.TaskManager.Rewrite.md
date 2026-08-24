@@ -1,9 +1,15 @@
 # RemoteOS 任务管理器重写方案（Goal 执行版）
 
-> 状态：提案，尚未实施  
-> 建立日期：2026-08-24  
-> 适用范围：`.NET 10` Server、Avalonia Client、Windows/Linux 宿主机  
+> 状态：实施中（性能采样、协议、REST/Hub、Avalonia 主链路已迁移）
+> 建立日期：2026-08-24
+> 适用范围：`.NET 10` Server、Avalonia Client、Windows/Linux 宿主机
 > 本文是后续 Goal 模式的执行基线。现有实现与设计见 [`RemoteOS.TaskManager.md`](./RemoteOS.TaskManager.md)；实施完成前，以现有文档描述的行为为准。
+
+### 当前实施备注
+
+- 已完成：统一 1 秒 `PerformanceSampler`、60 点内存 RingBuffer、Linux `/proc`/`/sys` 原始采集、Windows CPU/内存/网络与 `IOCTL_DISK_PERFORMANCE` 原始采集、性能 REST API、`/hubs/performance` 推送、客户端重连/历史回补，以及独立的 5 秒进程采样器。
+- 兼容：旧 `GET /api/v1/system/metrics` 与旧进程列表暂保留给 App SDK 和已发布客户端；新任务管理器使用新的 performance API 与进程查询 API。
+- 降级：Windows 服务账户若无权读取物理磁盘性能，或宿主机未提供该计数器时 `diskIo=false`；UI 不显示伪造 0 值。GPU 与传感器仍为后续可选提供方。
 
 ## 1. 结论与目标
 

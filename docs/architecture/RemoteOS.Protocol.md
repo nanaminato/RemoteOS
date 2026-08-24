@@ -28,9 +28,10 @@ Protocol 程序集**零 PackageReference**，不引用 Core（避免线协议与
 
 | 通道 | 用途 |
 |------|------|
-| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写、**文件管理**（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload）、**浏览器**（`/api/v1/browser/*`：书签/历史 CRUD + `BrowserSettings` GET/PUT）、**Workspace 偏好**（`/api/v1/workspaces/{id}/preferences` GET/PUT）、**系统监控**（`/api/v1/system/*`：metrics/processes/processes/{id}） |
+| **REST API**（`/api/v1/*`） | 请求-响应：登录、刷新令牌、Workspace/Session/Device 资源 CRUD、控制权请求、桌面状态全量读写、**文件管理**（`/api/v1/files/*`：drives/list/info/download/directory/delete/rename/move/copy/upload）、**浏览器**（`/api/v1/browser/*`：书签/历史 CRUD + `BrowserSettings` GET/PUT）、**Workspace 偏好**（`/api/v1/workspaces/{id}/preferences` GET/PUT）、**系统监控**（`/api/v1/system/*`：performance info/snapshot/history、进程查询与控制；`metrics` 为兼容快照） |
 | **SignalR Hub**（`/hubs/workspace`） | 实时双向：桌面状态增量广播、设备上下线通知、控制权变更通知、Session/Workspace 状态变更通知 |
 | **SignalR Hub**（`/hubs/terminals`） | 实时双向：远端 PTY 字节流中继（输入/输出/尺寸/退出/会话附加/列表/手动终止）。PTY 由 `TerminalSessionManager` 持有，与 Hub 连接解耦 |
+| **SignalR Hub**（`/hubs/performance`） | 实时单向：服务端统一采样器每秒广播 `PerformanceRealtimeSnapshotDto`；客户端显式订阅并以 REST history 回补重连空洞 |
 
 SignalR 内部走 WebSocket（不可用降级 SSE/长轮询），**不裸用 WebSocket**。Workspace 多设备通过 SignalR Group（一个 Workspace 一个 Group）广播。Terminal Hub 不启用 `WithAutomaticReconnect`（自动重连后服务端不会自动重新附加会话），恢复路径是"再次登录打开终端 → 重新 `Start(Attach)` → 回放 1MB 缓冲快照"。
 
@@ -46,7 +47,7 @@ Shared/RemoteOS.Protocol/
 ├── Desktop/       # DesktopStateDto/Patch、IconPositionDto、WallpaperDto、ThemeKind
 ├── Files/         # FileSystemEntryType/Dto、FileEntryDto、DirectoryDto、DriveDto、Rename/Move/CopyRequest、FileApiRoutes
 ├── Browser/       # BookmarkDto、HistoryEntryDto、Create*Request、BrowserSettingsDto、BrowserApiRoutes
-├── SystemMonitor/ # SystemMetricsDto、Cpu/Memory/Disk/Network/GpuUsageDto、ProcessInfoDto、KillProcessResultDto、SystemMonitorApiRoutes
+├── SystemMonitor/ # 兼容 SystemMetricsDto + 新 PerformanceInfo/RealtimeSnapshot/Capabilities、Filesystem/Disk/Network 指标、ProcessPageDto、SystemMonitorApiRoutes
 ├── Certificates/  # V1：证书、挑战类型、密钥算法、operation DTO 与 CertificateApiRoutes
 ├── WebServers/    # V1：Nginx 实例/状态/配置测试/集成、operation DTO 与 WebServerApiRoutes
 └── Hubs/          # Workspace Hub（IWorkspaceHubClient/Methods/Events、JoinWorkspaceRequest、事件参数）
@@ -149,7 +150,11 @@ Server MVC（`AddControllers().AddJsonOptions`）与 SignalR（`AddSignalR().Add
 | 方法 | 路径 | 请求 | 响应 | 认证 |
 |---|---|---|---|---|
 | GET | `/api/v1/system/metrics` | — | `SystemMetricsDto` | JWT |
+| GET | `/api/v1/system/performance/info` | — | `PerformanceInfoDto` | JWT |
+| GET | `/api/v1/system/performance/snapshot` | — | `PerformanceRealtimeSnapshotDto` / 503（首样本前） | JWT |
+| GET | `/api/v1/system/performance/history?seconds=60` | query: `seconds`（1–60） | `PerformanceRealtimeSnapshotDto[]` | JWT |
 | GET | `/api/v1/system/processes` | — | `ProcessInfoDto[]` | JWT |
+| GET | `/api/v1/system/processes/query` | page/pageSize/filter/sort/direction | `ProcessPageDto` | JWT |
 | DELETE | `/api/v1/system/processes/{id}?force=` | query: `force`（可选） | `KillProcessResultDto` | JWT |
 
 ### Certificates / WebServers（V1 后端）

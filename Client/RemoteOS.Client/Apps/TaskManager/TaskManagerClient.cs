@@ -25,11 +25,35 @@ public sealed class TaskManagerClient : ITaskManagerClient
     public Task<SystemMetricsDto> GetMetricsAsync(CancellationToken ct = default)
         => SendAsync<SystemMetricsDto>(HttpMethod.Get, SystemMonitorApiRoutes.Metrics, ct: ct);
 
+    public Task<PerformanceInfoDto> GetPerformanceInfoAsync(CancellationToken ct = default)
+        => SendAsync<PerformanceInfoDto>(HttpMethod.Get, SystemMonitorApiRoutes.PerformanceInfo, ct: ct);
+
+    public Task<PerformanceRealtimeSnapshotDto> GetPerformanceSnapshotAsync(CancellationToken ct = default)
+        => SendAsync<PerformanceRealtimeSnapshotDto>(HttpMethod.Get, SystemMonitorApiRoutes.PerformanceSnapshot, ct: ct);
+
+    public Task<IReadOnlyList<PerformanceRealtimeSnapshotDto>> GetPerformanceHistoryAsync(int seconds = 60, CancellationToken ct = default)
+        => SendAsync<IReadOnlyList<PerformanceRealtimeSnapshotDto>>(HttpMethod.Get,
+            $"{SystemMonitorApiRoutes.PerformanceHistory}?seconds={Math.Clamp(seconds, 1, 60)}", ct: ct);
+
     public Task<IReadOnlyList<NetworkAddressDto>> GetNetworkAddressesAsync(CancellationToken ct = default)
         => SendAsync<IReadOnlyList<NetworkAddressDto>>(HttpMethod.Get, SystemMonitorApiRoutes.NetworkAddresses, ct: ct);
 
     public Task<IReadOnlyList<ProcessInfoDto>> ListProcessesAsync(CancellationToken ct = default)
         => SendAsync<IReadOnlyList<ProcessInfoDto>>(HttpMethod.Get, SystemMonitorApiRoutes.Processes, ct: ct);
+
+    public Task<ProcessPageDto> QueryProcessesAsync(int page = 1, int pageSize = 100, string? filter = null,
+        string? sort = null, bool descending = true, CancellationToken ct = default)
+    {
+        var query = new List<string>
+        {
+            "page=" + Math.Max(1, page).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "pageSize=" + Math.Clamp(pageSize, 1, 500).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "direction=" + (descending ? "desc" : "asc"),
+        };
+        if (!string.IsNullOrWhiteSpace(filter)) query.Add("filter=" + Uri.EscapeDataString(filter));
+        if (!string.IsNullOrWhiteSpace(sort)) query.Add("sort=" + Uri.EscapeDataString(sort));
+        return SendAsync<ProcessPageDto>(HttpMethod.Get, SystemMonitorApiRoutes.ProcessQuery + "?" + string.Join("&", query), ct: ct);
+    }
 
     public Task<KillProcessResultDto> KillProcessAsync(int processId, bool force = false, CancellationToken ct = default)
         => SendAsync<KillProcessResultDto>(HttpMethod.Delete,

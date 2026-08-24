@@ -131,7 +131,7 @@ public sealed class TabBgConverter : IValueConverter
         => throw new NotSupportedException();
 }
 
-/// <summary>bool → 可见性，用于 HasGpu 控制 GPU 区块显示。</summary>
+/// <summary>bool → 可见性，供可选性能能力区块使用。</summary>
 public sealed class BoolToVisibilityConverter : IValueConverter
 {
     public static readonly BoolToVisibilityConverter Instance = new();

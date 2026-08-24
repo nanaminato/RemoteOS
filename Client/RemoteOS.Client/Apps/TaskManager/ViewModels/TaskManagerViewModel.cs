@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using Avalonia.Threading;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,193 +7,216 @@ using RemoteOS.Protocol.SystemMonitor;
 
 namespace Client.Apps.TaskManager.ViewModels;
 
-/// <summary>任务管理器主视图模型。
-///
-/// 数据流：
-/// - <see cref="DispatcherTimer"/>（默认 2s）触发 <see cref="RefreshAsync"/>，并行拉取 metrics + processes
-/// - 性能标签页绑定 <see cref="Metrics"/> 子属性（CPU/内存/磁盘/网络/GPU），CPU/内存柱状图绑定 <see cref="CpuHistory"/>/<see cref="MemoryHistory"/>
-/// - 进程标签页绑定 <see cref="FilteredProcesses"/>（按 <see cref="ProcessFilter"/> 过滤），选中后"结束任务"调用 <see cref="KillProcessCommand"/>
-/// - 结束进程权限不足时服务端返回 RequiresElevation=true（RemoteOS 不自动提权，提示用户在宿主 OS 提权）
-///
-/// 服务端以宿主 OS 进程身份采集（复用宿主用户/权限，不另建 ACL）。</summary>
-public sealed partial class TaskManagerViewModel : ObservableObject
+/// <summary>性能数据来自服务端统一采样器与 SignalR；进程列表按需分页查询，不能随性能图表刷新。</summary>
+public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDisposable
 {
-    private readonly ITaskManagerClient _client;
-    private readonly DispatcherTimer _timer;
-    private int _refreshing; // Interlocked 重入保护
-    private List<ProcessInfoDto> _allProcesses = new();
     private const int HistoryLimit = 60;
+    private readonly ITaskManagerClient _client;
+    private readonly PerformanceStream _stream;
+    private readonly DispatcherTimer _processTimer;
+    private List<ProcessInfoDto> _allProcesses = [];
+    private int _refreshingProcesses;
+    private long _lastSequence;
+    private int _disposed;
 
-    public TaskManagerViewModel(ITaskManagerClient client)
+    public TaskManagerViewModel(ITaskManagerClient client, PerformanceStream stream)
     {
         _client = client;
-        FilteredProcesses = new ObservableCollection<ProcessInfoDto>();
-        CpuHistory = new ObservableCollection<double>();
-        MemoryHistory = new ObservableCollection<double>();
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _timer.Tick += OnTimerTick;
+        _stream = stream;
+        _stream.SnapshotReceived += OnSnapshotReceived;
+        _stream.Reconnected += OnStreamReconnected;
+        _stream.Disconnected += OnStreamDisconnected;
+        _processTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _processTimer.Tick += async (_, _) => await RefreshProcessesAsync();
+        FilteredProcesses = [];
+        CpuHistory = [];
+        MemoryHistory = [];
     }
 
-    /// <summary>当前可见进程（按过滤词过滤后）。</summary>
     public ObservableCollection<ProcessInfoDto> FilteredProcesses { get; }
+    public ObservableCollection<double> CpuHistory { get; }
+    public ObservableCollection<double> MemoryHistory { get; }
 
-    [ObservableProperty] private SystemMetricsDto? _metrics;
+    [ObservableProperty] private PerformanceInfoDto? _info;
+    [ObservableProperty] private PerformanceRealtimeSnapshotDto? _snapshot;
     [ObservableProperty] private ProcessInfoDto? _selectedProcess;
     [ObservableProperty] private bool _isAutoRefresh = true;
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _statusText = LocalizedText.Get("task_manager.status.collecting");
+    [ObservableProperty] private string _connectionStatus = "正在初始化性能采样…";
     [ObservableProperty] private string _killFeedback = string.Empty;
     [ObservableProperty] private TaskManagerTab _activeTab = TaskManagerTab.Performance;
     [ObservableProperty] private string _processFilter = string.Empty;
-    [ObservableProperty] private bool _hasGpu;
+    [ObservableProperty] private double _memoryPercent;
+    [ObservableProperty] private int _processTotalCount;
 
-    /// <summary>CPU 占用历史（0-100），用于实时柱状图，上限 60 个采样。</summary>
-    public ObservableCollection<double> CpuHistory { get; }
-    /// <summary>内存占用历史（0-100），用于实时柱状图。</summary>
-    public ObservableCollection<double> MemoryHistory { get; }
-
-    /// <summary>GPU 不可用时的提示文案。</summary>
-    public string GpuHint => LocalizedText.Get("task_manager.gpu_unavailable");
-
-    /// <summary>关闭窗口回调（由 TaskManagerApp 注入）。关闭即停止刷新。</summary>
     public Action? CloseAction { get; set; }
 
-    /// <summary>由 TaskManagerApp 在窗口打开后调用：立即采集一次并启动定时器。</summary>
     public async Task StartAsync()
     {
-        await RefreshAsync();
-        if (IsAutoRefresh) _timer.Start();
+        await RefreshPerformanceAsync();
+        try
+        {
+            await _stream.StartAsync();
+            ConnectionStatus = "实时连接";
+        }
+        catch (Exception ex)
+        {
+            ConnectionStatus = "实时连接不可用，已使用快照";
+            StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message);
+        }
     }
 
-    /// <summary>停止定时刷新（窗口关闭/隐藏时调用）。</summary>
-    public void Stop() => _timer.Stop();
+    public void Stop() => _ = DisposeAsync();
 
-    private async void OnTimerTick(object? sender, EventArgs e) => await RefreshAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _processTimer.Stop();
+        _stream.SnapshotReceived -= OnSnapshotReceived;
+        _stream.Reconnected -= OnStreamReconnected;
+        _stream.Disconnected -= OnStreamDisconnected;
+        await _stream.DisposeAsync();
+    }
 
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
-        IsLoading = true;
-        try
-        {
-            var metricsTask = _client.GetMetricsAsync();
-            var procsTask = _client.ListProcessesAsync();
-            await Task.WhenAll(metricsTask, procsTask);
-
-            var metrics = await metricsTask;
-            var procs = await procsTask;
-
-            Metrics = metrics;
-            UpdateCharts(metrics);
-            HasGpu = metrics.Gpus.Count > 0;
-
-            UpdateProcesses(procs);
-            StatusText = LocalizedText.Format("task_manager.status.updated", DateTime.Now, metrics.Cpu.TotalPercent, procs.Count);
-        }
-        catch (Exception ex) { StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message); }
-        finally
-        {
-            IsLoading = false;
-            Interlocked.Exchange(ref _refreshing, 0);
-        }
+        if (ActiveTab == TaskManagerTab.Processes) await RefreshProcessesAsync();
+        else await RefreshPerformanceAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanKill))]
     private async Task KillProcessAsync()
     {
-        var proc = SelectedProcess;
-        if (proc is null) return;
-        KillFeedback = LocalizedText.Format("task_manager.process.terminating", proc.Name, proc.Id);
+        var process = SelectedProcess;
+        if (process is null) return;
+        KillFeedback = LocalizedText.Format("task_manager.process.terminating", process.Name, process.Id);
         try
         {
-            var result = await _client.KillProcessAsync(proc.Id, force: false);
+            var result = await _client.KillProcessAsync(process.Id, force: false);
             if (result.Success)
             {
-                KillFeedback = LocalizedText.Format("task_manager.process.terminated", proc.Name, proc.Id);
+                KillFeedback = LocalizedText.Format("task_manager.process.terminated", process.Name, process.Id);
                 SelectedProcess = null;
             }
             else if (result.RequiresElevation)
-            {
-                KillFeedback = LocalizedText.Format("task_manager.process.elevation_required", proc.Name, proc.Id, result.Error);
-            }
+                KillFeedback = LocalizedText.Format("task_manager.process.elevation_required", process.Name, process.Id, result.Error);
             else
-            {
                 KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", result.Error);
-            }
-            // 立即刷新进程列表
             await RefreshProcessesAsync();
         }
-        catch (Exception ex)
-        {
-            KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", ex.Message);
-        }
+        catch (Exception ex) { KillFeedback = LocalizedText.Format("task_manager.process.termination_failed", ex.Message); }
     }
 
     private bool CanKill => SelectedProcess is not null;
+    partial void OnSelectedProcessChanged(ProcessInfoDto? value) => KillProcessCommand.NotifyCanExecuteChanged();
 
-    partial void OnSelectedProcessChanged(ProcessInfoDto? value)
-        => KillProcessCommand.NotifyCanExecuteChanged();
+    [RelayCommand] private void SwitchToPerformance() => ActiveTab = TaskManagerTab.Performance;
+    [RelayCommand] private void SwitchToProcesses() => ActiveTab = TaskManagerTab.Processes;
+    [RelayCommand] private void Close() => CloseAction?.Invoke();
+    [RelayCommand] private void ClearFilter() => ProcessFilter = string.Empty;
 
-    // IsAutoRefresh 由 CheckBox 双向绑定驱动；变化时启停定时器（避免 Command + IsChecked 双触发）
-    partial void OnIsAutoRefreshChanged(bool value)
+    partial void OnActiveTabChanged(TaskManagerTab value)
     {
-        if (value && !_timer.IsEnabled) _timer.Start();
-        else if (!value && _timer.IsEnabled) _timer.Stop();
+        if (value == TaskManagerTab.Processes)
+        {
+            _ = RefreshProcessesAsync();
+            if (IsAutoRefresh) _processTimer.Start();
+        }
+        else _processTimer.Stop();
     }
 
-    [RelayCommand]
-    private void SwitchToPerformance() => ActiveTab = TaskManagerTab.Performance;
-
-    [RelayCommand]
-    private void SwitchToProcesses() => ActiveTab = TaskManagerTab.Processes;
-
-    [RelayCommand]
-    private void Close() => CloseAction?.Invoke();
+    partial void OnIsAutoRefreshChanged(bool value)
+    {
+        if (value && ActiveTab == TaskManagerTab.Processes && !_processTimer.IsEnabled) _processTimer.Start();
+        else if (!value && _processTimer.IsEnabled) _processTimer.Stop();
+    }
 
     partial void OnProcessFilterChanged(string value) => ApplyFilter();
 
-    [RelayCommand]
-    private void ClearFilter() => ProcessFilter = string.Empty;
-
-    private async Task RefreshProcessesAsync()
+    private async Task RefreshPerformanceAsync()
     {
         try
         {
-            var procs = await _client.ListProcessesAsync();
-            UpdateProcesses(procs);
+            var infoTask = _client.GetPerformanceInfoAsync();
+            var historyTask = _client.GetPerformanceHistoryAsync();
+            await Task.WhenAll(infoTask, historyTask);
+            Info = await infoTask;
+            var history = await historyTask;
+            if (history.Count == 0)
+            {
+                try { ApplySnapshot(await _client.GetPerformanceSnapshotAsync(), resetHistory: true); }
+                catch { ConnectionStatus = "等待首个有效样本"; }
+            }
+            else ReplaceHistory(history);
+            if (ConnectionStatus != "实时连接") ConnectionStatus = "快照已更新";
         }
-        catch { /* 忽略，定时刷新会重试 */ }
-    }
-
-    private void ApplyFilter()
-    {
-        RebuildFilteredProcesses(SelectedProcess);
-    }
-
-    /// <summary>
-    /// Rebuilds the visible list and restores selection after the collection change.
-    /// ListBox clears its SelectedItem while its source is rebuilt, so restoring it
-    /// before changing <see cref="FilteredProcesses"/> is not sufficient.
-    /// </summary>
-    private void RebuildFilteredProcesses(ProcessInfoDto? selectedProcess)
-    {
-        var filter = ProcessFilter?.Trim() ?? string.Empty;
-        IEnumerable<ProcessInfoDto> source = _allProcesses;
-        if (!string.IsNullOrEmpty(filter))
+        catch (Exception ex)
         {
-            source = _allProcesses.Where(p =>
-                p.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                p.Id.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                (p.UserName?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
+            ConnectionStatus = "性能数据不可用";
+            StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message);
         }
-        FilteredProcesses.Clear();
-        foreach (var p in source) FilteredProcesses.Add(p);
+    }
 
-        // A process snapshot contains new DTO instances every time.  Restore the
-        // matching instance only after the visible collection has been updated.
-        SelectedProcess = selectedProcess is null ? null : FilteredProcesses.FirstOrDefault(p =>
-            p.Id == selectedProcess.Id && p.StartTime == selectedProcess.StartTime);
+    private async Task RefreshProcessesAsync()
+    {
+        if (Interlocked.CompareExchange(ref _refreshingProcesses, 1, 0) != 0) return;
+        IsLoading = true;
+        try
+        {
+            var page = await _client.QueryProcessesAsync(filter: string.IsNullOrWhiteSpace(ProcessFilter) ? null : ProcessFilter, sort: "memory");
+            ProcessTotalCount = page.TotalCount;
+            UpdateProcesses(page.Items);
+            StatusText = LocalizedText.Format("task_manager.status.updated", page.SampledAt.LocalDateTime,
+                Snapshot?.Cpu.TotalPercent ?? 0, page.TotalCount);
+        }
+        catch (Exception ex) { StatusText = LocalizedText.Format("task_manager.status.collect_failed", ex.Message); }
+        finally
+        {
+            IsLoading = false;
+            Interlocked.Exchange(ref _refreshingProcesses, 0);
+        }
+    }
+
+    private void OnSnapshotReceived(PerformanceRealtimeSnapshotDto snapshot)
+        => Dispatcher.UIThread.Post(() => ApplySnapshot(snapshot, resetHistory: false));
+
+    private void OnStreamReconnected()
+        => Dispatcher.UIThread.Post(async () =>
+        {
+            ConnectionStatus = "已重连，正在补齐历史";
+            await RefreshPerformanceAsync();
+            ConnectionStatus = "实时连接";
+        });
+
+    private void OnStreamDisconnected()
+        => Dispatcher.UIThread.Post(() => ConnectionStatus = "实时连接已断开，保留最后快照");
+
+    private void ReplaceHistory(IReadOnlyList<PerformanceRealtimeSnapshotDto> history)
+    {
+        CpuHistory.Clear();
+        MemoryHistory.Clear();
+        _lastSequence = 0;
+        foreach (var snapshot in history.OrderBy(x => x.Sequence)) ApplySnapshot(snapshot, resetHistory: false);
+    }
+
+    private void ApplySnapshot(PerformanceRealtimeSnapshotDto snapshot, bool resetHistory)
+    {
+        if (!resetHistory && snapshot.Sequence <= _lastSequence) return;
+        if (resetHistory)
+        {
+            CpuHistory.Clear();
+            MemoryHistory.Clear();
+            _lastSequence = 0;
+        }
+        _lastSequence = Math.Max(_lastSequence, snapshot.Sequence);
+        Snapshot = snapshot;
+        MemoryPercent = snapshot.Memory.TotalBytes <= 0 ? 0 : Math.Round(snapshot.Memory.UsedBytes * 100d / snapshot.Memory.TotalBytes, 1);
+        AppendHistory(CpuHistory, snapshot.Cpu.TotalPercent);
+        AppendHistory(MemoryHistory, MemoryPercent);
+        StatusText = LocalizedText.Format("task_manager.status.updated", snapshot.Timestamp.LocalDateTime,
+            snapshot.Cpu.TotalPercent, ProcessTotalCount);
     }
 
     private void UpdateProcesses(IReadOnlyList<ProcessInfoDto> processes)
@@ -204,23 +226,26 @@ public sealed partial class TaskManagerViewModel : ObservableObject
         RebuildFilteredProcesses(selected);
     }
 
-    private void UpdateCharts(SystemMetricsDto metrics)
+    private void ApplyFilter() => RebuildFilteredProcesses(SelectedProcess);
+
+    private void RebuildFilteredProcesses(ProcessInfoDto? selected)
     {
-        AppendHistory(CpuHistory, metrics.Cpu.TotalPercent);
-        AppendHistory(MemoryHistory, metrics.Memory.Percent);
+        var filter = ProcessFilter.Trim();
+        IEnumerable<ProcessInfoDto> source = _allProcesses;
+        if (!string.IsNullOrWhiteSpace(filter))
+            source = source.Where(p => p.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || p.Id.ToString().Contains(filter, StringComparison.OrdinalIgnoreCase)
+                || (p.UserName?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false));
+        FilteredProcesses.Clear();
+        foreach (var process in source) FilteredProcesses.Add(process);
+        SelectedProcess = selected is null ? null : FilteredProcesses.FirstOrDefault(p => p.Id == selected.Id && p.StartTime == selected.StartTime);
     }
 
-    private static void AppendHistory(ObservableCollection<double> history, double percent)
+    private static void AppendHistory(ObservableCollection<double> history, double value)
     {
-        var clamped = Math.Clamp(percent, 0, 100);
-        history.Add(clamped);
+        history.Add(Math.Clamp(value, 0, 100));
         while (history.Count > HistoryLimit) history.RemoveAt(0);
     }
 }
 
-/// <summary>任务管理器标签页。</summary>
-public enum TaskManagerTab
-{
-    Performance,
-    Processes,
-}
+public enum TaskManagerTab { Performance, Processes }

@@ -36,8 +36,9 @@ public sealed class TaskManagerApp : RemoteApplicationBase
     {
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
         var client = context.Services.GetService(typeof(ITaskManagerClient)) as ITaskManagerClient;
+        var performanceStream = context.Services.GetService(typeof(PerformanceStream)) as PerformanceStream;
 
-        if (session is null || client is null || session.State != AuthSessionState.Authenticated)
+        if (session is null || client is null || performanceStream is null || session.State != AuthSessionState.Authenticated)
         {
             var stub = new TextBlock
             {
@@ -52,7 +53,7 @@ public sealed class TaskManagerApp : RemoteApplicationBase
             return;
         }
 
-        var viewModel = new TaskManagerViewModel(client);
+        var viewModel = new TaskManagerViewModel(client, performanceStream);
         var view = new TaskManagerMainView { DataContext = viewModel };
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.taskmanager.display_name"), view,
             bounds: new Rect(70, 55, 980, 680),

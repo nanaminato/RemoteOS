@@ -10,15 +10,12 @@
              Background="{DynamicResource SurfaceBrush}">
 
     <UserControl.Resources>
-        <!-- 标签页按钮：紧凑 -->
         <ControlTheme x:Key="TabButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Padding" Value="20,8" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="BorderThickness" Value="0" />
         </ControlTheme>
     </UserControl.Resources>
-
-    <!-- 指标卡片样式：按选择器自动应用到 Class="card" 的 Border -->
     <UserControl.Styles>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
@@ -31,262 +28,103 @@
     </UserControl.Styles>
 
     <DockPanel LastChildFill="True">
-
-        <!-- 顶部工具栏：标签页切换 + 刷新 + 状态 -->
         <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="6,4">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" VerticalAlignment="Center">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Background="{DynamicResource SurfaceBrush}" Margin="0,0,8,0">
-                    <Button Content="{loc:Loc task_manager.performance}" Theme="{StaticResource TabButton}"
-                            Command="{Binding SwitchToPerformanceCommand}"
-                            Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Performance, Mode=OneWay}" />
-                    <Button Content="{loc:Loc task_manager.processes}" Theme="{StaticResource TabButton}"
-                            Command="{Binding SwitchToProcessesCommand}"
-                            Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Processes, Mode=OneWay}" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,0">
+                    <Button Content="{loc:Loc task_manager.performance}" Theme="{StaticResource TabButton}" Command="{Binding SwitchToPerformanceCommand}"
+                            Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Performance}" />
+                    <Button Content="{loc:Loc task_manager.processes}" Theme="{StaticResource TabButton}" Command="{Binding SwitchToProcessesCommand}"
+                            Background="{Binding ActiveTab, Converter={x:Static conv:TabBgConverter.Instance}, ConverterParameter=Processes}" />
                 </StackPanel>
-
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" Padding="12,6" ToolTip.Tip="F5" />
-                    <CheckBox Content="{loc:Loc task_manager.auto_refresh}" IsChecked="{Binding IsAutoRefresh, Mode=TwoWay}"
-                              VerticalAlignment="Center" />
+                    <CheckBox Content="{loc:Loc task_manager.auto_refresh}" IsChecked="{Binding IsAutoRefresh, Mode=TwoWay}" VerticalAlignment="Center" />
                 </StackPanel>
-
-                <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12" Opacity="0.7"
-                           VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" />
-                <Button Grid.Column="3" Content="✕" Command="{Binding CloseCommand}"
-                        Padding="10,4" ToolTip.Tip="{loc:Loc common.close}" />
+                <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ConnectionStatus}" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.55" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="3" Content="✕" Command="{Binding CloseCommand}" Padding="10,4" ToolTip.Tip="{loc:Loc common.close}" />
             </Grid>
         </Border>
 
-        <!-- 内容区：性能 / 进程 两个面板叠加，按 ActiveTab 切换可见 -->
         <Grid>
-
-            <!-- ════════ 性能面板 ════════ -->
-            <ScrollViewer IsVisible="{Binding ActiveTab, Converter={x:Static conv:TabVisibilityConverter.Instance}, ConverterParameter=Performance, Mode=OneWay}"
-                          >
-                <StackPanel Orientation="Vertical" MaxWidth="980" Margin="12">
-
-                    <!-- CPU 卡片 -->
+            <ScrollViewer IsVisible="{Binding ActiveTab, Converter={x:Static conv:TabVisibilityConverter.Instance}, ConverterParameter=Performance}">
+                <StackPanel MaxWidth="980" Margin="12">
                     <Border Classes="card">
-                        <StackPanel Orientation="Vertical" Spacing="6">
+                        <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="Auto,*,Auto">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{loc:Loc task_manager.cpu}" FontSize="14" FontWeight="SemiBold" />
-                                    <TextBlock Text="{Binding Metrics.Cpu.CoreCount, Converter={x:Static conv:LocalizedFormatConverter.Instance}, ConverterParameter=task_manager.core_count}" FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Info.Cpu.LogicalProcessorCount, StringFormat='{}{0} logical processors'}" FontSize="12" Opacity="0.6" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"
-                                           Text="{Binding Metrics.Cpu.TotalPercent, StringFormat='{}{0:0.0}%'}" />
+                                <TextBlock Grid.Column="2" Text="{Binding Snapshot.Cpu.TotalPercent, StringFormat='{}{0:0.0}%'}" FontSize="26" FontWeight="Bold" />
                             </Grid>
-                            <!-- 实时柱状图：纵向条形，值 0-100，容器 70px 高 ClipToBounds 裁剪 -->
-                            <Border Height="70" ClipToBounds="True" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
+                            <Border Height="70" ClipToBounds="True" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
                                 <ItemsControl ItemsSource="{Binding CpuHistory}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="1" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="sys:Double">
-                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate><DataTemplate x:DataType="sys:Double"><Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" /></DataTemplate></ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </Border>
-                            <!-- 每核占用 -->
-                            <TextBlock Text="{loc:Loc task_manager.per_core_usage}" FontSize="11" Opacity="0.6" Margin="0,4,0,0" />
-                            <ItemsControl ItemsSource="{Binding Metrics.Cpu.PerCorePercent}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="sys:Double">
-                                        <StackPanel Orientation="Vertical" Width="90" Margin="0,0,6,4">
-                                            <TextBlock Text="{Binding StringFormat='{}{0:0}%'}" FontSize="10" Opacity="0.7" />
-                                            <ProgressBar Value="{Binding}" Maximum="100" Height="5" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
+                            <TextBlock Text="每逻辑处理器" FontSize="11" Opacity="0.6" Margin="0,4,0,0" />
+                            <ItemsControl ItemsSource="{Binding Snapshot.Cpu.PerLogicalCpuPercent}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="sys:Double"><StackPanel Width="90" Margin="0,0,6,4"><TextBlock Text="{Binding StringFormat='{}{0:0}%'}" FontSize="10" Opacity="0.7" /><ProgressBar Value="{Binding}" Maximum="100" Height="5" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
                     </Border>
 
-                    <!-- 内存卡片 -->
                     <Border Classes="card">
-                        <StackPanel Orientation="Vertical" Spacing="6">
-                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0" Text="{loc:Loc task_manager.memory}" FontSize="14" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="2" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}"
-                                           Text="{Binding Metrics.Memory.Percent, StringFormat='{}{0:0.0}%'}" />
-                            </Grid>
-                            <Border Height="50" ClipToBounds="True" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
-                                <ItemsControl ItemsSource="{Binding MemoryHistory}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="1" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="sys:Double">
-                                            <Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="Auto,*,Auto"><TextBlock Text="{loc:Loc task_manager.memory}" FontSize="14" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="{Binding MemoryPercent, StringFormat='{}{0:0.0}%'}" FontSize="26" FontWeight="Bold" /></Grid>
+                            <Border Height="50" ClipToBounds="True" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1">
+                                <ItemsControl ItemsSource="{Binding MemoryHistory}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate x:DataType="sys:Double"><Rectangle Width="3" Height="{Binding}" VerticalAlignment="Bottom" Fill="{DynamicResource AccentBrush}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                             </Border>
                             <StackPanel Orientation="Horizontal" Spacing="16" Opacity="0.75">
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.UsedBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_used}" />
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.AvailableBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_available}" />
-                                <TextBlock FontSize="12" Text="{Binding Metrics.Memory.TotalBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_total}" />
+                                <TextBlock Text="{Binding Snapshot.Memory.UsedBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_used}" FontSize="12" />
+                                <TextBlock Text="{Binding Snapshot.Memory.AvailableBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_available}" FontSize="12" />
+                                <TextBlock Text="{Binding Snapshot.Memory.TotalBytes, Converter={x:Static conv:LocalizedBytesConverter.Instance}, ConverterParameter=task_manager.memory_total}" FontSize="12" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
 
-                    <!-- 磁盘卡片 -->
                     <Border Classes="card">
-                        <StackPanel Orientation="Vertical" Spacing="4">
-                            <TextBlock Text="{loc:Loc task_manager.disk}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <ItemsControl ItemsSource="{Binding Metrics.Disks}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="dto:DiskUsageDto">
-                                        <Grid ColumnDefinitions="90,*,Auto" Margin="0,3" VerticalAlignment="Center">
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <ProgressBar Grid.Column="1" Value="{Binding Percent}" Maximum="100" Height="14" Margin="8,0" />
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                                <TextBlock FontSize="11" Opacity="0.75"
-                                                           Text="{Binding UsedBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
-                                                <TextBlock Text="/" FontSize="11" Opacity="0.5" />
-                                                <TextBlock FontSize="11" Opacity="0.75"
-                                                           Text="{Binding TotalBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="文件系统" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding Snapshot.Filesystems}">
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="dto:FilesystemUsageDto"><Grid ColumnDefinitions="110,*,Auto" Margin="0,3"><TextBlock Text="{Binding Id}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" /><ProgressBar Grid.Column="1" Value="{Binding Percent}" Maximum="100" Height="14" Margin="8,0" /><StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4"><TextBlock Text="{Binding UsedBytes, Converter={x:Static conv:BytesConverter.Instance}}" FontSize="11" /><TextBlock Text="/" FontSize="11" /><TextBlock Text="{Binding TotalBytes, Converter={x:Static conv:BytesConverter.Instance}}" FontSize="11" /></StackPanel></Grid></DataTemplate></ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
                     </Border>
 
-                    <!-- 网络卡片 -->
+                    <Border Classes="card" IsVisible="{Binding Info.Capabilities.DiskIo}">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="磁盘 I/O" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <ItemsControl ItemsSource="{Binding Snapshot.Disks}">
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="dto:DiskRealtimeMetricsDto"><Grid ColumnDefinitions="120,Auto,Auto,Auto" Margin="0,3"><TextBlock Text="{Binding Id}" FontSize="12" /><TextBlock Grid.Column="1" Text="{Binding ReadBytesPerSecond, Converter={x:Static conv:RateConverter.Instance}, StringFormat='Read {0}'}" Margin="0,0,14,0" FontSize="12" /><TextBlock Grid.Column="2" Text="{Binding WriteBytesPerSecond, Converter={x:Static conv:RateConverter.Instance}, StringFormat='Write {0}'}" Margin="0,0,14,0" FontSize="12" /><TextBlock Grid.Column="3" Text="{Binding ActivityPercent, Converter={x:Static conv:PercentTextConverter.Instance}}" FontSize="12" /></Grid></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
                     <Border Classes="card">
-                        <StackPanel Orientation="Vertical" Spacing="4">
+                        <StackPanel Spacing="4">
                             <TextBlock Text="{loc:Loc task_manager.network}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <ItemsControl ItemsSource="{Binding Metrics.Networks}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="dto:NetworkUsageDto">
-                                        <Grid ColumnDefinitions="110,Auto,Auto,*" Margin="0,3" VerticalAlignment="Center">
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,14,0" VerticalAlignment="Center">
-                                                <TextBlock Text="↓ " Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" />
-                                                <TextBlock FontSize="12" Text="{Binding ReceiveRateBytesPerSec, Converter={x:Static conv:RateConverter.Instance}}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="↑ " Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" />
-                                                <TextBlock FontSize="12" Text="{Binding SendRateBytesPerSec, Converter={x:Static conv:RateConverter.Instance}}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
+                            <ItemsControl ItemsSource="{Binding Snapshot.Networks}">
+                                <ItemsControl.ItemTemplate><DataTemplate x:DataType="dto:NetworkRealtimeMetricsDto"><Grid ColumnDefinitions="140,Auto,Auto,*" Margin="0,3"><TextBlock Text="{Binding Id}" FontSize="12" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding ReceiveBytesPerSecond, Converter={x:Static conv:RateConverter.Instance}, StringFormat='↓ {0}'}" Margin="0,0,14,0" FontSize="12" /><TextBlock Grid.Column="2" Text="{Binding SendBytesPerSecond, Converter={x:Static conv:RateConverter.Instance}, StringFormat='↑ {0}'}" FontSize="12" /></Grid></DataTemplate></ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
                     </Border>
 
-                    <!-- GPU 卡片 -->
-                    <Border Classes="card" IsVisible="{Binding HasGpu}">
-                        <StackPanel Orientation="Vertical" Spacing="4">
-                            <TextBlock Text="{loc:Loc task_manager.gpu}" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,4" />
-                            <ItemsControl ItemsSource="{Binding Metrics.Gpus}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="dto:GpuUsageDto">
-                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,3" VerticalAlignment="Center">
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="1" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
-                                                       Text="{Binding UsagePercent, Converter={x:Static conv:LocalizedFormatConverter.Instance}, ConverterParameter=task_manager.gpu_usage}" />
-                                            <TextBlock Grid.Column="2" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0">
-                                                <Run Text="{loc:Loc task_manager.gpu_memory}" />
-                                                <Run Text="{Binding MemoryUsedBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
-                                                <Run Text=" / " />
-                                                <Run Text="{Binding MemoryTotalBytes, Converter={x:Static conv:BytesConverter.Instance}}" />
-                                            </TextBlock>
-                                            <TextBlock Grid.Column="3" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
-                                                       Text="{Binding TemperatureCelsius, Converter={x:Static conv:NullableDoubleTextConverter.Instance}, StringFormat='{}{0}°C'}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-                    <!-- GPU 不可用提示 -->
-                    <TextBlock Text="{Binding GpuHint}" FontSize="11" Opacity="0.5" Margin="2,0,0,6"
-                               IsVisible="{Binding !HasGpu}" />
-
-                    <!-- 运行时间 -->
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,6" Opacity="0.7">
-                        <TextBlock Text="{loc:Loc task_manager.uptime}" FontSize="12" />
-                        <TextBlock FontSize="12" Text="{Binding Metrics.UptimeSeconds, Converter={x:Static conv:UptimeConverter.Instance}}" />
-                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="2,0,0,6" Opacity="0.7"><TextBlock Text="{loc:Loc task_manager.uptime}" FontSize="12" /><TextBlock Text="{Binding Snapshot.UptimeSeconds, Converter={x:Static conv:UptimeConverter.Instance}}" FontSize="12" /></StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- ════════ 进程面板 ════════ -->
-            <Grid IsVisible="{Binding ActiveTab, Converter={x:Static conv:TabVisibilityConverter.Instance}, ConverterParameter=Processes, Mode=OneWay}"
-                  RowDefinitions="Auto,Auto,*">
-
-                <!-- 工具栏：过滤 + 结束任务 -->
+            <Grid IsVisible="{Binding ActiveTab, Converter={x:Static conv:TabVisibilityConverter.Instance}, ConverterParameter=Processes}" RowDefinitions="Auto,Auto,*">
                 <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,6">
-                    <Grid ColumnDefinitions="*,Auto,Auto">
-                        <TextBox x:Name="FilterBox" Grid.Column="0" Text="{Binding ProcessFilter, Mode=TwoWay}"
-                                 PlaceholderText="{loc:Loc task_manager.filter_placeholder}"
-                                 KeyDown="FilterBox_KeyDown" />
-                        <Button Grid.Column="1" Content="{loc:Loc common.clear}" Command="{Binding ClearFilterCommand}" Padding="12,6" Margin="6,0,0,0" />
-                        <Button Grid.Column="2" Content="{loc:Loc task_manager.end_task}" Command="{Binding KillProcessCommand}"
-                                Classes="primary" Padding="16,6" Margin="6,0,0,0"
-                                ToolTip.Tip="{loc:Loc task_manager.end_task_tooltip}" />
-                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto"><TextBox x:Name="FilterBox" Text="{Binding ProcessFilter, Mode=TwoWay}" PlaceholderText="{loc:Loc task_manager.filter_placeholder}" KeyDown="FilterBox_KeyDown" /><TextBlock Grid.Column="1" Text="{Binding ProcessTotalCount, StringFormat='{}{0} processes'}" VerticalAlignment="Center" Margin="8,0" FontSize="12" Opacity="0.7" /><Button Grid.Column="2" Content="{loc:Loc common.clear}" Command="{Binding ClearFilterCommand}" Padding="12,6" Margin="6,0,0,0" /><Button Grid.Column="3" Content="{loc:Loc task_manager.end_task}" Command="{Binding KillProcessCommand}" Classes="primary" Padding="16,6" Margin="6,0,0,0" /></Grid>
                 </Border>
-
-                <!-- 结束进程反馈 -->
-                <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1" Padding="8,4"
-                        IsVisible="{Binding KillFeedback, Converter={x:Static conv:StringNonEmptyVisibilityConverter.Instance}}">
-                    <TextBlock Text="{Binding KillFeedback}" FontSize="12" TextWrapping="Wrap" />
-                </Border>
-
-                <!-- 进程列表 -->
-                <Border Grid.Row="2">
-                    <Grid RowDefinitions="Auto,*">
-                        <!-- 表头 -->
-                        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="8,6">
-                            <Grid ColumnDefinitions="2*,70,80,120,120,60">
-                                <TextBlock Grid.Column="0" Text="{loc:Loc common.name}" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="2" Text="CPU" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="3" Text="{loc:Loc task_manager.memory}" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="4" Text="{loc:Loc common.user}" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="5" Text="{loc:Loc task_manager.threads}" FontSize="12" FontWeight="SemiBold" />
-                            </Grid>
-                        </Border>
-                        <ListBox Grid.Row="1" x:Name="ProcessList"
-                                 ItemsSource="{Binding FilteredProcesses}"
-                                 SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"
-                                 Background="Transparent" BorderThickness="0">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="dto:ProcessInfoDto">
-                                    <Grid ColumnDefinitions="2*,70,80,120,120,60" Margin="0,1">
-                                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Id}" FontSize="12" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="2" Text="{Binding CpuPercent, StringFormat='{}{0:0.0}%'}" FontSize="12" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="3" Text="{Binding MemoryBytes, Converter={x:Static conv:BytesConverter.Instance}}" FontSize="12" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="4" Text="{Binding UserName}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="5" Text="{Binding ThreadCount}" FontSize="12" VerticalAlignment="Center" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                            <ListBox.Styles>
-                                <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
-                                    <Setter Property="Padding" Value="8,3" />
-                                </Style>
-                            </ListBox.Styles>
-                        </ListBox>
-                    </Grid>
-                </Border>
+                <Border Grid.Row="1" Padding="8,4" IsVisible="{Binding KillFeedback, Converter={x:Static conv:StringNonEmptyVisibilityConverter.Instance}}"><TextBlock Text="{Binding KillFeedback}" FontSize="12" TextWrapping="Wrap" /></Border>
+                <Border Grid.Row="2"><Grid RowDefinitions="Auto,*"><Border Background="{DynamicResource SurfaceBrush}" Padding="8,6"><Grid ColumnDefinitions="2*,70,80,120,120,60"><TextBlock Text="{loc:Loc common.name}" FontSize="12" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="PID" FontSize="12" FontWeight="SemiBold" /><TextBlock Grid.Column="2" Text="CPU" FontSize="12" FontWeight="SemiBold" /><TextBlock Grid.Column="3" Text="Memory" FontSize="12" FontWeight="SemiBold" /><TextBlock Grid.Column="4" Text="User" FontSize="12" FontWeight="SemiBold" /><TextBlock Grid.Column="5" Text="Threads" FontSize="12" FontWeight="SemiBold" /></Grid></Border><ListBox Grid.Row="1" ItemsSource="{Binding FilteredProcesses}" SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"><ListBox.ItemTemplate><DataTemplate x:DataType="dto:ProcessInfoDto"><Grid ColumnDefinitions="2*,70,80,120,120,60" Margin="8,5"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding Id}" /><TextBlock Grid.Column="2" Text="{Binding CpuPercent, StringFormat='{}{0:0.0}%'}" /><TextBlock Grid.Column="3" Text="{Binding MemoryBytes, Converter={x:Static conv:BytesConverter.Instance}}" /><TextBlock Grid.Column="4" Text="{Binding UserName}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="5" Text="{Binding ThreadCount}" /></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Grid></Border>
             </Grid>
         </Grid>
     </DockPanel>

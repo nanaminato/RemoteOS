@@ -88,6 +88,7 @@ public static class Bootstrapper
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "task-manager"))
             .AddHttpMessageHandler<AcceptLanguageHandler>()
             .AddRemoteOsAuthentication();
+        services.AddTransient<Client.Apps.TaskManager.PerformanceStream>();
         services.AddHttpClient<Client.Apps.Docker.IRemoteDockerClient, Client.Apps.Docker.RemoteDockerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "docker"))
             .AddHttpMessageHandler<AcceptLanguageHandler>()

@@ -68,7 +68,7 @@ RemoteOS 采用状态同步模式（非像素流）：Client 本地渲染 UI，�
 
 内置设置中心已落地（RemoteSettings）：Windows 11 / GNOME 风格，5 个分类页（系统 / 个性化 / 时间和语言 / 网络 / 应用）。用户偏好（壁纸 / 主题 / 时间格式 / 日期格式 / 语言 / 区域 / 默认程序）经 Server 端 REST API（`/api/v1/workspaces/{id}/preferences`）持久化到 Workspace（`OwnsOne + ToJson` 单列 JSON，多设备共享）；登录时 `PreferencesSync` 自动加载应用到桌面外壳（壁纸 / 任务栏底色 / 时钟格式即时生效），设置应用编辑后防抖 300ms 保存。宿主 OS 级设置（时区 / 网卡）只读展示（硬约束「权限提升委托宿主 OS」）。详见 [`RemoteOS.Settings.md`](./desktop/RemoteOS.Settings.md)。
 
-内置任务管理器已落地（RemoteTaskManager）：参考 Windows 任务管理器 / GNOME 系统监视器，性能 / 进程双标签页。性能页实时展示 CPU（整机 + 每核 + 60 采样柱状图）/ 内存 / 磁盘 / 网络 / GPU（nvidia-smi）/ 运行时间；进程页列出当前可见进程，按名称/PID/用户过滤，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server 端 REST API（`/api/v1/system/*`）拉取，服务端 `ISystemMetricsProvider` 跨平台采集（Linux 读 `/proc`、Windows 走 P/Invoke `GetSystemTimes`/`GlobalMemoryStatusEx`），以宿主 OS 进程身份执行、不持久化。详见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)。
+内置任务管理器正在重写（RemoteTaskManager）：性能页改由 Server 端统一 1 秒采样器、60 秒内存历史与 SignalR（`/hubs/performance`）推送驱动；CPU/内存/文件系统/网络/磁盘 I/O 跨 Windows/Linux 统一建模，宿主机或服务身份不支持的能力会明确降级而非显示伪造数值。进程页使用独立低频采样与分页查询；结束进程仍不自动提权。旧 REST metrics 契约暂为兼容保留。详见 [`RemoteOS.TaskManager.Rewrite.md`](./applications/RemoteOS.TaskManager.Rewrite.md)。
 
 内置 Docker 管理器已部分落地（RemoteDocker）：本机 Docker Engine 检测与状态展示、容器启停重启、Compose 校验/部署/停止；镜像、网络、卷管理功能设计中。Server 端通过 `IDockerEngineService` 调用 `docker` CLI，`IDockerComposeService` 处理 Compose 编排。详见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)。
 

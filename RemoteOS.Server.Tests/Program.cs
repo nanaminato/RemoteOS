@@ -14,6 +14,7 @@ using RemoteOS.Protocol.WebServers;
 using Server.Certificate;
 using Server.Domain;
 using Server.Storage.Sqlite;
+using Server.SystemPerformance;
 using Server.WebServer;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
@@ -30,6 +31,7 @@ try
     VerifyWorkspacePreferencesJsonContract();
     VerifyThemePaletteContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
+    await VerifyPerformanceSamplerAsync();
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 
@@ -137,6 +139,39 @@ static void VerifyCertificateApiRoutes()
     Assert(CertificateApiRoutes.Certificates == "/api/v1/certificates", "Certificate collection route changed unexpectedly.");
     Assert(CertificateApiRoutes.Request == CertificateApiRoutes.Certificates, "Certificate request route must use the collection endpoint.");
     Assert(CertificateApiRoutes.CollectionPattern.Length == 0, "Certificate collection pattern must remain group-relative.");
+}
+
+static async Task VerifyPerformanceSamplerAsync()
+{
+    if (OperatingSystem.IsLinux())
+    {
+        var linux = new LinuxPerformanceSource();
+        var linuxInfo = await linux.GetInfoAsync();
+        var linuxSample = await linux.ReadAsync();
+        Assert(linuxInfo.Cpu.LogicalProcessorCount > 0, "Linux performance source did not report logical processors.");
+        Assert(linuxSample.Memory.TotalBytes > 0, "Linux performance source did not read MemTotal.");
+        Assert(linuxSample.Cpu.LogicalProcessors.Count > 0, "Linux performance source did not read per-logical-CPU counters.");
+    }
+
+    var source = new FakePerformanceSource();
+    var history = new PerformanceHistory();
+    var sampler = new PerformanceSampler(source, history);
+    await sampler.StartAsync(CancellationToken.None);
+    try
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(1200));
+        var latest = sampler.GetLatest() ?? throw new InvalidOperationException("Performance sampler did not publish its second sample.");
+        Assert(latest.Sequence == 1, "Performance sampler did not begin its sequence at the first valid sample.");
+        Assert(latest.Cpu.TotalPercent == 30, "CPU utilization did not use adjacent raw counters.");
+        Assert(latest.Disks.Single().ReadBytesPerSecond == 5120, "Disk byte rate did not use sector deltas.");
+        Assert(latest.Networks.Single().ReceiveBytesPerSecond == 500, "Network rate did not use adjacent counters.");
+        Assert(sampler.GetHistory(60).Count == 1, "Performance history did not retain the valid sample.");
+    }
+    finally
+    {
+        await sampler.StopAsync(CancellationToken.None);
+        sampler.Dispose();
+    }
 }
 
 static async Task VerifyRenewalRetryAsync(string root)
@@ -467,4 +502,24 @@ sealed class FakeWebServerProvider : IWebServerProvider
     public Task<IReadOnlyList<WebServerSiteDto>?> ListSitesAsync(string instanceId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<WebServerSiteDto>?>([]);
     public Task<WebServerSiteDto?> UpsertSiteAsync(string instanceId, UpsertWebServerSiteRequest request, CancellationToken cancellationToken) => Task.FromResult<WebServerSiteDto?>(null);
     public Task<bool?> DeleteSiteAsync(string instanceId, string siteId, CancellationToken cancellationToken) => Task.FromResult<bool?>(false);
+}
+
+sealed class FakePerformanceSource : ISystemPerformanceSource
+{
+    private int _sample;
+
+    public ValueTask<RemoteOS.Protocol.SystemMonitor.PerformanceInfoDto> GetInfoAsync(CancellationToken cancellationToken = default)
+        => ValueTask.FromResult(new RemoteOS.Protocol.SystemMonitor.PerformanceInfoDto(
+            new("test", 1, 1, null, null), new(1000, 0), [new("fs:test", "test", "/test")],
+            [new("disk:test", "test", null, [])], [new("net:test", "test", null, [])], new(true, false, false, true, false, true, true, false)));
+
+    public ValueTask<RawPerformanceSample> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        var index = Interlocked.Increment(ref _sample);
+        return ValueTask.FromResult(new RawPerformanceSample(DateTimeOffset.UtcNow, index * System.Diagnostics.Stopwatch.Frequency,
+            new RawCpuTimes(index * 100, index * 70, index * 20, index * 10, null, [new(index * 100, index * 70, index * 20, index * 10, null, [], null)], null),
+            new RawMemory(1000, 600, null, null, 0, 0), [new("fs:test", 1000, 600)],
+            [new("disk:test", index * 10, index * 5, index * 10, index * 5, index * 100, index * 100, index * 10, index * 5, 512)],
+            [new("net:test", index * 500, index * 100, index * 5, index, 0, 0, 0, 0)], index));
+    }
 }

@@ -4,6 +4,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Claims;
 using RemoteOS.Protocol.SystemMonitor;
+using Server.SystemPerformance;
 
 namespace Server.Endpoints;
 
@@ -16,6 +17,25 @@ public static class SystemMonitorEndpoints
 
     public static IEndpointRouteBuilder MapSystemMonitorEndpoints(this IEndpointRouteBuilder app)
     {
+        // 新性能链路：静态信息、有效快照和 60 秒内存历史分离；客户端通过 PerformanceHub 获取实时更新。
+        app.MapGet(SystemMonitorApiRoutes.PerformanceInfo,
+            async (IPerformanceSampler sampler, CancellationToken ct) => Results.Ok(await sampler.GetInfoAsync(ct)))
+           .RequireAuthorization()
+           .WithTags("System Performance");
+
+        app.MapGet(SystemMonitorApiRoutes.PerformanceSnapshot,
+            (IPerformanceSampler sampler) => sampler.GetLatest() is { } snapshot
+                ? Results.Ok(snapshot)
+                : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "Performance sample is not ready.", type: ProblemBase + "performance-not-ready"))
+           .RequireAuthorization()
+           .WithTags("System Performance");
+
+        app.MapGet(SystemMonitorApiRoutes.PerformanceHistory,
+            (int? seconds, IPerformanceSampler sampler) => Results.Ok(sampler.GetHistory(seconds ?? 60)))
+           .RequireAuthorization()
+           .WithTags("System Performance");
+
         // GET system/metrics — 整机资源占用快照（CPU/内存/磁盘/网络/GPU/运行时间）
         app.MapGet(SystemMonitorApiRoutes.Metrics,
             (Server.SystemMonitor.ISystemMetricsProvider provider, CancellationToken ct)
@@ -34,10 +54,18 @@ public static class SystemMonitorEndpoints
            .RequireAuthorization()
            .WithTags("System");
 
+        // 新进程查询路径：性能页不再调用它。保留旧 Processes 列表端点，给现有 App SDK 能力和旧客户端兼容。
+        app.MapGet(SystemMonitorApiRoutes.ProcessQuery,
+            async (int? page, int? pageSize, string? filter, string? sort, string? direction,
+                IProcessService processes, CancellationToken ct) => Results.Ok(await processes.QueryAsync(page ?? 1, pageSize ?? 100,
+                    filter, sort, !string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase), ct)))
+           .RequireAuthorization()
+           .WithTags("System Performance");
+
         // DELETE system/processes/{id}?force= — 结束进程；权限不足返回 requiresElevation
         app.MapDelete(SystemMonitorApiRoutes.ProcessKill,
-            (int id, bool? force, Server.SystemMonitor.ISystemMetricsProvider provider, CancellationToken ct)
-                => provider.KillProcessAsync(id, force ?? false, ct))
+            (int id, bool? force, IProcessService processes, CancellationToken ct)
+                => processes.KillAsync(id, force ?? false, ct))
            .RequireAuthorization()
            .WithTags("System");
 

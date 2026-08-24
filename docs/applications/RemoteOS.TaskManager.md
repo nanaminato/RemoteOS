@@ -1,5 +1,7 @@
 # RemoteOS TaskManager 模块设计
 
+> **迁移状态（2026-08-24）**：本文以下内容描述第一代 REST 轮询实现与兼容契约。新的目标架构、当前迁移进度和可执行 Goal 见 [`RemoteOS.TaskManager.Rewrite.md`](./RemoteOS.TaskManager.Rewrite.md)：性能页已迁移为“Server 统一采样 + 内存历史 + SignalR 推送”，进程页使用独立低频采样与分页查询。旧 `/api/v1/system/metrics` / `/processes` 仅为兼容保留，禁止在新性能页继续使用。
+
 > 内置任务管理器：参考 Windows 任务管理器 / GNOME 系统监视器，两个标签页（性能 / 进程）。性能页实时展示 CPU / 内存 / 磁盘 / 网络 / GPU 占用与历史柱状图；进程页列出当前可见进程，可结束任务（权限不足提示需在宿主 OS 提权）。数据经 Server REST API 拉取，服务端以宿主 OS 进程身份采集（复用宿主用户/权限，不另建 ACL）。
 >
 > - 架构原则见 [`RemoteOS.Architecture.md`](../architecture/RemoteOS.Architecture.md)
