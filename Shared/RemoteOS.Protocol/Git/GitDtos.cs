@@ -164,7 +164,10 @@ public sealed record GitBranchCreateRequest(
 public sealed record GitPullRequest(
     [property: JsonPropertyName("strategy")] string Strategy = "merge",
     [property: JsonPropertyName("remote")] string? Remote = null,
-    [property: JsonPropertyName("refspec")] string? Refspec = null);
+    [property: JsonPropertyName("refspec")] string? Refspec = null,
+    /// <summary>Optional local branch to update without checking it out. When supplied and it is not
+    /// HEAD, the server fetches its upstream then advances it only when the update is fast-forward.</summary>
+    [property: JsonPropertyName("branch")] string? Branch = null);
 
 /// <summary>HTTPS credentials supplied only for the current Git operation. The server may retain them
 /// in its protected per-user credential store when <see cref="GitPushRequest.SaveCredentials"/> is set.</summary>
@@ -176,7 +179,13 @@ public sealed record GitCredentialRequest(
 /// <summary>Push options. Credentials are used through a temporary askpass helper rather than command-line arguments.</summary>
 public sealed record GitPushRequest(
     [property: JsonPropertyName("credentials")] GitCredentialRequest? Credentials = null,
-    [property: JsonPropertyName("saveCredentials")] bool SaveCredentials = true);
+    [property: JsonPropertyName("saveCredentials")] bool SaveCredentials = true,
+    /// <summary>Local branch to push. Defaults to the checked-out branch.</summary>
+    [property: JsonPropertyName("localBranch")] string? LocalBranch = null,
+    /// <summary>Remote to push to. Defaults to the selected local branch's push remote/upstream remote.</summary>
+    [property: JsonPropertyName("remote")] string? Remote = null,
+    /// <summary>Destination branch on <see cref="Remote"/>. Defaults to the local branch's upstream name, then its own name.</summary>
+    [property: JsonPropertyName("remoteBranch")] string? RemoteBranch = null);
 
 /// <summary>Checkout request.</summary>
 public sealed record GitCheckoutRequest(

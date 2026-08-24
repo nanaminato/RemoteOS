@@ -299,8 +299,10 @@ public sealed class BranchTreeNode
     public bool CanCheckout => IsActionableBranch && !IsCurrentLocalBranch;
     public bool CanCheckoutAndUpdate => IsLocalBranch && !IsCurrentLocalBranch;
     public bool CanMergeIntoCurrent => IsActionableBranch && !IsCurrentLocalBranch;
-    public bool CanPush => IsCurrentLocalBranch;
-    public bool CanUpdate => IsCurrentLocalBranch || IsRemoteBranch;
+    // Git can push or fast-forward a local ref without checking it out. This lets
+    // the context menu operate on e.g. branch b while HEAD remains on branch a.
+    public bool CanPush => IsLocalBranch;
+    public bool CanUpdate => IsLocalBranch || IsRemoteBranch;
     public bool CanRename => IsLocalBranch;
     public string NewBranchMenuText => IsActionableBranch
         ? LocalizedText.Format("git.log.menu.create_branch_from_format", Branch!.Name)

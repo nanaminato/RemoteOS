@@ -1142,7 +1142,7 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
 
     /// <summary>Prepares the push dialog state by loading ahead commits and setting defaults.
     /// Called before showing the push dialog, or when navigating the dialog.</summary>
-    public async Task PreparePushPreviewAsync()
+    public async Task PreparePushPreviewAsync(string? localBranch = null)
     {
         if (SelectedRepository is null || Status is null) return;
 
@@ -1155,9 +1155,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             ClearPushFilePreview();
             PushSelectedCommit = null;
 
-            PushLocalBranchName = Status.Branch;
+            PushLocalBranchName = localBranch ?? Status.Branch;
+            var branch = Branches.FirstOrDefault(candidate =>
+                !candidate.IsRemote && string.Equals(candidate.Name, PushLocalBranchName, StringComparison.Ordinal));
 
-            var upstream = Status.Upstream;
+            var upstream = branch?.Tracking ?? (branch?.IsCurrent == true ? Status.Upstream : null);
             if (!string.IsNullOrWhiteSpace(upstream))
             {
                 var parts = upstream.Split('/');
@@ -1175,13 +1177,15 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
             else
             {
                 PushSelectedRemote = Remotes.Count > 0 ? Remotes[0].Name : "origin";
-                PushSelectedBranch = Status.Branch;
+                PushSelectedBranch = PushLocalBranchName;
             }
 
-            if (Status.Ahead > 0)
+            var aheadCount = branch?.Ahead ?? (string.Equals(PushLocalBranchName, Status.Branch, StringComparison.Ordinal) ? Status.Ahead : 0);
+            if (aheadCount > 0)
             {
-                var commits = await client.GetLogAsync(SelectedRepository.Id, limit: Status.Ahead + 50);
-                var ahead = commits.Take(Status.Ahead).ToList();
+                var commits = await client.GetLogAsync(SelectedRepository.Id, limit: aheadCount + 50,
+                    query: new GitLogQuery(Reference: PushLocalBranchName));
+                var ahead = commits.Take(aheadCount).ToList();
                 foreach (var c in ahead) PushCommits.Add(c);
             }
 
@@ -1404,7 +1408,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         PushStatusMessage = LocalizedText.Get("git.dialog.push.pushing");
         try
         {
-            var result = await client.PushAsync(SelectedRepository.Id);
+            var pushRequest = new GitPushRequest(
+                LocalBranch: PushLocalBranchName,
+                Remote: PushSelectedRemote,
+                RemoteBranch: PushSelectedBranch);
+            var result = await client.PushAsync(SelectedRepository.Id, pushRequest);
             if (result.RequiresCredentials)
             {
                 if (ShowGitCredentialsDialogAsync is null) return false;
@@ -1414,7 +1422,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                     PushStatusMessage = LocalizedText.Get("git.dialog.credentials.canceled");
                     return false;
                 }
-                result = await client.PushAsync(SelectedRepository.Id, new GitPushRequest(credentials, credentials.SaveCredentials));
+                result = await client.PushAsync(SelectedRepository.Id, pushRequest with
+                {
+                    Credentials = credentials,
+                    SaveCredentials = credentials.SaveCredentials,
+                });
             }
 
             if (result.Success)
@@ -1642,7 +1654,17 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         branch ??= SelectedBranch;
         if (branch is null) return;
         if (branch.IsRemote) { await NotifyAsync(LocalizedText.Get("git.vm.cannot_push_remote")); return; }
-        await PushAsync();
+        IsBusy = true;
+        try
+        {
+            await PreparePushPreviewAsync(branch.Name);
+            if (ShowPushDialogAsync is not null)
+                await ShowPushDialogAsync();
+            else
+                await ExecutePushFromDialogAsync(null);
+        }
+        catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.status.error_format", ex.Message)); }
+        finally { IsBusy = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -1652,7 +1674,27 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         if (branch is null) return;
         if (!branch.IsRemote)
         {
-            await PullAsync();
+            GitPullRequest? branchRequest = new();
+            if (ShowPullDialogAsync is not null)
+                branchRequest = await ShowPullDialogAsync();
+            if (branchRequest is null || SelectedRepository is null) return;
+
+            IsBusy = true;
+            try
+            {
+                var result = await client.PullAsync(SelectedRepository.Id, branchRequest with { Branch = branch.Name });
+                if (result.Success)
+                {
+                    StatusText = LocalizedText.Get("git.vm.pulled");
+                    await RefreshAllAsync();
+                }
+                else
+                {
+                    await NotifyAsync(LocalizedText.Format("git.vm.pull_failed_format", result.Message));
+                }
+            }
+            catch (Exception ex) { await NotifyAsync(LocalizedText.Format("git.vm.pull_failed_format", ex.Message)); }
+            finally { IsBusy = false; }
             return;
         }
 
