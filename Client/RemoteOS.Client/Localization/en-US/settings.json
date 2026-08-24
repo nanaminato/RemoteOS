@@ -139,6 +139,20 @@
         "settings.palette.description": "This palette is shared by the desktop and every built-in application.",
         "settings.accent": "Accent colour",
         "settings.accent.placeholder": "#0078D4 (optional)",
-        "settings.accent.hint": "Use #RRGGBB or #AARRGGBB. Leave it blank to use the selected palette."
+        "settings.accent.hint": "Use #RRGGBB or #AARRGGBB. Leave it blank to use the selected palette.",
+        "settings.accent.reset": "Reset",
+        "settings.accent.invalid": "Enter a valid #RRGGBB or #AARRGGBB value.",
+        "settings.palette.preview": "Palette preview",
+        "settings.custom_theme": "Custom themes",
+        "settings.custom_theme.description": "Import a theme to add it to this workspace. Custom themes include light and dark variants.",
+        "settings.theme_import": "Import theme",
+        "settings.theme_export": "Export theme",
+        "settings.theme_delete": "Delete theme",
+        "settings.theme_import.invalid": "This file does not contain a valid RemoteOS theme.",
+        "settings.theme_import.limit": "You can keep up to 20 custom themes.",
+        "settings.theme_import.inaccessible": "This theme does not meet the contrast requirements.",
+        "settings.theme_import.failed": "Unable to import theme: {0}",
+        "settings.theme_export.failed": "Unable to export theme: {0}",
+        "settings.theme_delete.confirmation": "Delete the custom theme “{0}”? This cannot be undone."
     }
 }

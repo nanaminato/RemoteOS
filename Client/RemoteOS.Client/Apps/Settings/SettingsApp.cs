@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using System.Text.Json;
 using Client.Apps.Settings.ViewModels;
 using Client.Apps.Settings.Views;
 using Client.Apps.Explorer.Dialogs;
@@ -17,6 +18,8 @@ using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using RemoteOS.Runtime;
+using RemoteOS.Protocol.Common;
+using RemoteOS.Protocol.Workspace;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 using AvaloniaApplication = Avalonia.Application;
@@ -107,6 +110,87 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                 });
             }
         };
+        personalizationPage.RequestThemeImportAsync = async () =>
+        {
+            var topLevel = AvaloniaApplication.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow : null;
+            if (topLevel is null) return;
+            var selected = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = LocalizedText.Get("settings.theme_import"),
+                AllowMultiple = false,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType(LocalizedText.Get("settings.custom_theme"))
+                    {
+                        Patterns = ["*.remoteos-theme.json", "*.json"],
+                    },
+                ],
+            });
+            var file = selected.FirstOrDefault();
+            if (file is null) return;
+            try
+            {
+                await using var stream = await file.OpenReadAsync();
+                var palette = await JsonSerializer.DeserializeAsync<ThemePaletteDto>(stream, RemoteOsJsonOptions.Default);
+                if (!personalizationPage.TryImportCustomPalette(palette, out var error))
+                {
+                    await ShowThemeMessageAsync(context, window, error!);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // The picker or stream was cancelled; there is no state to recover.
+            }
+            catch (Exception ex)
+            {
+                await ShowThemeMessageAsync(context, window, LocalizedText.Format("settings.theme_import.failed", ex.Message));
+            }
+        };
+        personalizationPage.RequestThemeExportAsync = async palette =>
+        {
+            var topLevel = AvaloniaApplication.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow : null;
+            if (topLevel is null) return;
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = LocalizedText.Get("settings.theme_export"),
+                SuggestedFileName = palette.Id + ".remoteos-theme.json",
+                FileTypeChoices =
+                [
+                    new FilePickerFileType(LocalizedText.Get("settings.custom_theme"))
+                    {
+                        Patterns = ["*.remoteos-theme.json"],
+                    },
+                ],
+            });
+            if (file is null) return;
+            try
+            {
+                await using var stream = await file.OpenWriteAsync();
+                await JsonSerializer.SerializeAsync(stream, palette, RemoteOsJsonOptions.Default);
+            }
+            catch (OperationCanceledException)
+            {
+                // A cancelled write has no user-actionable error.
+            }
+            catch (Exception ex)
+            {
+                await ShowThemeMessageAsync(context, window, LocalizedText.Format("settings.theme_export.failed", ex.Message));
+            }
+        };
+        personalizationPage.RequestThemeDeletionConfirmationAsync = async palette =>
+        {
+            var confirmed = false;
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("settings.theme_delete"), dialog => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(
+                    LocalizedText.Format("settings.theme_delete.confirmation", palette.Name),
+                    result => { confirmed = result; dialog.Close(result); },
+                    LocalizedText.Get("settings.theme_delete")),
+            });
+            return confirmed;
+        };
         appsPage.RequestPermissionEditorAsync = async app =>
         {
             AppPermissionDialogViewModel? dialogViewModel = null;
@@ -192,4 +276,10 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
         .Split('/', StringSplitOptions.RemoveEmptyEntries)
         .Select(Uri.UnescapeDataString)
         .ToArray();
+
+    private static Task ShowThemeMessageAsync(AppContext context, ManagedWindow window, string message) =>
+        context.ShowDialogAsync<bool>(window, LocalizedText.Get("settings.custom_theme"), dialog => new ConfirmDialogView
+        {
+            DataContext = new ConfirmDialogViewModel(message, result => dialog.Close(result), LocalizedText.Get("common.ok")),
+        });
 }

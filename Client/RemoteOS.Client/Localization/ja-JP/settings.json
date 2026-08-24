@@ -139,6 +139,20 @@
         "settings.palette.description": "このパレットはデスクトップとすべての組み込みアプリで共有されます。",
         "settings.accent": "アクセント カラー",
         "settings.accent.placeholder": "#0078D4（任意）",
-        "settings.accent.hint": "#RRGGBB または #AARRGGBB を使用します。空欄なら選択したパレットを使います。"
+        "settings.accent.hint": "#RRGGBB または #AARRGGBB を使用します。空欄なら選択したパレットを使います。",
+        "settings.accent.reset": "リセット",
+        "settings.accent.invalid": "有効な #RRGGBB または #AARRGGBB の値を入力してください。",
+        "settings.palette.preview": "パレットのプレビュー",
+        "settings.custom_theme": "カスタム テーマ",
+        "settings.custom_theme.description": "テーマをインポートしてこのワークスペースに追加します。カスタム テーマにはライトとダークのバリエーションが含まれます。",
+        "settings.theme_import": "テーマをインポート",
+        "settings.theme_export": "テーマをエクスポート",
+        "settings.theme_delete": "テーマを削除",
+        "settings.theme_import.invalid": "このファイルには有効な RemoteOS テーマが含まれていません。",
+        "settings.theme_import.limit": "保存できるカスタム テーマは最大 20 個です。",
+        "settings.theme_import.inaccessible": "このテーマはコントラストの要件を満たしていません。",
+        "settings.theme_import.failed": "テーマをインポートできません: {0}",
+        "settings.theme_export.failed": "テーマをエクスポートできません: {0}",
+        "settings.theme_delete.confirmation": "カスタム テーマ「{0}」を削除しますか？この操作は元に戻せません。"
     }
 }

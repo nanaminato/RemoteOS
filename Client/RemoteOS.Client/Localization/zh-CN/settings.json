@@ -139,6 +139,20 @@
         "settings.palette.description": "此调色板会同时应用于桌面和所有内置应用。",
         "settings.accent": "强调色",
         "settings.accent.placeholder": "#0078D4（可选）",
-        "settings.accent.hint": "使用 #RRGGBB 或 #AARRGGBB；留空则使用所选调色板。"
+        "settings.accent.hint": "使用 #RRGGBB 或 #AARRGGBB；留空则使用所选调色板。",
+        "settings.accent.reset": "重置",
+        "settings.accent.invalid": "请输入有效的 #RRGGBB 或 #AARRGGBB 色值。",
+        "settings.palette.preview": "调色板预览",
+        "settings.custom_theme": "自定义主题",
+        "settings.custom_theme.description": "导入主题以添加到此工作区。自定义主题包含浅色和深色变体。",
+        "settings.theme_import": "导入主题",
+        "settings.theme_export": "导出主题",
+        "settings.theme_delete": "删除主题",
+        "settings.theme_import.invalid": "该文件不包含有效的 RemoteOS 主题。",
+        "settings.theme_import.limit": "最多可保留 20 个自定义主题。",
+        "settings.theme_import.inaccessible": "该主题不符合对比度要求。",
+        "settings.theme_import.failed": "无法导入主题：{0}",
+        "settings.theme_export.failed": "无法导出主题：{0}",
+        "settings.theme_delete.confirmation": "要删除自定义主题“{0}”吗？此操作无法撤销。"
     }
 }

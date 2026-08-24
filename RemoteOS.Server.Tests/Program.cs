@@ -77,6 +77,18 @@ static void VerifyThemePaletteContract()
     Assert(light["Accent"] == "#0078D4" && dark["Accent"] == "#89B4FA", "Paired custom palette did not retain mode-specific accents.");
     Assert(ThemePaletteValidator.TryValidate(light, out _) && ThemePaletteValidator.TryValidate(dark, out _), "Built palette did not meet contrast requirements.");
     Assert(light["TextOnAccent"] == "#000000" && dark["TextOnAccent"] == "#000000", "Accent foreground was not chosen for contrast.");
+
+    var exported = JsonSerializer.Serialize(preferences.CustomPalettes.Single(), RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    var imported = JsonSerializer.Deserialize<ThemePaletteDto>(exported, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(ThemePaletteImport.TryNormalize(imported, ["paired"], accentOverride: null, out var normalized, out var importError),
+        $"Exported custom palette could not be imported: {importError}.");
+    Assert(normalized!.Id == "paired-2" && normalized.LightColors!["Accent"] == "#0078D4" && normalized.DarkColors!["Accent"] == "#89B4FA",
+        "Imported palette was not normalised to a distinct paired palette.");
+
+    imported!.LightColors!["UntrustedToken"] = "#FFFFFF";
+    Assert(!ThemePaletteImport.TryNormalize(imported, [], accentOverride: null, out _, out var rejectedError)
+           && rejectedError == ThemePaletteImportError.InvalidFormat,
+        "Palette import accepted a token outside the stable colour contract.");
 }
 
 static async Task VerifyCertificateStoreAndSniAsync(string root)

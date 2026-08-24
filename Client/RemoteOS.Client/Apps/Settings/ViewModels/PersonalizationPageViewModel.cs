@@ -1,4 +1,5 @@
 using Client.Services;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
@@ -19,13 +20,20 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
                 OnPropertyChanged(nameof(IsLightTheme));
                 OnPropertyChanged(nameof(IsDarkTheme));
                 OnPropertyChanged(nameof(IsSystemTheme));
+                OnPropertyChanged(nameof(PalettePreview));
             }
             else if (e.PropertyName == nameof(ShellSettings.ThemePreferences))
             {
                 OnPropertyChanged(nameof(PaletteId));
-                OnPropertyChanged(nameof(AccentOverride));
+                AccentInput = Settings.ThemePreferences.AccentOverride ?? string.Empty;
+                OnPropertyChanged(nameof(PaletteChoices));
+                OnPropertyChanged(nameof(PalettePreview));
+                OnPropertyChanged(nameof(SelectedCustomPalette));
+                OnPropertyChanged(nameof(HasSelectedCustomPalette));
+                OnPropertyChanged(nameof(HasAccentOverride));
             }
         };
+        _accentInput = Settings.ThemePreferences.AccentOverride ?? string.Empty;
     }
 
     public override string Glyph => "🎨";
@@ -36,6 +44,9 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
 
     /// <summary>由 SettingsApp 提供本机文件选择器；VM 不直接依赖 Avalonia TopLevel。</summary>
     public Func<Task>? RequestCustomWallpaperAsync { get; set; }
+    public Func<Task>? RequestThemeImportAsync { get; set; }
+    public Func<ThemePaletteDto, Task>? RequestThemeExportAsync { get; set; }
+    public Func<ThemePaletteDto, Task<bool>>? RequestThemeDeletionConfirmationAsync { get; set; }
 
     public int WallpaperIndex
     {
@@ -54,11 +65,13 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
     public bool IsSystemTheme { get => Theme == ThemeKind.System; set { if (value) Theme = ThemeKind.System; } }
 
     /// <summary>Built-ins deliberately share the same semantic token contract in every RemoteOS app.</summary>
-    public IReadOnlyList<ThemePaletteChoice> PaletteChoices { get; } =
+    public IReadOnlyList<ThemePaletteChoice> PaletteChoices =>
     [
-        new("builtin:remoteos-blue", "RemoteOS Blue"),
-        new("builtin:nord", "Nord"),
-        new("builtin:catppuccin", "Catppuccin"),
+        new("builtin:remoteos-blue", "RemoteOS Blue", false),
+        new("builtin:nord", "Nord", false),
+        new("builtin:catppuccin", "Catppuccin", false),
+        .. (Settings.ThemePreferences.CustomPalettes ?? [])
+            .Select(palette => new ThemePaletteChoice("custom:" + palette.Id, palette.Name, true)),
     ];
 
     public string PaletteId
@@ -71,17 +84,65 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
         }
     }
 
-    public string? AccentOverride
+    private string _accentInput = string.Empty;
+    private string? _accentError;
+
+    /// <summary>The editable accent text. Invalid values stay visible instead of being silently discarded.</summary>
+    public string AccentInput
     {
-        get => Settings.ThemePreferences.AccentOverride;
+        get => _accentInput;
         set
         {
+            value ??= string.Empty;
+            if (_accentInput == value) return;
+            _accentInput = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasAccentOverride));
             var color = string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
-            if (color is not null && (color.Length is not (7 or 9) || color[0] != '#' || !color[1..].All(Uri.IsHexDigit))) return;
+            if (color is not null && !ThemePaletteDefaults.IsColor(color))
+            {
+                AccentError = T("settings.accent.invalid", "Enter a valid #RRGGBB or #AARRGGBB value.");
+                return;
+            }
+            AccentError = null;
             if (color == Settings.ThemePreferences.AccentOverride) return;
             UpdateThemePreferences(Settings.ThemePreferences.PaletteId, color);
         }
     }
+
+    public string? AccentError
+    {
+        get => _accentError;
+        private set
+        {
+            if (_accentError == value) return;
+            _accentError = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasAccentError));
+        }
+    }
+
+    public bool HasAccentError => !string.IsNullOrEmpty(AccentError);
+    public bool HasAccentOverride => !string.IsNullOrWhiteSpace(AccentInput);
+
+    /// <summary>Small live swatch strip for the selected palette and its current accent override.</summary>
+    public ThemePalettePreview PalettePreview
+    {
+        get
+        {
+            var dark = Theme == ThemeKind.Dark;
+            var colors = ThemePaletteDefaults.Resolve(Settings.ThemePreferences, dark);
+            return new ThemePalettePreview(
+                Brush(colors["AppBackground"]), Brush(colors["Surface"]), Brush(colors["Accent"]),
+                Brush(colors["Success"]), Brush(colors["Danger"]), colors["Accent"]);
+        }
+    }
+
+    public ThemePaletteDto? SelectedCustomPalette => Settings.ThemePreferences.PaletteId.StartsWith("custom:", StringComparison.Ordinal)
+        ? Settings.ThemePreferences.CustomPalettes?.FirstOrDefault(p => p.Id == Settings.ThemePreferences.PaletteId["custom:".Length..])
+        : null;
+
+    public bool HasSelectedCustomPalette => SelectedCustomPalette is not null;
 
     private void UpdateThemePreferences(string paletteId, string? accent)
     {
@@ -92,8 +153,84 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
             CustomPalettes = current.CustomPalettes ?? [],
         };
         OnPropertyChanged(nameof(PaletteId));
-        OnPropertyChanged(nameof(AccentOverride));
+        OnPropertyChanged(nameof(AccentInput));
+        OnPropertyChanged(nameof(HasAccentOverride));
+        OnPropertyChanged(nameof(PalettePreview));
         Save();
+    }
+
+    /// <summary>Adds a validated imported palette and selects it. Only serialisable colour tokens are accepted.</summary>
+    public bool TryImportCustomPalette(ThemePaletteDto? source, out string? error)
+    {
+        error = null;
+        if (source is null || source.FormatVersion is not (1 or 2)
+            || string.IsNullOrWhiteSpace(source.Name) || source.Name.Trim().Length > 80)
+        {
+            error = T("settings.theme_import.invalid", "This file does not contain a valid RemoteOS theme.");
+            return false;
+        }
+
+        var existing = Settings.ThemePreferences.CustomPalettes ?? [];
+        if (existing.Count >= 20)
+        {
+            error = T("settings.theme_import.limit", "You can keep up to 20 custom themes.");
+            return false;
+        }
+
+        if (!ThemePaletteImport.TryNormalize(source, existing.Select(p => p.Id), Settings.ThemePreferences.AccentOverride,
+                out var imported, out var importError))
+        {
+            error = importError == ThemePaletteImportError.Inaccessible
+                ? T("settings.theme_import.inaccessible", "This theme does not meet the contrast requirements.")
+                : T("settings.theme_import.invalid", "This file does not contain a valid RemoteOS theme.");
+            return false;
+        }
+        var candidate = new ThemePreferencesDto
+        {
+            StyleId = "remoteos", PaletteId = "custom:" + imported!.Id,
+            AccentOverride = Settings.ThemePreferences.AccentOverride,
+            CustomPalettes = [.. existing, imported],
+        };
+        Settings.ThemePreferences = candidate;
+        Save();
+        return true;
+    }
+
+    public void DeleteSelectedCustomPalette()
+    {
+        var selected = SelectedCustomPalette;
+        if (selected is null) return;
+        var remaining = Settings.ThemePreferences.CustomPalettes?.Where(p => p.Id != selected.Id).ToList() ?? [];
+        Settings.ThemePreferences = new ThemePreferencesDto
+        {
+            StyleId = "remoteos", PaletteId = ThemePreferencesDto.DefaultPaletteId,
+            AccentOverride = Settings.ThemePreferences.AccentOverride, CustomPalettes = remaining,
+        };
+        Save();
+    }
+
+    [RelayCommand]
+    private void ResetAccent() => AccentInput = string.Empty;
+
+    [RelayCommand]
+    private async Task ImportThemeAsync()
+    {
+        if (RequestThemeImportAsync is not null) await RequestThemeImportAsync();
+    }
+
+    [RelayCommand]
+    private async Task ExportThemeAsync()
+    {
+        if (SelectedCustomPalette is { } palette && RequestThemeExportAsync is not null)
+            await RequestThemeExportAsync(palette);
+    }
+
+    [RelayCommand]
+    private async Task DeleteThemeAsync()
+    {
+        if (SelectedCustomPalette is not { } palette) return;
+        if (RequestThemeDeletionConfirmationAsync is null || await RequestThemeDeletionConfirmationAsync(palette))
+            DeleteSelectedCustomPalette();
     }
 
     [RelayCommand]
@@ -102,6 +239,10 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
         if (RequestCustomWallpaperAsync is not null)
             await RequestCustomWallpaperAsync();
     }
+
+    private static IBrush Brush(string color) => new SolidColorBrush(Color.Parse(color));
+
 }
 
-public sealed record ThemePaletteChoice(string Id, string Name);
+public sealed record ThemePaletteChoice(string Id, string Name, bool IsCustom);
+public sealed record ThemePalettePreview(IBrush Background, IBrush Surface, IBrush Accent, IBrush Success, IBrush Danger, string AccentValue);
