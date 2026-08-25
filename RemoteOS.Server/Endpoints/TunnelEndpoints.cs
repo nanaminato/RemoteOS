@@ -32,7 +32,9 @@ public static class TunnelEndpoints
         group.MapGet(TunnelApiRoutes.ProfileLogsPattern, async (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) =>
             await provider.GetLogsAsync(profileId, UserId(user), ct) is { } logs ? Results.Ok(logs) : Results.NotFound()).RequireAuthorization("TunnelsRead");
 
-        group.MapGet(TunnelApiRoutes.CollectionPattern, (ClaimsPrincipal user, ITunnelService service, CancellationToken ct) => service.ListTunnelsAsync(UserId(user), ct)).RequireAuthorization("TunnelsRead");
+        // Provider list augments Desired State with the host-local frpc snapshot. Reading via
+        // ITunnelService here would incorrectly label every running tunnel SavedNotApplied.
+        group.MapGet(TunnelApiRoutes.CollectionPattern, (ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.ListAsync(UserId(user), ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.TunnelPattern, async (Guid tunnelId, ClaimsPrincipal user, ITunnelService service, CancellationToken ct) =>
             await service.GetTunnelAsync(tunnelId, UserId(user), ct) is { } value ? Results.Ok(value) : Results.NotFound()).RequireAuthorization("TunnelsRead");
         group.MapPost(TunnelApiRoutes.CollectionPattern, async (UpsertTunnelDefinitionRequest request, ClaimsPrincipal user, ITunnelService service, CancellationToken ct) =>

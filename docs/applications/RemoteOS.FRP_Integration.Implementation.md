@@ -15,13 +15,15 @@ This document records the code-level V1 boundary implemented from the FRP integr
 
 Only `tcp`, `udp`, `http`, and `https` desired state is accepted. The generator has a closed schema: server host/port, token authentication, TLS enablement, local host/port, remote port/domain, and per-proxy transport compression/encryption. It emits no `includes`, plugins, environment substitution, arbitrary TOML, arbitrary command arguments, OIDC, STCP, XTCP, visitor, or `frps` settings.
 
+The Avalonia Tunnel Manager is a single-window, multi-page workspace: Overview, Tunnels, FRP Servers, Runtime, and Logs. It uses the authenticated session's absolute Server URL for every request (it never relies on an unset `HttpClient.BaseAddress`), supports Profile/Tunnel Desired State CRUD and explicit External-runtime probing, and keeps Token entry write-only. Runtime installation requires an explicit in-UI confirmation in addition to the Server-side confirmation check.
+
 ## Runtime trust and release operations
 
 Managed Runtime installation is an explicit Controller-only action (`POST /api/v1/tunnels/runtime/managed/install`) requiring a confirmation and a requested **pinned** version. The server accepts a release only when its host-admin configuration supplies the current RID, an HTTPS official GitHub release URL, a fixed 64-character SHA-256 and a recognized archive format. It never has a “latest” route.
 
 The install pipeline downloads to a private temporary file with a bounded stream, verifies the SHA-256 before extraction, rejects path traversal, symlink/device entries, oversized entries and unexpected archive contents, extracts only `frpc` / `frps`, checks `frpc --version`, and then activates the new version by atomically replacing a private `state.json` pointer. Previous versions remain in distinct version directories; rollback verifies the previous `frpc` again before switching the pointer. Failed downloads, checksums, extraction and health checks cannot replace the active version.
 
-The shipped `appsettings.json` freezes FRP `v0.71.0` Linux x64 and arm64 assets with values copied from the official release. Windows release entries must be added by the signed host deployment only after the corresponding official per-asset SHA-256 has been independently reviewed; without such an entry Windows returns `tunnel.runtime_release_not_configured` rather than downloading an unverified binary.
+The shipped `appsettings.json` freezes FRP `v0.71.0` Linux x64/arm64 and Windows x64/arm64 assets with fixed GitHub-release SHA-256 values. A host without a matching RID entry returns `tunnel.runtime_release_not_configured` rather than downloading an unverified binary; releases must never be selected as “latest”.
 
 The Server verification suite uses a local `tar.gz` fixture and replaceable HTTP client to cover successful installation, active/previous switching, rollback, wrong checksum rejection, unexpected archive-content rejection, and Desired State → `frpc verify` → process start/stop. It does not require a network download or a locally installed FRP binary.
 

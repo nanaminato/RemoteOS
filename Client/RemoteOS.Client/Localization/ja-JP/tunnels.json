@@ -1,18 +1,10 @@
 {
   "Culture": "ja-JP",
   "Strings": {
-    "tunnels.title": "トンネル マネージャー",
-    "tunnels.status.loading": "トンネル状態を読み込んでいます…",
-    "tunnels.status.ready": "トンネル状態は最新です。",
-    "tunnels.status.failed": "トンネル状態を読み込めませんでした。",
-    "tunnels.runtime": "FRP ランタイム：",
-    "tunnels.install": "インストール",
-    "tunnels.rollback": "ロールバック",
-    "tunnels.servers": "FRP サーバー",
-    "tunnels.items": "トンネル",
-    "tunnels.apply": "適用",
-    "tunnels.stop": "停止",
-    "tunnels.logs": "ログ",
-    "tunnels.logs_placeholder": "サニタイズ済みランタイムログ"
+    "tunnels.title": "トンネル マネージャー", "tunnels.subtitle": "独立した FRP Client プロセスを安全に管理します", "tunnels.workspace": "ワークスペース", "tunnels.overview": "概要", "tunnels.status.loading": "トンネル状態を読み込んでいます…", "tunnels.status.ready": "トンネル状態は最新です。", "tunnels.status.failed": "トンネル状態を読み込めませんでした。", "tunnels.status.profile_saved": "FRP サーバーを保存しました。", "tunnels.status.profile_deleted": "FRP サーバーを削除しました。", "tunnels.status.tunnel_saved": "トンネルを保存しました（未適用）。", "tunnels.status.tunnel_deleted": "トンネルを削除しました。", "tunnels.status.runtime_updated": "FRP Runtime を更新しました。", "tunnels.status.operation": "操作完了: {0}", "tunnels.status.external_available": "External FRP を検出しました: {0}",
+    "tunnels.runtime": "FRP Runtime", "tunnels.runtime_page": "Runtime", "tunnels.runtime_hint": "サーバーが実際の Runtime 状態を返します。未インストールを利用可能とは表示しません。", "tunnels.runtime_install_hint": "サーバー信頼マニフェスト内の固定バージョンだけをインストールできます。失敗しても active バージョンは置換されません。", "tunnels.runtime_confirm": "この固定版の公式 FRP Runtime をインストールすることを確認します", "tunnels.runtime_platform_hint": "この OS/アーキテクチャの信頼済みリリースがある場合だけインストールできます。", "tunnels.version": "バージョン", "tunnels.install": "インストール", "tunnels.rollback": "ロールバック",
+    "tunnels.connected": "接続済み", "tunnels.connected_hint": "FRP がサーバーログイン成功を記録した後だけカウントします。", "tunnels.saved": "未適用", "tunnels.saved_hint": "Desired State を保存しても FRP は起動しません。", "tunnels.overview_hint": "左のページでサーバーとトンネルを保存し、サーバーを明示的に適用してください。", "tunnels.safety_hint": "Token はサーバー側 SecretStore にのみ書き込まれます。この UI は Token や TOML を読み取り・表示・ダウンロードしません。",
+    "tunnels.servers": "FRP サーバー", "tunnels.servers_hint": "各サーバープロファイルは分離された管理対象 frpc プロセスを持ち、自前またはサードパーティの frps に接続できます。", "tunnels.new_server": "サーバーを追加", "tunnels.server_editor": "サーバー設定", "tunnels.items": "トンネル", "tunnels.items_hint": "このページは Desired State を保存します。サーバーの適用で制御済み設定を生成し frpc を起動します。", "tunnels.new_tunnel": "トンネルを追加", "tunnels.tunnel_editor": "トンネル設定", "tunnels.apply": "適用", "tunnels.stop": "停止", "tunnels.probe": "検出", "tunnels.confirm_delete": "削除を確認", "tunnels.field.name": "名前", "tunnels.field.server": "サーバー", "tunnels.field.host": "ホスト", "tunnels.field.port": "ポート", "tunnels.field.runtime_mode": "Runtime モード", "tunnels.field.auth": "認証", "tunnels.field.tls": "TLS", "tunnels.field.external_path": "External frpc の絶対パス", "tunnels.field.token": "Token", "tunnels.field.protocol": "プロトコル", "tunnels.field.local_host": "ローカルホスト", "tunnels.field.local_port": "ローカルポート", "tunnels.field.remote_port": "リモートポート", "tunnels.field.domain": "ドメイン (HTTP/HTTPS)", "tunnels.field.enabled": "有効", "tunnels.field.encryption": "転送暗号化", "tunnels.field.compression": "圧縮", "tunnels.token_hint": "空欄の場合は設定済み Token を維持します", "tunnels.token_safety": "Token は一方向の書き込み要求でのみ送信され、既存値は表示されません。",
+    "tunnels.table.name": "名前", "tunnels.table.protocol": "プロトコル", "tunnels.table.local": "ローカルアドレス", "tunnels.table.state": "状態", "tunnels.table.host": "ホスト", "tunnels.table.port": "ポート", "tunnels.table.runtime": "Runtime", "tunnels.logs": "ログ", "tunnels.logs_hint": "FRP サーバーを選択して、サニタイズ済みの Runtime ログを最大 200 行取得します。", "tunnels.logs_placeholder": "サニタイズ済み Runtime ログ"
   }
 }
