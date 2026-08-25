@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 
 namespace Client.Apps.Tunnels.Views;
@@ -23,7 +24,7 @@ public partial class TunnelManagerView : UserControl
         _selectedButton?.Classes.Remove("nav-selected");
         _selectedButton = button;
         button.Classes.Add("nav-selected");
-        var page = section switch
+        Control page = section switch
         {
             "tunnels" => new TunnelDefinitionsView(),
             "servers" => new TunnelServersView(),

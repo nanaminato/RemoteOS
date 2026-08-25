@@ -56,7 +56,7 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
             if (SavedAsync is not null) await SavedAsync();
             if (CloseAsync is not null) await CloseAsync();
         }
-        catch (Exception ex) { StatusText = ProblemText(ex); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
 
@@ -71,7 +71,7 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
             if (SavedAsync is not null) await SavedAsync();
             if (CloseAsync is not null) await CloseAsync();
         }
-        catch (Exception ex) { StatusText = ProblemText(ex); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
 
@@ -83,9 +83,9 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
         try
         {
             var probe = await _client.DetectExternalRuntimeAsync(ExternalPath);
-            StatusText = probe.State == TunnelRuntimeState.Available ? LocalizedText.Format("tunnels.status.external_available", probe.Version ?? "—") : probe.ProblemCode;
+            StatusText = probe.State == TunnelRuntimeState.Available ? LocalizedText.Format("tunnels.status.external_available", probe.Version ?? "—") : TunnelProblemText.Format(probe.ProblemCode);
         }
-        catch (Exception ex) { StatusText = ProblemText(ex); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
 
@@ -94,7 +94,6 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
     partial void OnAuthKindChanged(TunnelAuthKind value) => OnPropertyChanged(nameof(IsTokenAuth));
     partial void OnConfirmDeletionChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
     partial void OnIsBusyChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
-    private static string ProblemText(Exception ex) => ex is TunnelRequestException request ? request.ProblemCode : LocalizedText.Get("tunnels.status.failed");
 }
 
 public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
@@ -122,6 +121,8 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
     public Func<Task>? SavedAsync { get; set; }
     public bool IsEditing => _original is not null;
     public bool CanDelete => IsEditing && ConfirmDeletion && !IsBusy;
+    public bool UsesRemotePort => Protocol is TunnelProtocol.Tcp or TunnelProtocol.Udp;
+    public bool UsesDomain => Protocol is TunnelProtocol.Http or TunnelProtocol.Https;
 
     public TunnelDefinitionEditorViewModel(IRemoteTunnelClient client, IEnumerable<TunnelServerProfileDto> profiles, TunnelDefinitionDto? original)
     {
@@ -135,18 +136,20 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync()
     {
-        if (IsBusy || Profile is null) { StatusText = "tunnel.profile_not_found"; return; }
+        if (IsBusy) return;
+        if (Profile is null) { StatusText = TunnelProblemText.Format("tunnel.profile_not_found"); return; }
         IsBusy = true;
         try
         {
-            var request = new UpsertTunnelDefinitionRequest(Profile.Id, Name, Protocol, LocalHost, LocalPort, RemotePort,
-                string.IsNullOrWhiteSpace(Domain) ? null : Domain, Enabled, Encryption, Compression, _original?.Revision);
+            var request = new UpsertTunnelDefinitionRequest(Profile.Id, Name, Protocol, LocalHost, LocalPort,
+                UsesRemotePort ? RemotePort : null, UsesDomain && !string.IsNullOrWhiteSpace(Domain) ? Domain : null,
+                Enabled, Encryption, Compression, _original?.Revision);
             _ = _original is null ? await _client.CreateTunnelAsync(request) : await _client.UpdateTunnelAsync(_original.Id, request);
             StatusText = LocalizedText.Get("tunnels.status.tunnel_saved");
             if (SavedAsync is not null) await SavedAsync();
             if (CloseAsync is not null) await CloseAsync();
         }
-        catch (Exception ex) { StatusText = ProblemText(ex); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
 
@@ -161,14 +164,18 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
             if (SavedAsync is not null) await SavedAsync();
             if (CloseAsync is not null) await CloseAsync();
         }
-        catch (Exception ex) { StatusText = ProblemText(ex); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
 
     [RelayCommand] private Task Close() => CloseAsync?.Invoke() ?? Task.CompletedTask;
     partial void OnConfirmDeletionChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
     partial void OnIsBusyChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
-    private static string ProblemText(Exception ex) => ex is TunnelRequestException request ? request.ProblemCode : LocalizedText.Get("tunnels.status.failed");
+    partial void OnProtocolChanged(TunnelProtocol value)
+    {
+        OnPropertyChanged(nameof(UsesRemotePort));
+        OnPropertyChanged(nameof(UsesDomain));
+    }
 }
 
 public sealed partial class TunnelLogViewModel(IRemoteTunnelClient client, TunnelServerProfileDto profile) : ObservableObject, IDisposable
@@ -199,8 +206,23 @@ public sealed partial class TunnelLogViewModel(IRemoteTunnelClient client, Tunne
             StatusText = LocalizedText.Get("tunnels.logs_updated");
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { StatusText = ex is TunnelRequestException request ? request.ProblemCode : LocalizedText.Get("tunnels.status.failed"); }
+        catch (Exception ex) { StatusText = TunnelProblemText.Format(ex); }
         finally { IsBusy = false; }
     }
     public void Dispose() => _lifetime.Cancel();
+}
+
+internal static class TunnelProblemText
+{
+    public static string Format(Exception exception) => exception is TunnelRequestException request
+        ? Format(request.ProblemCode)
+        : LocalizedText.Get("tunnels.status.failed");
+
+    public static string Format(string? problemCode)
+    {
+        if (string.IsNullOrWhiteSpace(problemCode)) return LocalizedText.Get("tunnels.status.failed");
+        var key = $"tunnels.problem.{problemCode}";
+        var text = LocalizedText.Get(key);
+        return text == key ? LocalizedText.Get("tunnels.status.failed") : text;
+    }
 }
