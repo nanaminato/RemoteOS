@@ -16,6 +16,7 @@
 > - 网络检查器设计见 [`RemoteOS.NetworkInspector.md`](./applications/RemoteOS.NetworkInspector.md)
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)
 > - 任务管理器性能采集重写方案（后续 Goal 执行基线）见 [`RemoteOS.TaskManager.Rewrite.md`](./applications/RemoteOS.TaskManager.Rewrite.md)
+> - FRP 内网穿透的 Goal 执行基线见 [`RemoteOS.FRP_Integration.Goal.md`](./applications/RemoteOS.FRP_Integration.Goal.md)；架构与安全设计见 [`RemoteOS.FRP_Integration.Design.md`](./applications/RemoteOS.FRP_Integration.Design.md)
 > - Docker 管理器见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)
 > - 证书管理器见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
 > - Web Server 管理器 / Nginx 集成设计中，见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)
