@@ -2,19 +2,31 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Reflection;
 using System.Text.Json;
+using System.Text;
+using System.IO.Compression;
+using System.Formats.Tar;
+using System.Net;
+using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.Protocol.Certificates;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
 using RemoteOS.Protocol.WebServers;
+using RemoteOS.Protocol.Tunnels;
 using Server.Certificate;
 using Server.Domain;
 using Server.Storage.Sqlite;
 using Server.SystemPerformance;
+using Server.Tunnels;
+using Server.Runtimes;
+using Server.Secrets;
 using Server.WebServer;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
@@ -28,6 +40,10 @@ try
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
+    VerifyTunnelProtocolContract();
+    VerifyFrpTomlSafety();
+    await VerifyFrpRuntimeInstallAndRollbackAsync(root);
+    await VerifyTunnelSecretLifecycleAsync(root);
     VerifyWorkspacePreferencesJsonContract();
     VerifyThemePaletteContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
@@ -139,6 +155,164 @@ static void VerifyCertificateApiRoutes()
     Assert(CertificateApiRoutes.Certificates == "/api/v1/certificates", "Certificate collection route changed unexpectedly.");
     Assert(CertificateApiRoutes.Request == CertificateApiRoutes.Certificates, "Certificate request route must use the collection endpoint.");
     Assert(CertificateApiRoutes.CollectionPattern.Length == 0, "Certificate collection pattern must remain group-relative.");
+}
+
+static void VerifyTunnelProtocolContract()
+{
+    Assert(TunnelApiRoutes.Tunnels == "/api/v1/tunnels", "Tunnel API base route changed unexpectedly.");
+    var profile = new TunnelServerProfileDto(Guid.NewGuid(), "edge", "frps.example.test", 7000,
+        TunnelAuthKind.Token, true, TunnelTlsMode.Default, TunnelRuntimeMode.External, "/opt/frp/frpc", 3,
+        DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    var json = JsonSerializer.Serialize(profile, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(!json.Contains("\"token\":", StringComparison.OrdinalIgnoreCase) && !json.Contains("secret", StringComparison.OrdinalIgnoreCase),
+        "Safe tunnel profile DTO must not serialize credential material.");
+    Assert(json.Contains("tokenConfigured", StringComparison.Ordinal), "Safe tunnel profile DTO lost configured-state indicator.");
+    var definition = new TunnelDefinitionDto(Guid.NewGuid(), profile.Id, "ssh", "frp", TunnelProtocol.Tcp, "127.0.0.1", 22, 6000, null, true, false, false, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    var roundTrip = JsonSerializer.Deserialize<TunnelDefinitionDto>(JsonSerializer.Serialize(definition, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default), RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(roundTrip?.Protocol == TunnelProtocol.Tcp && roundTrip.RemotePort == 6000, "Tunnel desired-state DTO JSON contract changed.");
+}
+
+static void VerifyFrpTomlSafety()
+{
+    Assert(TunnelValidation.ValidateDefinition("bad\nname", TunnelProtocol.Tcp, "127.0.0.1", 22, 6000, null) == "tunnel.definition_invalid",
+        "Tunnel name validation allowed TOML control characters.");
+    Assert(TunnelValidation.ValidateDefinition("http", TunnelProtocol.Http, "::1", 8080, null, "app.example.test") is null,
+        "IPv6 loopback HTTP tunnel was rejected.");
+    var profile = new TunnelServerProfileDto(Guid.NewGuid(), "edge", "frps.example.test", 7000, TunnelAuthKind.Token, true,
+        TunnelTlsMode.Force, TunnelRuntimeMode.Managed, null, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    var tunnel = new TunnelDefinitionDto(Guid.NewGuid(), profile.Id, "api", "frp", TunnelProtocol.Https, "::1", 8443,
+        null, "app.example.test", true, true, true, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+    var toml = FrpTomlGenerator.Generate(profile, [tunnel], "token-with-\\-and-\"quote");
+    Assert(toml.Contains("token = \"token-with-\\\\-and-\\\"quote\"", StringComparison.Ordinal), "FRP TOML token escaping changed.");
+    Assert(toml.Contains("customDomains = [\"app.example.test\"]", StringComparison.Ordinal) && toml.Contains("[proxies.transport]", StringComparison.Ordinal),
+        "FRP TOML generator lost HTTPS domain or transport options.");
+}
+
+static async Task VerifyFrpRuntimeInstallAndRollbackAsync(string root)
+{
+    if (!OperatingSystem.IsLinux()) return;
+    var archive = CreateFrpFixtureArchive();
+    var digest = Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant();
+    var releases = new[]
+    {
+        new FrpRuntimeRelease { Version = "v0.71.0", Rid = "linux-x64", Url = "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz", Sha256 = digest, ArchiveFormat = "tar.gz" },
+        new FrpRuntimeRelease { Version = "v0.71.1", Rid = "linux-x64", Url = "https://github.com/fatedier/frp/releases/download/v0.71.1/frp_0.71.1_linux_amd64.tar.gz", Sha256 = digest, ArchiveFormat = "tar.gz" },
+    };
+    var runtimeRoot = Path.Combine(root, "frp-runtime"); Directory.CreateDirectory(runtimeRoot);
+    var env = new TestHostEnvironment(runtimeRoot);
+    var manager = new FrpRuntimeManager(env, new FixtureHttpClientFactory(archive), Options.Create(new FrpRuntimeOptions { Releases = releases }));
+    var first = await manager.InstallManagedFrpcAsync("v0.71.0", CancellationToken.None);
+    Assert(first.Succeeded, "Verified FRP fixture did not install.");
+    await VerifyFrpApplyLifecycleAsync(root, env, manager);
+    var second = await manager.InstallManagedFrpcAsync("v0.71.1", CancellationToken.None);
+    Assert(second.Succeeded, "Second verified FRP fixture did not install.");
+    var active = await manager.GetManagedFrpcStatusAsync(CancellationToken.None);
+    Assert(active.Version == "v0.71.1" && active.PreviousVersion == "v0.71.0" && active.IntegrityVerified, "Runtime activation did not preserve previous version state.");
+    var rolledBack = await manager.RollbackManagedFrpcAsync(CancellationToken.None);
+    Assert(rolledBack.Succeeded && (await manager.GetManagedFrpcStatusAsync(CancellationToken.None)).Version == "v0.71.0", "Runtime rollback did not restore verified previous version.");
+
+    var invalidChecksum = await manager.InstallManagedFrpcAsync("v0.99.0", CancellationToken.None);
+    Assert(!invalidChecksum.Succeeded && invalidChecksum.ProblemCode == "tunnel.runtime_release_not_configured", "Unconfigured runtime version was accepted.");
+
+    var badChecksumRoot = Path.Combine(root, "frp-runtime-bad-checksum"); Directory.CreateDirectory(badChecksumRoot);
+    var badChecksumManager = new FrpRuntimeManager(new TestHostEnvironment(badChecksumRoot), new FixtureHttpClientFactory(archive), Options.Create(new FrpRuntimeOptions
+    {
+        Releases = [new FrpRuntimeRelease { Version = "v0.71.0", Rid = "linux-x64", Url = "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz", Sha256 = new string('0', 64), ArchiveFormat = "tar.gz" }],
+    }));
+    var badChecksum = await badChecksumManager.InstallManagedFrpcAsync("v0.71.0", CancellationToken.None);
+    Assert(!badChecksum.Succeeded && badChecksum.ProblemCode == "tunnel.runtime_checksum_failed", "Wrong checksum was accepted.");
+    Assert((await badChecksumManager.GetManagedFrpcStatusAsync(CancellationToken.None)).State == TunnelRuntimeState.NotInstalled, "Checksum failure changed the active runtime.");
+
+    var maliciousArchive = CreateMaliciousFrpFixtureArchive();
+    var maliciousDigest = Convert.ToHexString(SHA256.HashData(maliciousArchive)).ToLowerInvariant();
+    var maliciousRoot = Path.Combine(root, "frp-runtime-malicious"); Directory.CreateDirectory(maliciousRoot);
+    var maliciousManager = new FrpRuntimeManager(new TestHostEnvironment(maliciousRoot), new FixtureHttpClientFactory(maliciousArchive), Options.Create(new FrpRuntimeOptions
+    {
+        Releases = [new FrpRuntimeRelease { Version = "v0.71.0", Rid = "linux-x64", Url = "https://github.com/fatedier/frp/releases/download/v0.71.0/frp_0.71.0_linux_amd64.tar.gz", Sha256 = maliciousDigest, ArchiveFormat = "tar.gz" }],
+    }));
+    var malicious = await maliciousManager.InstallManagedFrpcAsync("v0.71.0", CancellationToken.None);
+    Assert(!malicious.Succeeded && malicious.ProblemCode == "tunnel.runtime_archive_unexpected_entry", "Unexpected archive content was accepted.");
+    Assert((await maliciousManager.GetManagedFrpcStatusAsync(CancellationToken.None)).State == TunnelRuntimeState.NotInstalled, "Rejected archive changed the active runtime.");
+}
+
+static byte[] CreateFrpFixtureArchive()
+{
+    using var target = new MemoryStream();
+    using (var gzip = new GZipStream(target, CompressionLevel.SmallestSize, leaveOpen: true))
+    using (var writer = new TarWriter(gzip, leaveOpen: true))
+    {
+        Write("frp/frpc", "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo frpc-fixture; exit 0; fi\nif [ \"$1\" = \"verify\" ]; then exit 0; fi\nif [ \"$1\" = \"-c\" ]; then echo 'login to server success'; sleep 30; fi\n");
+        Write("frp/frps", "#!/bin/sh\necho frps-fixture\n");
+        void Write(string name, string content) => writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, name) { DataStream = new MemoryStream(Encoding.UTF8.GetBytes(content)) });
+    }
+    return target.ToArray();
+}
+
+static byte[] CreateMaliciousFrpFixtureArchive()
+{
+    using var target = new MemoryStream();
+    using (var gzip = new GZipStream(target, CompressionLevel.SmallestSize, leaveOpen: true))
+    using (var writer = new TarWriter(gzip, leaveOpen: true))
+    {
+        writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "frp/frpc") { DataStream = new MemoryStream(Encoding.UTF8.GetBytes("#!/bin/sh\necho frpc-fixture\n")) });
+        writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "frp/frps") { DataStream = new MemoryStream(Encoding.UTF8.GetBytes("#!/bin/sh\necho frps-fixture\n")) });
+        writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "frp/unexpected-plugin") { DataStream = new MemoryStream(Encoding.UTF8.GetBytes("not allowed")) });
+    }
+    return target.ToArray();
+}
+
+static async Task VerifyFrpApplyLifecycleAsync(string root, IHostEnvironment environment, IRuntimeManager runtime)
+{
+    var path = Path.Combine(root, "frp-apply-lifecycle.db");
+    var services = new ServiceCollection();
+    services.AddDbContext<RemoteOsDbContext>(options => options.UseSqlite($"Data Source={path}"));
+    services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(root, "frp-apply-keys")));
+    services.AddScoped<ISecretStore, DataProtectionSecretStore>();
+    services.AddScoped<ITunnelAudit, TunnelAudit>();
+    services.AddScoped<ITunnelService, TunnelService>();
+    services.AddSingleton<IRuntimeManager>(runtime);
+    services.AddSingleton<ITunnelProvider>(provider => new FrpTunnelProvider(provider.GetRequiredService<IServiceScopeFactory>(), environment, provider.GetRequiredService<IRuntimeManager>()));
+    await using var container = services.BuildServiceProvider();
+    await using (var scope = container.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<RemoteOsDbContext>(); await db.Database.EnsureCreatedAsync();
+        var service = scope.ServiceProvider.GetRequiredService<ITunnelService>();
+        var profile = await service.UpsertProfileAsync(null, new UpsertTunnelServerProfileRequest("managed", "frps.example.test", 7000, TunnelAuthKind.None, TunnelTlsMode.Default, TunnelRuntimeMode.Managed, null), "apply-user", CancellationToken.None);
+        await service.UpsertTunnelAsync(null, new UpsertTunnelDefinitionRequest(profile.Id, "ssh", TunnelProtocol.Tcp, "127.0.0.1", 22, 6000, null, true, false, false), "apply-user", CancellationToken.None);
+        var provider = scope.ServiceProvider.GetRequiredService<ITunnelProvider>();
+        var applied = await provider.ApplyAsync(profile.Id, "apply-user", CancellationToken.None);
+        Assert(applied.Succeeded && applied.State == TunnelConnectionState.Starting, "Managed FRP desired state was not started.");
+        var current = await provider.ListAsync("apply-user", CancellationToken.None);
+        Assert(current.Single().State is TunnelConnectionState.Starting or TunnelConnectionState.Connected, "Running FRP profile was not reflected as a real runtime state.");
+        Assert((await provider.GetLogsAsync(profile.Id, "apply-user", CancellationToken.None))?.All(entry => !entry.Message.Contains("token", StringComparison.OrdinalIgnoreCase)) == true, "Runtime log exposed a token.");
+        Assert((await provider.StopAsync(profile.Id, "apply-user", CancellationToken.None)).Succeeded, "Managed FRP process could not be stopped.");
+    }
+}
+
+static async Task VerifyTunnelSecretLifecycleAsync(string root)
+{
+    var path = Path.Combine(root, "tunnel-secret-lifecycle.db");
+    var dbOptions = new DbContextOptionsBuilder<RemoteOsDbContext>().UseSqlite($"Data Source={path}").Options;
+    await using var db = new RemoteOsDbContext(dbOptions); await db.Database.EnsureCreatedAsync();
+    var protection = DataProtectionProvider.Create(Path.Combine(root, "data-protection"));
+    var secrets = new DataProtectionSecretStore(db, protection);
+    var service = new TunnelService(db, secrets, new TunnelAudit(db));
+    const string user = "tunnel-test-user";
+    var created = await service.UpsertProfileAsync(null, new UpsertTunnelServerProfileRequest("edge", "frps.example.test", 7000,
+        TunnelAuthKind.Token, TunnelTlsMode.Default, TunnelRuntimeMode.Managed, null), user, CancellationToken.None);
+    try
+    {
+        await service.UpsertTunnelAsync(null, new UpsertTunnelDefinitionRequest(created.Id, "invalid", TunnelProtocol.Http, "127.0.0.1", 8080, 6000, null, true, false, false), user, CancellationToken.None);
+        throw new InvalidOperationException("Invalid HTTP tunnel was accepted.");
+    }
+    catch (TunnelValidationException exception) { Assert(exception.ProblemCode == "tunnel.domain_required", "Invalid tunnel did not return stable problem code."); }
+    await service.SetProfileTokenAsync(created.Id, "credential-that-must-not-return", user, CancellationToken.None);
+    var safe = await service.GetProfileAsync(created.Id, user, CancellationToken.None) ?? throw new InvalidOperationException("Tunnel profile disappeared.");
+    Assert(safe.TokenConfigured && safe.GetType().GetProperties().All(property => !property.Name.Equals("Token", StringComparison.OrdinalIgnoreCase)), "Safe profile projection exposed token material.");
+    var updated = await service.UpsertProfileAsync(created.Id, new UpsertTunnelServerProfileRequest("edge", "frps.example.test", 7000,
+        TunnelAuthKind.None, TunnelTlsMode.Default, TunnelRuntimeMode.Managed, null, safe.Revision), user, CancellationToken.None);
+    Assert(!updated.TokenConfigured && !await db.TunnelSecrets.AnyAsync(), "Changing auth away from token left an orphan secret.");
+    Assert(await service.DeleteProfileAsync(created.Id, user, CancellationToken.None), "Unused profile could not be deleted.");
 }
 
 static async Task VerifyPerformanceSamplerAsync()
@@ -475,6 +649,15 @@ static X509Certificate2 CreateX509(string domain)
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new(new FixtureHandler(payload));
+    private sealed class FixtureHandler(byte[] payload) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+    }
 }
 
 sealed class TestHostEnvironment(string contentRoot) : IHostEnvironment

@@ -34,6 +34,8 @@
         "application.remoteos.webservers.display_name": "Web サーバーマネージャー",
         "application.remoteos.webservers.description": "RemoteOS Server の Web サーバーを管理します",
         "application.remoteos.git.display_name": "Git クライアント",
-        "application.remoteos.git.description": "RemoteOS Server 上の Git リポジトリを管理します"
+        "application.remoteos.git.description": "RemoteOS Server 上の Git リポジトリを管理します",
+        "application.remoteos.tunnels.display_name": "トンネル マネージャー",
+        "application.remoteos.tunnels.description": "RemoteOS Server 上の FRP トンネルとランタイム状態を管理します"
     }
 }

@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:vm="clr-namespace:Client.Apps.Tunnels"
+             xmlns:tunnels="clr-namespace:RemoteOS.Protocol.Tunnels;assembly=RemoteOS.Protocol"
+             x:Class="Client.Apps.Tunnels.Views.TunnelManagerView"
+             x:DataType="vm:TunnelManagerViewModel">
+  <Grid Margin="24" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+    <TextBlock Text="{loc:Loc tunnels.title}" FontSize="24" FontWeight="SemiBold" />
+    <Border Grid.Row="1" Classes="card"><StackPanel Orientation="Horizontal" Spacing="12"><TextBlock Text="{loc:Loc tunnels.runtime}" FontWeight="SemiBold"/><TextBlock Text="{Binding RuntimeText}"/><TextBox Width="90" Text="{Binding RuntimeVersion, Mode=TwoWay}"/><Button Content="{loc:Loc tunnels.install}" Command="{Binding InstallRuntimeCommand}" IsEnabled="{Binding !IsBusy}"/><Button Content="{loc:Loc tunnels.rollback}" Command="{Binding RollbackRuntimeCommand}" IsEnabled="{Binding !IsBusy}"/><Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsBusy}"/></StackPanel></Border>
+    <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="14">
+      <StackPanel Spacing="8"><TextBlock Text="{loc:Loc tunnels.servers}" FontSize="18" FontWeight="SemiBold"/><ListBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"><ListBox.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelServerProfileDto"><StackPanel Margin="8"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Host}" Opacity="0.7"/><TextBlock Text="{Binding TokenConfigured, StringFormat='Token configured: {0}'}" FontSize="12" Opacity="0.7"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox><StackPanel Orientation="Horizontal" Spacing="8"><Button Classes="primary" Content="{loc:Loc tunnels.apply}" Command="{Binding ApplySelectedCommand}" IsEnabled="{Binding !IsBusy}"/><Button Content="{loc:Loc tunnels.stop}" Command="{Binding StopSelectedCommand}" IsEnabled="{Binding !IsBusy}"/><Button Content="{loc:Loc tunnels.logs}" Command="{Binding LoadLogsCommand}"/></StackPanel></StackPanel>
+      <Grid Grid.Column="1" RowDefinitions="*,Auto" RowSpacing="10"><StackPanel Spacing="8"><TextBlock Text="{loc:Loc tunnels.items}" FontSize="18" FontWeight="SemiBold"/><ListBox ItemsSource="{Binding Tunnels}"><ListBox.ItemTemplate><DataTemplate x:DataType="tunnels:TunnelDefinitionDto"><StackPanel Margin="8"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="{Binding Protocol}"/><TextBlock Text="{Binding LocalHost}" Opacity="0.7"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox></StackPanel><TextBox Grid.Row="1" Text="{Binding LogsText}" IsReadOnly="True" AcceptsReturn="True" Height="130" Watermark="{loc:Loc tunnels.logs_placeholder}"/></Grid>
+    </Grid>
+    <TextBlock Grid.Row="3" Text="{Binding StatusText}" TextWrapping="Wrap" Opacity="0.75"/>
+  </Grid>
+</UserControl>

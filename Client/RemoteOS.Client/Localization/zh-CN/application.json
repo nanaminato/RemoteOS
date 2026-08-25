@@ -34,6 +34,8 @@
         "application.remoteos.webservers.display_name": "Web 服务器管理器",
         "application.remoteos.webservers.description": "管理 RemoteOS Server 上的 Web 服务器",
         "application.remoteos.git.display_name": "Git 客户端",
-        "application.remoteos.git.description": "管理 RemoteOS Server 上的 Git 仓库"
+        "application.remoteos.git.description": "管理 RemoteOS Server 上的 Git 仓库",
+        "application.remoteos.tunnels.display_name": "内网穿透",
+        "application.remoteos.tunnels.description": "管理 RemoteOS Server 上的 FRP 隧道和运行时状态"
     }
 }

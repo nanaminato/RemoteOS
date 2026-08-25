@@ -1,0 +1,18 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "tunnels.title": "内网穿透",
+    "tunnels.status.loading": "正在加载隧道状态…",
+    "tunnels.status.ready": "隧道状态已更新。",
+    "tunnels.status.failed": "无法加载隧道状态。",
+    "tunnels.runtime": "FRP 运行时：",
+    "tunnels.install": "安装",
+    "tunnels.rollback": "回滚",
+    "tunnels.servers": "FRP 服务器",
+    "tunnels.items": "隧道",
+    "tunnels.apply": "应用",
+    "tunnels.stop": "停止",
+    "tunnels.logs": "日志",
+    "tunnels.logs_placeholder": "已脱敏的运行时日志"
+  }
+}

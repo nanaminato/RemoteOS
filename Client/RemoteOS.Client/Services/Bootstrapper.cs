@@ -108,6 +108,10 @@ public static class Bootstrapper
         services.AddHttpClient<Client.Apps.WebServers.IRemoteWebServerClient, Client.Apps.WebServers.RemoteWebServerClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "webservers"))
             .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<Client.Apps.Tunnels.IRemoteTunnelClient, Client.Apps.Tunnels.RemoteTunnelClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "tunnels"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.Git.IRemoteGitClient, Client.Apps.Git.RemoteGitClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "git"))
             .AddHttpMessageHandler<AcceptLanguageHandler>()
@@ -188,6 +192,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Firewall.FirewallApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Certificates.CertificateManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.WebServers.WebServerManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Tunnels.TunnelManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
 

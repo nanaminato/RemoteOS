@@ -1,0 +1,18 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "tunnels.title": "トンネル マネージャー",
+    "tunnels.status.loading": "トンネル状態を読み込んでいます…",
+    "tunnels.status.ready": "トンネル状態は最新です。",
+    "tunnels.status.failed": "トンネル状態を読み込めませんでした。",
+    "tunnels.runtime": "FRP ランタイム：",
+    "tunnels.install": "インストール",
+    "tunnels.rollback": "ロールバック",
+    "tunnels.servers": "FRP サーバー",
+    "tunnels.items": "トンネル",
+    "tunnels.apply": "適用",
+    "tunnels.stop": "停止",
+    "tunnels.logs": "ログ",
+    "tunnels.logs_placeholder": "サニタイズ済みランタイムログ"
+  }
+}

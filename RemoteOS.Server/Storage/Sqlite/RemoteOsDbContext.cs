@@ -21,9 +21,56 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<ImageMirror> ImageMirrors => Set<ImageMirror>();
     public DbSet<GitRepository> GitRepositories => Set<GitRepository>();
+    public DbSet<TunnelServerProfile> TunnelServerProfiles => Set<TunnelServerProfile>();
+    public DbSet<TunnelDefinition> TunnelDefinitions => Set<TunnelDefinition>();
+    public DbSet<TunnelSecret> TunnelSecrets => Set<TunnelSecret>();
+    public DbSet<TunnelAuditEntry> TunnelAuditEntries => Set<TunnelAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.Entity<TunnelServerProfile>(e =>
+        {
+            e.ToTable("tunnel_server_profiles");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).IsRequired().HasMaxLength(256);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(128);
+            e.Property(x => x.Host).IsRequired().HasMaxLength(253);
+            e.Property(x => x.AuthKind).HasConversion<string>();
+            e.Property(x => x.TlsMode).HasConversion<string>();
+            e.Property(x => x.RuntimeMode).HasConversion<string>();
+            e.HasIndex(x => new { x.UserId, x.Name }).IsUnique();
+        });
+        mb.Entity<TunnelDefinition>(e =>
+        {
+            e.ToTable("tunnel_definitions");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.UserId).IsRequired().HasMaxLength(256);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(128);
+            e.Property(x => x.ProviderId).IsRequired().HasMaxLength(32);
+            e.Property(x => x.LocalHost).IsRequired().HasMaxLength(253);
+            e.Property(x => x.Protocol).HasConversion<string>();
+            e.HasIndex(x => new { x.UserId, x.ServerProfileId, x.Name }).IsUnique();
+            e.HasIndex(x => new { x.ServerProfileId, x.RemotePort }).IsUnique().HasFilter("RemotePort IS NOT NULL");
+            e.HasIndex(x => new { x.ServerProfileId, x.Domain }).IsUnique().HasFilter("Domain IS NOT NULL");
+        });
+        mb.Entity<TunnelSecret>(e =>
+        {
+            e.ToTable("tunnel_secrets");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Purpose).IsRequired().HasMaxLength(64);
+            e.Property(x => x.ProtectedValue).IsRequired();
+            e.HasIndex(x => new { x.ServerProfileId, x.Purpose }).IsUnique();
+        });
+        mb.Entity<TunnelAuditEntry>(e =>
+        {
+            e.ToTable("tunnel_audit_entries");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ActorUserId).IsRequired().HasMaxLength(256);
+            e.Property(x => x.Action).IsRequired().HasMaxLength(64);
+            e.Property(x => x.Result).IsRequired().HasMaxLength(32);
+            e.Property(x => x.ProblemCode).HasMaxLength(128);
+            e.HasIndex(x => x.CreatedAt);
+        });
         // ── users ──
         mb.Entity<User>(e =>
         {

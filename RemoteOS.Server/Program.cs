@@ -144,6 +144,13 @@ builder.Services.AddAuthorization(options =>
                 !context.User.HasClaim(RemoteOsAuthSchemes.TokenTypeClaim, RemoteOsAuthSchemes.FileCapabilityTokenType)
                 || context.User.HasClaim(RemoteOsAuthSchemes.ScopeClaim, requiredScope)));
     }
+    // JwtBearer may map the standard role claim to ClaimTypes.Role depending on the host's
+    // inbound-claim mapping setting. Accept either representation, but never a client app id.
+    options.AddPolicy("TunnelsRead", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim("role", "observer")
+        || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "observer")));
+    options.AddPolicy("TunnelsManage", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
 });
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
@@ -219,6 +226,13 @@ builder.Services.AddSingleton<Server.WebServer.NginxWebServerManager>();
 builder.Services.AddSingleton<Server.WebServer.IWebServerProvider>(services => services.GetRequiredService<Server.WebServer.NginxWebServerManager>());
 builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServer.WebServerManager>();
 
+// Tunnel desired state is stored separately from workspace preferences. FRP stays an external
+// process; the provider only generates private configuration and supervises its own child PID.
+builder.Services.AddSingleton<Server.Runtimes.IRuntimeManager, Server.Runtimes.FrpRuntimeManager>();
+builder.Services.AddSingleton<Server.Tunnels.ITunnelProvider, Server.Tunnels.FrpTunnelProvider>();
+builder.Services.Configure<Server.Runtimes.FrpRuntimeOptions>(builder.Configuration.GetSection("FrpRuntime"));
+builder.Services.AddHttpClient("FrpRuntime", client => client.Timeout = TimeSpan.FromMinutes(2));
+
 // Certificate management is host-global. PEM/account keys remain behind the server-side
 // store; the API exposes metadata and operation IDs only.
 var certificateOptions = builder.Configuration.GetSection("Certificate").Get<Server.Certificate.CertificateOptions>() ?? new Server.Certificate.CertificateOptions();
@@ -262,6 +276,9 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
     builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
     builder.Services.AddScoped<IImageMirrorRepository, SqliteImageMirrorRepository>();
+    builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
+    builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
+    builder.Services.AddScoped<Server.Tunnels.ITunnelAudit, Server.Tunnels.TunnelAudit>();
 }
 else
 {
@@ -395,6 +412,62 @@ if (storageProvider == "sqlite")
             "CreatedAt" TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_git_repositories_UserId" ON "git_repositories" ("UserId");
+
+        CREATE TABLE IF NOT EXISTS "tunnel_server_profiles" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "UserId" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "Host" TEXT NOT NULL,
+            "Port" INTEGER NOT NULL,
+            "AuthKind" TEXT NOT NULL,
+            "TlsMode" TEXT NOT NULL,
+            "RuntimeMode" TEXT NOT NULL,
+            "ExternalExecutablePath" TEXT NULL,
+            "Revision" INTEGER NOT NULL,
+            "CreatedAt" TEXT NOT NULL,
+            "UpdatedAt" TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_tunnel_server_profiles_UserId_Name" ON "tunnel_server_profiles" ("UserId", "Name");
+        CREATE TABLE IF NOT EXISTS "tunnel_definitions" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "ServerProfileId" TEXT NOT NULL,
+            "UserId" TEXT NOT NULL,
+            "Name" TEXT NOT NULL,
+            "ProviderId" TEXT NOT NULL,
+            "Protocol" TEXT NOT NULL,
+            "LocalHost" TEXT NOT NULL,
+            "LocalPort" INTEGER NOT NULL,
+            "RemotePort" INTEGER NULL,
+            "Domain" TEXT NULL,
+            "Enabled" INTEGER NOT NULL,
+            "Encryption" INTEGER NOT NULL,
+            "Compression" INTEGER NOT NULL,
+            "Revision" INTEGER NOT NULL,
+            "CreatedAt" TEXT NOT NULL,
+            "UpdatedAt" TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_tunnel_definitions_UserId_ServerProfileId_Name" ON "tunnel_definitions" ("UserId", "ServerProfileId", "Name");
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_tunnel_definitions_ServerProfileId_RemotePort" ON "tunnel_definitions" ("ServerProfileId", "RemotePort") WHERE "RemotePort" IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_tunnel_definitions_ServerProfileId_Domain" ON "tunnel_definitions" ("ServerProfileId", "Domain") WHERE "Domain" IS NOT NULL;
+        CREATE TABLE IF NOT EXISTS "tunnel_secrets" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "ServerProfileId" TEXT NOT NULL,
+            "Purpose" TEXT NOT NULL,
+            "ProtectedValue" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL,
+            "UpdatedAt" TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_tunnel_secrets_ServerProfileId_Purpose" ON "tunnel_secrets" ("ServerProfileId", "Purpose");
+        CREATE TABLE IF NOT EXISTS "tunnel_audit_entries" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "ActorUserId" TEXT NOT NULL,
+            "Action" TEXT NOT NULL,
+            "TargetId" TEXT NULL,
+            "Result" TEXT NOT NULL,
+            "ProblemCode" TEXT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_tunnel_audit_entries_CreatedAt" ON "tunnel_audit_entries" ("CreatedAt");
         """);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
@@ -430,6 +503,7 @@ app.MapProcessGuardianEndpoints();
 app.MapWebServerEndpoints();
 app.MapCertificateEndpoints();
 app.MapGitEndpoints();
+app.MapTunnelEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

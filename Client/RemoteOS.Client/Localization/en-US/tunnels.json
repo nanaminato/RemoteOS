@@ -1,0 +1,18 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "tunnels.title": "Tunnel Manager",
+    "tunnels.status.loading": "Loading tunnel state…",
+    "tunnels.status.ready": "Tunnel state is up to date.",
+    "tunnels.status.failed": "Tunnel state could not be loaded.",
+    "tunnels.runtime": "FRP runtime:",
+    "tunnels.install": "Install",
+    "tunnels.rollback": "Rollback",
+    "tunnels.servers": "FRP servers",
+    "tunnels.items": "Tunnels",
+    "tunnels.apply": "Apply",
+    "tunnels.stop": "Stop",
+    "tunnels.logs": "Logs",
+    "tunnels.logs_placeholder": "Sanitized runtime logs"
+  }
+}

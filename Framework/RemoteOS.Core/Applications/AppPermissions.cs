@@ -24,6 +24,8 @@ public static class AppPermissions
     public const string ServerWebServersManage = "server.webservers.manage";
     public const string ServerGitRead = "server.git.read";
     public const string ServerGitManage = "server.git.manage";
+    public const string ServerTunnelsRead = "server.tunnels.read";
+    public const string ServerTunnelsManage = "server.tunnels.manage";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -52,6 +54,8 @@ public static class AppPermissions
         new(ServerWebServersManage, "Manage web server configuration", "Integrate, reload, and test web server configuration on the server.", "server_management"),
         new(ServerGitRead, "Read Git repositories", "View registered Git repositories, their status, branches, history, and diffs on the server.", "server_files"),
         new(ServerGitManage, "Manage Git repositories", "Commit, pull, push, switch, create and delete branches, and revert commits in registered Git repositories on the server.", "server_files"),
+        new(ServerTunnelsRead, "Read tunnel configuration", "View safe tunnel, FRP server profile, runtime, and sanitized log state on the server.", "server_network"),
+        new(ServerTunnelsManage, "Manage tunnels", "Create, change, apply, stop, and delete server tunnel configuration and FRP runtime settings.", "server_network"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>

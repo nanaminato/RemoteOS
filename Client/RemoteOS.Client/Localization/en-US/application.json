@@ -34,6 +34,8 @@
         "application.remoteos.webservers.display_name": "Web Server Manager",
         "application.remoteos.webservers.description": "Manage web servers on the RemoteOS Server",
         "application.remoteos.git.display_name": "Git Client",
-        "application.remoteos.git.description": "Manage Git repositories on the RemoteOS Server"
+        "application.remoteos.git.description": "Manage Git repositories on the RemoteOS Server",
+        "application.remoteos.tunnels.display_name": "Tunnel Manager",
+        "application.remoteos.tunnels.description": "Manage FRP tunnels and runtime status on the RemoteOS Server"
     }
 }
