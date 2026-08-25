@@ -203,6 +203,9 @@ static async Task VerifyFrpRuntimeInstallAndRollbackAsync(string root)
     var manager = new FrpRuntimeManager(env, new FixtureHttpClientFactory(archive), Options.Create(new FrpRuntimeOptions { Releases = releases }));
     var first = await manager.InstallManagedFrpcAsync("v0.71.0", CancellationToken.None);
     Assert(first.Succeeded, "Verified FRP fixture did not install.");
+    Assert(manager.GetManagedFrpcInstallationStatus().State == TunnelRuntimeInstallationState.Succeeded
+        && manager.GetManagedFrpcInstallationStatus().Progress == 100,
+        "Successful runtime installation did not publish completion status.");
     await VerifyFrpApplyLifecycleAsync(root, env, manager);
     var second = await manager.InstallManagedFrpcAsync("v0.71.1", CancellationToken.None);
     Assert(second.Succeeded, "Second verified FRP fixture did not install.");
@@ -221,6 +224,9 @@ static async Task VerifyFrpRuntimeInstallAndRollbackAsync(string root)
     }));
     var badChecksum = await badChecksumManager.InstallManagedFrpcAsync("v0.71.0", CancellationToken.None);
     Assert(!badChecksum.Succeeded && badChecksum.ProblemCode == "tunnel.runtime_checksum_failed", "Wrong checksum was accepted.");
+    Assert(badChecksumManager.GetManagedFrpcInstallationStatus().State == TunnelRuntimeInstallationState.Failed
+        && badChecksumManager.GetManagedFrpcInstallationStatus().ProblemCode == "tunnel.runtime_checksum_failed",
+        "Failed runtime installation did not publish failure status.");
     Assert((await badChecksumManager.GetManagedFrpcStatusAsync(CancellationToken.None)).State == TunnelRuntimeState.NotInstalled, "Checksum failure changed the active runtime.");
 
     var maliciousArchive = CreateMaliciousFrpFixtureArchive();

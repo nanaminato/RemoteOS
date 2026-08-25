@@ -21,6 +21,8 @@ public static class TunnelApiRoutes
     public const string ProfileLogs = $"{Profiles}/{{profileId}}/logs";
     public const string ProfileLogsPattern = "/profiles/{profileId:guid}/logs";
     public const string Runtime = $"{Tunnels}/runtime";
+    public const string RuntimeInstallationStatus = $"{Runtime}/managed/install/status";
+    public const string RuntimeInstallationStatusPattern = "/runtime/managed/install/status";
     public const string RuntimeDetectExternal = $"{Runtime}/external/detect";
     public const string RuntimeInstall = $"{Runtime}/managed/install";
     public const string RuntimeInstallPattern = "/runtime/managed/install";

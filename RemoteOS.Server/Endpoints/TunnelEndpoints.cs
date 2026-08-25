@@ -46,6 +46,7 @@ public static class TunnelEndpoints
         group.MapPost(TunnelApiRoutes.ApplyProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.ApplyAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.StopProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.StopAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapGet(TunnelApiRoutes.Runtime, (IRuntimeManager runtime, CancellationToken ct) => runtime.GetManagedFrpcStatusAsync(ct)).RequireAuthorization("TunnelsRead");
+        group.MapGet(TunnelApiRoutes.RuntimeInstallationStatusPattern, (IRuntimeManager runtime) => runtime.GetManagedFrpcInstallationStatus()).RequireAuthorization("TunnelsRead");
         group.MapPost(TunnelApiRoutes.RuntimeDetectExternal, (DetectExternalTunnelRuntimeRequest request, IRuntimeManager runtime, CancellationToken ct) => runtime.DetectExternalFrpcAsync(request.ExecutablePath, ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.RuntimeInstallPattern, async (InstallManagedTunnelRuntimeRequest request, ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
         {

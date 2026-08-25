@@ -8,6 +8,7 @@ public enum TunnelTlsMode { Default, Disable, Force }
 public enum TunnelRuntimeMode { Managed, External }
 public enum TunnelConnectionState { SavedNotApplied, Starting, Connected, Disconnected, RuntimeUnavailable, Unknown }
 public enum TunnelRuntimeState { NotInstalled, Available, Running, Stopped, ExternalInvalid, Unknown }
+public enum TunnelRuntimeInstallationState { Idle, Queued, Downloading, Verifying, Extracting, HealthChecking, Activating, Succeeded, Failed }
 
 /// <summary>Safe profile projection. Authentication material is intentionally represented only by state.</summary>
 public sealed record TunnelServerProfileDto(
@@ -26,6 +27,11 @@ public sealed record TunnelRuntimeDto(
     string RuntimeId, TunnelRuntimeMode Mode, TunnelRuntimeState State, string? Version,
     string? ExecutablePath, string ProblemCode = "", DateTimeOffset? StartedAt = null,
     string? PreviousVersion = null, bool IntegrityVerified = false);
+
+/// <summary>Safe, host-wide progress projection for a managed FRP runtime installation.</summary>
+public sealed record TunnelRuntimeInstallationDto(
+    TunnelRuntimeInstallationState State, string? Version, int Progress,
+    string ProblemCode = "", DateTimeOffset? UpdatedAt = null);
 
 public sealed record TunnelOperationResultDto(bool Succeeded, TunnelConnectionState State, string ProblemCode = "");
 public sealed record TunnelLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);

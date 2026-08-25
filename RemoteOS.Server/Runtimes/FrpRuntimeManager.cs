@@ -13,8 +13,10 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
 {
     private const string RuntimeId = "frp";
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _installationStatusGate = new();
     private readonly string _root = Path.Combine(environment.ContentRootPath, "data", "runtimes", RuntimeId);
     private readonly FrpRuntimeOptions _options = options.Value;
+    private TunnelRuntimeInstallationDto _installationStatus = new(TunnelRuntimeInstallationState.Idle, null, 0);
 
     public async Task<TunnelRuntimeDto> DetectExternalFrpcAsync(string executablePath, CancellationToken ct)
     {
@@ -36,11 +38,25 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
             : new(RuntimeId, TunnelRuntimeMode.Managed, TunnelRuntimeState.NotInstalled, active, null, "tunnel.managed_runtime_missing", null, state.PreviousVersion, false);
     }
 
+    public TunnelRuntimeInstallationDto GetManagedFrpcInstallationStatus()
+    {
+        lock (_installationStatusGate) return _installationStatus;
+    }
+
     public async Task<TunnelOperationResultDto> InstallManagedFrpcAsync(string version, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(version) || version.Length > 32) return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_version_invalid");
+        if (string.IsNullOrWhiteSpace(version) || version.Length > 32)
+        {
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Failed, version, 0, "tunnel.runtime_version_invalid");
+            return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_version_invalid");
+        }
         var release = _options.Releases.SingleOrDefault(x => x.Version == version && x.Rid == CurrentRid());
-        if (!IsTrustedRelease(release)) return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_release_not_configured");
+        if (!IsTrustedRelease(release))
+        {
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Failed, version, 0, "tunnel.runtime_release_not_configured");
+            return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_release_not_configured");
+        }
+        UpdateInstallationStatus(TunnelRuntimeInstallationState.Queued, version, 0);
         await _gate.WaitAsync(ct);
         try
         {
@@ -52,21 +68,32 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
                 var archive = Path.Combine(_root, ".download-" + Guid.NewGuid().ToString("N"));
                 try
                 {
+                    UpdateInstallationStatus(TunnelRuntimeInstallationState.Downloading, release.Version, 0);
                     await DownloadVerifiedAsync(release, archive, ct);
+                    UpdateInstallationStatus(TunnelRuntimeInstallationState.Extracting, release.Version, 82);
                     await ExtractExpectedExecutablesAsync(release, archive, staging, ct);
-                    if (await RunVersionAsync(Path.Combine(staging, FrpcName()), ct) is null) return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_health_check_failed");
+                    UpdateInstallationStatus(TunnelRuntimeInstallationState.HealthChecking, release.Version, 92);
+                    if (await RunVersionAsync(Path.Combine(staging, FrpcName()), ct) is null) return CompleteInstallationFailure(release.Version, "tunnel.runtime_health_check_failed");
                     Directory.CreateDirectory(Path.GetDirectoryName(finalDirectory)!);
                     Directory.Move(staging, finalDirectory);
                 }
-                catch (RuntimeInstallException ex) { return new(false, TunnelConnectionState.RuntimeUnavailable, ex.ProblemCode); }
-                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_install_timeout"); }
-                catch (Exception) { return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_install_failed"); }
+                catch (RuntimeInstallException ex) { return CompleteInstallationFailure(release.Version, ex.ProblemCode); }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return CompleteInstallationFailure(release.Version, "tunnel.runtime_install_timeout"); }
+                catch (Exception) { return CompleteInstallationFailure(release.Version, "tunnel.runtime_install_failed"); }
                 finally { if (File.Exists(archive)) File.Delete(archive); if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
             }
-            if (await RunVersionAsync(ExecutablePath(release.Version), ct) is null) return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_health_check_failed");
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.HealthChecking, release.Version, 95);
+            if (await RunVersionAsync(ExecutablePath(release.Version), ct) is null) return CompleteInstallationFailure(release.Version, "tunnel.runtime_health_check_failed");
             var before = await ReadStateAsync(ct);
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Activating, release.Version, 98);
             await WriteStateAsync(new RuntimeState(release.Version, before?.ActiveVersion, DateTimeOffset.UtcNow), ct);
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Succeeded, release.Version, 100);
             return new(true, TunnelConnectionState.SavedNotApplied);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Failed, version, 0, "tunnel.runtime_install_cancelled");
+            throw;
         }
         finally { _gate.Release(); }
     }
@@ -92,7 +119,15 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
         if (response.Content.Headers.ContentLength > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_download_too_large");
         await using var input = await response.Content.ReadAsStreamAsync(ct); await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256); var buffer = new byte[81920]; long total = 0;
-        while (true) { var count = await input.ReadAsync(buffer, ct); if (count == 0) break; total += count; if (total > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_download_too_large"); hash.AppendData(buffer, 0, count); await output.WriteAsync(buffer.AsMemory(0, count), ct); }
+        while (true)
+        {
+            var count = await input.ReadAsync(buffer, ct); if (count == 0) break;
+            total += count; if (total > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_download_too_large");
+            hash.AppendData(buffer, 0, count); await output.WriteAsync(buffer.AsMemory(0, count), ct);
+            if (response.Content.Headers.ContentLength is { } length && length > 0)
+                UpdateInstallationStatus(TunnelRuntimeInstallationState.Downloading, release.Version, Math.Clamp((int)(total * 80 / length), 0, 80));
+        }
+        UpdateInstallationStatus(TunnelRuntimeInstallationState.Verifying, release.Version, 81);
         var actual = Convert.ToHexString(hash.GetHashAndReset());
         if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actual), Convert.FromHexString(release.Sha256))) throw new RuntimeInstallException("tunnel.runtime_checksum_failed");
     }
@@ -156,6 +191,16 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
         catch { return null; }
     }
     private static TunnelRuntimeDto Invalid(string code, string? path = null) => new(RuntimeId, TunnelRuntimeMode.External, TunnelRuntimeState.ExternalInvalid, null, path, code);
+    private TunnelOperationResultDto CompleteInstallationFailure(string version, string problemCode)
+    {
+        UpdateInstallationStatus(TunnelRuntimeInstallationState.Failed, version, 0, problemCode);
+        return new(false, TunnelConnectionState.RuntimeUnavailable, problemCode);
+    }
+    private void UpdateInstallationStatus(TunnelRuntimeInstallationState state, string? version, int progress, string problemCode = "")
+    {
+        lock (_installationStatusGate)
+            _installationStatus = new TunnelRuntimeInstallationDto(state, version, progress, problemCode, DateTimeOffset.UtcNow);
+    }
     private static void SetPrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void SetPrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
     private static void SetPrivateExecutable(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }

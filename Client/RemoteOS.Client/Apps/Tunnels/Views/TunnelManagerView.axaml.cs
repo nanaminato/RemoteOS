@@ -28,7 +28,6 @@ public partial class TunnelManagerView : UserControl
             "tunnels" => new TunnelDefinitionsView(),
             "servers" => new TunnelServersView(),
             "runtime" => new TunnelRuntimeView(),
-            "logs" => new TunnelLogsView(),
             _ => new TunnelOverviewView()
         };
     }

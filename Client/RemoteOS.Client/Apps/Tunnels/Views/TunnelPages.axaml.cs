@@ -1,9 +1,22 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Client.Apps.Tunnels;
+using RemoteOS.Protocol.Tunnels;
 
 namespace Client.Apps.Tunnels.Views;
 
 public partial class TunnelOverviewView : UserControl { public TunnelOverviewView() => InitializeComponent(); }
 public partial class TunnelDefinitionsView : UserControl { public TunnelDefinitionsView() => InitializeComponent(); }
-public partial class TunnelServersView : UserControl { public TunnelServersView() => InitializeComponent(); }
+public partial class TunnelServersView : UserControl
+{
+    public TunnelServersView() => InitializeComponent();
+    private void OpenLogsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: TunnelServerProfileDto profile } && DataContext is TunnelManagerViewModel viewModel)
+            viewModel.OpenLogsCommand.Execute(profile);
+    }
+}
 public partial class TunnelRuntimeView : UserControl { public TunnelRuntimeView() => InitializeComponent(); }
-public partial class TunnelLogsView : UserControl { public TunnelLogsView() => InitializeComponent(); }
+public partial class TunnelProfileEditorView : UserControl { public TunnelProfileEditorView() => InitializeComponent(); }
+public partial class TunnelDefinitionEditorView : UserControl { public TunnelDefinitionEditorView() => InitializeComponent(); }
+public partial class TunnelLogWindowView : UserControl { public TunnelLogWindowView() => InitializeComponent(); }

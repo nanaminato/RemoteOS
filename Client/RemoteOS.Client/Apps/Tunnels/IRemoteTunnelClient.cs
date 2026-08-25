@@ -7,6 +7,7 @@ public interface IRemoteTunnelClient
     Task<IReadOnlyList<TunnelServerProfileDto>> ListProfilesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TunnelDefinitionDto>> ListAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeDto> GetRuntimeAsync(CancellationToken cancellationToken = default);
+    Task<TunnelRuntimeInstallationDto> GetRuntimeInstallationStatusAsync(CancellationToken cancellationToken = default);
     Task<TunnelServerProfileDto> CreateProfileAsync(UpsertTunnelServerProfileRequest request, CancellationToken cancellationToken = default);
     Task<TunnelServerProfileDto> UpdateProfileAsync(Guid profileId, UpsertTunnelServerProfileRequest request, CancellationToken cancellationToken = default);
     Task DeleteProfileAsync(Guid profileId, CancellationToken cancellationToken = default);
