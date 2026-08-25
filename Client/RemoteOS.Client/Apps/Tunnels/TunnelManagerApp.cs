@@ -51,6 +51,11 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
             await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("tunnels.frps.configuration"), dialog =>
                 new TunnelManagedFrpsConfigurationView { DataContext = vm, CloseAction = dialog.Cancel }, new Size(720, 690));
         };
+        vm.ShowManagedFrpsDiagnosticsAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("tunnels.frps.diagnostics"), dialog =>
+                new TunnelManagedFrpsDiagnosticsView { DataContext = vm, CloseAction = dialog.Cancel }, new Size(720, 600));
+        };
         vm.OpenProfileEditorAsync = async profile =>
         {
             var editor = new TunnelProfileEditorViewModel(client, profile) { SavedAsync = vm.RefreshAfterChildAsync };

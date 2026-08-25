@@ -24,6 +24,12 @@ public partial class TunnelManagedFrpsConfigurationView : UserControl
     public TunnelManagedFrpsConfigurationView() => InitializeComponent();
     private void CloseButton_Click(object? sender, RoutedEventArgs e) => CloseAction?.Invoke();
 }
+public partial class TunnelManagedFrpsDiagnosticsView : UserControl
+{
+    public Action? CloseAction { get; set; }
+    public TunnelManagedFrpsDiagnosticsView() => InitializeComponent();
+    private void CloseButton_Click(object? sender, RoutedEventArgs e) => CloseAction?.Invoke();
+}
 public partial class TunnelProfileEditorView : UserControl { public TunnelProfileEditorView() => InitializeComponent(); }
 public partial class TunnelDefinitionEditorView : UserControl { public TunnelDefinitionEditorView() => InitializeComponent(); }
 public partial class TunnelLogWindowView : UserControl { public TunnelLogWindowView() => InitializeComponent(); }

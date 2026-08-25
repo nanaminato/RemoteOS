@@ -49,6 +49,7 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
     public Func<Task>? ShowOfficialRuntimeDownloadPageAsync { get; set; }
     public Func<Task>? ShowManagedFrpsConfigurationAsync { get; set; }
+    public Func<Task>? ShowManagedFrpsDiagnosticsAsync { get; set; }
 
     public bool CanManage => canManage;
     public bool HasSelectedProfile => SelectedProfile is not null;
@@ -140,6 +141,12 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     {
         await RefreshManagedFrpsAsync();
         if (ShowManagedFrpsConfigurationAsync is not null) await ShowManagedFrpsConfigurationAsync();
+    }
+    [RelayCommand]
+    private async Task OpenManagedFrpsDiagnosticsAsync()
+    {
+        await RefreshManagedFrpsAsync();
+        if (ShowManagedFrpsDiagnosticsAsync is not null) await ShowManagedFrpsDiagnosticsAsync();
     }
     [RelayCommand] private async Task RefreshManagedFrpsAsync()
     {
