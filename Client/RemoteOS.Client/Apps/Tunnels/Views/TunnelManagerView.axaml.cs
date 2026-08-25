@@ -23,7 +23,7 @@ public partial class TunnelManagerView : UserControl
         _selectedButton?.Classes.Remove("nav-selected");
         _selectedButton = button;
         button.Classes.Add("nav-selected");
-        ContentHost.Content = section switch
+        var page = section switch
         {
             "tunnels" => new TunnelDefinitionsView(),
             "servers" => new TunnelServersView(),
@@ -31,5 +31,15 @@ public partial class TunnelManagerView : UserControl
             "runtime" => new TunnelRuntimeView(),
             _ => new TunnelOverviewView()
         };
+        // Data grids need the actual viewport height so they can expand and scroll internally.
+        // The remaining, document-like pages retain the previous outer scrolling behavior.
+        ContentHost.Content = section is "tunnels" or "servers"
+            ? page
+            : new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = page
+            };
     }
 }

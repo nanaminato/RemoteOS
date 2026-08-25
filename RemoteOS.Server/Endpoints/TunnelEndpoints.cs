@@ -55,9 +55,12 @@ public static class TunnelEndpoints
         group.MapPost(TunnelApiRoutes.ManagedFrpsStopPattern, (ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) => frps.StopAsync(UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapGet(TunnelApiRoutes.ManagedFrpsLogsPattern, (IManagedFrpsService frps, CancellationToken ct) => frps.GetLogsAsync(ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.ManagedFrpsAuditPattern, (ITunnelAudit audit, CancellationToken ct) => audit.ListFrpsAsync(ct)).RequireAuthorization("TunnelsRead");
-        group.MapGet(TunnelApiRoutes.Runtime, (IRuntimeManager runtime, CancellationToken ct) => runtime.GetManagedFrpcStatusAsync(ct)).RequireAuthorization("TunnelsRead");
+        // Patterns registered on a route group must be relative to that group.  Using the
+        // public, absolute client route here would register /api/v1/tunnels/api/v1/tunnels/…
+        // and make the advertised runtime API return 404.
+        group.MapGet(TunnelApiRoutes.RuntimePattern, (IRuntimeManager runtime, CancellationToken ct) => runtime.GetManagedFrpcStatusAsync(ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.RuntimeInstallationStatusPattern, (IRuntimeManager runtime) => runtime.GetManagedFrpcInstallationStatus()).RequireAuthorization("TunnelsRead");
-        group.MapPost(TunnelApiRoutes.RuntimeDetectExternal, (DetectExternalTunnelRuntimeRequest request, IRuntimeManager runtime, CancellationToken ct) => runtime.DetectExternalFrpcAsync(request.ExecutablePath, ct)).RequireAuthorization("TunnelsManage");
+        group.MapPost(TunnelApiRoutes.RuntimeDetectExternalPattern, (DetectExternalTunnelRuntimeRequest request, IRuntimeManager runtime, CancellationToken ct) => runtime.DetectExternalFrpcAsync(request.ExecutablePath, ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.RuntimeInstallPattern, async (InstallManagedTunnelRuntimeRequest request, ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
         {
             if (!request.Confirmed) return Problem("tunnel.runtime_confirmation_required", StatusCodes.Status400BadRequest);

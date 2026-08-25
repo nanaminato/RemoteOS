@@ -260,14 +260,23 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
         var runtimeTask = client.GetRuntimeAsync(_lifetime.Token);
         var installationTask = client.GetRuntimeInstallationStatusAsync(_lifetime.Token);
         var frpsTask = client.GetManagedFrpsAsync(_lifetime.Token);
+
+        // Keep the persisted profiles and tunnel definitions visible even when an optional
+        // runtime-status request fails (for example while connected to an older server).
+        // Previously, a single 404 prevented both collections from being applied.
+        var profiles = await profilesTask;
+        Replace(Profiles, profiles);
+        KeepSelections();
+
+        var tunnels = await tunnelsTask;
+        Replace(Tunnels, tunnels);
+        KeepSelections(); UpdateCounters();
+
         // The FRPS overview is independently useful. Apply it as soon as its request succeeds
-        // so an unrelated runtime/profile request cannot make a saved local server look unconfigured.
+        // so an unrelated runtime request cannot make a saved local server look unconfigured.
         ApplyFrps(await frpsTask);
-        await Task.WhenAll(profilesTask, tunnelsTask, runtimeTask, installationTask);
-        Replace(Profiles, await profilesTask); Replace(Tunnels, await tunnelsTask);
         Runtime = await runtimeTask; RuntimeText = FormatRuntime(Runtime);
         RuntimeInstallation = await installationTask;
-        KeepSelections(); UpdateCounters();
     }
 
     private void KeepSelections()
