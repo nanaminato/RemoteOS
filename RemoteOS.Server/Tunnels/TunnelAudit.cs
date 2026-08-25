@@ -13,7 +13,14 @@ public sealed class TunnelAudit(RemoteOsDbContext db) : ITunnelAudit
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<IReadOnlyList<TunnelAuditEntryDto>> ListFrpsAsync(CancellationToken ct) =>
-        (await db.TunnelAuditEntries.AsNoTracking().Where(x => x.Action.StartsWith("frps.")).OrderByDescending(x => x.CreatedAt).Take(200).ToListAsync(ct))
+    public async Task<IReadOnlyList<TunnelAuditEntryDto>> ListFrpsAsync(CancellationToken ct)
+    {
+        // Microsoft.EntityFrameworkCore.Sqlite cannot translate ordering by DateTimeOffset.
+        // Keep filtering in SQL, then apply the bounded, presentation-only ordering in memory.
+        var entries = await db.TunnelAuditEntries.AsNoTracking()
+            .Where(x => x.Action.StartsWith("frps."))
+            .ToListAsync(ct);
+        return entries.OrderByDescending(x => x.CreatedAt).Take(200)
             .Select(x => new TunnelAuditEntryDto(x.CreatedAt, x.Action, x.Result, x.ProblemCode ?? "")).ToArray();
+    }
 }

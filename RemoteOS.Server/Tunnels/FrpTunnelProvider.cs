@@ -53,6 +53,10 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
                 File.Move(temporary, configuration, overwrite: true);
                 SetPrivateFile(configuration);
                 await StopCoreAsync(profileId);
+                // Mark the previous process as no longer connected before starting its
+                // replacement.  The new process can report a successful login before
+                // the 200 ms startup check below completes.
+                _states[profileId] = new(TunnelConnectionState.Starting, "");
                 var started = Start(profileId, executable, configuration);
                 _processes[profileId] = started;
                 await Task.Delay(200, ct);
@@ -153,7 +157,13 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
     private static TunnelDefinitionDto ToDto(Server.Domain.TunnelDefinition x) => new(x.Id, x.ServerProfileId, x.Name, x.ProviderId, x.Protocol, x.LocalHost, x.LocalPort, x.RemotePort, x.Domain, x.Enabled, x.Encryption, x.Compression, x.Revision, x.CreatedAt, x.UpdatedAt);
     private async Task<TunnelOperationResultDto> CompleteAsync(RemoteOsDbContext db, Guid profileId, string userId, TunnelOperationResultDto result, CancellationToken ct)
     {
-        _states[profileId] = new(result.State, result.ProblemCode);
+        var snapshot = new RuntimeSnapshot(result.State, result.ProblemCode);
+        _states.AddOrUpdate(
+            profileId,
+            snapshot,
+            (_, current) => result.State == TunnelConnectionState.Starting && current.State == TunnelConnectionState.Connected
+                ? current
+                : snapshot);
         using var auditScope = scopes.CreateScope();
         await auditScope.ServiceProvider.GetRequiredService<ITunnelAudit>().RecordAsync(userId, result.Succeeded ? "profile.apply" : "profile.apply_failed", profileId, result.Succeeded ? "succeeded" : "failed", result.ProblemCode, ct);
         return result;

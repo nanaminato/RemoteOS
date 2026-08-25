@@ -72,7 +72,11 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     public string FrpsStartedAtText => FrpsStartedAt is { } startedAt ? startedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : LocalizedText.Get("tunnels.frps.not_started");
     public bool IsFrpsLoading => !IsFrpsLoaded && !FrpsLoadFailed;
 
-    public async Task StartAsync() => await RefreshAsync();
+    public async Task StartAsync()
+    {
+        await RefreshAsync();
+        _ = RefreshTunnelStatesPeriodicallyAsync();
+    }
     public Task RefreshAfterChildAsync() => RefreshAsync();
 
     [RelayCommand]
@@ -277,6 +281,29 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
         ApplyFrps(await frpsTask);
         Runtime = await runtimeTask; RuntimeText = FormatRuntime(Runtime);
         RuntimeInstallation = await installationTask;
+    }
+
+    private async Task RefreshTunnelStatesPeriodicallyAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), _lifetime.Token);
+                if (IsBusy) continue;
+
+                try
+                {
+                    var tunnels = await client.ListAsync(_lifetime.Token);
+                    Replace(Tunnels, tunnels);
+                    KeepSelections();
+                    UpdateCounters();
+                }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { throw; }
+                catch { /* Keep the current display and retry at the next interval. */ }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
     }
 
     private void KeepSelections()

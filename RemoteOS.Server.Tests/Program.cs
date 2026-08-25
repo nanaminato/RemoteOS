@@ -290,8 +290,14 @@ static async Task VerifyFrpApplyLifecycleAsync(string root, IHostEnvironment env
         var provider = scope.ServiceProvider.GetRequiredService<ITunnelProvider>();
         var applied = await provider.ApplyAsync(profile.Id, "apply-user", CancellationToken.None);
         Assert(applied.Succeeded && applied.State == TunnelConnectionState.Starting, "Managed FRP desired state was not started.");
-        var current = await provider.ListAsync("apply-user", CancellationToken.None);
-        Assert(current.Single().State is TunnelConnectionState.Starting or TunnelConnectionState.Connected, "Running FRP profile was not reflected as a real runtime state.");
+        IReadOnlyList<TunnelDefinitionDto> current = [];
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            current = await provider.ListAsync("apply-user", CancellationToken.None);
+            if (current.Single().State == TunnelConnectionState.Connected) break;
+            await Task.Delay(100);
+        }
+        Assert(current.Single().State == TunnelConnectionState.Connected, "Successful FRP login was overwritten by the startup state.");
         Assert((await provider.GetLogsAsync(profile.Id, "apply-user", CancellationToken.None))?.All(entry => !entry.Message.Contains("token", StringComparison.OrdinalIgnoreCase)) == true, "Runtime log exposed a token.");
         Assert((await provider.StopAsync(profile.Id, "apply-user", CancellationToken.None)).Succeeded, "Managed FRP process could not be stopped.");
     }
@@ -317,6 +323,14 @@ static async Task VerifyTunnelSecretLifecycleAsync(string root)
     await service.SetProfileTokenAsync(created.Id, "credential-that-must-not-return", user, CancellationToken.None);
     var safe = await service.GetProfileAsync(created.Id, user, CancellationToken.None) ?? throw new InvalidOperationException("Tunnel profile disappeared.");
     Assert(safe.TokenConfigured && safe.GetType().GetProperties().All(property => !property.Name.Equals("Token", StringComparison.OrdinalIgnoreCase)), "Safe profile projection exposed token material.");
+    var oldestAudit = DateTimeOffset.UtcNow.AddMinutes(-2);
+    db.TunnelAuditEntries.AddRange(
+        new TunnelAuditEntry { Id = Guid.NewGuid(), ActorUserId = user, Action = "frps.start", Result = "succeeded", CreatedAt = oldestAudit },
+        new TunnelAuditEntry { Id = Guid.NewGuid(), ActorUserId = user, Action = "frps.stop", Result = "succeeded", CreatedAt = oldestAudit.AddMinutes(1) });
+    await db.SaveChangesAsync();
+    var frpsAudit = await new TunnelAudit(db).ListFrpsAsync(CancellationToken.None);
+    Assert(frpsAudit.Count == 2 && frpsAudit[0].Action == "frps.stop" && frpsAudit[1].Action == "frps.start",
+        "FRPS audit history was not returned in descending timestamp order.");
     var updated = await service.UpsertProfileAsync(created.Id, new UpsertTunnelServerProfileRequest("edge", "frps.example.test", 7000,
         TunnelAuthKind.None, TunnelTlsMode.Default, TunnelRuntimeMode.Managed, null, safe.Revision), user, CancellationToken.None);
     Assert(!updated.TokenConfigured && !await db.TunnelSecrets.AnyAsync(), "Changing auth away from token left an orphan secret.");
