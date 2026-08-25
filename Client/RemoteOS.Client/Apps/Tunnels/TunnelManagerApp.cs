@@ -46,6 +46,11 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
             context.Activations.Activate(new Uri("https://github.com/fatedier/frp/releases"));
             return Task.CompletedTask;
         };
+        vm.ShowManagedFrpsConfigurationAsync = async () =>
+        {
+            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("tunnels.frps.configuration"), dialog =>
+                new TunnelManagedFrpsConfigurationView { DataContext = vm, CloseAction = dialog.Cancel }, new Size(720, 690));
+        };
         vm.OpenProfileEditorAsync = async profile =>
         {
             var editor = new TunnelProfileEditorViewModel(client, profile) { SavedAsync = vm.RefreshAfterChildAsync };
