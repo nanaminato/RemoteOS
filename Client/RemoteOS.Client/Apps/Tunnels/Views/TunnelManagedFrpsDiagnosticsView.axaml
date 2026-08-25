@@ -6,6 +6,6 @@
       <TextBlock Text="{loc:Loc tunnels.frps.logs}" FontWeight="SemiBold" Margin="0,8,0,0"/><TextBox Text="{Binding FrpsLogsText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="190"/>
       <TextBlock Text="{loc:Loc tunnels.frps.audit}" FontWeight="SemiBold"/><TextBox Text="{Binding FrpsAuditText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="150"/>
     </StackPanel></ScrollViewer>
-    <Border Grid.Row="1" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="18,12"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshManagedFrpsCommand}" Margin="0,0,8,0"/><Button Content="{loc:Loc common.close}" Click="CloseButton_Click"/></StackPanel></Border>
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,1,0,0" Padding="18,12"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshManagedFrpsDiagnosticsCommand}" Margin="0,0,8,0"/><Button Content="{loc:Loc common.close}" Click="CloseButton_Click"/></StackPanel></Border>
   </Grid>
 </UserControl>

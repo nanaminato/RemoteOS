@@ -135,7 +135,15 @@ public sealed class ManagedFrpsService(IHostEnvironment environment, IDataProtec
         return string.Join(Environment.NewLine, lines) + Environment.NewLine;
     }
     private static async Task<bool> VerifyAsync(string executable, string config, CancellationToken ct) { using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true } }; process.StartInfo.ArgumentList.Add("verify"); process.StartInfo.ArgumentList.Add("-c"); process.StartInfo.ArgumentList.Add(config); try { if (!process.Start()) return false; using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct); timeout.CancelAfter(TimeSpan.FromSeconds(10)); await Task.WhenAll(process.StandardOutput.ReadToEndAsync(timeout.Token), process.StandardError.ReadToEndAsync(timeout.Token), process.WaitForExitAsync(timeout.Token)); return process.ExitCode == 0; } catch { return false; } }
-    private ManagedFrpsConfigurationDto ToDto(StoredConfiguration? c) => c is null ? new("0.0.0.0", 7000, [], null, null, false, false, false, "127.0.0.1", null, null, false, _state, _problemCode, _startedAt) : new(c.BindAddress, c.BindPort, c.AllowPorts, c.VhostHttpPort, c.VhostHttpsPort, c.ForceTls, !string.IsNullOrEmpty(c.ProtectedToken), c.DashboardEnabled, c.DashboardAddress, c.DashboardPort, c.DashboardUser, !string.IsNullOrEmpty(c.ProtectedDashboardPassword), _state, _problemCode, _startedAt);
+    private ManagedFrpsConfigurationDto ToDto(StoredConfiguration? c)
+    {
+        // Runtime state is intentionally in-memory. After a RemoteOS Server restart a saved
+        // configuration is not running, but it is still configured and must not be presented as new.
+        var state = c is not null && _state == ManagedFrpsState.NotConfigured ? ManagedFrpsState.Stopped : _state;
+        return c is null
+            ? new("0.0.0.0", 7000, [], null, null, false, false, false, "127.0.0.1", null, null, false, state, _problemCode, _startedAt)
+            : new(c.BindAddress, c.BindPort, c.AllowPorts, c.VhostHttpPort, c.VhostHttpsPort, c.ForceTls, !string.IsNullOrEmpty(c.ProtectedToken), c.DashboardEnabled, c.DashboardAddress, c.DashboardPort, c.DashboardUser, !string.IsNullOrEmpty(c.ProtectedDashboardPassword), state, _problemCode, _startedAt);
+    }
     private void AppendLog(string level, string? message) { if (string.IsNullOrWhiteSpace(message)) return; message = Regex.Replace(message, "(?i)(token|secret|password)\\s*[:=]\\s*[^\\s,]+", "$1=<redacted>"); _logs.Enqueue(new(DateTimeOffset.UtcNow, level, message.Length > 1024 ? message[..1024] : message)); while (_logs.Count > 200) _logs.TryDequeue(out _); }
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     private static void SetPrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
