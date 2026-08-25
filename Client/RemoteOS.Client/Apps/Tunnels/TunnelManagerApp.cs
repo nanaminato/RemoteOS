@@ -1,4 +1,7 @@
 using Client.Apps.Tunnels.Views;
+using Client.Apps.Explorer;
+using Client.Apps.Explorer.ViewModels;
+using Client.Apps.Explorer.Views;
 using Client.Localization;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
@@ -21,7 +24,28 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
             context.ShowWindow(LocalizedText.Get("tunnels.title"), new TunnelLoginRequiredView(), new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false); return;
         }
         var canManage = context.Permissions.IsGranted(AppPermissions.ServerTunnelsManage);
+        var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new TunnelManagerViewModel(client, canManage); var window = context.ShowWindow(LocalizedText.Get("tunnels.title"), new TunnelManagerView { DataContext = vm }, new Rect(90, 65, 1040, 680), Manifest.IconGlyph);
+        vm.RequestServerRuntimePackageAsync = async () =>
+        {
+            if (files is null) return null;
+            return await context.ShowDialogAsync<string?>(window, LocalizedText.Get("tunnels.runtime.select_server_package"), dialog =>
+            {
+                var picker = new ExplorerViewModel(files,
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [new ExplorerFileFilter(LocalizedText.Get("tunnels.runtime.package_filter"), ["*.zip", "*.tar.gz", "*.tgz"])]),
+                    paths => dialog.Close(paths.FirstOrDefault()))
+                {
+                    CancelAction = dialog.Cancel,
+                };
+                _ = picker.LoadRootAsync();
+                return new ExplorerMainView { DataContext = picker };
+            }, new Size(720, 520));
+        };
+        vm.ShowOfficialRuntimeDownloadPageAsync = () =>
+        {
+            context.Activations.Activate(new Uri("https://github.com/fatedier/frp/releases"));
+            return Task.CompletedTask;
+        };
         vm.OpenProfileEditorAsync = profile =>
         {
             var editor = new TunnelProfileEditorViewModel(client, profile) { SavedAsync = vm.RefreshAfterChildAsync };

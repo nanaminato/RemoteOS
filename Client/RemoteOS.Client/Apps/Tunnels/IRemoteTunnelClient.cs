@@ -19,6 +19,7 @@ public interface IRemoteTunnelClient
     Task<TunnelOperationResultDto> StopAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TunnelLogEntryDto>> GetLogsAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<TunnelOperationResultDto> InstallManagedRuntimeAsync(string version, CancellationToken cancellationToken = default);
+    Task<TunnelOperationResultDto> InstallManagedRuntimeFromServerFileAsync(string version, string archivePath, CancellationToken cancellationToken = default);
     Task<TunnelOperationResultDto> RollbackManagedRuntimeAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string executablePath, CancellationToken cancellationToken = default);
 }

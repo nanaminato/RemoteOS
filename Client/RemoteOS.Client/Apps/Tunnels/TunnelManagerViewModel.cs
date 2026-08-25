@@ -26,6 +26,8 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     public Func<TunnelServerProfileDto?, Task>? OpenProfileEditorAsync { get; set; }
     public Func<TunnelDefinitionDto?, Task>? OpenTunnelEditorAsync { get; set; }
     public Func<TunnelServerProfileDto, Task>? OpenLogsWindowAsync { get; set; }
+    public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
+    public Func<Task>? ShowOfficialRuntimeDownloadPageAsync { get; set; }
 
     public bool CanManage => canManage;
     public bool HasSelectedProfile => SelectedProfile is not null;
@@ -75,6 +77,15 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     [RelayCommand(CanExecute = nameof(CanApplySelected))] private Task ApplySelectedAsync() => RunProfileOperationAsync(profile => client.ApplyAsync(profile.Id, _lifetime.Token));
     [RelayCommand(CanExecute = nameof(CanApplySelected))] private Task StopSelectedAsync() => RunProfileOperationAsync(profile => client.StopAsync(profile.Id, _lifetime.Token));
     [RelayCommand(CanExecute = nameof(CanInstallRuntime))] private Task InstallRuntimeAsync() => RunRuntimeOperationAsync(() => client.InstallManagedRuntimeAsync(RuntimeVersion, _lifetime.Token));
+    [RelayCommand(CanExecute = nameof(CanInstallRuntime))]
+    private async Task InstallRuntimeFromServerFileAsync()
+    {
+        if (RequestServerRuntimePackageAsync is null) return;
+        var archivePath = await RequestServerRuntimePackageAsync();
+        if (!string.IsNullOrWhiteSpace(archivePath))
+            await RunRuntimeOperationAsync(() => client.InstallManagedRuntimeFromServerFileAsync(RuntimeVersion, archivePath, _lifetime.Token));
+    }
+    [RelayCommand] private Task OpenOfficialRuntimeDownloadPageAsync() => ShowOfficialRuntimeDownloadPageAsync?.Invoke() ?? Task.CompletedTask;
     [RelayCommand(CanExecute = nameof(CanManage))] private Task RollbackRuntimeAsync() => RunRuntimeOperationAsync(() => client.RollbackManagedRuntimeAsync(_lifetime.Token));
 
     private bool CanApplySelected => CanManage && HasSelectedProfile && !IsBusy;
@@ -90,7 +101,7 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     partial void OnIsBusyChanged(bool value)
     {
         NotifyProfileCommands(); EditTunnelCommand.NotifyCanExecuteChanged();
-        InstallRuntimeCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged();
+        InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged();
     }
     private void NotifyProfileCommands()
     {

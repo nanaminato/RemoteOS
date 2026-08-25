@@ -29,6 +29,7 @@ public sealed class RemoteTunnelClient(HttpClient http, IAuthSession session) : 
     public async Task<IReadOnlyList<TunnelLogEntryDto>> GetLogsAsync(Guid profileId, CancellationToken ct = default) =>
         await SendAsync<IReadOnlyList<TunnelLogEntryDto>>(HttpMethod.Get, TunnelApiRoutes.ProfileLogs.Replace("{profileId}", profileId.ToString("D"), StringComparison.Ordinal), null, ct) ?? [];
     public Task<TunnelOperationResultDto> InstallManagedRuntimeAsync(string version, CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.RuntimeInstall, new InstallManagedTunnelRuntimeRequest(true, version), ct);
+    public Task<TunnelOperationResultDto> InstallManagedRuntimeFromServerFileAsync(string version, string archivePath, CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.RuntimeInstallFromFile, new InstallManagedTunnelRuntimeFromFileRequest(true, version, archivePath), ct);
     public Task<TunnelOperationResultDto> RollbackManagedRuntimeAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.RuntimeRollback, null, ct);
     public Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string path, CancellationToken ct = default) => SendRequiredAsync<TunnelRuntimeDto>(HttpMethod.Post, TunnelApiRoutes.RuntimeDetectExternal, new DetectExternalTunnelRuntimeRequest(path), ct);
 

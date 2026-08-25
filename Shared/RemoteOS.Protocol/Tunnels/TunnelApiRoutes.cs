@@ -26,6 +26,8 @@ public static class TunnelApiRoutes
     public const string RuntimeDetectExternal = $"{Runtime}/external/detect";
     public const string RuntimeInstall = $"{Runtime}/managed/install";
     public const string RuntimeInstallPattern = "/runtime/managed/install";
+    public const string RuntimeInstallFromFile = $"{Runtime}/managed/install/from-file";
+    public const string RuntimeInstallFromFilePattern = "/runtime/managed/install/from-file";
     public const string RuntimeRollback = $"{Runtime}/managed/rollback";
     public const string RuntimeRollbackPattern = "/runtime/managed/rollback";
 }

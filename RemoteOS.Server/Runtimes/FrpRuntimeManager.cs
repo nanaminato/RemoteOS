@@ -43,7 +43,20 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
         lock (_installationStatusGate) return _installationStatus;
     }
 
-    public async Task<TunnelOperationResultDto> InstallManagedFrpcAsync(string version, CancellationToken ct)
+    public Task<TunnelOperationResultDto> InstallManagedFrpcAsync(string version, CancellationToken ct) =>
+        InstallManagedFrpcCoreAsync(version, DownloadVerifiedAsync, ct);
+
+    public Task<TunnelOperationResultDto> InstallManagedFrpcFromArchiveAsync(string version, string archivePath, CancellationToken ct)
+    {
+        if (!TryCanonicalArchivePath(archivePath, out var path))
+        {
+            UpdateInstallationStatus(TunnelRuntimeInstallationState.Failed, version, 0, "tunnel.runtime_archive_path_invalid");
+            return Task.FromResult(new TunnelOperationResultDto(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_archive_path_invalid"));
+        }
+        return InstallManagedFrpcCoreAsync(version, (release, destination, token) => CopyVerifiedArchiveAsync(release, path, destination, token), ct);
+    }
+
+    private async Task<TunnelOperationResultDto> InstallManagedFrpcCoreAsync(string version, Func<FrpRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(version) || version.Length > 32)
         {
@@ -65,11 +78,10 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
             {
                 Directory.CreateDirectory(_root); SetPrivateDirectory(_root);
                 var staging = finalDirectory + ".installing-" + Guid.NewGuid().ToString("N");
-                var archive = Path.Combine(_root, ".download-" + Guid.NewGuid().ToString("N"));
+                var archive = Path.Combine(_root, ".archive-" + Guid.NewGuid().ToString("N"));
                 try
                 {
-                    UpdateInstallationStatus(TunnelRuntimeInstallationState.Downloading, release.Version, 0);
-                    await DownloadVerifiedAsync(release, archive, ct);
+                    await stageArchiveAsync(release, archive, ct);
                     UpdateInstallationStatus(TunnelRuntimeInstallationState.Extracting, release.Version, 82);
                     await ExtractExpectedExecutablesAsync(release, archive, staging, ct);
                     UpdateInstallationStatus(TunnelRuntimeInstallationState.HealthChecking, release.Version, 92);
@@ -117,15 +129,31 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
         using var response = await httpClients.CreateClient("FrpRuntime").GetAsync(release.Url, HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) throw new RuntimeInstallException("tunnel.runtime_download_failed");
         if (response.Content.Headers.ContentLength > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_download_too_large");
-        await using var input = await response.Content.ReadAsStreamAsync(ct); await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        UpdateInstallationStatus(TunnelRuntimeInstallationState.Downloading, release.Version, 0);
+        await using var input = await response.Content.ReadAsStreamAsync(ct);
+        await CopyAndVerifyArchiveAsync(release, input, destination, response.Content.Headers.ContentLength, TunnelRuntimeInstallationState.Downloading, ct);
+    }
+
+    private async Task CopyVerifiedArchiveAsync(FrpRuntimeRelease release, string sourcePath, string destination, CancellationToken ct)
+    {
+        var source = new FileInfo(sourcePath);
+        if (!source.Exists || source.Length > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_archive_too_large");
+        UpdateInstallationStatus(TunnelRuntimeInstallationState.Copying, release.Version, 0);
+        await using var input = new FileStream(source.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await CopyAndVerifyArchiveAsync(release, input, destination, source.Length, TunnelRuntimeInstallationState.Copying, ct);
+    }
+
+    private async Task CopyAndVerifyArchiveAsync(FrpRuntimeRelease release, Stream input, string destination, long? length, TunnelRuntimeInstallationState transferState, CancellationToken ct)
+    {
+        await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256); var buffer = new byte[81920]; long total = 0;
         while (true)
         {
             var count = await input.ReadAsync(buffer, ct); if (count == 0) break;
             total += count; if (total > _options.MaximumArchiveBytes) throw new RuntimeInstallException("tunnel.runtime_download_too_large");
             hash.AppendData(buffer, 0, count); await output.WriteAsync(buffer.AsMemory(0, count), ct);
-            if (response.Content.Headers.ContentLength is { } length && length > 0)
-                UpdateInstallationStatus(TunnelRuntimeInstallationState.Downloading, release.Version, Math.Clamp((int)(total * 80 / length), 0, 80));
+            if (length is > 0)
+                UpdateInstallationStatus(transferState, release.Version, Math.Clamp((int)(total * 80 / length), 0, 80));
         }
         UpdateInstallationStatus(TunnelRuntimeInstallationState.Verifying, release.Version, 81);
         var actual = Convert.ToHexString(hash.GetHashAndReset());
@@ -164,6 +192,17 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
     private async Task<RuntimeState?> ReadStateAsync(CancellationToken ct) { var path = Path.Combine(_root, "state.json"); if (!File.Exists(path)) return null; try { await using var input = File.OpenRead(path); return await JsonSerializer.DeserializeAsync<RuntimeState>(input, cancellationToken: ct); } catch (JsonException) { return null; } }
     private async Task WriteStateAsync(RuntimeState value, CancellationToken ct) { Directory.CreateDirectory(_root); SetPrivateDirectory(_root); var temporary = Path.Combine(_root, ".state-" + Guid.NewGuid().ToString("N")); var path = Path.Combine(_root, "state.json"); await using (var output = File.Create(temporary)) await JsonSerializer.SerializeAsync(output, value, cancellationToken: ct); SetPrivateFile(temporary); File.Move(temporary, path, overwrite: true); SetPrivateFile(path); }
     private static bool TryCanonicalExternalPath(string value, out string path) { path = ""; try { if (!string.IsNullOrWhiteSpace(value) && Path.IsPathFullyQualified(value)) { path = Path.GetFullPath(value); return true; } } catch { } return false; }
+    private static bool TryCanonicalArchivePath(string value, out string path)
+    {
+        path = "";
+        try
+        {
+            if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value)) return false;
+            path = Path.GetFullPath(value);
+            return File.Exists(path) && !Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch { return false; }
+    }
     private static bool IsTrustedRelease(FrpRuntimeRelease? value) => value is not null && Path.GetFileName(value.Version) == value.Version && value.Version.StartsWith("v", StringComparison.Ordinal) && value.ArchiveFormat is "zip" or "tar.gz" && value.Sha256.Length == 64 && value.Sha256.All(Uri.IsHexDigit) && Uri.TryCreate(value.Url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) && uri.AbsolutePath.StartsWith("/fatedier/frp/releases/download/", StringComparison.Ordinal);
     private static void EnsureSafeEntry(string? name, long length) { if (string.IsNullOrWhiteSpace(name) || length < 0 || length > 128L * 1024 * 1024 || Path.IsPathRooted(name) || name.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).Any(x => x is "." or "..")) throw new RuntimeInstallException("tunnel.runtime_archive_invalid"); }
     private static void EnsureAllowedEntry(string name) { var leaf = Path.GetFileName(name.Replace('\\', '/')); if (string.Equals(leaf, FrpcName(), StringComparison.Ordinal) || string.Equals(leaf, FrpsName(), StringComparison.Ordinal) || leaf.Equals("LICENSE", StringComparison.OrdinalIgnoreCase) || leaf.Equals("frpc.toml", StringComparison.OrdinalIgnoreCase) || leaf.Equals("frps.toml", StringComparison.OrdinalIgnoreCase)) return; throw new RuntimeInstallException("tunnel.runtime_archive_unexpected_entry"); }

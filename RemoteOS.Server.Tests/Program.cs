@@ -207,8 +207,10 @@ static async Task VerifyFrpRuntimeInstallAndRollbackAsync(string root)
         && manager.GetManagedFrpcInstallationStatus().Progress == 100,
         "Successful runtime installation did not publish completion status.");
     await VerifyFrpApplyLifecycleAsync(root, env, manager);
-    var second = await manager.InstallManagedFrpcAsync("v0.71.1", CancellationToken.None);
-    Assert(second.Succeeded, "Second verified FRP fixture did not install.");
+    var serverArchive = Path.Combine(root, "frp-server-package.tar.gz");
+    await File.WriteAllBytesAsync(serverArchive, archive);
+    var second = await manager.InstallManagedFrpcFromArchiveAsync("v0.71.1", serverArchive, CancellationToken.None);
+    Assert(second.Succeeded, "Verified FRP fixture selected from the server did not install.");
     var active = await manager.GetManagedFrpcStatusAsync(CancellationToken.None);
     Assert(active.Version == "v0.71.1" && active.PreviousVersion == "v0.71.0" && active.IntegrityVerified, "Runtime activation did not preserve previous version state.");
     var rolledBack = await manager.RollbackManagedFrpcAsync(CancellationToken.None);

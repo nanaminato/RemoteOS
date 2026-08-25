@@ -55,6 +55,13 @@ public static class TunnelEndpoints
             await audit.RecordAsync(UserId(user), "runtime.install", null, result.Succeeded ? "succeeded" : "failed", result.ProblemCode, ct);
             return result.Succeeded ? Results.Ok(result) : Results.BadRequest(result);
         }).RequireAuthorization("TunnelsManage");
+        group.MapPost(TunnelApiRoutes.RuntimeInstallFromFilePattern, async (InstallManagedTunnelRuntimeFromFileRequest request, ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
+        {
+            if (!request.Confirmed) return Problem("tunnel.runtime_confirmation_required", StatusCodes.Status400BadRequest);
+            var result = await runtime.InstallManagedFrpcFromArchiveAsync(request.Version, request.ArchivePath, ct);
+            await audit.RecordAsync(UserId(user), "runtime.install_from_file", null, result.Succeeded ? "succeeded" : "failed", result.ProblemCode, ct);
+            return result.Succeeded ? Results.Ok(result) : Results.BadRequest(result);
+        }).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.RuntimeRollbackPattern, async (ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
         {
             var result = await runtime.RollbackManagedFrpcAsync(ct);

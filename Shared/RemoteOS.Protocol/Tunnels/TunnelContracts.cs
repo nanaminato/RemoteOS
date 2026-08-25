@@ -8,7 +8,7 @@ public enum TunnelTlsMode { Default, Disable, Force }
 public enum TunnelRuntimeMode { Managed, External }
 public enum TunnelConnectionState { SavedNotApplied, Starting, Connected, Disconnected, RuntimeUnavailable, Unknown }
 public enum TunnelRuntimeState { NotInstalled, Available, Running, Stopped, ExternalInvalid, Unknown }
-public enum TunnelRuntimeInstallationState { Idle, Queued, Downloading, Verifying, Extracting, HealthChecking, Activating, Succeeded, Failed }
+public enum TunnelRuntimeInstallationState { Idle, Queued, Downloading, Copying, Verifying, Extracting, HealthChecking, Activating, Succeeded, Failed }
 
 /// <summary>Safe profile projection. Authentication material is intentionally represented only by state.</summary>
 public sealed record TunnelServerProfileDto(
@@ -50,3 +50,5 @@ public sealed record UpsertTunnelDefinitionRequest(
 /// <summary>Explicit external-runtime detection request. It only inspects the specified absolute executable path.</summary>
 public sealed record DetectExternalTunnelRuntimeRequest(string ExecutablePath);
 public sealed record InstallManagedTunnelRuntimeRequest(bool Confirmed, string Version);
+/// <summary>Installs a pinned runtime from an archive already present on the RemoteOS Server.</summary>
+public sealed record InstallManagedTunnelRuntimeFromFileRequest(bool Confirmed, string Version, string ArchivePath);
