@@ -46,21 +46,25 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
             context.Activations.Activate(new Uri("https://github.com/fatedier/frp/releases"));
             return Task.CompletedTask;
         };
-        vm.OpenProfileEditorAsync = profile =>
+        vm.OpenProfileEditorAsync = async profile =>
         {
             var editor = new TunnelProfileEditorViewModel(client, profile) { SavedAsync = vm.RefreshAfterChildAsync };
-            var editorWindow = context.ShowWindow(LocalizedText.Get(profile is null ? "tunnels.server.new_title" : "tunnels.server.edit_title"),
-                new TunnelProfileEditorView { DataContext = editor }, new Rect(200, 150, 620, 540), Manifest.IconGlyph);
-            editor.CloseAsync = () => { context.WindowManager.Close(editorWindow); return Task.CompletedTask; };
-            return Task.CompletedTask;
+            await context.ShowDialogAsync<bool?>(window,
+                LocalizedText.Get(profile is null ? "tunnels.server.new_title" : "tunnels.server.edit_title"), dialog =>
+                {
+                    editor.CloseAsync = () => { dialog.Close(true); return Task.CompletedTask; };
+                    return new TunnelProfileEditorView { DataContext = editor };
+                }, new Size(620, 540));
         };
-        vm.OpenTunnelEditorAsync = tunnel =>
+        vm.OpenTunnelEditorAsync = async tunnel =>
         {
             var editor = new TunnelDefinitionEditorViewModel(client, vm.Profiles, tunnel) { SavedAsync = vm.RefreshAfterChildAsync };
-            var editorWindow = context.ShowWindow(LocalizedText.Get(tunnel is null ? "tunnels.tunnel.new_title" : "tunnels.tunnel.edit_title"),
-                new TunnelDefinitionEditorView { DataContext = editor }, new Rect(240, 145, 650, 520), Manifest.IconGlyph);
-            editor.CloseAsync = () => { context.WindowManager.Close(editorWindow); return Task.CompletedTask; };
-            return Task.CompletedTask;
+            await context.ShowDialogAsync<bool?>(window,
+                LocalizedText.Get(tunnel is null ? "tunnels.tunnel.new_title" : "tunnels.tunnel.edit_title"), dialog =>
+                {
+                    editor.CloseAsync = () => { dialog.Close(true); return Task.CompletedTask; };
+                    return new TunnelDefinitionEditorView { DataContext = editor };
+                }, new Size(650, 520));
         };
         vm.OpenLogsWindowAsync = profile =>
         {

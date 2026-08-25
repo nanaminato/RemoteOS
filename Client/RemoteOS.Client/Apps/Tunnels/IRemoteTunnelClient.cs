@@ -22,4 +22,10 @@ public interface IRemoteTunnelClient
     Task<TunnelOperationResultDto> InstallManagedRuntimeFromServerFileAsync(string version, string archivePath, CancellationToken cancellationToken = default);
     Task<TunnelOperationResultDto> RollbackManagedRuntimeAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string executablePath, CancellationToken cancellationToken = default);
+    Task<ManagedFrpsConfigurationDto> GetManagedFrpsAsync(CancellationToken cancellationToken = default);
+    Task<ManagedFrpsConfigurationDto> UpdateManagedFrpsAsync(UpdateManagedFrpsConfigurationRequest request, CancellationToken cancellationToken = default);
+    Task<TunnelOperationResultDto> StartManagedFrpsAsync(CancellationToken cancellationToken = default);
+    Task<TunnelOperationResultDto> StopManagedFrpsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TunnelLogEntryDto>> GetManagedFrpsLogsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TunnelAuditEntryDto>> GetManagedFrpsAuditAsync(CancellationToken cancellationToken = default);
 }

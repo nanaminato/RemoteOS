@@ -32,6 +32,15 @@ public sealed class RemoteTunnelClient(HttpClient http, IAuthSession session) : 
     public Task<TunnelOperationResultDto> InstallManagedRuntimeFromServerFileAsync(string version, string archivePath, CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.RuntimeInstallFromFile, new InstallManagedTunnelRuntimeFromFileRequest(true, version, archivePath), ct);
     public Task<TunnelOperationResultDto> RollbackManagedRuntimeAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.RuntimeRollback, null, ct);
     public Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string path, CancellationToken ct = default) => SendRequiredAsync<TunnelRuntimeDto>(HttpMethod.Post, TunnelApiRoutes.RuntimeDetectExternal, new DetectExternalTunnelRuntimeRequest(path), ct);
+    public async Task<ManagedFrpsConfigurationDto> GetManagedFrpsAsync(CancellationToken ct = default) =>
+        await SendAsync<ManagedFrpsConfigurationDto>(HttpMethod.Get, TunnelApiRoutes.ManagedFrps, null, ct) ?? throw new HttpRequestException("Managed frps response was empty.");
+    public Task<ManagedFrpsConfigurationDto> UpdateManagedFrpsAsync(UpdateManagedFrpsConfigurationRequest request, CancellationToken ct = default) => SendRequiredAsync<ManagedFrpsConfigurationDto>(HttpMethod.Put, TunnelApiRoutes.ManagedFrps, request, ct);
+    public Task<TunnelOperationResultDto> StartManagedFrpsAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.ManagedFrpsStart, null, ct);
+    public Task<TunnelOperationResultDto> StopManagedFrpsAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.ManagedFrpsStop, null, ct);
+    public async Task<IReadOnlyList<TunnelLogEntryDto>> GetManagedFrpsLogsAsync(CancellationToken ct = default) =>
+        await SendAsync<IReadOnlyList<TunnelLogEntryDto>>(HttpMethod.Get, TunnelApiRoutes.ManagedFrpsLogs, null, ct) ?? [];
+    public async Task<IReadOnlyList<TunnelAuditEntryDto>> GetManagedFrpsAuditAsync(CancellationToken ct = default) =>
+        await SendAsync<IReadOnlyList<TunnelAuditEntryDto>>(HttpMethod.Get, TunnelApiRoutes.ManagedFrpsAudit, null, ct) ?? [];
 
     private async Task<TunnelOperationResultDto> SendOperationAsync(HttpMethod method, string path, object? payload, CancellationToken ct)
     {

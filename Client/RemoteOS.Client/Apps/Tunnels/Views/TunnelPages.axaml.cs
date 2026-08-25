@@ -17,6 +17,7 @@ public partial class TunnelServersView : UserControl
     }
 }
 public partial class TunnelRuntimeView : UserControl { public TunnelRuntimeView() => InitializeComponent(); }
+public partial class TunnelManagedFrpsView : UserControl { public TunnelManagedFrpsView() => InitializeComponent(); }
 public partial class TunnelProfileEditorView : UserControl { public TunnelProfileEditorView() => InitializeComponent(); }
 public partial class TunnelDefinitionEditorView : UserControl { public TunnelDefinitionEditorView() => InitializeComponent(); }
 public partial class TunnelLogWindowView : UserControl { public TunnelLogWindowView() => InitializeComponent(); }

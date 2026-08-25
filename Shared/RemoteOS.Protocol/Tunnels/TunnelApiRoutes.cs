@@ -30,4 +30,14 @@ public static class TunnelApiRoutes
     public const string RuntimeInstallFromFilePattern = "/runtime/managed/install/from-file";
     public const string RuntimeRollback = $"{Runtime}/managed/rollback";
     public const string RuntimeRollbackPattern = "/runtime/managed/rollback";
+    public const string ManagedFrps = $"{Tunnels}/frps";
+    public const string ManagedFrpsPattern = "/frps";
+    public const string ManagedFrpsStart = $"{ManagedFrps}/start";
+    public const string ManagedFrpsStartPattern = "/frps/start";
+    public const string ManagedFrpsStop = $"{ManagedFrps}/stop";
+    public const string ManagedFrpsStopPattern = "/frps/stop";
+    public const string ManagedFrpsLogs = $"{ManagedFrps}/logs";
+    public const string ManagedFrpsLogsPattern = "/frps/logs";
+    public const string ManagedFrpsAudit = $"{ManagedFrps}/audit";
+    public const string ManagedFrpsAuditPattern = "/frps/audit";
 }

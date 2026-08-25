@@ -45,6 +45,16 @@ public static class TunnelEndpoints
             await HandleDeleteAsync(() => service.DeleteTunnelAsync(tunnelId, UserId(user), ct))).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.ApplyProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.ApplyAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.StopProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.StopAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
+        group.MapGet(TunnelApiRoutes.ManagedFrpsPattern, (IManagedFrpsService frps, CancellationToken ct) => frps.GetAsync(ct)).RequireAuthorization("TunnelsRead");
+        group.MapPut(TunnelApiRoutes.ManagedFrpsPattern, async (UpdateManagedFrpsConfigurationRequest request, ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) =>
+        {
+            try { return Results.Ok(await frps.UpdateAsync(request, UserId(user), ct)); }
+            catch (ManagedFrpsValidationException ex) { return Problem(ex.ProblemCode, StatusCodes.Status400BadRequest); }
+        }).RequireAuthorization("TunnelsManage");
+        group.MapPost(TunnelApiRoutes.ManagedFrpsStartPattern, (ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) => frps.StartAsync(UserId(user), ct)).RequireAuthorization("TunnelsManage");
+        group.MapPost(TunnelApiRoutes.ManagedFrpsStopPattern, (ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) => frps.StopAsync(UserId(user), ct)).RequireAuthorization("TunnelsManage");
+        group.MapGet(TunnelApiRoutes.ManagedFrpsLogsPattern, (IManagedFrpsService frps, CancellationToken ct) => frps.GetLogsAsync(ct)).RequireAuthorization("TunnelsRead");
+        group.MapGet(TunnelApiRoutes.ManagedFrpsAuditPattern, (ITunnelAudit audit, CancellationToken ct) => audit.ListFrpsAsync(ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.Runtime, (IRuntimeManager runtime, CancellationToken ct) => runtime.GetManagedFrpcStatusAsync(ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.RuntimeInstallationStatusPattern, (IRuntimeManager runtime) => runtime.GetManagedFrpcInstallationStatus()).RequireAuthorization("TunnelsRead");
         group.MapPost(TunnelApiRoutes.RuntimeDetectExternal, (DetectExternalTunnelRuntimeRequest request, IRuntimeManager runtime, CancellationToken ct) => runtime.DetectExternalFrpcAsync(request.ExecutablePath, ct)).RequireAuthorization("TunnelsManage");

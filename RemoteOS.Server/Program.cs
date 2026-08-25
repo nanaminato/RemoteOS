@@ -230,6 +230,7 @@ builder.Services.AddSingleton<Server.WebServer.IWebServerManager, Server.WebServ
 // process; the provider only generates private configuration and supervises its own child PID.
 builder.Services.AddSingleton<Server.Runtimes.IRuntimeManager, Server.Runtimes.FrpRuntimeManager>();
 builder.Services.AddSingleton<Server.Tunnels.ITunnelProvider, Server.Tunnels.FrpTunnelProvider>();
+builder.Services.AddSingleton<Server.Tunnels.IManagedFrpsService, Server.Tunnels.ManagedFrpsService>();
 builder.Services.Configure<Server.Runtimes.FrpRuntimeOptions>(builder.Configuration.GetSection("FrpRuntime"));
 builder.Services.AddHttpClient("FrpRuntime", client => client.Timeout = TimeSpan.FromMinutes(2));
 
@@ -289,6 +290,7 @@ else
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
     builder.Services.AddSingleton<IAppSettingsRepository, InMemoryAppSettingsRepository>();
     builder.Services.AddSingleton<IImageMirrorRepository, InMemoryImageMirrorRepository>();
+    builder.Services.AddSingleton<Server.Tunnels.ITunnelAudit, Server.Tunnels.InMemoryTunnelAudit>();
 }
 // Session 始终内存（连接关系，不持久化）
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();

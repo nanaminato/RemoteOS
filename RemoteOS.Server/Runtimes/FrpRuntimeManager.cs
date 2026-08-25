@@ -38,6 +38,16 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
             : new(RuntimeId, TunnelRuntimeMode.Managed, TunnelRuntimeState.NotInstalled, active, null, "tunnel.managed_runtime_missing", null, state.PreviousVersion, false);
     }
 
+    public async Task<TunnelRuntimeDto> GetManagedFrpsStatusAsync(CancellationToken ct)
+    {
+        var state = await ReadStateAsync(ct);
+        if (state?.ActiveVersion is not { Length: > 0 } active) return new(RuntimeId, TunnelRuntimeMode.Managed, TunnelRuntimeState.NotInstalled, null, null, "tunnel.managed_runtime_not_installed");
+        var executable = Path.Combine(VersionDirectory(active), FrpsName());
+        return File.Exists(executable)
+            ? new(RuntimeId, TunnelRuntimeMode.Managed, TunnelRuntimeState.Available, active, executable, "", null, state.PreviousVersion, true)
+            : new(RuntimeId, TunnelRuntimeMode.Managed, TunnelRuntimeState.NotInstalled, active, null, "tunnel.managed_runtime_missing", null, state.PreviousVersion, false);
+    }
+
     public TunnelRuntimeInstallationDto GetManagedFrpcInstallationStatus()
     {
         lock (_installationStatusGate) return _installationStatus;

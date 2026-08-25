@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using RemoteOS.Protocol.Tunnels;
 using Server.Domain;
 using Server.Storage.Sqlite;
 
@@ -10,4 +12,8 @@ public sealed class TunnelAudit(RemoteOsDbContext db) : ITunnelAudit
         db.Set<TunnelAuditEntry>().Add(new TunnelAuditEntry { Id = Guid.NewGuid(), ActorUserId = actorUserId, Action = action, TargetId = targetId, Result = result, ProblemCode = problemCode, CreatedAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync(ct);
     }
+
+    public async Task<IReadOnlyList<TunnelAuditEntryDto>> ListFrpsAsync(CancellationToken ct) =>
+        (await db.TunnelAuditEntries.AsNoTracking().Where(x => x.Action.StartsWith("frps.")).OrderByDescending(x => x.CreatedAt).Take(200).ToListAsync(ct))
+            .Select(x => new TunnelAuditEntryDto(x.CreatedAt, x.Action, x.Result, x.ProblemCode ?? "")).ToArray();
 }

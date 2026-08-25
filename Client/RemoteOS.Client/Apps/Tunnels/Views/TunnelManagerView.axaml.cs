@@ -27,6 +27,7 @@ public partial class TunnelManagerView : UserControl
         {
             "tunnels" => new TunnelDefinitionsView(),
             "servers" => new TunnelServersView(),
+            "frps" => new TunnelManagedFrpsView(),
             "runtime" => new TunnelRuntimeView(),
             _ => new TunnelOverviewView()
         };
