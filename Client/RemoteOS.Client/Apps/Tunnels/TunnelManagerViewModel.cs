@@ -91,7 +91,11 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     private bool CanApplySelected => CanManage && HasSelectedProfile && !IsBusy;
     partial void OnSelectedProfileChanged(TunnelServerProfileDto? value) => NotifyProfileCommands();
     partial void OnSelectedTunnelChanged(TunnelDefinitionDto? value) => EditTunnelCommand.NotifyCanExecuteChanged();
-    partial void OnRuntimeInstallConfirmedChanged(bool value) => InstallRuntimeCommand.NotifyCanExecuteChanged();
+    partial void OnRuntimeInstallConfirmedChanged(bool value)
+    {
+        InstallRuntimeCommand.NotifyCanExecuteChanged();
+        InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
+    }
     partial void OnRuntimeInstallationChanged(TunnelRuntimeInstallationDto value)
     {
         OnPropertyChanged(nameof(RuntimeInstallationInProgress));
