@@ -50,6 +50,14 @@
         "permission.server.webservers.read.display_name": "Read web server configuration",
         "permission.server.webservers.read.description": "View discovered web servers, their runtime status, and configuration metadata on the server.",
         "permission.server.webservers.manage.display_name": "Manage web server configuration",
-        "permission.server.webservers.manage.description": "Integrate, reload, and test web server configuration on the server."
+        "permission.server.webservers.manage.description": "Integrate, reload, and test web server configuration on the server.",
+        "permission.server.git.read.display_name": "Read Git repositories",
+        "permission.server.git.read.description": "View registered Git repositories, their status, branches, history, and diffs on the server.",
+        "permission.server.git.manage.display_name": "Manage Git repositories",
+        "permission.server.git.manage.description": "Commit, pull, push, switch, create and delete branches, and revert commits in registered Git repositories on the server.",
+        "permission.server.tunnels.read.display_name": "Read tunnel configuration",
+        "permission.server.tunnels.read.description": "View safe tunnel, FRP server profile, runtime, and sanitized log state on the server.",
+        "permission.server.tunnels.manage.display_name": "Manage tunnels",
+        "permission.server.tunnels.manage.description": "Create, change, apply, stop, and delete server tunnel configuration and FRP runtime settings."
     }
 }

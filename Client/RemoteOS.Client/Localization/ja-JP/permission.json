@@ -50,6 +50,14 @@
         "permission.server.webservers.read.display_name": "Web サーバー設定の読み取り",
         "permission.server.webservers.read.description": "サーバー上で検出された Web サーバー、ランタイム状態、構成メタデータを表示します。",
         "permission.server.webservers.manage.display_name": "Web サーバー設定の管理",
-        "permission.server.webservers.manage.description": "サーバー上で Web サーバー設定の統合、リロード、テストを行います。"
+        "permission.server.webservers.manage.description": "サーバー上で Web サーバー設定の統合、リロード、テストを行います。",
+        "permission.server.git.read.display_name": "Git リポジトリの読み取り",
+        "permission.server.git.read.description": "サーバー上で登録された Git リポジトリ、その状態、ブランチ、履歴、差分を表示します。",
+        "permission.server.git.manage.display_name": "Git リポジトリの管理",
+        "permission.server.git.manage.description": "登録された Git リポジトリでコミット、プル、プッシュ、切り替え、ブランチの作成・削除、コミットの取り消しを行います。",
+        "permission.server.tunnels.read.display_name": "トンネル構成の読み取り",
+        "permission.server.tunnels.read.description": "サーバー上の安全なトンネル、FRP サーバープロファイル、ランタイム、機密情報を除去したログの状態を表示します。",
+        "permission.server.tunnels.manage.display_name": "トンネルの管理",
+        "permission.server.tunnels.manage.description": "サーバートンネル構成と FRP ランタイム設定の作成、変更、適用、停止、削除を行います。"
     }
 }

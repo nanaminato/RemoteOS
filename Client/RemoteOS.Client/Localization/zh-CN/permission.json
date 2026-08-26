@@ -50,6 +50,14 @@
         "permission.server.webservers.read.display_name": "读取 Web 服务器配置",
         "permission.server.webservers.read.description": "查看服务器上已发现的 Web 服务器、运行时状态和配置元数据。",
         "permission.server.webservers.manage.display_name": "管理 Web 服务器配置",
-        "permission.server.webservers.manage.description": "在服务器上集成、重载和测试 Web 服务器配置。"
+        "permission.server.webservers.manage.description": "在服务器上集成、重载和测试 Web 服务器配置。",
+        "permission.server.git.read.display_name": "读取 Git 仓库",
+        "permission.server.git.read.description": "查看服务器上已注册的 Git 仓库、其状态、分支、历史记录和差异。",
+        "permission.server.git.manage.display_name": "管理 Git 仓库",
+        "permission.server.git.manage.description": "在已注册的 Git 仓库中提交、拉取、推送、切换、创建和删除分支，以及还原提交。",
+        "permission.server.tunnels.read.display_name": "读取隧道配置",
+        "permission.server.tunnels.read.description": "查看服务器上安全的隧道、FRP 服务器配置、运行时和已脱敏日志状态。",
+        "permission.server.tunnels.manage.display_name": "管理隧道",
+        "permission.server.tunnels.manage.description": "创建、更改、应用、停止和删除服务器隧道配置及 FRP 运行时设置。"
     }
 }

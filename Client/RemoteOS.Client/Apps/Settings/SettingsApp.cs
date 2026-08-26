@@ -201,7 +201,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                 {
                     DataContext = dialogViewModel = new AppPermissionDialogViewModel(app, permissions, localization, dialog.Close),
                 },
-                new Size(560, 540));
+                new Size(640, 560));
             dialogViewModel?.Dispose();
         };
         appsPage.RequestUninstallConfirmationAsync = async app =>
