@@ -11,6 +11,13 @@
     "port_forwarding.update": "更新选中项",
     "port_forwarding.stop": "停止选中项",
     "port_forwarding.fallback_note": "若请求的本地端口已被占用，将选择下一个可用的 loopback 端口并在下方显示。",
-    "port_forwarding.running": "正在运行的转发"
+    "port_forwarding.running": "正在运行的转发",
+    "port_forwarding.forwards_page": "转发",
+    "port_forwarding.connection_page": "SSH 连接",
+    "port_forwarding.new_forward": "新建转发",
+    "port_forwarding.edit": "编辑选中项",
+    "port_forwarding.editor_note": "目标必须是 RemoteOS Server 上的 loopback 服务。",
+    "port_forwarding.target_address": "服务器 loopback 地址",
+    "port_forwarding.preferred_local_port": "首选本地端口"
   }
 }

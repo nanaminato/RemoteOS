@@ -11,6 +11,13 @@
     "port_forwarding.update": "選択項目を更新",
     "port_forwarding.stop": "選択項目を停止",
     "port_forwarding.fallback_note": "要求したローカルポートが使用中の場合は、次に利用可能な loopback ポートを選択して下に表示します。",
-    "port_forwarding.running": "実行中の転送"
+    "port_forwarding.running": "実行中の転送",
+    "port_forwarding.forwards_page": "転送",
+    "port_forwarding.connection_page": "SSH 接続",
+    "port_forwarding.new_forward": "転送を作成",
+    "port_forwarding.edit": "選択項目を編集",
+    "port_forwarding.editor_note": "対象は RemoteOS Server 上の loopback サービスである必要があります。",
+    "port_forwarding.target_address": "サーバーの loopback アドレス",
+    "port_forwarding.preferred_local_port": "優先するローカルポート"
   }
 }

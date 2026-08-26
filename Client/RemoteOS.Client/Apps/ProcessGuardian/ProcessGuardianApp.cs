@@ -155,13 +155,20 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
         startup.Children.Add(enabledOnBoot);
         startup.Children.Add(EditorHelp("guardian.create.enabled_on_boot.help"));
         panel.Children.Add(startup);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
+
+        // Keep the editor actions outside the scrollable form.  This makes Cancel and
+        // Save consistently available at the lower-right corner for long workloads.
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Avalonia.Thickness(20, 10, 20, 20) };
         var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
         cancel.Click += (_, _) => dialog.Cancel();
         actions.Children.Add(cancel);
         actions.Children.Add(new Button { Content = LocalizedText.Get("guardian.create.submit"), Command = vm.CreateWorkloadCommand, Classes = { "primary" } });
-        panel.Children.Add(actions);
-        return new ScrollViewer { Content = panel };
+
+        var root = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        root.Children.Add(new ScrollViewer { Content = panel });
+        Grid.SetRow(actions, 1);
+        root.Children.Add(actions);
+        return root;
     }
 
     private static Control CreateLogsView(GuardianLogWindowViewModel vm)

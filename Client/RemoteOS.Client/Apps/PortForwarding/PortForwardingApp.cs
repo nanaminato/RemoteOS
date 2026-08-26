@@ -25,6 +25,26 @@ public sealed class PortForwardingApp : RemoteApplicationBase
         var view = new PortForwardingMainView { DataContext = viewModel };
         var window = context.ShowWindow("Port Forwarding", view,
             bounds: new Rect(160, 100, 760, 650), iconGlyph: Manifest.IconGlyph);
+        viewModel.ShowForwardEditorAsync = async forward =>
+        {
+            try
+            {
+                await context.ShowDialogAsync<bool>(window,
+                    Client.Localization.LocalizedText.Get(forward is null ? "port_forwarding.new_forward" : "port_forwarding.edit"), dialog =>
+                    {
+                        viewModel.CloseForwardEditorAsync = () =>
+                        {
+                            dialog.Close(true);
+                            return Task.CompletedTask;
+                        };
+                        return new PortForwardingEditorDialogView(viewModel, dialog, forward is not null);
+                    }, new Size(480, 360));
+            }
+            finally
+            {
+                viewModel.CloseForwardEditorAsync = null;
+            }
+        };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, closedWindow) =>
         {

@@ -11,6 +11,13 @@
     "port_forwarding.update": "Update selected",
     "port_forwarding.stop": "Stop selected",
     "port_forwarding.fallback_note": "If the requested local port is occupied, the next available loopback port is selected and returned below.",
-    "port_forwarding.running": "Running forwards"
+    "port_forwarding.running": "Running forwards",
+    "port_forwarding.forwards_page": "Forwards",
+    "port_forwarding.connection_page": "SSH connection",
+    "port_forwarding.new_forward": "New forward",
+    "port_forwarding.edit": "Edit selected",
+    "port_forwarding.editor_note": "The target must be a loopback service on the RemoteOS server.",
+    "port_forwarding.target_address": "Server loopback address",
+    "port_forwarding.preferred_local_port": "Preferred local port"
   }
 }

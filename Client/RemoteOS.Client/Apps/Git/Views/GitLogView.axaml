@@ -47,8 +47,11 @@
                         <TreeDataTemplate ItemsSource="{Binding Children}">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <ContentPresenter Content="{Binding Icon}" />
+                                <!-- Branch names must remain readable in every palette.  The
+                                     node-specific brush is static and can become white after a
+                                     theme change, so use the live theme foreground here. -->
                                 <TextBlock Text="{Binding DisplayName}" FontSize="12"
-                                           Foreground="{Binding Foreground}"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
                                            FontWeight="{Binding FontWeight}" />
                                 <TextBlock Text="{Binding Badge}" FontSize="10" Foreground="{DynamicResource TextPrimaryBrush}"
                                            IsVisible="{Binding HasBadge}" />
@@ -228,8 +231,11 @@
                                                 <Border Background="{Binding Bg}" CornerRadius="4" Padding="5,1">
                                                     <StackPanel Orientation="Horizontal" Spacing="2">
                                                         <TextBlock Text="{Binding Icon}" FontSize="10" />
+                                                        <!-- Muted badge backgrounds vary by theme; a
+                                                             semantic foreground keeps branch labels
+                                                             legible instead of inheriting a white accent. -->
                                                         <TextBlock Text="{Binding Label}" FontSize="10" MaxWidth="140" TextTrimming="CharacterEllipsis"
-                                                                   Foreground="{Binding Fg}" />
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
                                                     </StackPanel>
                                                 </Border>
                                             </DataTemplate>

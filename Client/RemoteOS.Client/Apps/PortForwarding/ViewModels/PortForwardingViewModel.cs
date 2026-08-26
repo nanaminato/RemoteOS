@@ -34,6 +34,28 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     [ObservableProperty] private bool _isBusy;
 
     public bool HasSelectedForward => SelectedForward is not null;
+    public Func<PortForwardInfo?, Task>? ShowForwardEditorAsync { get; set; }
+    public Func<Task>? CloseForwardEditorAsync { get; set; }
+
+    [RelayCommand]
+    private Task OpenCreateForwardAsync()
+    {
+        TargetAddress = "http://localhost:7000";
+        PreferredLocalPortText = "7000";
+        SelectedForward = null;
+        return ShowForwardEditorAsync?.Invoke(null) ?? Task.CompletedTask;
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedForward))]
+    private async Task OpenEditForwardAsync(PortForwardInfo? forward)
+    {
+        forward ??= SelectedForward;
+        if (forward is null) return;
+        SelectedForward = forward;
+        TargetAddress = $"{forward.Scheme}://{forward.RemoteHost}:{forward.RemotePort}{forward.PathAndQuery}";
+        PreferredLocalPortText = forward.LocalPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await (ShowForwardEditorAsync?.Invoke(forward) ?? Task.CompletedTask);
+    }
 
     [RelayCommand]
     private void SaveConnectionSettings()
@@ -50,24 +72,28 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private async Task StartAsync()
     {
-        await RunAsync(async () =>
+        var succeeded = await RunAsync(async () =>
         {
             var forward = await _service.StartAsync(ParseRequest());
             SelectedForward = forward;
             StatusText = $"Forwarding started: {forward.LocalUri}";
         });
+        if (succeeded && CloseForwardEditorAsync is not null)
+            await CloseForwardEditorAsync();
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedForward))]
     private async Task UpdateSelectedAsync()
     {
         if (SelectedForward is null) return;
-        await RunAsync(async () =>
+        var succeeded = await RunAsync(async () =>
         {
             var forward = await _service.UpdateAsync(SelectedForward.Id, ParseRequest());
             SelectedForward = forward;
             StatusText = $"Forwarding updated: {forward.LocalUri}";
         });
+        if (succeeded && CloseForwardEditorAsync is not null)
+            await CloseForwardEditorAsync();
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedForward))]
@@ -89,6 +115,7 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     partial void OnSelectedForwardChanged(PortForwardInfo? value)
     {
         OnPropertyChanged(nameof(HasSelectedForward));
+        OpenEditForwardCommand.NotifyCanExecuteChanged();
         UpdateSelectedCommand.NotifyCanExecuteChanged();
         RemoveSelectedCommand.NotifyCanExecuteChanged();
         if (value is null) return;
@@ -96,12 +123,20 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
         PreferredLocalPortText = value.LocalPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private async Task RunAsync(Func<Task> operation)
+    private async Task<bool> RunAsync(Func<Task> operation)
     {
-        if (IsBusy) return;
+        if (IsBusy) return false;
         IsBusy = true;
-        try { await operation(); }
-        catch (Exception ex) { StatusText = ex.Message; }
+        try
+        {
+            await operation();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StatusText = ex.Message;
+            return false;
+        }
         finally
         {
             IsBusy = false;
