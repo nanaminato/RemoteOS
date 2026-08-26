@@ -37,7 +37,10 @@ public sealed class PortForwardingService : IPortForwardingService
         _settingsStore.Save(_settings);
     }
 
-    public async Task<PortForwardInfo> StartAsync(PortForwardRequest request, CancellationToken cancellationToken = default)
+    public Task<PortForwardInfo> StartAsync(PortForwardRequest request, CancellationToken cancellationToken = default)
+        => StartAsync(request, password: null, cancellationToken);
+
+    public async Task<PortForwardInfo> StartAsync(PortForwardRequest request, string? password, CancellationToken cancellationToken = default)
     {
         Validate(request);
         var existing = _forwards.Values.FirstOrDefault(forward =>
@@ -45,32 +48,58 @@ public sealed class PortForwardingService : IPortForwardingService
             && forward.Info.RemoteHost.Equals(request.RemoteHost, StringComparison.OrdinalIgnoreCase)
             && forward.Info.Scheme.Equals(request.Scheme, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
-            return existing.Info with { PathAndQuery = request.PathAndQuery };
+        {
+            // A URL path does not alter the SSH process, but it is part of the URL returned to
+            // callers. Keep the in-memory list in sync when a caller reuses the same forward.
+            var updatedInfo = existing.Info with { PathAndQuery = request.PathAndQuery };
+            if (!StringComparer.Ordinal.Equals(existing.Info.PathAndQuery, updatedInfo.PathAndQuery))
+            {
+                _forwards.TryUpdate(updatedInfo.Id, existing with { Info = updatedInfo }, existing);
+                RaiseChanged();
+            }
+            return updatedInfo;
+        }
 
         var server = ResolveSshServer();
         var localPort = FindAvailablePort(request.PreferredLocalPort ?? request.RemotePort);
-        var process = CreateSshProcess(server, request, localPort);
-        if (!process.Start())
-            throw new InvalidOperationException("Unable to start the local SSH client.");
+        var launch = CreateSshProcess(server, request, localPort, password);
+        var process = launch.Process;
+        try
+        {
+            if (!process.Start())
+                throw new InvalidOperationException("Unable to start the local SSH client.");
+            // Password authentication must not fall back to an interactive terminal. The temporary
+            // askpass program provides the password only to this SSH child process.
+            process.StandardInput.Close();
+        }
+        catch
+        {
+            Stop(process);
+            DeleteAskPassHelper(launch.AskPassHelperPath);
+            throw;
+        }
         try { await Task.Delay(StartupWaitMilliseconds, cancellationToken); }
         catch (OperationCanceledException)
         {
             Stop(process);
+            DeleteAskPassHelper(launch.AskPassHelperPath);
             throw;
         }
         if (process.HasExited)
         {
             process.Dispose();
+            DeleteAskPassHelper(launch.AskPassHelperPath);
             throw new InvalidOperationException("SSH exited before the port forward became available. Check the SSH host, user, and key agent configuration.");
         }
 
         var id = Guid.NewGuid();
         var info = new PortForwardInfo(id, request.RemoteHost, request.RemotePort, localPort,
             request.Scheme, request.PathAndQuery, DateTimeOffset.UtcNow, "Running");
-        var running = new RunningForward(info, process);
+        var running = new RunningForward(info, process, launch.AskPassHelperPath);
         if (!_forwards.TryAdd(id, running))
         {
             Stop(process);
+            DeleteAskPassHelper(launch.AskPassHelperPath);
             throw new InvalidOperationException("Could not register the started port forward.");
         }
         process.EnableRaisingEvents = true;
@@ -79,12 +108,15 @@ public sealed class PortForwardingService : IPortForwardingService
         return info;
     }
 
-    public async Task<PortForwardInfo> UpdateAsync(Guid id, PortForwardRequest request, CancellationToken cancellationToken = default)
+    public Task<PortForwardInfo> UpdateAsync(Guid id, PortForwardRequest request, CancellationToken cancellationToken = default)
+        => UpdateAsync(id, request, password: null, cancellationToken);
+
+    public async Task<PortForwardInfo> UpdateAsync(Guid id, PortForwardRequest request, string? password, CancellationToken cancellationToken = default)
     {
         // A modification replaces one owned SSH process. The requested local port is checked
         // again, so an occupied port receives the same predictable fallback as a new request.
         await RemoveAsync(id, cancellationToken);
-        return await StartAsync(request, cancellationToken);
+        return await StartAsync(request, password, cancellationToken);
     }
 
     public Task RemoveAsync(Guid id, CancellationToken cancellationToken = default)
@@ -93,6 +125,7 @@ public sealed class PortForwardingService : IPortForwardingService
         if (_forwards.TryRemove(id, out var running))
         {
             Stop(running.Process);
+            DeleteAskPassHelper(running.AskPassHelperPath);
             RaiseChanged();
         }
         return Task.CompletedTask;
@@ -117,16 +150,39 @@ public sealed class PortForwardingService : IPortForwardingService
         return (host, user, _settings.SshPort);
     }
 
-    private static Process CreateSshProcess((string Host, string? User, int Port) server, PortForwardRequest request, int localPort)
+    private static SshLaunch CreateSshProcess((string Host, string? User, int Port) server, PortForwardRequest request, int localPort, string? password)
     {
         var start = new ProcessStartInfo("ssh")
         {
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardInput = true,
         };
         start.ArgumentList.Add("-N");
         start.ArgumentList.Add("-o");
-        start.ArgumentList.Add("BatchMode=yes");
+        start.ArgumentList.Add(string.IsNullOrEmpty(password) ? "BatchMode=yes" : "BatchMode=no");
+        if (!string.IsNullOrEmpty(password))
+        {
+            var askPassHelperPath = CreateAskPassHelper();
+            start.ArgumentList.Add("-o");
+            start.ArgumentList.Add("NumberOfPasswordPrompts=1");
+            start.ArgumentList.Add("-o");
+            start.ArgumentList.Add("PreferredAuthentications=password,keyboard-interactive");
+            start.ArgumentList.Add("-o");
+            start.ArgumentList.Add("PubkeyAuthentication=no");
+            start.Environment["SSH_ASKPASS"] = askPassHelperPath;
+            start.Environment["SSH_ASKPASS_REQUIRE"] = "force";
+            start.Environment["REMOTEOS_SSH_ASKPASS_PASSWORD"] = password;
+            start.Environment["DISPLAY"] = "remoteos-askpass";
+            AddForwardArguments(start, server, request, localPort);
+            return new SshLaunch(new Process { StartInfo = start }, askPassHelperPath);
+        }
+        AddForwardArguments(start, server, request, localPort);
+        return new SshLaunch(new Process { StartInfo = start }, null);
+    }
+
+    private static void AddForwardArguments(ProcessStartInfo start, (string Host, string? User, int Port) server, PortForwardRequest request, int localPort)
+    {
         start.ArgumentList.Add("-o");
         start.ArgumentList.Add("ExitOnForwardFailure=yes");
         start.ArgumentList.Add("-p");
@@ -134,7 +190,31 @@ public sealed class PortForwardingService : IPortForwardingService
         start.ArgumentList.Add("-L");
         start.ArgumentList.Add($"127.0.0.1:{localPort}:{request.RemoteHost}:{request.RemotePort}");
         start.ArgumentList.Add(string.IsNullOrWhiteSpace(server.User) ? server.Host : $"{server.User}@{server.Host}");
-        return new Process { StartInfo = start };
+    }
+
+    private static string CreateAskPassHelper()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "RemoteOS", "ssh-askpass");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{Guid.NewGuid():N}{(OperatingSystem.IsWindows() ? ".cmd" : ".sh")}");
+        var contents = OperatingSystem.IsWindows()
+            ? "@echo off\r\npowershell -NoProfile -NonInteractive -Command \"[Console]::Out.Write($env:REMOTEOS_SSH_ASKPASS_PASSWORD)\"\r\n"
+            : "#!/bin/sh\nprintf '%s\\n' \"$REMOTEOS_SSH_ASKPASS_PASSWORD\"\n";
+        File.WriteAllText(path, contents);
+        if (!OperatingSystem.IsWindows())
+        {
+            try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
+            catch (PlatformNotSupportedException) { }
+        }
+        return path;
+    }
+
+    private static void DeleteAskPassHelper(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return;
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static int FindAvailablePort(int preferred)
@@ -185,8 +265,11 @@ public sealed class PortForwardingService : IPortForwardingService
 
     private void OnProcessExited(Guid id, Process process)
     {
-        if (_forwards.TryRemove(id, out _))
+        if (_forwards.TryRemove(id, out var running))
+        {
+            DeleteAskPassHelper(running.AskPassHelperPath);
             RaiseChanged();
+        }
         process.Dispose();
     }
 
@@ -202,5 +285,6 @@ public sealed class PortForwardingService : IPortForwardingService
 
     private void RaiseChanged() => ForwardsChanged?.Invoke(this, EventArgs.Empty);
 
-    private sealed record RunningForward(PortForwardInfo Info, Process Process);
+    private sealed record SshLaunch(Process Process, string? AskPassHelperPath);
+    private sealed record RunningForward(PortForwardInfo Info, Process Process, string? AskPassHelperPath);
 }

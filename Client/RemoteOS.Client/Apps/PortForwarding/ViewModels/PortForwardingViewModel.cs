@@ -29,6 +29,8 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     [ObservableProperty] private string _sshHost = string.Empty;
     [ObservableProperty] private string _sshUser = string.Empty;
     [ObservableProperty] private string _sshPortText = "22";
+    // Deliberately not part of PortForwardingSettings: passwords are never written to disk.
+    [ObservableProperty] private string _sshPassword = string.Empty;
     [ObservableProperty] private PortForwardInfo? _selectedForward;
     [ObservableProperty] private string _statusText = "Ready";
     [ObservableProperty] private bool _isBusy;
@@ -66,7 +68,7 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
             return;
         }
         _service.SaveSettings(new PortForwardingSettings(SshHost, SshUser, sshPort));
-        StatusText = "Saved on this device only. SSH authentication uses your system SSH configuration or key agent.";
+        StatusText = "Saved on this device only. The SSH password is not saved.";
     }
 
     [RelayCommand]
@@ -74,12 +76,16 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     {
         var succeeded = await RunAsync(async () =>
         {
-            var forward = await _service.StartAsync(ParseRequest());
+            var forward = await _service.StartAsync(ParseRequest(), SshPassword);
             SelectedForward = forward;
             StatusText = $"Forwarding started: {forward.LocalUri}";
         });
-        if (succeeded && CloseForwardEditorAsync is not null)
-            await CloseForwardEditorAsync();
+        if (succeeded)
+        {
+            SshPassword = string.Empty;
+            if (CloseForwardEditorAsync is not null)
+                await CloseForwardEditorAsync();
+        }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedForward))]
@@ -88,12 +94,16 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
         if (SelectedForward is null) return;
         var succeeded = await RunAsync(async () =>
         {
-            var forward = await _service.UpdateAsync(SelectedForward.Id, ParseRequest());
+            var forward = await _service.UpdateAsync(SelectedForward.Id, ParseRequest(), SshPassword);
             SelectedForward = forward;
             StatusText = $"Forwarding updated: {forward.LocalUri}";
         });
-        if (succeeded && CloseForwardEditorAsync is not null)
-            await CloseForwardEditorAsync();
+        if (succeeded)
+        {
+            SshPassword = string.Empty;
+            if (CloseForwardEditorAsync is not null)
+                await CloseForwardEditorAsync();
+        }
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedForward))]

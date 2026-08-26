@@ -4,7 +4,7 @@
     "port_forwarding.title": "ポート フォワーディング",
     "port_forwarding.description": "このデバイスから RemoteOS Server 上の localhost サービスへ、loopback 専用の SSH トンネルを作成します。アクティブなトンネルと SSH 設定は同期されません。",
     "port_forwarding.ssh_connection": "SSH 接続（このデバイスのみ）",
-    "port_forwarding.ssh_note": "ホストを空にすると、現在の RemoteOS 接続のホストを使用します。認証には既存の ssh 設定またはキーエージェントを使用します。",
+    "port_forwarding.ssh_note": "ホストを空にすると、現在の RemoteOS 接続のホストを使用します。既存のキーエージェント/設定を使うか、次回の SSH 起動用にパスワードを入力できます。",
     "port_forwarding.save_ssh": "ローカル SSH 設定を保存",
     "port_forwarding.forward_service": "サーバー loopback サービスを転送",
     "port_forwarding.start": "転送を開始",
@@ -18,6 +18,12 @@
     "port_forwarding.edit": "選択項目を編集",
     "port_forwarding.editor_note": "対象は RemoteOS Server 上の loopback サービスである必要があります。",
     "port_forwarding.target_address": "サーバーの loopback アドレス",
-    "port_forwarding.preferred_local_port": "優先するローカルポート"
+    "port_forwarding.preferred_local_port": "優先するローカルポート",
+    "port_forwarding.workspace": "ワークスペース",
+    "port_forwarding.forwards_hint": "各転送はこのデバイスの localhost にのみバインドされ、サーバー上の loopback サービスへ接続します。",
+    "port_forwarding.connection_details": "接続の詳細",
+    "port_forwarding.password_authentication": "パスワード認証",
+    "port_forwarding.password_note": "任意です。次の開始または更新時だけ使用し、その後クリアされます。デバイス設定ファイルには保存されません。",
+    "port_forwarding.password": "SSH パスワード"
   }
 }

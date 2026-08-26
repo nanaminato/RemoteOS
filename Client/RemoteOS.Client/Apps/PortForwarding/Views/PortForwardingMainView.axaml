@@ -2,65 +2,37 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:loc="clr-namespace:Client.Localization"
              xmlns:vm="clr-namespace:Client.Apps.PortForwarding.ViewModels"
-             xmlns:forward="clr-namespace:Client.Apps.PortForwarding"
              x:Class="Client.Apps.PortForwarding.Views.PortForwardingMainView"
              x:DataType="vm:PortForwardingViewModel"
-             Background="{DynamicResource SurfaceBrush}">
-    <Grid RowDefinitions="Auto,*,Auto">
-        <StackPanel Margin="24,20,24,12" Spacing="4">
-            <TextBlock Text="{loc:Loc port_forwarding.title}" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="{loc:Loc port_forwarding.description}" TextWrapping="Wrap" Opacity="0.7" />
-        </StackPanel>
+             Background="{DynamicResource AppBackgroundBrush}">
+    <Grid RowDefinitions="Auto,*">
+        <Border Background="{DynamicResource SurfaceSunkenBrush}" Padding="28,18">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Border Width="46" Height="46" Background="{DynamicResource AccentBrush}" CornerRadius="14">
+                    <TextBlock Text="↔" FontSize="26" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{loc:Loc port_forwarding.title}" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{loc:Loc port_forwarding.description}" FontSize="13" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="2" Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsBusy}" Padding="12,6" CornerRadius="16" FontSize="12" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
 
-        <TabControl Grid.Row="1" Margin="24,0,24,12">
-            <TabItem Header="{loc:Loc port_forwarding.forwards_page}">
-                <Grid Margin="0,16,0,0" RowDefinitions="Auto,*" RowSpacing="12">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{loc:Loc port_forwarding.running}" FontSize="18" FontWeight="SemiBold" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" />
-                            <Button Classes="primary" Content="{loc:Loc port_forwarding.new_forward}" Command="{Binding OpenCreateForwardCommand}" />
-                        </StackPanel>
-                    </Grid>
-                    <Grid Grid.Row="1" RowDefinitions="*,Auto" RowSpacing="8">
-                        <ListBox ItemsSource="{Binding Forwards}" SelectedItem="{Binding SelectedForward, Mode=TwoWay}" BorderThickness="0" Background="Transparent">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:DataType="forward:PortForwardInfo">
-                                    <Border Classes="card" Margin="0,3">
-                                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
-                                            <TextBlock Text="{Binding LocalUri}" FontFamily="Consolas" FontWeight="SemiBold" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Status}" Opacity="0.7" />
-                                            <TextBlock Grid.Row="1" Text="{Binding Target, StringFormat='Server target: {0}'}" FontSize="12" Opacity="0.65" />
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                            <Button Content="{loc:Loc port_forwarding.edit}" Command="{Binding OpenEditForwardCommand}" IsEnabled="{Binding HasSelectedForward}" />
-                            <Button Content="{loc:Loc port_forwarding.stop}" Command="{Binding RemoveSelectedCommand}" IsEnabled="{Binding !IsBusy}" />
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <TabItem Header="{loc:Loc port_forwarding.connection_page}">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                    <Border Classes="card" Margin="0,16,0,0">
-                        <StackPanel Spacing="10" MaxWidth="720">
-                            <TextBlock Text="{loc:Loc port_forwarding.ssh_connection}" FontWeight="SemiBold" />
-                            <TextBlock Text="{loc:Loc port_forwarding.ssh_note}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
-                            <Grid ColumnDefinitions="*,*,100" ColumnSpacing="8">
-                                <TextBox Text="{Binding SshHost, Mode=TwoWay}" Watermark="SSH host (optional)" />
-                                <TextBox Grid.Column="1" Text="{Binding SshUser, Mode=TwoWay}" Watermark="SSH user (optional)" />
-                                <TextBox Grid.Column="2" Text="{Binding SshPortText, Mode=TwoWay}" Watermark="22" />
-                            </Grid>
-                            <Button Content="{loc:Loc port_forwarding.save_ssh}" Command="{Binding SaveConnectionSettingsCommand}" HorizontalAlignment="Right" />
-                        </StackPanel>
-                    </Border>
+        <Grid Grid.Row="1" ColumnDefinitions="190,*">
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceSunkenBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0">
+                <StackPanel Spacing="4" Margin="14,22">
+                    <TextBlock Text="{loc:Loc port_forwarding.workspace}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="11" FontWeight="SemiBold" Margin="10,0,0,6" />
+                    <Button x:Name="ForwardsButton" Classes="workspace-nav" Tag="forwards" Click="NavigationButton_Click" Content="{loc:Loc port_forwarding.forwards_page}" HorizontalContentAlignment="Left" Padding="10,8" />
+                    <Button Classes="workspace-nav" Tag="connection" Click="NavigationButton_Click" Content="{loc:Loc port_forwarding.connection_page}" HorizontalContentAlignment="Left" Padding="10,8" />
+                </StackPanel>
+            </Border>
+            <Grid Grid.Column="1" RowDefinitions="*,Auto">
+                <ScrollViewer Grid.Row="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <ContentControl x:Name="ContentHost" Margin="30,24" HorizontalAlignment="Stretch" />
                 </ScrollViewer>
-            </TabItem>
-        </TabControl>
-        <TextBlock Grid.Row="2" Text="{Binding StatusText}" TextWrapping="Wrap" Opacity="0.75" Margin="24,0,24,16" />
+                <TextBlock Grid.Row="1" Text="{Binding StatusText}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="30,0,30,18" />
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

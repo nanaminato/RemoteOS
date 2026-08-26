@@ -4,7 +4,7 @@
     "port_forwarding.title": "Port Forwarding",
     "port_forwarding.description": "Create loopback-only SSH tunnels from this device to localhost services on the RemoteOS server. Active tunnels and SSH settings are never synchronized.",
     "port_forwarding.ssh_connection": "SSH connection (this device only)",
-    "port_forwarding.ssh_note": "Leave host empty to use the host in the current RemoteOS connection. Authentication is delegated to ssh and your existing key agent/configuration.",
+    "port_forwarding.ssh_note": "Leave host empty to use the host in the current RemoteOS connection. You can use a key agent/configuration or enter a password for the next SSH launch.",
     "port_forwarding.save_ssh": "Save local SSH settings",
     "port_forwarding.forward_service": "Forward a server loopback service",
     "port_forwarding.start": "Start forwarding",
@@ -18,6 +18,12 @@
     "port_forwarding.edit": "Edit selected",
     "port_forwarding.editor_note": "The target must be a loopback service on the RemoteOS server.",
     "port_forwarding.target_address": "Server loopback address",
-    "port_forwarding.preferred_local_port": "Preferred local port"
+    "port_forwarding.preferred_local_port": "Preferred local port",
+    "port_forwarding.workspace": "WORKSPACE",
+    "port_forwarding.forwards_hint": "Each forward is bound only to localhost on this device and reaches a loopback service on the server.",
+    "port_forwarding.connection_details": "Connection details",
+    "port_forwarding.password_authentication": "Password authentication",
+    "port_forwarding.password_note": "Optional. Used only for the next start or update, then cleared. It is never saved in the device settings file.",
+    "port_forwarding.password": "SSH password"
   }
 }
