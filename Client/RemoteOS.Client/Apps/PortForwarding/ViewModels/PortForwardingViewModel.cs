@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
+using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -32,7 +33,7 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     // Deliberately not part of PortForwardingSettings: passwords are never written to disk.
     [ObservableProperty] private string _sshPassword = string.Empty;
     [ObservableProperty] private PortForwardInfo? _selectedForward;
-    [ObservableProperty] private string _statusText = "Ready";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("port_forwarding.status.ready");
     [ObservableProperty] private bool _isBusy;
 
     public bool HasSelectedForward => SelectedForward is not null;
@@ -62,23 +63,31 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     [RelayCommand]
     private void SaveConnectionSettings()
     {
+        SaveConnectionSettingsCore(reportSuccess: true);
+    }
+
+    private bool SaveConnectionSettingsCore(bool reportSuccess)
+    {
         if (!int.TryParse(SshPortText, out var sshPort) || sshPort is < 1 or > 65535)
         {
-            StatusText = "SSH port must be between 1 and 65535.";
-            return;
+            StatusText = LocalizedText.Get("port_forwarding.error.ssh_port_invalid");
+            return false;
         }
         _service.SaveSettings(new PortForwardingSettings(SshHost, SshUser, sshPort));
-        StatusText = "Saved on this device only. The SSH password is not saved.";
+        if (reportSuccess)
+            StatusText = LocalizedText.Get("port_forwarding.status.settings_saved");
+        return true;
     }
 
     [RelayCommand]
     private async Task StartAsync()
     {
+        if (!SaveConnectionSettingsCore(reportSuccess: false)) return;
         var succeeded = await RunAsync(async () =>
         {
             var forward = await _service.StartAsync(ParseRequest(), SshPassword);
             SelectedForward = forward;
-            StatusText = $"Forwarding started: {forward.LocalUri}";
+            StatusText = LocalizedText.Format("port_forwarding.status.started", forward.LocalUri);
         });
         if (succeeded)
         {
@@ -92,11 +101,12 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
     private async Task UpdateSelectedAsync()
     {
         if (SelectedForward is null) return;
+        if (!SaveConnectionSettingsCore(reportSuccess: false)) return;
         var succeeded = await RunAsync(async () =>
         {
             var forward = await _service.UpdateAsync(SelectedForward.Id, ParseRequest(), SshPassword);
             SelectedForward = forward;
-            StatusText = $"Forwarding updated: {forward.LocalUri}";
+            StatusText = LocalizedText.Format("port_forwarding.status.updated", forward.LocalUri);
         });
         if (succeeded)
         {
@@ -115,7 +125,40 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
         {
             await _service.RemoveAsync(selected.Id);
             SelectedForward = null;
-            StatusText = "Forwarding stopped.";
+            StatusText = LocalizedText.Get("port_forwarding.status.stopped");
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedForward))]
+    private async Task TestSelectedAsync()
+    {
+        var forward = SelectedForward;
+        if (forward is null) return;
+        await RunAsync(async () =>
+        {
+            using var handler = new HttpClientHandler
+            {
+                // The probe only reaches the fixed localhost URI emitted by PortForwardInfo.
+                // It checks tunnel reachability; it does not change the browser's certificate policy.
+                ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+                AllowAutoRedirect = false,
+            };
+            using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, forward.LocalUri);
+                using var response = await client.SendAsync(
+                    request, HttpCompletionOption.ResponseHeadersRead);
+                StatusText = LocalizedText.Format("port_forwarding.status.test_succeeded", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty);
+            }
+            catch (TaskCanceledException)
+            {
+                throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.target_timeout"));
+            }
+            catch (HttpRequestException)
+            {
+                throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.target_unreachable"));
+            }
         });
     }
 
@@ -128,6 +171,7 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
         OpenEditForwardCommand.NotifyCanExecuteChanged();
         UpdateSelectedCommand.NotifyCanExecuteChanged();
         RemoveSelectedCommand.NotifyCanExecuteChanged();
+        TestSelectedCommand.NotifyCanExecuteChanged();
         if (value is null) return;
         TargetAddress = $"{value.Scheme}://{value.RemoteHost}:{value.RemotePort}{value.PathAndQuery}";
         PreferredLocalPortText = value.LocalPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -160,12 +204,12 @@ public sealed partial class PortForwardingViewModel : ObservableObject, IDisposa
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri))
             Uri.TryCreate("http://" + raw, UriKind.Absolute, out uri);
         if (uri is null || uri.Port is < 1 or > 65535)
-            throw new ArgumentException("Enter a loopback target such as http://localhost:7000.");
+            throw new ArgumentException(LocalizedText.Get("port_forwarding.error.target_invalid"));
         int? preferred = null;
         if (!string.IsNullOrWhiteSpace(PreferredLocalPortText))
         {
             if (!int.TryParse(PreferredLocalPortText, out var parsed) || parsed is < 1 or > 65535)
-                throw new ArgumentException("Preferred local port must be between 1 and 65535.");
+                throw new ArgumentException(LocalizedText.Get("port_forwarding.error.local_port_invalid"));
             preferred = parsed;
         }
         return new PortForwardRequest(uri.Host, uri.Port, uri.Scheme, preferred, uri.PathAndQuery);

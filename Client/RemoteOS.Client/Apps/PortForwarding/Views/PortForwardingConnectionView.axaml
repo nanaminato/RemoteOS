@@ -14,8 +14,8 @@
             <StackPanel Spacing="12">
                 <TextBlock Text="{loc:Loc port_forwarding.connection_details}" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="*,*,100" ColumnSpacing="8">
-                    <TextBox Text="{Binding SshHost, Mode=TwoWay}" PlaceholderText="SSH host (optional)" />
-                    <TextBox Grid.Column="1" Text="{Binding SshUser, Mode=TwoWay}" PlaceholderText="SSH user (optional)" />
+                    <TextBox Text="{Binding SshHost, Mode=TwoWay}" PlaceholderText="{loc:Loc port_forwarding.ssh_host}" />
+                    <TextBox Grid.Column="1" Text="{Binding SshUser, Mode=TwoWay}" PlaceholderText="{loc:Loc port_forwarding.ssh_user}" />
                     <TextBox Grid.Column="2" Text="{Binding SshPortText, Mode=TwoWay}" PlaceholderText="22" />
                 </Grid>
                 <Button Content="{loc:Loc port_forwarding.save_ssh}" Command="{Binding SaveConnectionSettingsCommand}" HorizontalAlignment="Right" />

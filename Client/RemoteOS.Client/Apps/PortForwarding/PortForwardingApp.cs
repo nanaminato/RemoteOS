@@ -1,5 +1,6 @@
 using Client.Apps.PortForwarding.ViewModels;
 using Client.Apps.PortForwarding.Views;
+using Client.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -23,7 +24,7 @@ public sealed class PortForwardingApp : RemoteApplicationBase
     {
         var viewModel = new PortForwardingViewModel(context.Services.GetRequiredService<IPortForwardingService>());
         var view = new PortForwardingMainView { DataContext = viewModel };
-        var window = context.ShowWindow("Port Forwarding", view,
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.port-forwarding.display_name"), view,
             bounds: new Rect(160, 100, 760, 650), iconGlyph: Manifest.IconGlyph);
         viewModel.ShowForwardEditorAsync = async forward =>
         {

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using Client.Localization;
 using Client.Services.Auth;
 
 namespace Client.Apps.PortForwarding;
@@ -64,10 +65,12 @@ public sealed class PortForwardingService : IPortForwardingService
         var localPort = FindAvailablePort(request.PreferredLocalPort ?? request.RemotePort);
         var launch = CreateSshProcess(server, request, localPort, password);
         var process = launch.Process;
+        Task<string>? standardErrorRead = null;
         try
         {
             if (!process.Start())
-                throw new InvalidOperationException("Unable to start the local SSH client.");
+                throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.ssh_start_failed"));
+            standardErrorRead = process.StandardError.ReadToEndAsync();
             // Password authentication must not fall back to an interactive terminal. The temporary
             // askpass program provides the password only to this SSH child process.
             process.StandardInput.Close();
@@ -87,20 +90,21 @@ public sealed class PortForwardingService : IPortForwardingService
         }
         if (process.HasExited)
         {
+            var standardError = standardErrorRead is null ? string.Empty : await standardErrorRead;
             process.Dispose();
             DeleteAskPassHelper(launch.AskPassHelperPath);
-            throw new InvalidOperationException("SSH exited before the port forward became available. Check the SSH host, user, and key agent configuration.");
+            throw new InvalidOperationException(DescribeSshStartupFailure(standardError));
         }
 
         var id = Guid.NewGuid();
         var info = new PortForwardInfo(id, request.RemoteHost, request.RemotePort, localPort,
-            request.Scheme, request.PathAndQuery, DateTimeOffset.UtcNow, "Running");
+            request.Scheme, request.PathAndQuery, DateTimeOffset.UtcNow, LocalizedText.Get("port_forwarding.status.running"));
         var running = new RunningForward(info, process, launch.AskPassHelperPath);
         if (!_forwards.TryAdd(id, running))
         {
             Stop(process);
             DeleteAskPassHelper(launch.AskPassHelperPath);
-            throw new InvalidOperationException("Could not register the started port forward.");
+            throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.forward_register_failed"));
         }
         process.EnableRaisingEvents = true;
         process.Exited += (_, _) => OnProcessExited(id, process);
@@ -139,14 +143,14 @@ public sealed class PortForwardingService : IPortForwardingService
         {
             if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } serverUrl }
                 || !Uri.TryCreate(serverUrl, UriKind.Absolute, out var serverUri))
-                throw new InvalidOperationException("Connect to RemoteOS first, or set an SSH host in Port Forwarding settings.");
+                throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.ssh_host_required"));
             host = serverUri.Host;
         }
         user ??= _session.CurrentUser?.Username;
         if (host.StartsWith("-", StringComparison.Ordinal) || host.Any(char.IsWhiteSpace)
             || user?.StartsWith("-", StringComparison.Ordinal) == true
             || user?.Any(char.IsWhiteSpace) == true)
-            throw new InvalidOperationException("SSH host and user cannot contain whitespace or start with '-'.");
+            throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.ssh_host_user_invalid"));
         return (host, user, _settings.SshPort);
     }
 
@@ -157,6 +161,7 @@ public sealed class PortForwardingService : IPortForwardingService
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = true,
+            RedirectStandardError = true,
         };
         start.ArgumentList.Add("-N");
         start.ArgumentList.Add("-o");
@@ -227,7 +232,7 @@ public sealed class PortForwardingService : IPortForwardingService
         }
         for (var port = 1; port < first; port++)
             if (CanBind(port)) return port;
-        throw new InvalidOperationException("No loopback TCP port is available on this host.");
+        throw new InvalidOperationException(LocalizedText.Get("port_forwarding.error.no_local_port"));
     }
 
     private static bool CanBind(int port)
@@ -249,18 +254,37 @@ public sealed class PortForwardingService : IPortForwardingService
         var isLoopbackTarget = request.RemoteHost?.Equals("localhost", StringComparison.OrdinalIgnoreCase) == true
                                || request.RemoteHost?.Equals("127.0.0.1", StringComparison.Ordinal) == true;
         if (!isLoopbackTarget)
-            throw new ArgumentException("Only localhost and 127.0.0.1 services on the RemoteOS server can be forwarded.", nameof(request));
+            throw new ArgumentException(LocalizedText.Get("port_forwarding.error.remote_loopback_only"), nameof(request));
         if (request.RemotePort is < 1 or > 65535)
-            throw new ArgumentOutOfRangeException(nameof(request), "The remote port must be between 1 and 65535.");
+            throw new ArgumentOutOfRangeException(nameof(request), LocalizedText.Get("port_forwarding.error.remote_port_invalid"));
         if (request.PreferredLocalPort is < 1 or > 65535)
-            throw new ArgumentOutOfRangeException(nameof(request), "The preferred local port must be between 1 and 65535.");
+            throw new ArgumentOutOfRangeException(nameof(request), LocalizedText.Get("port_forwarding.error.local_port_invalid"));
         var isWebScheme = request.Scheme?.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) == true
                           || request.Scheme?.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) == true;
         if (!isWebScheme)
-            throw new ArgumentException("Only HTTP and HTTPS links can be returned by this application.", nameof(request));
+            throw new ArgumentException(LocalizedText.Get("port_forwarding.error.web_scheme_only"), nameof(request));
         if (string.IsNullOrWhiteSpace(request.PathAndQuery)
             || !request.PathAndQuery.StartsWith("/", StringComparison.Ordinal))
-            throw new ArgumentException("The forwarded link path must start with '/'.", nameof(request));
+            throw new ArgumentException(LocalizedText.Get("port_forwarding.error.path_invalid"), nameof(request));
+    }
+
+    private static string DescribeSshStartupFailure(string standardError)
+    {
+        if (standardError.Contains("Host key verification failed", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("REMOTE HOST IDENTIFICATION HAS CHANGED", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_host_key");
+        if (standardError.Contains("Permission denied", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_authentication");
+        if (standardError.Contains("Connection refused", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_connection_refused");
+        if (standardError.Contains("Could not resolve hostname", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_host_unresolved");
+        if (standardError.Contains("Connection timed out", StringComparison.OrdinalIgnoreCase)
+            || standardError.Contains("No route to host", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_unreachable");
+        if (standardError.Contains("ssh_askpass", StringComparison.OrdinalIgnoreCase))
+            return LocalizedText.Get("port_forwarding.error.ssh_password_helper");
+        return LocalizedText.Get("port_forwarding.error.ssh_startup_failed");
     }
 
     private void OnProcessExited(Guid id, Process process)

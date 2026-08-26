@@ -9,9 +9,9 @@
             <TextBlock Text="{loc:Loc port_forwarding.forward_service}" FontWeight="SemiBold" />
             <TextBlock Text="{loc:Loc port_forwarding.editor_note}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
             <TextBlock Text="{loc:Loc port_forwarding.target_address}" FontWeight="SemiBold" />
-            <TextBox Text="{Binding TargetAddress, Mode=TwoWay}" Watermark="http://localhost:7000" />
+            <TextBox Text="{Binding TargetAddress, Mode=TwoWay}" PlaceholderText="http://localhost:7000" />
             <TextBlock Text="{loc:Loc port_forwarding.preferred_local_port}" FontWeight="SemiBold" />
-            <TextBox Text="{Binding PreferredLocalPortText, Mode=TwoWay}" Watermark="Preferred local port" />
+            <TextBox Text="{Binding PreferredLocalPortText, Mode=TwoWay}" PlaceholderText="{loc:Loc port_forwarding.preferred_local_port_placeholder}" />
             <TextBlock Text="{loc:Loc port_forwarding.fallback_note}" FontSize="12" Opacity="0.65" TextWrapping="Wrap" />
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="20,0,20,20">
