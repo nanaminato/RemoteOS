@@ -36,6 +36,8 @@ public static class TunnelApiRoutes
     public const string RuntimeRollbackPattern = "/runtime/managed/rollback";
     public const string ManagedFrps = $"{Tunnels}/frps";
     public const string ManagedFrpsPattern = "/frps";
+    public const string ManagedFrpsEditor = $"{ManagedFrps}/editor";
+    public const string ManagedFrpsEditorPattern = "/frps/editor";
     public const string ManagedFrpsStart = $"{ManagedFrps}/start";
     public const string ManagedFrpsStartPattern = "/frps/start";
     public const string ManagedFrpsStop = $"{ManagedFrps}/stop";

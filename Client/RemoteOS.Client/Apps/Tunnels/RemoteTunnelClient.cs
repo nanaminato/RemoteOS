@@ -6,11 +6,13 @@ using RemoteOS.Protocol.Tunnels;
 
 namespace Client.Apps.Tunnels;
 
-/// <summary>Safe client facade: it has no API that reads a profile token or generated TOML.</summary>
+/// <summary>Client facade. Full profile details are available only for Controller-authorized editing; generated TOML is never exposed.</summary>
 public sealed class RemoteTunnelClient(HttpClient http, IAuthSession session) : IRemoteTunnelClient
 {
     public async Task<IReadOnlyList<TunnelServerProfileDto>> ListProfilesAsync(CancellationToken ct = default) =>
         await SendAsync<IReadOnlyList<TunnelServerProfileDto>>(HttpMethod.Get, TunnelApiRoutes.Profiles, null, ct) ?? [];
+    public Task<TunnelServerProfileDto?> GetProfileAsync(Guid id, CancellationToken ct = default) =>
+        SendAsync<TunnelServerProfileDto>(HttpMethod.Get, ProfileRoute(id), null, ct);
     public async Task<IReadOnlyList<TunnelDefinitionDto>> ListAsync(CancellationToken ct = default) =>
         await SendAsync<IReadOnlyList<TunnelDefinitionDto>>(HttpMethod.Get, TunnelApiRoutes.Tunnels, null, ct) ?? [];
     public async Task<TunnelRuntimeDto> GetRuntimeAsync(CancellationToken ct = default) =>
@@ -35,6 +37,8 @@ public sealed class RemoteTunnelClient(HttpClient http, IAuthSession session) : 
     public Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string path, CancellationToken ct = default) => SendRequiredAsync<TunnelRuntimeDto>(HttpMethod.Post, TunnelApiRoutes.RuntimeDetectExternal, new DetectExternalTunnelRuntimeRequest(path), ct);
     public async Task<ManagedFrpsConfigurationDto> GetManagedFrpsAsync(CancellationToken ct = default) =>
         await SendAsync<ManagedFrpsConfigurationDto>(HttpMethod.Get, TunnelApiRoutes.ManagedFrps, null, ct) ?? throw new HttpRequestException("Managed frps response was empty.");
+    public async Task<ManagedFrpsConfigurationDto> GetManagedFrpsForEditingAsync(CancellationToken ct = default) =>
+        await SendAsync<ManagedFrpsConfigurationDto>(HttpMethod.Get, TunnelApiRoutes.ManagedFrpsEditor, null, ct) ?? throw new HttpRequestException("Managed frps editor response was empty.");
     public Task<ManagedFrpsConfigurationDto> UpdateManagedFrpsAsync(UpdateManagedFrpsConfigurationRequest request, CancellationToken ct = default) => SendRequiredAsync<ManagedFrpsConfigurationDto>(HttpMethod.Put, TunnelApiRoutes.ManagedFrps, request, ct);
     public Task<TunnelOperationResultDto> StartManagedFrpsAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.ManagedFrpsStart, null, ct);
     public Task<TunnelOperationResultDto> StopManagedFrpsAsync(CancellationToken ct = default) => SendOperationAsync(HttpMethod.Post, TunnelApiRoutes.ManagedFrpsStop, null, ct);

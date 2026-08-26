@@ -59,6 +59,7 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         };
         vm.ShowManagedFrpsConfigurationAsync = async () =>
         {
+            await vm.LoadManagedFrpsForEditingAsync();
             await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("tunnels.frps.configuration"), dialog =>
                 new TunnelManagedFrpsConfigurationView { DataContext = vm, CloseAction = dialog.Cancel }, new Size(720, 690));
         };
@@ -69,7 +70,9 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         };
         vm.OpenProfileEditorAsync = async profile =>
         {
-            var editor = new TunnelProfileEditorViewModel(client, profile)
+            var editableProfile = profile is null ? null : await client.GetProfileAsync(profile.Id);
+            if (profile is not null && editableProfile is null) return;
+            var editor = new TunnelProfileEditorViewModel(client, editableProfile, editableProfile?.Token)
             {
                 SavedAsync = vm.RefreshAfterChildAsync,
                 RequestDeletionConfirmationAsync = () => ConfirmAsync(LocalizedText.Get("common.delete"), LocalizedText.Get("tunnels.server.delete_confirmation"), LocalizedText.Get("common.delete")),

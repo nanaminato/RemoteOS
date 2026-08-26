@@ -10,11 +10,11 @@ public enum TunnelConnectionState { SavedNotApplied, Starting, Connected, Discon
 public enum TunnelRuntimeState { NotInstalled, Available, Running, Stopped, ExternalInvalid, Unknown }
 public enum TunnelRuntimeInstallationState { Idle, Queued, Downloading, Copying, Verifying, Extracting, HealthChecking, Activating, Succeeded, Failed }
 
-/// <summary>Safe profile projection. Authentication material is intentionally represented only by state.</summary>
+/// <summary>Profile projection. Token is populated only by the Controller-authorized profile editing endpoint.</summary>
 public sealed record TunnelServerProfileDto(
     Guid Id, string Name, string Host, int Port, TunnelAuthKind AuthKind, bool TokenConfigured,
     TunnelTlsMode TlsMode, TunnelRuntimeMode RuntimeMode, string? ExternalExecutablePath,
-    long Revision, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    long Revision, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Token = null);
 
 /// <summary>Safe desired-state projection. It never contains generated TOML or credentials.</summary>
 public sealed record TunnelDefinitionDto(
@@ -39,12 +39,13 @@ public sealed record TunnelAuditEntryDto(DateTimeOffset Timestamp, string Action
 
 public enum ManagedFrpsState { NotConfigured, Stopped, Starting, Running, RuntimeUnavailable, Failed }
 public sealed record TunnelPortRangeDto(int Start, int End);
-/// <summary>Safe projection of the host-local frps service. Tokens and dashboard passwords are write-only.</summary>
+/// <summary>Host-local frps projection. Token is populated only by Controller-authorized editing routes.</summary>
 public sealed record ManagedFrpsConfigurationDto(
     string BindAddress, int BindPort, IReadOnlyList<TunnelPortRangeDto> AllowPorts,
     int? VhostHttpPort, int? VhostHttpsPort, bool ForceTls, bool TokenConfigured,
     bool DashboardEnabled, string DashboardAddress, int? DashboardPort, string? DashboardUser,
-    bool DashboardPasswordConfigured, ManagedFrpsState State, string ProblemCode = "", DateTimeOffset? StartedAt = null);
+    bool DashboardPasswordConfigured, ManagedFrpsState State, string ProblemCode = "", DateTimeOffset? StartedAt = null,
+    string? Token = null);
 public sealed record UpdateManagedFrpsConfigurationRequest(
     bool Confirmed, string BindAddress, int BindPort, IReadOnlyList<TunnelPortRangeDto>? AllowPorts,
     int? VhostHttpPort, int? VhostHttpsPort, bool ForceTls, string? Token,

@@ -111,7 +111,7 @@ API 输入 → 领域校验 → 保存 Desired State → 生成临时 TOML
 
 ### 3.3 Secret 与 API 边界
 
-Token、OIDC client secret、TLS 私钥、STCP secret 和任何等价凭据必须保留在 Server 的 SecretStore 中。普通表只保存不可猜测的引用和 `Configured` 状态；展示 DTO 使用 `tokenConfigured: true` 等布尔状态，绝不返回原文、掩码可逆值或可下载的 FRP TOML。
+Token、OIDC client secret、TLS 私钥、STCP secret 和任何等价凭据必须保留在 Server 的 SecretStore 中。普通表只保存不可猜测的引用和 `Configured` 状态；列表与普通展示 DTO 使用 `tokenConfigured: true` 等布尔状态，绝不返回原文、掩码可逆值或可下载的 FRP TOML。已授权的 Controller 可通过专用编辑读取流程回显其 Profile 或托管 FRPS Token；该读取必须逐用户授权并写入审计记录。
 
 第一个 Goal 必须先实现一个受保护的 SecretStore 抽象及当前平台实现，再允许保存包含认证的 Profile。生产实现使用服务器受保护的持久化机制（例如 Data Protection 保护的受限文件或表字段）；密钥来源、轮换、删除、备份恢复和访问失败都必须有明确行为。不得把秘密放进 `appsettings.json`、Workspace JSON、日志、异常 `Detail`、诊断 ZIP 或 Client 本地设置。
 
@@ -230,4 +230,3 @@ FRP 集成只有同时满足以下条件才可标为完成：
 后续在 Goal 模式中应使用以下目标，并把本文和原始设计一并作为约束：
 
 > 依据 `docs/applications/RemoteOS.FRP_Integration.Goal.md` 与 `docs/applications/RemoteOS.FRP_Integration.Design.md` 实现 RemoteOS 的 FRP 内网穿透。严格按 Goal 0–8 顺序推进：先冻结信任链、协议、权限、Desired State 和 SecretStore，再实现 External 检测、FRP 配置/生命周期、Managed Runtime、Avalonia 应用和跨平台验证。`frpc` / `frps` 必须保持独立进程；数据库是 Desired State，TOML 仅为受控生成物；不得泄露秘密、执行 shell、自动提权、关闭或规避 Defender，也不得让 RemoteOS Backend 依赖 FRP。每个 Goal 只有在构建、测试和本文件验收通过后才能进入下一项。
-

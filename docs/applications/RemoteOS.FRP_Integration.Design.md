@@ -1096,7 +1096,7 @@ network.frp.secret.update
 
 应该进入 RemoteOS SecretStore。
 
-API 返回：
+列表和普通读取 API 返回：
 
 ```json
 {
@@ -1105,7 +1105,7 @@ API 返回：
 }
 ```
 
-而不是：
+普通读取 API 不返回：
 
 ```json
 {
@@ -1113,7 +1113,7 @@ API 返回：
 }
 ```
 
-前端默认不应再次读取完整 Secret。
+但 Controller 打开 Token 编辑器时，可调用受单独授权和审计保护的编辑读取 API 回显该 Profile 或托管 FRPS 的完整 Token；该值仅用于当前编辑会话，不得出现在列表、导出、日志、生成配置下载或其他普通读取 API 中。
 
 ---
 

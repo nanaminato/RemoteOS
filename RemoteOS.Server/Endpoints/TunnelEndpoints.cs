@@ -14,7 +14,7 @@ public static class TunnelEndpoints
         var group = app.MapGroup(TunnelApiRoutes.Tunnels).RequireAuthorization().WithTags("Tunnels");
         group.MapGet(TunnelApiRoutes.ProfilesPattern, (ClaimsPrincipal user, ITunnelService service, CancellationToken ct) => service.ListProfilesAsync(UserId(user), ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.ProfilePattern, async (Guid profileId, ClaimsPrincipal user, ITunnelService service, CancellationToken ct) =>
-            await service.GetProfileAsync(profileId, UserId(user), ct) is { } value ? Results.Ok(value) : Results.NotFound()).RequireAuthorization("TunnelsRead");
+            await service.GetProfileAsync(profileId, UserId(user), ct) is { } value ? Results.Ok(value) : Results.NotFound()).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.ProfilesPattern, async (UpsertTunnelServerProfileRequest request, ClaimsPrincipal user, ITunnelService service, CancellationToken ct) =>
             await HandleAsync(() => service.UpsertProfileAsync(null, request, UserId(user), ct), created: true)).RequireAuthorization("TunnelsManage");
         group.MapPut(TunnelApiRoutes.ProfilePattern, async (Guid profileId, UpsertTunnelServerProfileRequest request, ClaimsPrincipal user, ITunnelService service, CancellationToken ct) =>
@@ -46,6 +46,7 @@ public static class TunnelEndpoints
         group.MapPost(TunnelApiRoutes.ApplyProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.ApplyAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.StopProfilePattern, (Guid profileId, ClaimsPrincipal user, ITunnelProvider provider, CancellationToken ct) => provider.StopAsync(profileId, UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapGet(TunnelApiRoutes.ManagedFrpsPattern, (IManagedFrpsService frps, CancellationToken ct) => frps.GetAsync(ct)).RequireAuthorization("TunnelsRead");
+        group.MapGet(TunnelApiRoutes.ManagedFrpsEditorPattern, (ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) => frps.GetForEditingAsync(UserId(user), ct)).RequireAuthorization("TunnelsManage");
         group.MapPut(TunnelApiRoutes.ManagedFrpsPattern, async (UpdateManagedFrpsConfigurationRequest request, ClaimsPrincipal user, IManagedFrpsService frps, CancellationToken ct) =>
         {
             try { return Results.Ok(await frps.UpdateAsync(request, UserId(user), ct)); }

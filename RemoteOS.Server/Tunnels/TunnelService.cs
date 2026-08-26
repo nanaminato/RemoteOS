@@ -16,7 +16,11 @@ public sealed class TunnelService(RemoteOsDbContext db, ISecretStore secrets, IT
     public async Task<TunnelServerProfileDto?> GetProfileAsync(Guid id, string userId, CancellationToken ct)
     {
         var profile = await db.TunnelServerProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct);
-        return profile is null ? null : ToDto(profile, await secrets.HasProfileTokenAsync(profile.Id, ct));
+        if (profile is null) return null;
+
+        var token = profile.AuthKind == TunnelAuthKind.Token ? await secrets.GetProfileTokenAsync(profile.Id, ct) : null;
+        if (token is not null) await audit.RecordAsync(userId, "profile.token.read", profile.Id, "succeeded", null, ct);
+        return ToDto(profile, token is not null) with { Token = token };
     }
 
     public async Task<TunnelServerProfileDto> UpsertProfileAsync(Guid? id, UpsertTunnelServerProfileRequest request, string userId, CancellationToken ct)

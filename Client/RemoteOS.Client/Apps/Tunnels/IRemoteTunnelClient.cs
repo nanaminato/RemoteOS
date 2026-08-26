@@ -5,6 +5,7 @@ namespace Client.Apps.Tunnels;
 public interface IRemoteTunnelClient
 {
     Task<IReadOnlyList<TunnelServerProfileDto>> ListProfilesAsync(CancellationToken cancellationToken = default);
+    Task<TunnelServerProfileDto?> GetProfileAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TunnelDefinitionDto>> ListAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeDto> GetRuntimeAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeInstallationDto> GetRuntimeInstallationStatusAsync(CancellationToken cancellationToken = default);
@@ -24,6 +25,7 @@ public interface IRemoteTunnelClient
     Task<TunnelOperationResultDto> RollbackManagedRuntimeAsync(CancellationToken cancellationToken = default);
     Task<TunnelRuntimeDto> DetectExternalRuntimeAsync(string executablePath, CancellationToken cancellationToken = default);
     Task<ManagedFrpsConfigurationDto> GetManagedFrpsAsync(CancellationToken cancellationToken = default);
+    Task<ManagedFrpsConfigurationDto> GetManagedFrpsForEditingAsync(CancellationToken cancellationToken = default);
     Task<ManagedFrpsConfigurationDto> UpdateManagedFrpsAsync(UpdateManagedFrpsConfigurationRequest request, CancellationToken cancellationToken = default);
     Task<TunnelOperationResultDto> StartManagedFrpsAsync(CancellationToken cancellationToken = default);
     Task<TunnelOperationResultDto> StopManagedFrpsAsync(CancellationToken cancellationToken = default);

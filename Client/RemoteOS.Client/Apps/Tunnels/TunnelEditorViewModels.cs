@@ -33,12 +33,13 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
     public bool IsTokenAuth => AuthKind == TunnelAuthKind.Token;
     public bool CanDelete => IsEditing && !IsBusy;
 
-    public TunnelProfileEditorViewModel(IRemoteTunnelClient client, TunnelServerProfileDto? original)
+    public TunnelProfileEditorViewModel(IRemoteTunnelClient client, TunnelServerProfileDto? original, string? token = null)
     {
         _client = client; _original = original;
         _name = original?.Name ?? string.Empty; _host = original?.Host ?? string.Empty; _port = original?.Port ?? 7000;
         _authKind = original?.AuthKind ?? TunnelAuthKind.Token; _tlsMode = original?.TlsMode ?? TunnelTlsMode.Default;
         _runtimeMode = original?.RuntimeMode ?? TunnelRuntimeMode.Managed; _externalPath = original?.ExternalExecutablePath ?? string.Empty;
+        _token = token ?? string.Empty;
     }
 
     [RelayCommand]
