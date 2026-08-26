@@ -75,6 +75,17 @@ public static class TunnelEndpoints
             await audit.RecordAsync(UserId(user), "runtime.install_from_file", null, result.Succeeded ? "succeeded" : "failed", result.ProblemCode, ct);
             return result.Succeeded ? Results.Ok(result) : Results.BadRequest(result);
         }).RequireAuthorization("TunnelsManage");
+        group.MapDelete(TunnelApiRoutes.RuntimeUninstallPattern, async (UninstallManagedTunnelRuntimeRequest request, ClaimsPrincipal user, IRuntimeManager runtime, ITunnelProvider provider, IManagedFrpsService frps, ITunnelAudit audit, CancellationToken ct) =>
+        {
+            if (!request.Confirmed) return Problem("tunnel.runtime_uninstall_confirmation_required", StatusCodes.Status400BadRequest);
+            // Runtime binaries may be locked on Windows and must never be removed from under
+            // a live tunnel or local frps process.
+            await provider.StopManagedProcessesAsync(ct);
+            await frps.StopAsync(UserId(user), ct);
+            var result = await runtime.UninstallManagedFrpcAsync(ct);
+            await audit.RecordAsync(UserId(user), "runtime.uninstall", null, result.Succeeded ? "succeeded" : "failed", result.ProblemCode, ct);
+            return result.Succeeded ? Results.Ok(result) : Results.Conflict(result);
+        }).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.RuntimeRollbackPattern, async (ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
         {
             var result = await runtime.RollbackManagedFrpcAsync(ct);

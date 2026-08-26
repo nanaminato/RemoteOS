@@ -22,6 +22,7 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _runtimeVersion = "v0.71.0";
     [ObservableProperty] private bool _runtimeInstallConfirmed;
+    [ObservableProperty] private bool _runtimeUninstallConfirmed;
     [ObservableProperty] private string _frpsBindAddress = "0.0.0.0";
     [ObservableProperty] private int _frpsBindPort = 7000;
     [ObservableProperty] private string _frpsAllowPorts = string.Empty;
@@ -59,6 +60,10 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     public int ConnectedTunnelCount => Tunnels.Count(x => x.State == TunnelConnectionState.Connected);
     public int SavedTunnelCount => Tunnels.Count(x => x.State == TunnelConnectionState.SavedNotApplied);
     public bool CanInstallRuntime => CanManage && RuntimeInstallConfirmed && !IsBusy;
+    public bool RuntimeIsInstalled => Runtime is { Mode: TunnelRuntimeMode.Managed, State: TunnelRuntimeState.Available };
+    public bool RuntimeIsNotInstalled => !RuntimeIsInstalled;
+    public string RuntimeInstalledVersion => Runtime?.Version ?? "—";
+    public bool CanUninstallRuntime => CanManage && RuntimeIsInstalled && RuntimeUninstallConfirmed && !IsBusy;
     public bool RuntimeInstallationInProgress => RuntimeInstallation.State is not TunnelRuntimeInstallationState.Idle and not TunnelRuntimeInstallationState.Succeeded and not TunnelRuntimeInstallationState.Failed;
     public int RuntimeInstallationProgress => RuntimeInstallation.Progress;
     public string RuntimeInstallationText => FormatInstallation(RuntimeInstallation);
@@ -122,6 +127,12 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
         var archivePath = await RequestServerRuntimePackageAsync();
         if (!string.IsNullOrWhiteSpace(archivePath))
             await RunRuntimeOperationAsync(() => client.InstallManagedRuntimeFromServerFileAsync(RuntimeVersion, archivePath, _lifetime.Token));
+    }
+    [RelayCommand(CanExecute = nameof(CanUninstallRuntime))]
+    private async Task UninstallRuntimeAsync()
+    {
+        await RunRuntimeOperationAsync(() => client.UninstallManagedRuntimeAsync(_lifetime.Token));
+        RuntimeUninstallConfirmed = false;
     }
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task SaveManagedFrpsAsync()
@@ -187,6 +198,14 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
         InstallRuntimeCommand.NotifyCanExecuteChanged();
         InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
     }
+    partial void OnRuntimeUninstallConfirmedChanged(bool value) => UninstallRuntimeCommand.NotifyCanExecuteChanged();
+    partial void OnRuntimeChanged(TunnelRuntimeDto? value)
+    {
+        OnPropertyChanged(nameof(RuntimeIsInstalled));
+        OnPropertyChanged(nameof(RuntimeIsNotInstalled));
+        OnPropertyChanged(nameof(RuntimeInstalledVersion));
+        UninstallRuntimeCommand.NotifyCanExecuteChanged();
+    }
     partial void OnRuntimeInstallationChanged(TunnelRuntimeInstallationDto value)
     {
         OnPropertyChanged(nameof(RuntimeInstallationInProgress));
@@ -196,7 +215,7 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
     partial void OnIsBusyChanged(bool value)
     {
         NotifyProfileCommands(); EditTunnelCommand.NotifyCanExecuteChanged();
-        InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged();
+        InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged();
         ToggleManagedFrpsCommand.NotifyCanExecuteChanged();
     }
     partial void OnFrpsStateChanged(ManagedFrpsState value)
@@ -249,7 +268,7 @@ public sealed partial class TunnelManagerViewModel(IRemoteTunnelClient client, b
             }
             var result = await operationTask;
             try { RuntimeInstallation = await client.GetRuntimeInstallationStatusAsync(_lifetime.Token); } catch { }
-            StatusText = result.Succeeded ? LocalizedText.Get("tunnels.status.runtime_updated") : result.ProblemCode;
+            StatusText = result.Succeeded ? LocalizedText.Get("tunnels.status.runtime_updated") : ProblemText(result.ProblemCode);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { StatusText = ProblemText(ex); }

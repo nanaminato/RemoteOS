@@ -66,3 +66,5 @@ public sealed record DetectExternalTunnelRuntimeRequest(string ExecutablePath);
 public sealed record InstallManagedTunnelRuntimeRequest(bool Confirmed, string Version);
 /// <summary>Installs a pinned runtime from an archive already present on the RemoteOS Server.</summary>
 public sealed record InstallManagedTunnelRuntimeFromFileRequest(bool Confirmed, string Version, string ArchivePath);
+/// <summary>Explicit confirmation for removing every RemoteOS-managed FRP runtime release on this host.</summary>
+public sealed record UninstallManagedTunnelRuntimeRequest(bool Confirmed);

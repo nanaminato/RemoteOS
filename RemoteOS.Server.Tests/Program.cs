@@ -215,6 +215,10 @@ static async Task VerifyFrpRuntimeInstallAndRollbackAsync(string root)
     Assert(active.Version == "v0.71.1" && active.PreviousVersion == "v0.71.0" && active.IntegrityVerified, "Runtime activation did not preserve previous version state.");
     var rolledBack = await manager.RollbackManagedFrpcAsync(CancellationToken.None);
     Assert(rolledBack.Succeeded && (await manager.GetManagedFrpcStatusAsync(CancellationToken.None)).Version == "v0.71.0", "Runtime rollback did not restore verified previous version.");
+    var uninstalled = await manager.UninstallManagedFrpcAsync(CancellationToken.None);
+    Assert(uninstalled.Succeeded && (await manager.GetManagedFrpcStatusAsync(CancellationToken.None)).State == TunnelRuntimeState.NotInstalled,
+        "Runtime uninstall did not clear the managed runtime state.");
+    Assert(!Directory.Exists(Path.Combine(runtimeRoot, "data", "runtimes", "frp")), "Runtime uninstall left managed runtime files behind.");
 
     var invalidChecksum = await manager.InstallManagedFrpcAsync("v0.99.0", CancellationToken.None);
     Assert(!invalidChecksum.Succeeded && invalidChecksum.ProblemCode == "tunnel.runtime_release_not_configured", "Unconfigured runtime version was accepted.");

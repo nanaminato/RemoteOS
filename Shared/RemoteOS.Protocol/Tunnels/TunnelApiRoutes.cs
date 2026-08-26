@@ -30,6 +30,8 @@ public static class TunnelApiRoutes
     public const string RuntimeInstallPattern = "/runtime/managed/install";
     public const string RuntimeInstallFromFile = $"{Runtime}/managed/install/from-file";
     public const string RuntimeInstallFromFilePattern = "/runtime/managed/install/from-file";
+    public const string RuntimeUninstall = $"{Runtime}/managed";
+    public const string RuntimeUninstallPattern = "/runtime/managed";
     public const string RuntimeRollback = $"{Runtime}/managed/rollback";
     public const string RuntimeRollbackPattern = "/runtime/managed/rollback";
     public const string ManagedFrps = $"{Tunnels}/frps";

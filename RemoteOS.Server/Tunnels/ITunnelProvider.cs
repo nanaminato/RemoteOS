@@ -10,5 +10,6 @@ public interface ITunnelProvider
     Task<IReadOnlyList<TunnelDefinitionDto>> ListAsync(string userId, CancellationToken cancellationToken);
     Task<TunnelOperationResultDto> ApplyAsync(Guid profileId, string userId, CancellationToken cancellationToken);
     Task<TunnelOperationResultDto> StopAsync(Guid profileId, string userId, CancellationToken cancellationToken);
+    Task StopManagedProcessesAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<TunnelLogEntryDto>?> GetLogsAsync(Guid profileId, string userId, CancellationToken cancellationToken);
 }

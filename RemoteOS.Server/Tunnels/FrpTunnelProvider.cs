@@ -57,7 +57,7 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
                 // replacement.  The new process can report a successful login before
                 // the 200 ms startup check below completes.
                 _states[profileId] = new(TunnelConnectionState.Starting, "");
-                var started = Start(profileId, executable, configuration);
+                var started = Start(profileId, executable, configuration, profile.RuntimeMode == TunnelRuntimeMode.Managed);
                 _processes[profileId] = started;
                 await Task.Delay(200, ct);
                 if (started.Process.HasExited) throw new InvalidOperationException();
@@ -71,7 +71,7 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
                     File.Move(backup, configuration, overwrite: true);
                     try
                     {
-                        var restored = Start(profileId, executable, configuration);
+                        var restored = Start(profileId, executable, configuration, profile.RuntimeMode == TunnelRuntimeMode.Managed);
                         _processes[profileId] = restored;
                         await Task.Delay(200, ct);
                         if (!restored.Process.HasExited) AppendLog(profileId, "information", "Previous verified configuration was restored after apply failure.");
@@ -98,6 +98,22 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
             await StopCoreAsync(profileId); return await CompleteAsync(db, profileId, userId, new(true, TunnelConnectionState.Disconnected), ct);
         }
         finally { gate.Release(); }
+    }
+
+    /// <summary>Stops all host-local child processes before their managed runtime is removed.</summary>
+    public async Task StopManagedProcessesAsync(CancellationToken ct)
+    {
+        foreach (var profileId in _processes.Where(x => x.Value.IsManaged).Select(x => x.Key).ToArray())
+        {
+            var gate = _profileLocks.GetOrAdd(profileId, _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(ct);
+            try
+            {
+                await StopCoreAsync(profileId);
+                _states[profileId] = new(TunnelConnectionState.Disconnected, "");
+            }
+            finally { gate.Release(); }
+        }
     }
 
     public async Task<IReadOnlyList<TunnelLogEntryDto>?> GetLogsAsync(Guid profileId, string userId, CancellationToken ct)
@@ -130,7 +146,7 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
         }
         catch { return false; }
     }
-    private ManagedProcess Start(Guid profileId, string executable, string config)
+    private ManagedProcess Start(Guid profileId, string executable, string config, bool isManaged)
     {
         var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true, CreateNoWindow = true }, EnableRaisingEvents = true };
         process.StartInfo.ArgumentList.Add("-c"); process.StartInfo.ArgumentList.Add(config);
@@ -139,7 +155,7 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
         process.Exited += (_, _) => { if (_processes.ContainsKey(profileId)) _states[profileId] = new(TunnelConnectionState.Disconnected, "tunnel.runtime_exited"); };
         if (!process.Start()) throw new InvalidOperationException();
         process.BeginOutputReadLine(); process.BeginErrorReadLine();
-        return new ManagedProcess(process, process.Id, process.StartTime.ToUniversalTime());
+        return new ManagedProcess(process, process.Id, process.StartTime.ToUniversalTime(), isManaged);
     }
     private async Task StopCoreAsync(Guid profileId)
     {
@@ -182,6 +198,6 @@ public sealed class FrpTunnelProvider(IServiceScopeFactory scopes, IHostEnvironm
     }
     private static void SetPrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void SetPrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
-    private sealed record ManagedProcess(Process Process, int ProcessId, DateTime StartedAt);
+    private sealed record ManagedProcess(Process Process, int ProcessId, DateTime StartedAt, bool IsManaged);
     private sealed record RuntimeSnapshot(TunnelConnectionState State, string ProblemCode);
 }

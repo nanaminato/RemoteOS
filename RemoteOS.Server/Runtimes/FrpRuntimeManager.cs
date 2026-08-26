@@ -134,6 +134,28 @@ public sealed class FrpRuntimeManager(IHostEnvironment environment, IHttpClientF
         finally { _gate.Release(); }
     }
 
+    public async Task<TunnelOperationResultDto> UninstallManagedFrpcAsync(CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            if (await ReadStateAsync(ct) is null)
+                return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.managed_runtime_not_installed");
+
+            try
+            {
+                // Versions are private, immutable installation artifacts. Removing the runtime
+                // intentionally removes the active pointer and every cached managed release.
+                if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+                UpdateInstallationStatus(TunnelRuntimeInstallationState.Idle, null, 0);
+                return new(true, TunnelConnectionState.SavedNotApplied);
+            }
+            catch (IOException) { return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_uninstall_failed"); }
+            catch (UnauthorizedAccessException) { return new(false, TunnelConnectionState.RuntimeUnavailable, "tunnel.runtime_uninstall_failed"); }
+        }
+        finally { _gate.Release(); }
+    }
+
     private async Task DownloadVerifiedAsync(FrpRuntimeRelease release, string destination, CancellationToken ct)
     {
         using var response = await httpClients.CreateClient("FrpRuntime").GetAsync(release.Url, HttpCompletionOption.ResponseHeadersRead, ct);

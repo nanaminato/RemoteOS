@@ -10,5 +10,6 @@ public interface IRuntimeManager
     TunnelRuntimeInstallationDto GetManagedFrpcInstallationStatus();
     Task<TunnelOperationResultDto> InstallManagedFrpcAsync(string version, CancellationToken cancellationToken);
     Task<TunnelOperationResultDto> InstallManagedFrpcFromArchiveAsync(string version, string archivePath, CancellationToken cancellationToken);
+    Task<TunnelOperationResultDto> UninstallManagedFrpcAsync(CancellationToken cancellationToken);
     Task<TunnelOperationResultDto> RollbackManagedFrpcAsync(CancellationToken cancellationToken);
 }
