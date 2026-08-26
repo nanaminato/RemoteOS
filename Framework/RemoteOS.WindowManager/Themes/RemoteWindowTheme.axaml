@@ -12,8 +12,7 @@
                             Background="{DynamicResource WindowFrameBackgroundBrush}"
                             BorderBrush="{DynamicResource BorderDefaultBrush}"
                             BorderThickness="1"
-                            CornerRadius="{DynamicResource WindowCornerRadius}"
-                            BoxShadow="0 12 28 0 #66000000, 0 2 6 0 #22000000">
+                            CornerRadius="{DynamicResource WindowCornerRadius}">
                         <Grid RowDefinitions="Auto,*">
                             <!-- Title bar -->
                             <Border x:Name="PART_TitleBar"
@@ -97,9 +96,15 @@
     </Style>
     <Style Selector="wm|RemoteWindow /template/ Border#PART_Frame">
         <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+        <Setter Property="BoxShadow" Value="0 12 28 0 #66000000, 0 2 6 0 #22000000" />
     </Style>
     <Style Selector="wm|RemoteWindow:active /template/ Border#PART_Frame">
         <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+    </Style>
+    <!-- Large multi-pass shadows make managed-window movement noticeably less responsive
+         on lower-end Linux compositor paths. Keep depth, but use one compact shadow there. -->
+    <Style Selector="wm|RemoteWindow:linux /template/ Border#PART_Frame">
+        <Setter Property="BoxShadow" Value="0 4 12 0 #40000000" />
     </Style>
     <Style Selector="wm|RemoteWindow:fullscreen /template/ Border#PART_Frame">
         <Setter Property="BorderThickness" Value="0" />

@@ -23,6 +23,8 @@ public sealed class WindowManager : IWindowManager
     private readonly Dictionary<WindowId, WindowState> _preMinimizeState = new();
     private readonly Dictionary<WindowId, WindowState> _preFullScreenState = new();
     private readonly Dictionary<WindowId, Canvas> _windowHosts = new();
+    private readonly Dictionary<WindowId, PendingDrag> _pendingDrags = new();
+    private readonly Dictionary<WindowId, PendingResize> _pendingResizes = new();
     private readonly List<IModalSession> _modalSessions = new();
     private readonly List<IShellModalSession> _shellModalSessions = new();
 
@@ -34,6 +36,8 @@ public sealed class WindowManager : IWindowManager
     private int _nextId;
     private int _nextCascadeSlot;
     private ManagedWindow? _active;
+    private bool _dragFlushScheduled;
+    private bool _resizeFlushScheduled;
 
     /// <summary>Set by the client shell when a connected workspace can persist window dimensions.</summary>
     public IWindowLayoutStore? LayoutStore { get; set; }
@@ -122,7 +126,9 @@ public sealed class WindowManager : IWindowManager
         managed.TaskbarToggleRequested += (_, _) => ToggleTaskbar(managed);
 
         view.DragRequested += (_, e) => OnDrag(managed, e);
+        view.DragCompleted += (_, e) => CommitDrag(managed, e);
         view.ResizeRequested += (_, e) => OnResize(managed, e);
+        view.ResizeCompleted += (_, e) => CompleteResize(managed, e);
         view.FocusRequested += (_, _) => Focus(managed);
 
         _host.Children.Add(view);
@@ -267,6 +273,8 @@ public sealed class WindowManager : IWindowManager
         _preMinimizeState.Remove(window.Info.Id);
         _preFullScreenState.Remove(window.Info.Id);
         _windowHosts.Remove(window.Info.Id);
+        _pendingDrags.Remove(window.Info.Id);
+        _pendingResizes.Remove(window.Info.Id);
         foreach (var session in _modalSessions.Where(s => ReferenceEquals(s.Owner, window) || ReferenceEquals(s.DialogWindow, window)).ToList())
             session.Cancel();
         foreach (var session in _shellModalSessions.Where(s => ReferenceEquals(s.DialogWindow, window)).ToList())
@@ -521,11 +529,46 @@ public sealed class WindowManager : IWindowManager
         if (window.Info.State != WindowState.Normal)
             return;
 
+        _pendingDrags[window.Info.Id] = new PendingDrag(window, e);
+        if (_dragFlushScheduled)
+            return;
+
+        _dragFlushScheduled = true;
+        Dispatcher.UIThread.Post(FlushPendingDrags, DispatcherPriority.Render);
+    }
+
+    private void CommitDrag(ManagedWindow window, DragBoundsEventArgs e)
+    {
+        if (window.Info.State != WindowState.Normal)
+            return;
+
+        _pendingDrags.Remove(window.Info.Id);
         var moved = e.StartBounds.WithPosition(e.StartBounds.Position + e.Delta);
         moved = ClampDrag(moved);
         window.Info.Bounds = moved;
+        window.Info.RestoreBounds = moved;
         window.View.ApplyBounds(moved);
         UpdateDialogs(window);
+    }
+
+    private void FlushPendingDrags()
+    {
+        _dragFlushScheduled = false;
+        if (_pendingDrags.Count == 0)
+            return;
+
+        var pendingDrags = _pendingDrags.Values.ToArray();
+        _pendingDrags.Clear();
+        foreach (var pending in pendingDrags)
+        {
+            var window = pending.Window;
+            if (!_windows.Contains(window) || window.Info.State != WindowState.Normal)
+                continue;
+
+            var moved = pending.Event.StartBounds.WithPosition(
+                pending.Event.StartBounds.Position + pending.Event.Delta);
+            window.View.ApplyPosition(ClampDrag(moved).Position);
+        }
     }
 
     private void OnResize(ManagedWindow window, ResizeBoundsEventArgs e)
@@ -533,13 +576,68 @@ public sealed class WindowManager : IWindowManager
         if (window.Info.State != WindowState.Normal)
             return;
 
-        var resized = ComputeResize(e.StartBounds, e.Edge, e.Delta, window.Info.MinSize, _hostBounds);
-        window.Info.Bounds = resized;
-        window.Info.RestoreBounds = resized;
-        window.View.ApplyBounds(resized);
-        LayoutStore?.RecordSize(GetLayoutKey(window.Info.OwnerAppId, window.Info.Title), resized.Size);
-        UpdateDialogs(window);
+        QueueResize(window, e, persistLayout: false);
     }
+
+    private void CompleteResize(ManagedWindow window, ResizeBoundsEventArgs e)
+    {
+        if (window.Info.State != WindowState.Normal)
+            return;
+
+        QueueResize(window, e, persistLayout: true);
+        FlushPendingResizes();
+    }
+
+    private void QueueResize(ManagedWindow window, ResizeBoundsEventArgs e, bool persistLayout)
+    {
+        if (_pendingResizes.TryGetValue(window.Info.Id, out var pending))
+            persistLayout |= pending.PersistLayout;
+
+        _pendingResizes[window.Info.Id] = new PendingResize(window, e, persistLayout);
+        if (_resizeFlushScheduled)
+            return;
+
+        _resizeFlushScheduled = true;
+        Dispatcher.UIThread.Post(FlushPendingResizes, DispatcherPriority.Render);
+    }
+
+    private void FlushPendingResizes()
+    {
+        _resizeFlushScheduled = false;
+        if (_pendingResizes.Count == 0)
+            return;
+
+        var pendingResizes = _pendingResizes.Values.ToArray();
+        _pendingResizes.Clear();
+        foreach (var pending in pendingResizes)
+        {
+            var window = pending.Window;
+            if (!_windows.Contains(window) || window.Info.State != WindowState.Normal)
+                continue;
+
+            var resized = ComputeResize(
+                pending.Event.StartBounds,
+                pending.Event.Edge,
+                pending.Event.Delta,
+                window.Info.MinSize,
+                _hostBounds);
+            window.Info.Bounds = resized;
+            window.Info.RestoreBounds = resized;
+            window.View.ApplyBounds(resized);
+            if (pending.PersistLayout)
+                LayoutStore?.RecordSize(GetLayoutKey(window.Info.OwnerAppId, window.Info.Title), resized.Size);
+            UpdateDialogs(window);
+        }
+    }
+
+    private sealed record PendingDrag(
+        ManagedWindow Window,
+        DragBoundsEventArgs Event);
+
+    private sealed record PendingResize(
+        ManagedWindow Window,
+        ResizeBoundsEventArgs Event,
+        bool PersistLayout);
 
     private void UpdateDialogs(ManagedWindow owner)
     {

@@ -36,18 +36,26 @@ public class RemoteWindow : TemplatedControl
     private bool _dragging;
     private Point _dragStart;
     private Rect _dragStartBounds;
+    private Point _dragDelta;
 
     private bool _resizing;
     private ResizeEdge _resizeEdge;
     private Point _resizeStart;
     private Rect _resizeStartBounds;
+    private Point _resizeDelta;
     private readonly HashSet<RemoteKey> _pressedKeys = [];
 
     /// <summary>Raised while the user drags the title bar. Carries the press-time bounds and current delta.</summary>
     public event EventHandler<DragBoundsEventArgs>? DragRequested;
 
+    /// <summary>Raised once when a title-bar drag ends, so the host can commit its final bounds.</summary>
+    public event EventHandler<DragBoundsEventArgs>? DragCompleted;
+
     /// <summary>Raised while the user resizes from an edge. Carries the edge, press-time bounds and current delta.</summary>
     public event EventHandler<ResizeBoundsEventArgs>? ResizeRequested;
+
+    /// <summary>Raised once when a resize ends, so the host can flush its final bounds.</summary>
+    public event EventHandler<ResizeBoundsEventArgs>? ResizeCompleted;
 
     /// <summary>Raised when the window should be brought to the front.</summary>
     public event EventHandler? FocusRequested;
@@ -67,6 +75,7 @@ public class RemoteWindow : TemplatedControl
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Left;
         VerticalAlignment = VerticalAlignment.Top;
+        PseudoClasses.Set(":linux", OperatingSystem.IsLinux());
         KeyDown += OnKeyDown;
         KeyUp += OnKeyUp;
     }
@@ -163,6 +172,7 @@ public class RemoteWindow : TemplatedControl
         _dragging = true;
         _dragStart = ToCore(e.GetPosition(null));
         _dragStartBounds = CurrentBounds();
+        _dragDelta = default;
         e.Pointer.Capture(_titleDrag!);
         BoundsInteractionStarted?.Invoke(this, EventArgs.Empty);
     }
@@ -172,8 +182,8 @@ public class RemoteWindow : TemplatedControl
         if (!_dragging)
             return;
 
-        var delta = ToCore(e.GetPosition(null)) - _dragStart;
-        DragRequested?.Invoke(this, new DragBoundsEventArgs(_dragStartBounds, delta));
+        _dragDelta = ToCore(e.GetPosition(null)) - _dragStart;
+        DragRequested?.Invoke(this, new DragBoundsEventArgs(_dragStartBounds, _dragDelta));
     }
 
     private void OnTitleDragReleased(object? sender, PointerReleasedEventArgs e)
@@ -181,7 +191,7 @@ public class RemoteWindow : TemplatedControl
         if (!_dragging)
             return;
 
-        EndBoundsInteraction();
+        EndDrag();
         e.Pointer.Capture(null);
     }
 
@@ -205,6 +215,7 @@ public class RemoteWindow : TemplatedControl
         _resizeEdge = edge;
         _resizeStart = ToCore(e.GetPosition(null));
         _resizeStartBounds = CurrentBounds();
+        _resizeDelta = default;
 
         if (_resizeBorders.TryGetValue(edge, out var border))
             e.Pointer.Capture(border);
@@ -217,28 +228,45 @@ public class RemoteWindow : TemplatedControl
         if (!_resizing)
             return;
 
-        var delta = ToCore(e.GetPosition(null)) - _resizeStart;
-        ResizeRequested?.Invoke(this, new ResizeBoundsEventArgs(_resizeEdge, _resizeStartBounds, delta));
+        _resizeDelta = ToCore(e.GetPosition(null)) - _resizeStart;
+        ResizeRequested?.Invoke(this, new ResizeBoundsEventArgs(_resizeEdge, _resizeStartBounds, _resizeDelta));
     }
 
     private void OnResizeReleased(PointerReleasedEventArgs e)
     {
         if (!_resizing)
             return;
-        EndBoundsInteraction();
+        EndResize();
         e.Pointer.Capture(null);
     }
 
     private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-        => EndBoundsInteraction();
-
-    private void EndBoundsInteraction()
     {
-        if (!_dragging && !_resizing)
+        if (_dragging)
+            EndDrag();
+        else if (_resizing)
+            EndResize();
+    }
+
+    private void EndDrag()
+    {
+        if (!_dragging)
             return;
 
         _dragging = false;
+        DragCompleted?.Invoke(this, new DragBoundsEventArgs(_dragStartBounds, _dragDelta));
+        BoundsInteractionCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void EndResize()
+    {
+        if (!_resizing)
+            return;
+
         _resizing = false;
+        // Pointer capture can end without a final PointerMoved event, so retain the most
+        // recent delta calculated in OnResizeMoved.
+        ResizeCompleted?.Invoke(this, new ResizeBoundsEventArgs(_resizeEdge, _resizeStartBounds, _resizeDelta));
         BoundsInteractionCompleted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -264,6 +292,13 @@ public class RemoteWindow : TemplatedControl
         Canvas.SetTop(this, bounds.Y);
         Width = bounds.Width;
         Height = bounds.Height;
+    }
+
+    /// <summary>Updates only the Canvas position; size and child layout stay unchanged.</summary>
+    internal void ApplyPosition(Point position)
+    {
+        Canvas.SetLeft(this, position.X);
+        Canvas.SetTop(this, position.Y);
     }
 
     internal void ApplyState(WindowState state)
