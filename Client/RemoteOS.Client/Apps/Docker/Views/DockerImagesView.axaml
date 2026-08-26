@@ -21,7 +21,6 @@
                 </DataGrid>
             </ScrollViewer>
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-                <CheckBox Content="{loc:Loc docker.image.delete_confirm}" IsChecked="{Binding ConfirmImageDeletion, Mode=TwoWay}" VerticalAlignment="Center" />
                 <Button Content="{loc:Loc docker.image.delete}" Command="{Binding DeleteImageCommand}" Foreground="{DynamicResource DangerBrush}" />
             </StackPanel>
         </StackPanel>

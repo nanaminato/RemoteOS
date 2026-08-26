@@ -1,5 +1,6 @@
 using Client.Apps.Tunnels.Views;
 using Client.Apps.Explorer;
+using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
@@ -26,6 +27,16 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         var canManage = context.Permissions.IsGranted(AppPermissions.ServerTunnelsManage);
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new TunnelManagerViewModel(client, canManage); var window = context.ShowWindow(LocalizedText.Get("tunnels.title"), new TunnelManagerView { DataContext = vm }, new Rect(90, 65, 1040, 680), Manifest.IconGlyph);
+        async Task<bool> ConfirmAsync(string title, string message, string confirmLabel)
+        {
+            var confirmed = false;
+            await context.ShowDialogAsync<bool>(window, title, dialog => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(message, result => { confirmed = result; dialog.Close(result); }, confirmLabel),
+            });
+            return confirmed;
+        }
+        vm.RequestConfirmationAsync = (title, message) => ConfirmAsync(title, message, title);
         vm.RequestServerRuntimePackageAsync = async () =>
         {
             if (files is null) return null;
@@ -58,7 +69,11 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         };
         vm.OpenProfileEditorAsync = async profile =>
         {
-            var editor = new TunnelProfileEditorViewModel(client, profile) { SavedAsync = vm.RefreshAfterChildAsync };
+            var editor = new TunnelProfileEditorViewModel(client, profile)
+            {
+                SavedAsync = vm.RefreshAfterChildAsync,
+                RequestDeletionConfirmationAsync = () => ConfirmAsync(LocalizedText.Get("common.delete"), LocalizedText.Get("tunnels.server.delete_confirmation"), LocalizedText.Get("common.delete")),
+            };
             await context.ShowDialogAsync<bool?>(window,
                 LocalizedText.Get(profile is null ? "tunnels.server.new_title" : "tunnels.server.edit_title"), dialog =>
                 {
@@ -68,7 +83,11 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         };
         vm.OpenTunnelEditorAsync = async tunnel =>
         {
-            var editor = new TunnelDefinitionEditorViewModel(client, vm.Profiles, tunnel) { SavedAsync = vm.RefreshAfterChildAsync };
+            var editor = new TunnelDefinitionEditorViewModel(client, vm.Profiles, tunnel)
+            {
+                SavedAsync = vm.RefreshAfterChildAsync,
+                RequestDeletionConfirmationAsync = () => ConfirmAsync(LocalizedText.Get("common.delete"), LocalizedText.Get("tunnels.tunnel.delete_confirmation"), LocalizedText.Get("common.delete")),
+            };
             await context.ShowDialogAsync<bool?>(window,
                 LocalizedText.Get(tunnel is null ? "tunnels.tunnel.new_title" : "tunnels.tunnel.edit_title"), dialog =>
                 {

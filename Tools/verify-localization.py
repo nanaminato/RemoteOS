@@ -7,7 +7,9 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1] / "Client" / "RemoteOS.Client"
 language_dir = root / "Localization"
-valid_key = re.compile(r"[a-z][a-z0-9-]*(?:[._][a-z0-9-]+)*$")
+# Resource segments may use protocol enum names (for example `install_state.Idle`).
+# Keep the namespace segment lowercase while accepting those established enum suffixes.
+valid_key = re.compile(r"[a-z][a-z0-9-]*(?:[._][A-Za-z0-9-]+)*$")
 errors: list[str] = []
 
 

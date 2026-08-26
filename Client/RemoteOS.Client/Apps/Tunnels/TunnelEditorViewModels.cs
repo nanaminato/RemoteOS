@@ -22,16 +22,16 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
     [ObservableProperty] private TunnelRuntimeMode _runtimeMode;
     [ObservableProperty] private string _externalPath;
     [ObservableProperty] private string _token = string.Empty;
-    [ObservableProperty] private bool _confirmDeletion;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = string.Empty;
 
     public Func<Task>? CloseAsync { get; set; }
     public Func<Task>? SavedAsync { get; set; }
+    public Func<Task<bool>>? RequestDeletionConfirmationAsync { get; set; }
     public bool IsEditing => _original is not null;
     public bool IsManagedRuntime => RuntimeMode == TunnelRuntimeMode.Managed;
     public bool IsTokenAuth => AuthKind == TunnelAuthKind.Token;
-    public bool CanDelete => IsEditing && ConfirmDeletion && !IsBusy;
+    public bool CanDelete => IsEditing && !IsBusy;
 
     public TunnelProfileEditorViewModel(IRemoteTunnelClient client, TunnelServerProfileDto? original)
     {
@@ -63,7 +63,7 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteAsync()
     {
-        if (!CanDelete || _original is null) return;
+        if (!CanDelete || _original is null || RequestDeletionConfirmationAsync is null || !await RequestDeletionConfirmationAsync()) return;
         IsBusy = true;
         try
         {
@@ -92,7 +92,6 @@ public sealed partial class TunnelProfileEditorViewModel : ObservableObject
     [RelayCommand] private Task Close() => CloseAsync?.Invoke() ?? Task.CompletedTask;
     partial void OnRuntimeModeChanged(TunnelRuntimeMode value) => OnPropertyChanged(nameof(IsManagedRuntime));
     partial void OnAuthKindChanged(TunnelAuthKind value) => OnPropertyChanged(nameof(IsTokenAuth));
-    partial void OnConfirmDeletionChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
     partial void OnIsBusyChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
 }
 
@@ -113,14 +112,14 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
     [ObservableProperty] private bool _enabled;
     [ObservableProperty] private bool _encryption;
     [ObservableProperty] private bool _compression;
-    [ObservableProperty] private bool _confirmDeletion;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = string.Empty;
 
     public Func<Task>? CloseAsync { get; set; }
     public Func<Task>? SavedAsync { get; set; }
+    public Func<Task<bool>>? RequestDeletionConfirmationAsync { get; set; }
     public bool IsEditing => _original is not null;
-    public bool CanDelete => IsEditing && ConfirmDeletion && !IsBusy;
+    public bool CanDelete => IsEditing && !IsBusy;
     public bool UsesRemotePort => Protocol is TunnelProtocol.Tcp or TunnelProtocol.Udp;
     public bool UsesDomain => Protocol is TunnelProtocol.Http or TunnelProtocol.Https;
 
@@ -156,7 +155,7 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteAsync()
     {
-        if (!CanDelete || _original is null) return;
+        if (!CanDelete || _original is null || RequestDeletionConfirmationAsync is null || !await RequestDeletionConfirmationAsync()) return;
         IsBusy = true;
         try
         {
@@ -169,7 +168,6 @@ public sealed partial class TunnelDefinitionEditorViewModel : ObservableObject
     }
 
     [RelayCommand] private Task Close() => CloseAsync?.Invoke() ?? Task.CompletedTask;
-    partial void OnConfirmDeletionChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
     partial void OnIsBusyChanged(bool value) => DeleteCommand.NotifyCanExecuteChanged();
     partial void OnProtocolChanged(TunnelProtocol value)
     {

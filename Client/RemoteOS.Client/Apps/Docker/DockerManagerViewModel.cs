@@ -42,9 +42,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _containerLabelsText = string.Empty;
     [ObservableProperty] private string _containerLogs = string.Empty;
     [ObservableProperty] private string _containerStats = string.Empty;
-    [ObservableProperty] private bool _confirmContainerDeletion;
     [ObservableProperty] private DockerStackDto? _selectedStack;
-    [ObservableProperty] private bool _confirmStackDeletion;
     [ObservableProperty] private string _stackName = string.Empty;
     [ObservableProperty] private string _composeYaml = string.Empty;
     [ObservableProperty] private string _imageReference = string.Empty;
@@ -57,15 +55,12 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _containerNetwork = "bridge";
     [ObservableProperty] private string _containerRestartPolicy = "unless-stopped";
     [ObservableProperty] private DockerImageDto? _selectedImage;
-    [ObservableProperty] private bool _confirmImageDeletion;
     [ObservableProperty] private string _networkName = string.Empty;
     [ObservableProperty] private string _selectedNetworkDriver = "bridge";
     [ObservableProperty] private DockerNetworkDto? _selectedNetwork;
-    [ObservableProperty] private bool _confirmNetworkDeletion;
     [ObservableProperty] private string _volumeName = string.Empty;
     [ObservableProperty] private string _selectedVolumeDriver = "local";
     [ObservableProperty] private DockerVolumeDto? _selectedVolume;
-    [ObservableProperty] private bool _confirmVolumeDeletion;
 
     /// <summary>Assigned by the app shell so operations can surface an unavailable Engine immediately.</summary>
     public Func<Task>? ShowDockerUnavailableAsync { get; set; }
@@ -75,6 +70,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     public Func<Task>? ShowEditContainerAsync { get; set; }
     public Func<Task>? ShowEditStackAsync { get; set; }
     public Func<Task>? ShowContainerDetailsAsync { get; set; }
+    /// <summary>Assigned by the app shell to confirm destructive operations before they reach Docker.</summary>
+    public Func<string, Task<bool>>? RequestDeletionConfirmationAsync { get; set; }
     /// <summary>Routes a known server-side Compose directory into RemoteExplorer.</summary>
     public Func<string, Task>? OpenFileBrowserAtPathAsync { get; set; }
     private bool _isUnavailableDialogShowing;
@@ -141,7 +138,13 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         ContainerName = SelectedContainer.Names;
         await ShowEditContainerAsync();
     }
-    [RelayCommand(CanExecute = nameof(CanDeleteContainer))] private Task DeleteContainerAsync() => ApplyContainerActionAsync("delete", true);
+    [RelayCommand(CanExecute = nameof(CanDeleteContainer))]
+    private async Task DeleteContainerAsync()
+    {
+        var container = SelectedContainer;
+        if (container is null || !await ConfirmDeletionAsync(LocalizedText.Format("docker.container.delete_confirmation", container.Names))) return;
+        await ApplyContainerActionAsync("delete", true);
+    }
     [RelayCommand(CanExecute = nameof(HasSelectedContainer))] private async Task LoadContainerLogsAsync()
     {
         var container = SelectedContainer; if (container is null) return;
@@ -165,7 +168,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     }
 
     private bool HasSelectedContainer => SelectedContainer is not null && !IsLoading;
-    private bool CanDeleteContainer => HasSelectedContainer && ConfirmContainerDeletion;
+    private bool CanDeleteContainer => HasSelectedContainer;
     partial void OnSelectedContainerChanged(DockerContainerDto? value)
     {
         ContainerLogs = ContainerStats = string.Empty;
@@ -174,7 +177,6 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         ContainerPortsText = ContainerMountsText = ContainerNetworksText = ContainerEnvironmentText = ContainerLabelsText = string.Empty;
         NotifyContainerCommands();
     }
-    partial void OnConfirmContainerDeletionChanged(bool value) => DeleteContainerCommand.NotifyCanExecuteChanged();
     partial void OnIsLoadingChanged(bool value)
     {
         NotifyContainerCommands();
@@ -279,7 +281,13 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StartStackAsync() => ApplySelectedStackActionAsync("start");
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task StopStackAsync() => ApplySelectedStackActionAsync("stop");
     [RelayCommand(CanExecute = nameof(HasSelectedStack))] private Task RestartStackAsync() => ApplySelectedStackActionAsync("restart");
-    [RelayCommand(CanExecute = nameof(CanDeleteStack))] private Task DeleteStackAsync() => ApplySelectedStackActionAsync("delete", confirmed: true);
+    [RelayCommand(CanExecute = nameof(CanDeleteStack))]
+    private async Task DeleteStackAsync()
+    {
+        var stack = SelectedStack;
+        if (stack is null || !await ConfirmDeletionAsync(LocalizedText.Format("docker.stack.delete_confirmation", stack.Name))) return;
+        await ApplySelectedStackActionAsync("delete", confirmed: true);
+    }
     [RelayCommand(CanExecute = nameof(HasSelectedStack))]
     private async Task EditStackAsync()
     {
@@ -307,14 +315,13 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     }
 
     private bool HasSelectedStack => SelectedStack is not null && !IsLoading;
-    private bool CanDeleteStack => HasSelectedStack && ConfirmStackDeletion;
+    private bool CanDeleteStack => HasSelectedStack;
     partial void OnSelectedStackChanged(DockerStackDto? value)
     {
         Replace(StackServices, []);
         NotifyStackCommands();
         if (value is not null) _ = LoadStackServicesAsync();
     }
-    partial void OnConfirmStackDeletionChanged(bool value) => DeleteStackCommand.NotifyCanExecuteChanged();
     private void NotifyStackCommands()
     {
         LoadStackServicesCommand.NotifyCanExecuteChanged();
@@ -372,14 +379,14 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(CanDeleteImage))] private async Task DeleteImageAsync()
     {
         var image = SelectedImage; if (image is null) return;
+        if (!await ConfirmDeletionAsync(LocalizedText.Format("docker.image.delete_confirmation", image.Repository))) return;
         await RunOperationAsync(
             () => client.DeleteImageAsync(image.Id, new DockerImageOperationRequest(image.Id, true)),
             result => result.Success ? LocalizedText.Format("docker.image.deleted", image.Repository) : LocalizedText.Format("docker.image.delete_failed", ProblemText(result.ProblemCode)),
             operationName: LocalizedText.Format("docker.operation.delete_image", image.Repository));
     }
-    private bool CanDeleteImage => SelectedImage is not null && ConfirmImageDeletion && !IsLoading;
+    private bool CanDeleteImage => SelectedImage is not null && !IsLoading;
     partial void OnSelectedImageChanged(DockerImageDto? value) => DeleteImageCommand.NotifyCanExecuteChanged();
-    partial void OnConfirmImageDeletionChanged(bool value) => DeleteImageCommand.NotifyCanExecuteChanged();
 
     [RelayCommand] private Task CreateNetworkAsync() => TryCreateNetworkAsync();
 
@@ -398,14 +405,14 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(CanDeleteNetwork))] private async Task DeleteNetworkAsync()
     {
         var network = SelectedNetwork; if (network is null) return;
+        if (!await ConfirmDeletionAsync(LocalizedText.Format("docker.network.delete_confirmation", network.Name))) return;
         await RunOperationAsync(
             () => client.DeleteNetworkAsync(network.Id, true),
             result => result.Success ? LocalizedText.Format("docker.network.deleted", network.Name) : LocalizedText.Format("docker.network.delete_failed", ProblemText(result.ProblemCode)),
             operationName: LocalizedText.Format("docker.operation.delete_network", network.Name));
     }
-    private bool CanDeleteNetwork => SelectedNetwork is not null && ConfirmNetworkDeletion && !IsLoading;
+    private bool CanDeleteNetwork => SelectedNetwork is not null && !IsLoading;
     partial void OnSelectedNetworkChanged(DockerNetworkDto? value) => DeleteNetworkCommand.NotifyCanExecuteChanged();
-    partial void OnConfirmNetworkDeletionChanged(bool value) => DeleteNetworkCommand.NotifyCanExecuteChanged();
 
     [RelayCommand] private Task CreateVolumeAsync() => TryCreateVolumeAsync();
 
@@ -424,14 +431,17 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [RelayCommand(CanExecute = nameof(CanDeleteVolume))] private async Task DeleteVolumeAsync()
     {
         var volume = SelectedVolume; if (volume is null) return;
+        if (!await ConfirmDeletionAsync(LocalizedText.Format("docker.volume.delete_confirmation", volume.Name))) return;
         await RunOperationAsync(
             () => client.DeleteVolumeAsync(volume.Name, true),
             result => result.Success ? LocalizedText.Format("docker.volume.deleted", volume.Name) : LocalizedText.Format("docker.volume.delete_failed", ProblemText(result.ProblemCode)),
             operationName: LocalizedText.Format("docker.operation.delete_volume", volume.Name));
     }
-    private bool CanDeleteVolume => SelectedVolume is not null && ConfirmVolumeDeletion && !IsLoading;
+    private bool CanDeleteVolume => SelectedVolume is not null && !IsLoading;
     partial void OnSelectedVolumeChanged(DockerVolumeDto? value) => DeleteVolumeCommand.NotifyCanExecuteChanged();
-    partial void OnConfirmVolumeDeletionChanged(bool value) => DeleteVolumeCommand.NotifyCanExecuteChanged();
+
+    private async Task<bool> ConfirmDeletionAsync(string message) =>
+        RequestDeletionConfirmationAsync is not null && await RequestDeletionConfirmationAsync(message);
 
     private async Task<bool> RunOperationAsync(Func<Task<DockerOperationResult>> operation, Func<DockerOperationResult, string> status, Action? onSuccess = null, string? operationName = null)
     {

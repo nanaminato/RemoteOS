@@ -31,7 +31,6 @@
                 <Button Content="{loc:Loc docker.stack.edit}" Command="{Binding EditStackCommand}" Margin="0,0,8,0" />
                 <Button Content="{loc:Loc docker.stack.open_source}" Command="{Binding OpenSelectedStackSourceCommand}" Margin="0,0,8,0" />
                 <Button Content="{loc:Loc docker.stack.refresh_services}" Command="{Binding LoadStackServicesCommand}" />
-                <CheckBox Content="{loc:Loc docker.stack.delete_confirm}" IsChecked="{Binding ConfirmStackDeletion, Mode=TwoWay}" VerticalAlignment="Center" Margin="8,0,8,0" />
                 <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteStackCommand}" Foreground="{DynamicResource DangerBrush}" />
             </WrapPanel>
             <TextBlock Grid.Row="5" Text="{loc:Loc docker.stack.services}" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />

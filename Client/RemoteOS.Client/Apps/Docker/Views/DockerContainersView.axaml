@@ -32,7 +32,6 @@
                 <Button Content="{loc:Loc docker.container.edit}" Command="{Binding EditContainerCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.logs}" Command="{Binding LoadContainerLogsCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.stats}" Command="{Binding LoadContainerStatsCommand}" Margin="0,0,8,8" />
-                <CheckBox Content="{loc:Loc docker.container.delete_confirm}" IsChecked="{Binding ConfirmContainerDeletion, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteContainerCommand}" Foreground="{DynamicResource DangerBrush}" Margin="0,0,8,8" />
             </WrapPanel>
             <TextBox Text="{Binding ContainerStats}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="32" MaxHeight="32" />

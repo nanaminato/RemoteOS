@@ -20,7 +20,6 @@
                 </DataGrid>
             </ScrollViewer>
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-                <CheckBox Content="{loc:Loc docker.network.delete_confirm}" IsChecked="{Binding ConfirmNetworkDeletion, Mode=TwoWay}" VerticalAlignment="Center" />
                 <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteNetworkCommand}" Foreground="{DynamicResource DangerBrush}" />
             </StackPanel>
         </StackPanel>

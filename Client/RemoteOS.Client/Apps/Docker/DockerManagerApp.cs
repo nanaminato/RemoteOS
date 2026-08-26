@@ -1,4 +1,5 @@
 using Client.Apps.Docker.Views;
+using Client.Apps.Explorer.Dialogs;
 using Client.Localization;
 using Client.Services;
 using Client.Services.Auth;
@@ -40,6 +41,15 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         vm.ShowEditContainerAsync = () => DockerManagerDialogs.ShowEditContainerAsync(context, window!, vm);
         vm.ShowEditStackAsync = () => DockerManagerDialogs.ShowEditStackAsync(context, window!, vm);
         vm.ShowContainerDetailsAsync = () => DockerManagerDialogs.ShowContainerDetailsAsync(context, window!, vm);
+        vm.RequestDeletionConfirmationAsync = async message =>
+        {
+            var confirmed = false;
+            await context.ShowDialogAsync<bool>(window!, LocalizedText.Get("common.delete"), dialog => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(message, result => { confirmed = result; dialog.Close(result); }, LocalizedText.Get("common.delete")),
+            });
+            return confirmed;
+        };
         vm.OpenFileBrowserAtPathAsync = path =>
         {
             var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));
