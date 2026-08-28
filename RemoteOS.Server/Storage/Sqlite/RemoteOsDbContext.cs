@@ -25,9 +25,32 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<TunnelDefinition> TunnelDefinitions => Set<TunnelDefinition>();
     public DbSet<TunnelSecret> TunnelSecrets => Set<TunnelSecret>();
     public DbSet<TunnelAuditEntry> TunnelAuditEntries => Set<TunnelAuditEntry>();
+    public DbSet<AccountFailureState> AccountFailureStates => Set<AccountFailureState>();
+    public DbSet<AuthenticationSecurityEvent> AuthenticationSecurityEvents => Set<AuthenticationSecurityEvent>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.Entity<AccountFailureState>(e =>
+        {
+            e.ToTable("account_failure_states");
+            e.HasKey(x => x.AccountKey);
+            e.Property(x => x.AccountKey).HasMaxLength(128);
+            e.Property(x => x.FirstFailureAt).HasColumnType("TEXT");
+            e.Property(x => x.LastFailureAt).HasColumnType("TEXT");
+            e.Property(x => x.BlockedUntil).HasColumnType("TEXT");
+        });
+        mb.Entity<AuthenticationSecurityEvent>(e =>
+        {
+            e.ToTable("authentication_security_events");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnType("TEXT");
+            e.Property(x => x.EventType).IsRequired().HasMaxLength(64);
+            e.Property(x => x.AccountKey).HasMaxLength(128);
+            e.Property(x => x.SourceIp).IsRequired().HasMaxLength(64);
+            e.Property(x => x.CreatedAt).HasColumnType("TEXT");
+            e.HasIndex(x => x.CreatedAt);
+            e.HasIndex(x => x.AccountKey);
+        });
         mb.Entity<TunnelServerProfile>(e =>
         {
             e.ToTable("tunnel_server_profiles");

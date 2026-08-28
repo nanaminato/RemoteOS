@@ -1,11 +1,14 @@
 using System.Runtime.InteropServices;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Threading.RateLimiting;
 using RemoteOS.Protocol.Common;
 using RoyalTerminal.Terminal;
 using Server.Endpoints;
@@ -24,6 +27,46 @@ builder.Services.AddDataProtection();
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
+
+builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
+var authSecurity = builder.Configuration.GetSection("AuthenticationSecurity").Get<AuthSecurityOptions>() ?? new AuthSecurityOptions();
+if (authSecurity.EndpointPermitLimit <= 0 || authSecurity.EndpointWindowSeconds <= 0
+    || authSecurity.IpFailureLimit <= 0 || authSecurity.IpFailureWindowMinutes <= 0
+    || authSecurity.IpBlockMinutes <= 0 || authSecurity.AccountFailureRetentionHours <= 0)
+    throw new InvalidOperationException("AuthenticationSecurity values must be greater than zero.");
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = authSecurity.EndpointWindowSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return ValueTask.CompletedTask;
+    };
+    options.AddPolicy("login", http => RateLimitPartition.GetTokenBucketLimiter(
+        http.Connection.RemoteIpAddress?.MapToIPv6().ToString() ?? "unknown",
+        _ => new TokenBucketRateLimiterOptions
+        {
+            TokenLimit = authSecurity.EndpointPermitLimit,
+            TokensPerPeriod = authSecurity.EndpointPermitLimit,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(authSecurity.EndpointWindowSeconds),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+});
+
+var forwardedHeaders = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor, ForwardLimit = 1 };
+foreach (var proxy in authSecurity.TrustedProxies)
+{
+    if (!IPAddress.TryParse(proxy, out var address))
+        throw new InvalidOperationException($"AuthenticationSecurity:TrustedProxies contains an invalid IP address: {proxy}");
+    forwardedHeaders.KnownProxies.Add(address);
+}
+foreach (var network in authSecurity.TrustedNetworks)
+{
+    if (!System.Net.IPNetwork.TryParse(network, out var parsedNetwork))
+        throw new InvalidOperationException($"AuthenticationSecurity:TrustedNetworks contains an invalid CIDR: {network}");
+    forwardedHeaders.KnownIPNetworks.Add(parsedNetwork);
+}
 
 // 序列化：与 RemoteOsJsonOptions.Default 对齐（camelCase + 枚举字符串），保证线协议一致
 builder.Services.ConfigureHttpJsonOptions(opts =>
@@ -272,6 +315,7 @@ if (storageProvider == "sqlite")
     builder.Services.AddDbContextFactory<RemoteOsDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
     // 仓储为 Scoped（依赖 Scoped 的 DbContext）；Minimal API [FromServices] 每请求创建 scope，兼容
     builder.Services.AddScoped<IUserRepository, SqliteUserRepository>();
+    builder.Services.AddScoped<IAuthenticationProtectionStore, SqliteAuthenticationProtectionStore>();
     builder.Services.AddScoped<IWorkspaceRepository, SqliteWorkspaceRepository>();
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
@@ -285,6 +329,7 @@ else
 {
     // memory：开发回退（重启丢失）
     builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
+    builder.Services.AddSingleton<IAuthenticationProtectionStore, InMemoryAuthenticationProtectionStore>();
     builder.Services.AddSingleton<IWorkspaceRepository, InMemoryWorkspaceRepository>();
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
@@ -294,6 +339,7 @@ else
 }
 // Session 始终内存（连接关系，不持久化）
 builder.Services.AddSingleton<ISessionRepository, InMemorySessionRepository>();
+builder.Services.AddScoped<LoginProtectionService>();
 
 // 终端：服务端 PTY 工厂（Windows ConPTY / Unix forkpty）+ 持久会话管理器 + SignalR Hub。
 // AddSignalR 由 Microsoft.NET.Sdk.Web 隐式 FrameworkReference 提供，无需额外 NuGet。
@@ -319,6 +365,11 @@ builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// Only configured reverse proxies can affect the source IP used by login protection.
+// With no KnownProxies, ForwardedHeadersMiddleware ignores X-Forwarded-For entirely.
+if (forwardedHeaders.KnownProxies.Count > 0 || forwardedHeaders.KnownIPNetworks.Count > 0)
+    app.UseForwardedHeaders(forwardedHeaders);
 
 app.Use(async (context, next) =>
 {
@@ -470,6 +521,23 @@ if (storageProvider == "sqlite")
             "CreatedAt" TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS "IX_tunnel_audit_entries_CreatedAt" ON "tunnel_audit_entries" ("CreatedAt");
+
+        CREATE TABLE IF NOT EXISTS "account_failure_states" (
+            "AccountKey" TEXT NOT NULL PRIMARY KEY,
+            "FailureCount" INTEGER NOT NULL,
+            "FirstFailureAt" TEXT NOT NULL,
+            "LastFailureAt" TEXT NOT NULL,
+            "BlockedUntil" TEXT NULL
+        );
+        CREATE TABLE IF NOT EXISTS "authentication_security_events" (
+            "Id" TEXT NOT NULL PRIMARY KEY,
+            "EventType" TEXT NOT NULL,
+            "AccountKey" TEXT NULL,
+            "SourceIp" TEXT NOT NULL,
+            "CreatedAt" TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_CreatedAt" ON "authentication_security_events" ("CreatedAt");
+        CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_AccountKey" ON "authentication_security_events" ("AccountKey");
         """);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
@@ -491,6 +559,7 @@ else
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();

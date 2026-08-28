@@ -6,7 +6,7 @@
 >
 > RemoteOS 的定位是云原生桌面操作系统：Server 端跨平台运行，复用宿主 OS 用户与权限体系；Client 端提供跨平台桌面 Shell。主要应用场景为个人服务器、小型团队服务器的桌面化管理。
 >
-> 本文档属服务端身份层设计。**落地状态**：`RemoteOS.Server` 已实现 auth 端点（login/refresh/logout/me）+ JWT（HMACSHA256）+ `IIdentityProvider` 抽象（Windows `LogonUser`、Linux PAM + NSS）+ EF Core/SQLite 持久化（User/Workspace/Device）。安全提权（sudo/UAC）、审计日志等能力将随系统逐步实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
+> 本文档属服务端身份层设计。**落地状态**：`RemoteOS.Server` 已实现 auth 端点（login/refresh/logout/me）+ JWT（HMACSHA256）+ `IIdentityProvider` 抽象（Windows `LogonUser`、Linux PAM + NSS）+ EF Core/SQLite 持久化（User/Workspace/Device），以及登录端点限流、三维失败计数/递增冷却和认证安全审计。安全提权（sudo/UAC）等能力将随系统逐步实现。详见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) 与 [`RemoteOS.Storage.md`](./RemoteOS.Storage.md)。
 >
 > 相关文档：
 >
@@ -35,6 +35,10 @@ RemoteOS 面向：
 核心目标：
 
 > 提供类似 Windows / macOS 的服务器桌面操作体验，同时复用宿主 OS（Linux 或 Windows）已有用户和权限体系。
+
+### 1.2 已实现的登录保护
+
+认证请求先经过每 IP 的 HTTP Token Bucket，再检查 IP、账号及账号+IP 三个维度的失败状态；连续失败按递增时间冷却，不会由远程请求永久锁定账号。账号状态和不含密码/令牌的安全事件持久化到 SQLite。具体阈值、`Retry-After` 客户端行为以及受信反向代理配置见 [`RemoteOS.Login.md`](./RemoteOS.Login.md) §4.6。
 
 ### 1.1 跨平台支持
 

@@ -1,6 +1,6 @@
 # RemoteOS Login 模块设计文档
 
-> 本文档定义 RemoteOS 登录模块：客户端登录窗口（mstsc 风格）、传输层、认证会话、服务端 auth 端点、JWT、IIdentityProvider 抽象、内存持久化。
+> 本文档定义 RemoteOS 登录模块：客户端登录窗口（mstsc 风格）、传输层、认证会话、服务端 auth 端点、JWT、IIdentityProvider 抽象及登录防护。
 >
 > 本文档描述**已实现的登录模块**：客户端可真实登录到本机 Server 并进入桌面。不含 SignalR Hub（桌面状态同步是独立模块）。
 >
@@ -35,7 +35,7 @@ RemoteOS 登录模块参考 Windows Server 远程桌面连接工具 **mstsc** �
 **已实现**：
 
 - 客户端：`LoginWindow` + `LoginView` + `LoginViewModel` + `IRemoteOsClient`（typed HttpClient）+ `IAuthSession`（可选记住设备）+ 统一 bearer 自动刷新/401 单次重试 + 启动分叉
-- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser）+ `LinuxPamProvider`（PAM 认证与账户检查、NSS 用户信息）+ SQLite 持久化仓储（User/Workspace/Device/Bookmark/HistoryEntry，Session/刷新令牌/PTY 内存）
+- 服务端：`/api/v1/auth/login|refresh|logout|me` 端点 + JWT 签发 + `IIdentityProvider` 抽象 + `WindowsLogonProvider`（LogonUser）+ `LinuxPamProvider`（PAM 认证与账户检查、NSS 用户信息）+ 登录端点限流、账号/IP/账号+IP 递增冷却，以及 SQLite 持久化仓储
 - 协议：零改动（复用 Protocol 已有的 `LoginRequest`/`LoginResponse`/`AuthTokens`/`AuthApiRoutes`/`ProblemDetails`）
 
 **非范围（未来扩展）**：
@@ -154,7 +154,7 @@ Unauthenticated ──Connect──>> Connecting ──成功──>> Authentica
 
 | 方法 | 路由 | 认证 | 说明 |
 |---|---|---|---|
-| POST | `/api/v1/auth/login` | 无 | 凭据验证 → 签发 JWT → 返回 `LoginResponse` |
+| POST | `/api/v1/auth/login` | 无 | 先限流与风险检查，再验证凭据并签发 JWT；受限时返回 429 + `Retry-After` |
 | POST | `/api/v1/auth/refresh` | 无 | RefreshToken 换新令牌对（旧 refresh 作废） |
 | POST | `/api/v1/auth/logout` | JWT | 吊销 RefreshToken |
 | GET | `/api/v1/auth/me` | JWT | 返回当前 `UserDto` |
@@ -211,16 +211,23 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 ### 4.5 login 端点流程
 
 ```text
-1. 参数校验（空字段）→ 400 invalid-input
-2. IIdentityProvider.Verify → 失败按错误码映射 ProblemDetails
-3. GetUserInfo → 查/建 User
-4. 查/建 Workspace（One User One Persistent）
-5. 查/建 Device（按 name+platform 复用，更新登录信息）
-6. 新建 Session（Status=Active）
-7. 设 Workspace Controller（Grace Period 5min，见 Workspace.md §19）
-8. JwtTokenService.Issue（首个设备 = Controller）
-9. 返回 LoginResponse(user, workspace, session, device, tokens, role)
+1. HTTP 入口按源 IP Token Bucket 限流（默认每 IP 10 次/分钟）→ 429 + Retry-After
+2. 检查账号、IP、账号+IP 三个风险计数器与冷却时间 → 429 + Retry-After
+3. 参数校验（空字段）→ 400 invalid-input
+4. IIdentityProvider.Verify；失败统一返回 401 invalid-credential，并记录风险事件
+5. 成功后清除该账号的冷却状态、记录成功事件
+6. GetUserInfo → 查/建 User、Workspace、Device、Session
+7. 设 Workspace Controller（Grace Period 5min，见 Workspace.md §19）并签发 JWT
+8. 返回 LoginResponse(user, workspace, session, device, tokens, role)
 ```
+
+### 4.6 登录防暴力破解与反向代理
+
+`LoginProtectionService` 将同一次失败同时计入账号、IP 和账号+IP：账号维度防代理池攻击，IP 维度防 password spraying，账号+IP 维度提供递增冷却。账号失败状态及不含秘密的 `authentication_security_events` 记录写入 SQLite，服务重启后不会清空；IP 和账号+IP 是短期内存状态，避免把不受控攻击 IP 永久写入数据库。
+
+默认值位于 `appsettings.json` 的 `AuthenticationSecurity`：入口 10 次/分钟；5 分钟内单 IP 30 次失败后阻止 5 分钟；账号连续第 5/6/7/8/9/10 次失败的冷却为约 2 秒/5 秒/15 秒/30 秒/1 分钟/5 分钟，之后最高 1 小时。管理员可调整这些数值，但不应把它们替换为“多次失败永久锁定”，以免攻击者借此锁死管理员。
+
+服务端默认忽略 `X-Forwarded-For`。若部署在 Nginx、Caddy 或 IIS 后，必须仅在 `AuthenticationSecurity:TrustedProxies` 中列出反向代理的直连 IP，或在 `TrustedNetworks` 中列出其受控 CIDR；只有这些代理的请求才会解析一个转发地址。不要将公网客户端网段或不受控代理放入此列表。
 
 ---
 
@@ -232,6 +239,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 |---|---|---|---|
 | 网络不可达/拒绝连接 | — | — | "无法连接到服务器：{host}" |
 | 凭据错误/用户不存在 | 401 | `.../invalid-credential` | "用户名或密码错误" |
+| 入口或风险冷却限制 | 429 | `.../login-rate-limited` 或限流中间件响应 | "登录尝试过于频繁，请稍后重试"；读取 `Retry-After` 后倒计时禁用按钮 |
 | 账户锁定 | 423 | `.../account-locked` | "账户已锁定，请联系管理员" |
 | 账户禁用 | 403 | `.../account-disabled` | "账户已禁用" |
 | 密码过期 | 403 | `.../password-expired` | "密码已过期，请先在服务器上修改" |
@@ -246,7 +254,7 @@ InMemory*Repository (Singleton, ConcurrentDictionary, 重启丢失)
 
 ## 6. 安全考量
 
-- **服务器不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），服务端密码仅在校验瞬间传入，不落库、不日志。
+- **服务器不存储宿主 OS 密码**：认证委托宿主 OS（LogonUser/PAM），服务端密码仅在校验瞬间传入，不落库、不日志。由于宿主 Provider 可能区分用户不存在、密码错误或账户状态，`login` 对外一律对验证失败返回相同的 `401 invalid-credential`，避免用户名枚举。
 - **自动登录的安全性**：未勾选“记住”时 `AuthSession` 不写盘。密码仅通过平台凭据库保存：Windows 为当前用户 DPAPI 加密文件，macOS 为 Keychain，Linux 为 Secret Service。Linux 的非敏感连接元数据另存于当前用户数据目录，目录权限 `0700`、文件权限 `0600`，其中密码始终为 `null`。密码不会写入普通配置、数据库或日志。
 - **JWT 对称密钥**：Production 启动校验 `Jwt:Secret` 非默认占位值；Development 用固定开发密钥。
 - **HTTPS**：Production 强制 HTTPS 重定向；Development 允许 http 方便本地测试。
