@@ -13,6 +13,8 @@ public static class CertificateEndpoints
         group.MapPost(CertificateApiRoutes.PreflightPattern, (CertificatePreflightRequest request, Server.Certificate.ICertificateManager manager, CancellationToken ct) => manager.PreflightAsync(request, ct));
         group.MapPost(CertificateApiRoutes.CollectionPattern, async (RequestCertificateRequest request, HttpContext context, Server.Certificate.ICertificateManager manager, CancellationToken ct) =>
             await StartAsync(context, key => manager.RequestAsync(key, request, Actor(context), ct)));
+        group.MapPost(CertificateApiRoutes.SelfSignedPattern, async (CreateSelfSignedCertificateRequest request, HttpContext context, Server.Certificate.ICertificateManager manager, CancellationToken ct) =>
+            await StartAsync(context, key => manager.CreateSelfSignedAsync(key, request, Actor(context), ct)));
         group.MapPost(CertificateApiRoutes.DeployPattern, async (Guid id, HttpContext context, Server.Certificate.ICertificateManager manager, CancellationToken ct) =>
             await StartAsync(context, key => manager.DeployKestrelAsync(id, key, Actor(context), ct)));
         group.MapPost(CertificateApiRoutes.RenewPattern, async (Guid id, HttpContext context, Server.Certificate.ICertificateManager manager, CancellationToken ct) =>

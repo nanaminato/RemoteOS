@@ -27,8 +27,8 @@ internal sealed class CertificateMetadataRepository
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO certificate_records (certificate_id, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, current_version, previous_version, status, revision, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code)
-            VALUES ($id, $domain, $domains, $challenge, $algorithm, $issuer, $serial, $thumbprint, $notBefore, $notAfter, $version, NULL, $status, 1, $created, $updated, $email, $renewalStart, $renewalEnd, $lastRenewalAt, $lastRenewalProblem)
+            INSERT INTO certificate_records (certificate_id, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, current_version, previous_version, status, revision, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code, kind, fingerprint_sha256)
+            VALUES ($id, $domain, $domains, $challenge, $algorithm, $issuer, $serial, $thumbprint, $notBefore, $notAfter, $version, NULL, $status, 1, $created, $updated, $email, $renewalStart, $renewalEnd, $lastRenewalAt, $lastRenewalProblem, $kind, $fingerprint)
             ON CONFLICT(certificate_id) DO UPDATE SET
                 primary_domain=excluded.primary_domain, domains_json=excluded.domains_json, challenge_type=excluded.challenge_type, key_algorithm=excluded.key_algorithm,
                 issuer=excluded.issuer, serial_number=excluded.serial_number, thumbprint=excluded.thumbprint,
@@ -36,6 +36,7 @@ internal sealed class CertificateMetadataRepository
                 current_version=excluded.current_version, status=excluded.status, contact_email=excluded.contact_email,
                 renewal_window_start=excluded.renewal_window_start, renewal_window_end=excluded.renewal_window_end,
                 last_renewal_at=excluded.last_renewal_at, last_renewal_problem_code=excluded.last_renewal_problem_code,
+                kind=excluded.kind, fingerprint_sha256=excluded.fingerprint_sha256,
                 revision=certificate_records.revision+1, updated_at=excluded.updated_at;
             """;
         command.Parameters.AddWithValue("$id", certificate.Id.ToString("D"));
@@ -57,6 +58,8 @@ internal sealed class CertificateMetadataRepository
         command.Parameters.AddWithValue("$renewalEnd", certificate.RenewalWindowEnd?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$lastRenewalAt", certificate.LastRenewalAt?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$lastRenewalProblem", (object?)certificate.LastRenewalProblemCode ?? DBNull.Value);
+        command.Parameters.AddWithValue("$kind", certificate.Kind.ToString());
+        command.Parameters.AddWithValue("$fingerprint", (object?)certificate.FingerprintSha256 ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -66,7 +69,7 @@ internal sealed class CertificateMetadataRepository
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT certificate_id, current_version, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, status, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code FROM certificate_records WHERE certificate_id=$id;";
+        command.CommandText = "SELECT certificate_id, current_version, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, status, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code, kind, fingerprint_sha256 FROM certificate_records WHERE certificate_id=$id;";
         command.Parameters.AddWithValue("$id", id.ToString("D"));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? Read(reader) : null;
@@ -78,7 +81,7 @@ internal sealed class CertificateMetadataRepository
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT certificate_id, current_version, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, status, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code FROM certificate_records ORDER BY primary_domain;";
+        command.CommandText = "SELECT certificate_id, current_version, primary_domain, domains_json, challenge_type, key_algorithm, issuer, serial_number, thumbprint, not_before, not_after, status, created_at, updated_at, contact_email, renewal_window_start, renewal_window_end, last_renewal_at, last_renewal_problem_code, kind, fingerprint_sha256 FROM certificate_records ORDER BY primary_domain;";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var results = new List<StoredCertificate>();
         while (await reader.ReadAsync(cancellationToken)) results.Add(Read(reader));
@@ -126,6 +129,8 @@ internal sealed class CertificateMetadataRepository
             DateTimeOffset.Parse(reader.GetString(9)), DateTimeOffset.Parse(reader.GetString(10)), Enum.Parse<CertificateStatus>(reader.GetString(11)),
             DateTimeOffset.Parse(reader.GetString(12)), DateTimeOffset.Parse(reader.GetString(13)), reader.IsDBNull(14) ? null : reader.GetString(14),
             reader.IsDBNull(15) ? null : DateTimeOffset.Parse(reader.GetString(15)), reader.IsDBNull(16) ? null : DateTimeOffset.Parse(reader.GetString(16)),
-            reader.IsDBNull(17) ? null : DateTimeOffset.Parse(reader.GetString(17)), reader.IsDBNull(18) ? null : reader.GetString(18));
+            reader.IsDBNull(17) ? null : DateTimeOffset.Parse(reader.GetString(17)), reader.IsDBNull(18) ? null : reader.GetString(18),
+            reader.IsDBNull(19) ? CertificateKind.Acme : Enum.Parse<CertificateKind>(reader.GetString(19)),
+            reader.IsDBNull(20) ? null : reader.GetString(20));
     }
 }

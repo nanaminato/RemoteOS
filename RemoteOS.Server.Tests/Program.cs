@@ -125,6 +125,8 @@ static async Task VerifyCertificateStoreAndSniAsync(string root)
     await store.SaveAsync(third, CancellationToken.None);
     var stored = await store.GetAsync(certificateId, CancellationToken.None) ?? throw new InvalidOperationException("Certificate metadata was not saved.");
     Assert(stored.Version.Length == 32, "Certificate version was not generated.");
+    Assert(stored.FingerprintSha256 is { Length: 95 } && stored.FingerprintSha256.Count(character => character == ':') == 31,
+        "Certificate SHA-256 fingerprint was not saved in a comparable format.");
     var versions = Directory.EnumerateDirectories(Path.Combine(options.StorageRoot!, certificateId.ToString("D"), "versions")).ToArray();
     Assert(versions.Length == 2, "Certificate version retention did not prune old material.");
     if (!OperatingSystem.IsWindows())
@@ -154,6 +156,7 @@ static void VerifyCertificateApiRoutes()
 {
     Assert(CertificateApiRoutes.Certificates == "/api/v1/certificates", "Certificate collection route changed unexpectedly.");
     Assert(CertificateApiRoutes.Request == CertificateApiRoutes.Certificates, "Certificate request route must use the collection endpoint.");
+    Assert(CertificateApiRoutes.SelfSigned == "/api/v1/certificates/self-signed", "Self-signed certificate route changed unexpectedly.");
     Assert(CertificateApiRoutes.CollectionPattern.Length == 0, "Certificate collection pattern must remain group-relative.");
 }
 

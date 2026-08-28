@@ -27,6 +27,9 @@ public sealed class RemoteCertificateClient(HttpClient http, IAuthSession sessio
     public Task<CertificateOperationDto> RequestAsync(RequestCertificateRequest request, CancellationToken cancellationToken = default)
         => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Request, request, NewKey(), cancellationToken);
 
+    public Task<CertificateOperationDto> CreateSelfSignedAsync(CreateSelfSignedCertificateRequest request, CancellationToken cancellationToken = default)
+        => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.SelfSigned, request, NewKey(), cancellationToken);
+
     public Task<CertificateOperationDto> DeployKestrelAsync(Guid id, CancellationToken cancellationToken = default)
         => SendAsync<CertificateOperationDto>(HttpMethod.Post, CertificateApiRoutes.Deploy.Replace("{id}", id.ToString("N")), null, NewKey(), cancellationToken);
 

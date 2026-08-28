@@ -17,6 +17,8 @@ public sealed class CertificateEnumTextConverter : IValueConverter
         CertificateChallengeType.DirectHttp01 => LocalizedText.Get("certificates.challenge.direct_http01"),
         CertificateChallengeType.WebRootHttp01 => LocalizedText.Get("certificates.challenge.webroot_http01"),
         CertificateChallengeType.Dns01 => LocalizedText.Get("certificates.challenge.dns01"),
+        CertificateKind.Acme => LocalizedText.Get("certificates.kind.acme"),
+        CertificateKind.SelfSigned => LocalizedText.Get("certificates.kind.self_signed"),
         _ => LocalizedText.Get("certificates.status_value.unknown"),
     };
 

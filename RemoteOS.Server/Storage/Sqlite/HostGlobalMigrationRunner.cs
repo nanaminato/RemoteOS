@@ -188,6 +188,15 @@ internal static class HostGlobalMigrationRunner
             await ExecuteAsync(connection, transaction,
                 "INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (6, CURRENT_TIMESTAMP);", cancellationToken);
         }
+        if (!await IsAppliedAsync(connection, transaction, 7, cancellationToken))
+        {
+            if (!await HasColumnAsync(connection, transaction, "certificate_records", "kind", cancellationToken))
+                await ExecuteAsync(connection, transaction, "ALTER TABLE certificate_records ADD COLUMN kind TEXT NULL;", cancellationToken);
+            if (!await HasColumnAsync(connection, transaction, "certificate_records", "fingerprint_sha256", cancellationToken))
+                await ExecuteAsync(connection, transaction, "ALTER TABLE certificate_records ADD COLUMN fingerprint_sha256 TEXT NULL;", cancellationToken);
+            await ExecuteAsync(connection, transaction,
+                "INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (7, CURRENT_TIMESTAMP);", cancellationToken);
+        }
         transaction.Commit();
     }
 

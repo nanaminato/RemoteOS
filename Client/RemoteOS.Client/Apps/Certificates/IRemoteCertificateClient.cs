@@ -13,6 +13,7 @@ public interface IRemoteCertificateClient
     Task<CertificateDto?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CertificatePreflightResultDto> PreflightAsync(CertificatePreflightRequest request, CancellationToken cancellationToken = default);
     Task<CertificateOperationDto> RequestAsync(RequestCertificateRequest request, CancellationToken cancellationToken = default);
+    Task<CertificateOperationDto> CreateSelfSignedAsync(CreateSelfSignedCertificateRequest request, CancellationToken cancellationToken = default);
     Task<CertificateOperationDto> DeployKestrelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CertificateOperationDto> RenewAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CertificateOperationDto> RevokeAsync(Guid id, RevokeCertificateRequest request, CancellationToken cancellationToken = default);

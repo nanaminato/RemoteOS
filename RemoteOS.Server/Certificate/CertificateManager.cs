@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -15,6 +17,7 @@ internal interface ICertificateManager
     Task<CertificateDto?> GetAsync(Guid certificateId, CancellationToken cancellationToken);
     Task<CertificatePreflightResultDto> PreflightAsync(CertificatePreflightRequest request, CancellationToken cancellationToken);
     Task<CertificateOperationDto> RequestAsync(string idempotencyKey, RequestCertificateRequest request, string? actor, CancellationToken cancellationToken);
+    Task<CertificateOperationDto> CreateSelfSignedAsync(string idempotencyKey, CreateSelfSignedCertificateRequest request, string? actor, CancellationToken cancellationToken);
     Task<CertificateOperationDto> RenewAsync(Guid certificateId, string idempotencyKey, string? actor, CancellationToken cancellationToken);
     Task<CertificateOperationDto> DeployKestrelAsync(Guid certificateId, string idempotencyKey, string? actor, CancellationToken cancellationToken);
     Task<CertificateOperationDto> DeleteAsync(Guid certificateId, string idempotencyKey, DeleteCertificateRequest request, string? actor, CancellationToken cancellationToken);
@@ -105,6 +108,24 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         }, lifetime.ApplicationStopping);
     }
 
+    public async Task<CertificateOperationDto> CreateSelfSignedAsync(string idempotencyKey, CreateSelfSignedCertificateRequest request, string? actor, CancellationToken cancellationToken)
+    {
+        if (request is null) return Failure("create-self-signed", "certificate.request_invalid");
+        if (!privileges.IsAdministrator) return Failure("create-self-signed", "certificate.admin_required");
+        if (!Enum.IsDefined(request.KeyAlgorithm)) return Failure("create-self-signed", "certificate.key_algorithm_invalid");
+        if (request.ValidityDays is < 1 or > 825) return Failure("create-self-signed", "certificate.validity_days_invalid");
+        if (!TryNormalizeDomains(request.Domains, CertificateChallengeType.Dns01, out var domains, out var problem))
+            return Failure("create-self-signed", problem);
+
+        var certificateId = Guid.NewGuid();
+        return await operations.StartAsync(idempotencyKey, certificateId, "create-self-signed", actor, async ct =>
+        {
+            var material = CreateSelfSignedMaterial(certificateId, domains, request.KeyAlgorithm, request.ValidityDays);
+            await certificates.SaveAsync(material, ct);
+            return "";
+        }, lifetime.ApplicationStopping);
+    }
+
     public async Task<CertificateOperationDto> DeployKestrelAsync(Guid certificateId, string idempotencyKey, string? actor, CancellationToken cancellationToken)
     {
         if (!privileges.IsAdministrator) return Failure("deploy-kestrel", "certificate.deployment_elevation_required");
@@ -135,6 +156,7 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         if (!privileges.IsAdministrator) return Failure("renew", "certificate.admin_required");
         var existing = await certificates.GetAsync(certificateId, cancellationToken);
         if (existing is null) return Failure("renew", "certificate.not_found");
+        if (existing.Kind == CertificateKind.SelfSigned) return Failure("renew", "certificate.self_signed_not_renewable");
         if (existing.Status == CertificateStatus.Revoked) return Failure("renew", "certificate.revoked");
         if (string.IsNullOrWhiteSpace(existing.ContactEmail)) return Failure("renew", "certificate.contact_unavailable");
         return await operations.StartAsync(idempotencyKey, certificateId, "renew", actor, async ct =>
@@ -182,6 +204,7 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         if (!request.Confirmed) return Failure("revoke", "certificate.confirmation_required");
         var existing = await certificates.GetAsync(certificateId, cancellationToken);
         if (existing is null) return Failure("revoke", "certificate.not_found");
+        if (existing.Kind == CertificateKind.SelfSigned) return Failure("revoke", "certificate.self_signed_not_revocable");
         if (string.IsNullOrWhiteSpace(existing.ContactEmail)) return Failure("revoke", "certificate.contact_unavailable");
         return await operations.StartAsync(idempotencyKey, certificateId, "revoke", actor, async ct =>
         {
@@ -205,8 +228,37 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         var fallbackStart = item.NotAfter.AddDays(-30);
         return new CertificateDto(item.Id, item.PrimaryDomain, item.Domains, item.Issuer, item.SerialNumber, item.Thumbprint,
             item.NotBefore, item.NotAfter, status, item.ChallengeType, item.KeyAlgorithm, item.RenewalWindowStart ?? fallbackStart, item.RenewalWindowEnd ?? item.NotAfter, item.LastRenewalAt,
-            item.LastRenewalProblemCode, item.CreatedAt, item.UpdatedAt);
+            item.LastRenewalProblemCode, item.CreatedAt, item.UpdatedAt, item.Kind, item.FingerprintSha256);
     }
+
+    private static CertificateMaterial CreateSelfSignedMaterial(Guid certificateId, IReadOnlyList<string> domains, CertificateKeyAlgorithm keyAlgorithm, int validityDays)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var subject = new X500DistinguishedName($"CN={domains[0]}");
+        using AsymmetricAlgorithm key = keyAlgorithm == CertificateKeyAlgorithm.Rsa2048
+            ? RSA.Create(2048)
+            : ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = CreateRequest(subject, key, keyAlgorithm);
+        var san = new SubjectAlternativeNameBuilder();
+        foreach (var domain in domains) san.AddDnsName(domain);
+        request.CertificateExtensions.Add(san.Build());
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(keyAlgorithm == CertificateKeyAlgorithm.Rsa2048
+            ? X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment : X509KeyUsageFlags.DigitalSignature, true));
+        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false));
+        request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        using var certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(validityDays));
+        var privateKeyPem = keyAlgorithm == CertificateKeyAlgorithm.Rsa2048
+            ? certificate.GetRSAPrivateKey()!.ExportPkcs8PrivateKeyPem()
+            : certificate.GetECDsaPrivateKey()!.ExportPkcs8PrivateKeyPem();
+        return new CertificateMaterial(certificateId, domains, CertificateChallengeType.Dns01, keyAlgorithm, null,
+            certificate.ExportCertificatePem(), privateKeyPem, now, Kind: CertificateKind.SelfSigned);
+    }
+
+    private static CertificateRequest CreateRequest(X500DistinguishedName subject, AsymmetricAlgorithm key, CertificateKeyAlgorithm algorithm)
+        => algorithm == CertificateKeyAlgorithm.Rsa2048
+            ? new CertificateRequest(subject, (RSA)key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+            : new CertificateRequest(subject, (ECDsa)key, HashAlgorithmName.SHA256);
 
     private static bool TryNormalizeDomains(IReadOnlyList<string>? requested, CertificateChallengeType challengeType,
         out string[] domains, out string problemCode)

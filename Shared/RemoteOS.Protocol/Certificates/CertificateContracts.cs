@@ -5,6 +5,7 @@ namespace RemoteOS.Protocol.Certificates;
 public enum CertificateStatus { Pending, Validating, Issued, Active, Renewing, Failed, Expired, Revoked }
 public enum CertificateChallengeType { DirectHttp01, WebRootHttp01, Dns01 }
 public enum CertificateKeyAlgorithm { EcdsaP256, Rsa2048 }
+public enum CertificateKind { Acme, SelfSigned }
 public enum CertificateOperationState { Queued, Running, Succeeded, Failed, Cancelled }
 
 public sealed record CertificateDto(
@@ -24,7 +25,9 @@ public sealed record CertificateDto(
     [property: JsonPropertyName("lastRenewalAt")] DateTimeOffset? LastRenewalAt,
     [property: JsonPropertyName("lastRenewalProblemCode")] string? LastRenewalProblemCode,
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
-    [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt);
+    [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt,
+    [property: JsonPropertyName("kind")] CertificateKind Kind = CertificateKind.Acme,
+    [property: JsonPropertyName("fingerprintSha256")] string? FingerprintSha256 = null);
 
 public sealed record RequestCertificateRequest(
     [property: JsonPropertyName("domains")] IReadOnlyList<string> Domains,
@@ -33,6 +36,11 @@ public sealed record RequestCertificateRequest(
     [property: JsonPropertyName("acceptedTerms")] bool AcceptedTerms,
     [property: JsonPropertyName("keyAlgorithm")] CertificateKeyAlgorithm KeyAlgorithm = CertificateKeyAlgorithm.EcdsaP256,
     [property: JsonPropertyName("publicReachabilityConfirmed")] bool PublicReachabilityConfirmed = false);
+
+public sealed record CreateSelfSignedCertificateRequest(
+    [property: JsonPropertyName("domains")] IReadOnlyList<string> Domains,
+    [property: JsonPropertyName("keyAlgorithm")] CertificateKeyAlgorithm KeyAlgorithm = CertificateKeyAlgorithm.EcdsaP256,
+    [property: JsonPropertyName("validityDays")] int ValidityDays = 365);
 
 public sealed record CertificatePreflightRequest(
     [property: JsonPropertyName("domains")] IReadOnlyList<string> Domains,

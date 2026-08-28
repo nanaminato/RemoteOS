@@ -32,7 +32,8 @@ public sealed class CertificateManagerApp : RemoteApplicationBase
         ManagedWindow? window = null;
         var view = CertificateManagerWorkspace.Create(
             viewModel,
-            () => CertificateManagerDialogs.ShowRequestCertificateAsync(context, window!, viewModel));
+            () => CertificateManagerDialogs.ShowRequestCertificateAsync(context, window!, viewModel),
+            () => CertificateManagerDialogs.ShowCreateSelfSignedCertificateAsync(context, window!, viewModel));
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.certificates.display_name"),
             view, new Rect(60, 50, 1180, 780), Manifest.IconGlyph);
         _ = viewModel.StartAsync();

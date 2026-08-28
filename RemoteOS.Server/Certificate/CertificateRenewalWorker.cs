@@ -30,6 +30,7 @@ internal sealed class CertificateRenewalWorker(ICertificateStore certificates, I
         var threshold = DateTimeOffset.UtcNow.AddDays(Math.Clamp(options.RenewalFallbackDays, 1, 90));
         foreach (var certificate in await certificates.ListAsync(cancellationToken))
         {
+            if (certificate.Kind == RemoteOS.Protocol.Certificates.CertificateKind.SelfSigned) continue;
             if (certificate.Status == RemoteOS.Protocol.Certificates.CertificateStatus.Revoked) continue;
             if (string.IsNullOrWhiteSpace(certificate.ContactEmail)) continue;
             var now = DateTimeOffset.UtcNow;

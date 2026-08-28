@@ -17,6 +17,7 @@
                 <StackPanel Spacing="8">
                     <TextBlock Text="{loc:Loc certificates.overview.actions}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" />
                     <Button Classes="primary" Content="{loc:Loc certificates.request.title}" Click="RequestCertificate_Click" HorizontalAlignment="Left" />
+                    <Button Content="{loc:Loc certificates.self_signed.title}" Click="CreateSelfSignedCertificate_Click" HorizontalAlignment="Left" />
                     <Button Content="{loc:Loc common.refresh}" Command="{Binding RefreshCommand}" HorizontalAlignment="Left" />
                 </StackPanel>
             </Border>

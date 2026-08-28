@@ -60,6 +60,8 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     [ObservableProperty] private CertificateOption<CertificateKeyAlgorithm>? _selectedKeyAlgorithm;
     [ObservableProperty] private bool _acceptedTerms;
     [ObservableProperty] private bool _publicReachabilityConfirmed;
+    [ObservableProperty] private string _selfSignedDomains = string.Empty;
+    [ObservableProperty] private int _selfSignedValidityDays = 365;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasPreflightResult))]
     private string _preflightText = string.Empty;
 
@@ -165,6 +167,32 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
             ct => _client.RequestAsync(request, ct),
             onSuccess: async op => { if (op.CertificateId is { } id) await SelectCertificateAsync(id, ct: default); },
             ct: default);
+    }
+
+    /// <summary>Creates a locally-issued certificate without contacting an ACME provider.</summary>
+    public async Task<bool> TryCreateSelfSignedCertificateAsync()
+    {
+        var parsed = SelfSignedDomains.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(domain => domain.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (parsed.Length == 0)
+        {
+            StatusText = LocalizedText.Get("certificates.validation.domains_required");
+            return false;
+        }
+        if (SelectedKeyAlgorithm is not { } keyAlgorithm)
+        {
+            StatusText = LocalizedText.Get("certificates.validation.key_algorithm_required");
+            return false;
+        }
+        if (SelfSignedValidityDays is < 1 or > 825)
+        {
+            StatusText = LocalizedText.Get("certificates.validation.validity_days_invalid");
+            return false;
+        }
+        return await RunOperationAsync(
+            LocalizedText.Get("certificates.operation.create_self_signed"),
+            ct => _client.CreateSelfSignedAsync(new CreateSelfSignedCertificateRequest(parsed, keyAlgorithm.Value, SelfSignedValidityDays), ct),
+            onSuccess: async op => { if (op.CertificateId is { } id) await SelectCertificateAsync(id, ct: default); }, ct: default);
     }
 
     [RelayCommand(CanExecute = nameof(CanActOnSelected))]
@@ -348,6 +376,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
     private static string OperationName(string? kind) => kind switch
     {
         "issue" or "request" => LocalizedText.Get("certificates.operation.request"),
+        "create-self-signed" => LocalizedText.Get("certificates.operation.create_self_signed"),
         "deploy-kestrel" or "deploy" => LocalizedText.Get("certificates.operation.deploy"),
         "renew" => LocalizedText.Get("certificates.operation.renew"),
         "revoke" => LocalizedText.Get("certificates.operation.revoke"),
@@ -360,6 +389,7 @@ public sealed partial class CertificateManagerViewModel : ObservableObject
         "queued" => LocalizedText.Get("certificates.operation.stage.queued"),
         "running" => LocalizedText.Get("certificates.operation.stage.running"),
         "issue" => LocalizedText.Get("certificates.operation.stage.issuing"),
+        "create-self-signed" => LocalizedText.Get("certificates.operation.stage.creating_self_signed"),
         "deploy-kestrel" => LocalizedText.Get("certificates.operation.stage.deploying"),
         "renew" => LocalizedText.Get("certificates.operation.stage.renewing"),
         "revoke" => LocalizedText.Get("certificates.operation.stage.revoking"),

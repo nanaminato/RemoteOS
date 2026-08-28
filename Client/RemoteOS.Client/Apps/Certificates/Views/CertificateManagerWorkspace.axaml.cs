@@ -7,18 +7,20 @@ namespace Client.Apps.Certificates.Views;
 internal partial class CertificateManagerWorkspace : UserControl
 {
     private readonly Func<Task> _showRequestCertificate;
+    private readonly Func<Task> _showCreateSelfSignedCertificate;
     private Button? _selectedButton;
 
-    private CertificateManagerWorkspace(Func<Task> showRequestCertificate)
+    private CertificateManagerWorkspace(Func<Task> showRequestCertificate, Func<Task> showCreateSelfSignedCertificate)
     {
         _showRequestCertificate = showRequestCertificate;
+        _showCreateSelfSignedCertificate = showCreateSelfSignedCertificate;
         InitializeComponent();
         ShowPage("overview", OverviewButton);
     }
 
-    public static Control Create(CertificateManagerViewModel viewModel, Func<Task> showRequestCertificate)
+    public static Control Create(CertificateManagerViewModel viewModel, Func<Task> showRequestCertificate, Func<Task> showCreateSelfSignedCertificate)
     {
-        var view = new CertificateManagerWorkspace(showRequestCertificate)
+        var view = new CertificateManagerWorkspace(showRequestCertificate, showCreateSelfSignedCertificate)
         {
             DataContext = viewModel,
         };
@@ -41,7 +43,7 @@ internal partial class CertificateManagerWorkspace : UserControl
         _selectedButton = button;
         button.Classes.Add("nav-selected");
         ContentHost.Content = section == "certificates"
-            ? new CertificateListView(_showRequestCertificate)
-            : new CertificateOverviewView(_showRequestCertificate);
+            ? new CertificateListView(_showRequestCertificate, _showCreateSelfSignedCertificate)
+            : new CertificateOverviewView(_showRequestCertificate, _showCreateSelfSignedCertificate);
     }
 }

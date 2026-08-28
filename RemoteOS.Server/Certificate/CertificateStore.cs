@@ -6,12 +6,14 @@ using RemoteOS.Protocol.Certificates;
 namespace Server.Certificate;
 
 internal sealed record CertificateMaterial(Guid Id, IReadOnlyList<string> Domains, CertificateChallengeType ChallengeType,
-    CertificateKeyAlgorithm KeyAlgorithm, string ContactEmail, string CertificatePem, string PrivateKeyPem, DateTimeOffset CreatedAt, DateTimeOffset? LastRenewalAt = null, string? LastRenewalProblemCode = null);
+    CertificateKeyAlgorithm KeyAlgorithm, string? ContactEmail, string CertificatePem, string PrivateKeyPem, DateTimeOffset CreatedAt, DateTimeOffset? LastRenewalAt = null, string? LastRenewalProblemCode = null,
+    CertificateKind Kind = CertificateKind.Acme);
 
 internal sealed record StoredCertificate(Guid Id, string Version, string PrimaryDomain, IReadOnlyList<string> Domains,
     CertificateChallengeType ChallengeType, CertificateKeyAlgorithm KeyAlgorithm, string? Issuer, string? SerialNumber, string? Thumbprint, DateTimeOffset NotBefore,
     DateTimeOffset NotAfter, CertificateStatus Status, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? ContactEmail, DateTimeOffset? RenewalWindowStart,
-    DateTimeOffset? RenewalWindowEnd, DateTimeOffset? LastRenewalAt, string? LastRenewalProblemCode);
+    DateTimeOffset? RenewalWindowEnd, DateTimeOffset? LastRenewalAt, string? LastRenewalProblemCode, CertificateKind Kind = CertificateKind.Acme,
+    string? FingerprintSha256 = null);
 
 internal interface ICertificateStore
 {
@@ -73,7 +75,8 @@ internal sealed class FileCertificateStore : ICertificateStore
             var metadata = new StoredCertificate(material.Id, version, normalizedDomains[0], normalizedDomains, material.ChallengeType, material.KeyAlgorithm,
                 certificate.Issuer, certificate.SerialNumber, certificate.Thumbprint,
                 new DateTimeOffset(certificate.NotBefore.ToUniversalTime()), new DateTimeOffset(certificate.NotAfter.ToUniversalTime()),
-                CertificateStatus.Active, material.CreatedAt, now, material.ContactEmail, null, null, material.LastRenewalAt, material.LastRenewalProblemCode);
+                CertificateStatus.Active, material.CreatedAt, now, material.ContactEmail, null, null, material.LastRenewalAt, material.LastRenewalProblemCode,
+                material.Kind, FormatSha256Fingerprint(certificate.RawData));
             await WriteAtomicallyAsync(Path.Combine(certificateRoot, "current.json"), JsonSerializer.Serialize(metadata, Json), cancellationToken);
             await _metadata.SaveAsync(metadata, cancellationToken);
             PruneOldVersions(certificateRoot, version);
@@ -206,6 +209,9 @@ internal sealed class FileCertificateStore : ICertificateStore
     }
 
     private string CertificateRoot(Guid id) => Path.Combine(_root, id.ToString("D"));
+
+    private static string FormatSha256Fingerprint(byte[] rawCertificate)
+        => string.Join(':', Convert.ToHexString(SHA256.HashData(rawCertificate)).Chunk(2).Select(part => new string(part)));
 
     private void EnsureSafeCertificateRoot(Guid id)
     {

@@ -12,6 +12,8 @@ public static class CertificateApiRoutes
     public const string ById = $"{Certificates}/{{id}}";
     public const string ByIdPattern = "/{id:guid}";
     public const string Request = Certificates;
+    public const string SelfSigned = $"{Certificates}/self-signed";
+    public const string SelfSignedPattern = "/self-signed";
     public const string Renew = $"{Certificates}/{{id}}/renew";
     public const string RenewPattern = "/{id:guid}/renew";
     public const string Deploy = $"{Certificates}/{{id}}/deployments/kestrel";
