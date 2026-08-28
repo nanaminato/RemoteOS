@@ -23,7 +23,9 @@ public sealed record WebServerSiteDto(
     [property: JsonPropertyName("httpsEnabled")] bool HttpsEnabled,
     [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt,
     // Kept optional so sites.json files written by earlier RemoteOS versions remain readable.
-    [property: JsonPropertyName("bindings")] IReadOnlyList<WebServerSiteBindingDto>? Bindings = null)
+    [property: JsonPropertyName("bindings")] IReadOnlyList<WebServerSiteBindingDto>? Bindings = null,
+    [property: JsonPropertyName("certificatePath")] string? CertificatePath = null,
+    [property: JsonPropertyName("privateKeyPath")] string? PrivateKeyPath = null)
 {
     /// <summary>Uses the legacy domain list when a site has not yet been saved with bindings.</summary>
     [JsonIgnore]
@@ -54,4 +56,6 @@ public sealed record UpsertWebServerSiteRequest(
     [property: JsonPropertyName("siteDirectory")] string? SiteDirectory = null,
     [property: JsonPropertyName("certificateId")] Guid? CertificateId = null,
     [property: JsonPropertyName("httpsEnabled")] bool HttpsEnabled = false,
-    [property: JsonPropertyName("bindings")] IReadOnlyList<WebServerSiteBindingDto>? Bindings = null);
+    [property: JsonPropertyName("bindings")] IReadOnlyList<WebServerSiteBindingDto>? Bindings = null,
+    [property: JsonPropertyName("certificatePath")] string? CertificatePath = null,
+    [property: JsonPropertyName("privateKeyPath")] string? PrivateKeyPath = null);

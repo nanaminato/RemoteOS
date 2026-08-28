@@ -1,6 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using Client.Apps.Explorer;
+using Client.Apps.Explorer.ViewModels;
+using Client.Apps.Explorer.Views;
 using Client.Apps.WebServers.Views;
 using Client.Apps.Certificates;
 using Client.Localization;
@@ -26,6 +29,7 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         var session = context.Services.GetService(typeof(IAuthSession)) as IAuthSession;
         var client = context.Services.GetService(typeof(IRemoteWebServerClient)) as IRemoteWebServerClient;
         var certificates = context.Services.GetService(typeof(IRemoteCertificateClient)) as IRemoteCertificateClient;
+        var explorer = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         if (session is null || client is null || certificates is null || session.State != AuthSessionState.Authenticated)
         {
             context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
@@ -89,6 +93,22 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
             });
             return selected.FirstOrDefault()?.TryGetLocalPath();
         };
+        viewModel.RequestServerCertificateFileAsync = isPrivateKey => explorer is null
+            ? Task.FromResult<string?>(null)
+            : context.ShowDialogAsync<string>(window,
+                LocalizedText.Get(isPrivateKey ? "webservers.site.dialog.choose_private_key" : "webservers.site.dialog.choose_certificate"), dialog =>
+                {
+                    var filter = isPrivateKey
+                        ? new ExplorerFileFilter(LocalizedText.Get("webservers.site.dialog.private_key_filter"), ["*.pem", "*.key"])
+                        : new ExplorerFileFilter(LocalizedText.Get("webservers.site.dialog.certificate_filter"), ["*.pem", "*.crt", "*.cer"]);
+                    var picker = new ExplorerViewModel(explorer,
+                        new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [filter]), paths => dialog.Close(paths[0]))
+                    {
+                        CancelAction = dialog.Cancel,
+                    };
+                    _ = picker.LoadRootAsync();
+                    return new ExplorerMainView { DataContext = picker };
+                }, new Size(860, 580));
 
         async Task<bool> ConfirmAsync(string titleKey, string messageKey, string confirmKey)
         {

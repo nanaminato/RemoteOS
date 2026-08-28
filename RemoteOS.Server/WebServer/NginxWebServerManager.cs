@@ -413,7 +413,16 @@ internal sealed partial class NginxWebServerManager(
         problem = "webserver.site_server_name_invalid";
         if (bindings.Any(binding => !IsValidServerName(binding.Domain))) return false;
         problem = "webserver.site_certificate_required";
-        if (request.HttpsEnabled && request.CertificateId is null) return false;
+        var hasManagedCertificate = request.CertificateId is not null;
+        var hasLocalCertificate = !string.IsNullOrWhiteSpace(request.CertificatePath) || !string.IsNullOrWhiteSpace(request.PrivateKeyPath);
+        string? certificatePath = null;
+        string? privateKeyPath = null;
+        if (request.HttpsEnabled && !hasManagedCertificate && !hasLocalCertificate) return false;
+        problem = "webserver.site_certificate_file_invalid";
+        if (hasLocalCertificate && (!TryNormalizeCertificateFile(request.CertificatePath, CertificateFileKind.Certificate, required: true, out certificatePath)
+            || !TryNormalizeCertificateFile(request.PrivateKeyPath, CertificateFileKind.PrivateKey, required: false, out privateKeyPath))) return false;
+        if (hasLocalCertificate && privateKeyPath is null) privateKeyPath = certificatePath;
+        if (hasManagedCertificate && hasLocalCertificate) return false;
         string? upstream = null;
         if (request.Kind == WebServerSiteKind.ReverseProxy)
         {
@@ -423,7 +432,8 @@ internal sealed partial class NginxWebServerManager(
         }
         var root = request.Kind == WebServerSiteKind.Static ? Path.Combine(GetStaticSitesRoot(instance), id) : null;
         var domains = bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        site = new WebServerSiteDto(id, instance.Id, request.Name.Trim(), request.Kind, domains, bindings[0].Port, upstream, root, request.CertificateId, request.HttpsEnabled, DateTimeOffset.UtcNow, bindings);
+        site = new WebServerSiteDto(id, instance.Id, request.Name.Trim(), request.Kind, domains, bindings[0].Port, upstream, root, request.CertificateId, request.HttpsEnabled, DateTimeOffset.UtcNow, bindings,
+            hasLocalCertificate ? certificatePath : null, hasLocalCertificate ? privateKeyPath : null);
         return true;
     }
 
@@ -466,6 +476,34 @@ internal sealed partial class NginxWebServerManager(
     private sealed record SiteRoutingBinding(string Domain, int Port);
     private sealed record SiteRoutingConflict(string SiteId, string Domain, int Port);
 
+    private enum CertificateFileKind { Certificate, PrivateKey }
+
+    /// <summary>Local certificate material remains on the host. Only existing regular PEM-style
+    /// files with a recognised extension can be referenced by an owned Nginx site.</summary>
+    private static bool TryNormalizeCertificateFile(string? supplied, CertificateFileKind kind, bool required, out string? path)
+    {
+        path = null;
+        if (string.IsNullOrWhiteSpace(supplied)) return !required;
+        try
+        {
+            var candidate = supplied.Trim();
+            if (!Path.IsPathFullyQualified(candidate)) return false;
+            var fullPath = Path.GetFullPath(candidate);
+            if (!File.Exists(fullPath) || IsSymbolicLink(fullPath)) return false;
+            // These values are rendered into an Nginx directive. Restrict directive syntax
+            // characters instead of letting a path alter the generated configuration.
+            if (fullPath.Any(char.IsControl) || fullPath.IndexOfAny([' ', '\t', '"', '\'', ';', '#', '{', '}', '$']) >= 0) return false;
+            var extension = Path.GetExtension(fullPath);
+            var permitted = kind == CertificateFileKind.Certificate
+                ? extension.Equals(".pem", StringComparison.OrdinalIgnoreCase) || extension.Equals(".crt", StringComparison.OrdinalIgnoreCase) || extension.Equals(".cer", StringComparison.OrdinalIgnoreCase)
+                : extension.Equals(".pem", StringComparison.OrdinalIgnoreCase) || extension.Equals(".key", StringComparison.OrdinalIgnoreCase);
+            if (!permitted) return false;
+            path = fullPath;
+            return true;
+        }
+        catch (Exception) when (supplied is not null) { return false; }
+    }
+
     /// <summary>
     /// Stages the candidate with a .conf suffix so it is in Nginx's include graph during
     /// <c>nginx -t</c>. A .stage suffix would be skipped by the anchor's <c>*.conf</c>
@@ -478,7 +516,9 @@ internal sealed partial class NginxWebServerManager(
         (string FullChainPath, string PrivateKeyPath)? certificatePaths = null;
         if (site.HttpsEnabled)
         {
-            certificatePaths = await certificates.GetNginxPathsAsync(site.CertificateId!.Value, cancellationToken);
+            certificatePaths = site.CertificateId is { } certificateId
+                ? await certificates.GetNginxPathsAsync(certificateId, cancellationToken)
+                : (site.CertificatePath!, site.PrivateKeyPath!);
             if (certificatePaths is null)
             {
                 logger.LogError("Nginx site save could not resolve the certificate material. InstanceId={InstanceId}, SiteId={SiteId}, CertificateId={CertificateId}", instance.Id, site.Id, site.CertificateId);

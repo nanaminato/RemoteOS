@@ -32,6 +32,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         _session = session;
         _permissions = permissions;
         InstallVersion = string.Empty;
+        SelectedSiteCertificateSource = SiteCertificateSources[0];
     }
 
     public ObservableCollection<WebServerDto> Servers { get; } = [];
@@ -41,6 +42,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public ObservableCollection<CertificateDto> Certificates { get; } = [];
     public ObservableCollection<WebServerSiteBindingEditor> SiteBindings { get; } = [];
     public IReadOnlyList<WebServerSiteKind> SiteKinds { get; } = [WebServerSiteKind.ReverseProxy, WebServerSiteKind.Static];
+    public IReadOnlyList<SiteCertificateSourceOption> SiteCertificateSources { get; } =
+    [
+        new(SiteCertificateSource.Managed, LocalizedText.Get("webservers.site.certificate_source.managed")),
+        new(SiteCertificateSource.ServerFiles, LocalizedText.Get("webservers.site.certificate_source.files")),
+    ];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
@@ -61,6 +67,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsReverseProxySite), nameof(IsStaticSite))] private WebServerSiteKind _selectedSiteKind = WebServerSiteKind.ReverseProxy;
     [ObservableProperty] private bool _siteHttpsEnabled;
     [ObservableProperty] private CertificateDto? _selectedSiteCertificate;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsManagedCertificateSource), nameof(IsServerFileCertificateSource))]
+    private SiteCertificateSourceOption? _selectedSiteCertificateSource;
+    [ObservableProperty] private string _siteCertificatePath = string.Empty;
+    [ObservableProperty] private string _sitePrivateKeyPath = string.Empty;
     [ObservableProperty] private string _siteStatusText = string.Empty;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     private bool _isLoading;
@@ -80,6 +90,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
     public bool IsReverseProxySite => SelectedSiteKind == WebServerSiteKind.ReverseProxy;
     public bool IsStaticSite => SelectedSiteKind == WebServerSiteKind.Static;
+    public bool IsManagedCertificateSource => SelectedSiteCertificateSource?.Value != SiteCertificateSource.ServerFiles;
+    public bool IsServerFileCertificateSource => SelectedSiteCertificateSource?.Value == SiteCertificateSource.ServerFiles;
     public bool IsExternalServer => SelectedServer?.ManagementMode == WebServerManagementMode.External;
     public bool IsIntegratedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Integrated;
     public bool IsManagedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Managed;
@@ -101,6 +113,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public Func<Task<string?>>? RequestLocalNginxPackageAsync { get; set; }
     /// <summary>Routes a known static-site directory into RemoteExplorer.</summary>
     public Func<string, Task>? OpenFileBrowserAtPathAsync { get; set; }
+    /// <summary>Opens the RemoteExplorer picker for certificate or key files on the server.</summary>
+    public Func<bool, Task<string?>>? RequestServerCertificateFileAsync { get; set; }
     /// <summary>Provided by the application shell to keep the editor in a modal dialog.</summary>
     public Func<bool, Task>? ShowSiteEditorAsync { get; set; }
     /// <summary>Set only while the site editor dialog is open.</summary>
@@ -338,6 +352,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task NewSiteAsync()
     {
         ResetSiteEditor();
+        await LoadCertificatesAsync();
         SiteStatusText = LocalizedText.Get("webservers.site.new_status");
         if (ShowSiteEditorAsync is not null) await ShowSiteEditorAsync(false);
     }
@@ -346,6 +361,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private async Task EditSiteAsync()
     {
         if (SelectedSite is null) return;
+        await LoadCertificatesAsync();
         if (ShowSiteEditorAsync is not null) await ShowSiteEditorAsync(true);
     }
 
@@ -357,7 +373,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             .Select(binding => new WebServerSiteBindingDto(binding.Domain.Trim(), binding.Port))
             .Where(binding => !string.IsNullOrWhiteSpace(binding.Domain))
             .ToArray();
-        if (bindings.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream)) || (SiteHttpsEnabled && SelectedSiteCertificate is null))
+        if (bindings.Length == 0 || string.IsNullOrWhiteSpace(SiteName) || (IsReverseProxySite && string.IsNullOrWhiteSpace(SiteUpstream))
+            || (SiteHttpsEnabled && (SelectedSiteCertificateSource?.Value == SiteCertificateSource.Managed
+                ? SelectedSiteCertificate is null : string.IsNullOrWhiteSpace(SiteCertificatePath))))
         {
             await ReportSiteSaveErrorAsync(LocalizedText.Get("webservers.site.validation_required"));
             return;
@@ -366,7 +384,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         {
             var domains = bindings.Select(binding => binding.Domain).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var saved = await _client.UpsertSiteAsync(SelectedServer.Id, new UpsertWebServerSiteRequest(SelectedSite?.Id, SiteName.Trim(), SelectedSiteKind, domains, bindings[0].Port,
-                IsReverseProxySite ? SiteUpstream.Trim() : null, null, SelectedSiteCertificate?.Id, SiteHttpsEnabled, bindings));
+                IsReverseProxySite ? SiteUpstream.Trim() : null, null,
+                SelectedSiteCertificateSource?.Value == SiteCertificateSource.Managed ? SelectedSiteCertificate?.Id : null, SiteHttpsEnabled, bindings,
+                SelectedSiteCertificateSource?.Value == SiteCertificateSource.ServerFiles && !string.IsNullOrWhiteSpace(SiteCertificatePath) ? SiteCertificatePath : null,
+                SelectedSiteCertificateSource?.Value == SiteCertificateSource.ServerFiles && !string.IsNullOrWhiteSpace(SitePrivateKeyPath) ? SitePrivateKeyPath : null));
             if (saved is null) { await ReportSiteSaveErrorAsync(LocalizedText.Get("webservers.site.save_failed")); return; }
             await LoadSitesAsync();
             SelectedSite = Sites.FirstOrDefault(site => site.Id == saved.Id);
@@ -402,6 +423,9 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         SelectedSiteKind = WebServerSiteKind.ReverseProxy;
         SiteHttpsEnabled = false;
         SelectedSiteCertificate = null;
+        SelectedSiteCertificateSource = SiteCertificateSources[0];
+        SiteCertificatePath = string.Empty;
+        SitePrivateKeyPath = string.Empty;
     }
 
     [RelayCommand(CanExecute = nameof(CanCancelOperation))]
@@ -442,6 +466,15 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         SelectedSiteKind = value.Kind;
         SiteHttpsEnabled = value.HttpsEnabled;
         SelectedSiteCertificate = Certificates.FirstOrDefault(certificate => certificate.Id == value.CertificateId);
+        SiteCertificatePath = value.CertificatePath ?? string.Empty;
+        SitePrivateKeyPath = value.PrivateKeyPath ?? string.Empty;
+        SelectedSiteCertificateSource = SiteCertificateSources[value.CertificatePath is null ? 0 : 1];
+    }
+
+    partial void OnSelectedSiteCertificateChanged(CertificateDto? value)
+    {
+        if (value is not null)
+            SelectedSiteCertificateSource = SiteCertificateSources[0];
     }
 
     private async Task LoadCertificatesAsync()
@@ -449,10 +482,36 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         try
         {
             var certificates = await _certificates.ListAsync();
+            var selectedId = SelectedSiteCertificate?.Id ?? SelectedSite?.CertificateId;
             Certificates.Clear();
             foreach (var certificate in certificates.Where(certificate => certificate.Status is CertificateStatus.Active or CertificateStatus.Issued)) Certificates.Add(certificate);
+            if (selectedId is { } id)
+                SelectedSiteCertificate = Certificates.FirstOrDefault(certificate => certificate.Id == id);
         }
         catch { Certificates.Clear(); }
+    }
+
+    [RelayCommand]
+    private Task RefreshCertificatesAsync() => LoadCertificatesAsync();
+
+    [RelayCommand]
+    private async Task ChooseSiteCertificateFileAsync()
+    {
+        var path = await (RequestServerCertificateFileAsync?.Invoke(false) ?? Task.FromResult<string?>(null));
+        if (string.IsNullOrWhiteSpace(path)) return;
+        SiteCertificatePath = path;
+        SelectedSiteCertificateSource = SiteCertificateSources[1];
+    }
+
+    [RelayCommand]
+    private async Task ChooseSitePrivateKeyFileAsync()
+    {
+        var path = await (RequestServerCertificateFileAsync?.Invoke(true) ?? Task.FromResult<string?>(null));
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            SitePrivateKeyPath = path;
+            SelectedSiteCertificateSource = SiteCertificateSources[1];
+        }
     }
 
     private async Task LoadSitesAsync()
@@ -687,3 +746,8 @@ public sealed partial class WebServerSiteBindingEditor : ObservableObject
     [ObservableProperty] private string _domain = string.Empty;
     [ObservableProperty] private int _port = 80;
 }
+
+/// <summary>Explicitly selects one HTTPS material source, so managed certificates and raw host
+/// files cannot be accidentally submitted together.</summary>
+public enum SiteCertificateSource { Managed, ServerFiles }
+public sealed record SiteCertificateSourceOption(SiteCertificateSource Value, string Label);
