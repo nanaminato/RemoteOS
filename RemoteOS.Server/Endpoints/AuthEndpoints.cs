@@ -18,7 +18,7 @@ public static class AuthEndpoints
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost(AuthApiRoutes.Login, (
+        app.MapPost(AuthApiRoutes.Login, async (
                 LoginRequest req,
                 HttpContext http,
                 IIdentityProvider idp,
@@ -26,14 +26,30 @@ public static class AuthEndpoints
                 IWorkspaceRepository wss,
                 ISessionRepository sess,
                 IDeviceRepository devs,
-                JwtTokenService jwt) =>
+                JwtTokenService jwt,
+                LoginProtectionService protection,
+                CancellationToken ct) =>
             {
                 if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
                     return Problem(http, 400, "invalid-input", "Invalid input", "Username and password are required.");
 
+                var sourceIp = http.Connection.RemoteIpAddress;
+                var decision = await protection.CheckAsync(req.Username, sourceIp, ct);
+                if (decision.IsBlocked)
+                {
+                    await protection.RecordBlockedAsync(req.Username, sourceIp, ct);
+                    return TooManyAttempts(http, decision.RetryAt!.Value);
+                }
+
                 var result = idp.Verify(req.Username, req.Password);
                 if (!result.Success)
-                    return MapCredentialErrorToProblem(http, result);
+                {
+                    await protection.RecordFailureAsync(req.Username, sourceIp, ct);
+                    // Do not return host-provider details: they can expose account existence or state.
+                    return Problem(http, 401, "invalid-credential", "Invalid credentials", "Login failed. Check your credentials and try again.");
+                }
+
+                await protection.RecordSuccessAsync(req.Username, sourceIp, ct);
 
                 var info = idp.GetUserInfo(req.Username);
                 var platform = req.ClientPlatform;
@@ -104,6 +120,7 @@ public static class AuthEndpoints
                 return Results.Ok(new LoginResponse(
                     user.ToDto(), ws.ToDto(), session.ToDto(), device.ToDto(), tokens, role, CreateServerDescriptor()));
             })
+            .RequireRateLimiting("login")
             .WithTags("Auth");
 
         app.MapPost(AuthApiRoutes.Refresh, (
@@ -201,4 +218,12 @@ public static class AuthEndpoints
     private static IResult Problem(HttpContext http, int status, string typeSuffix, string title, string detail)
         => Results.Problem(detail: detail, statusCode: status,
             title: ApiLocalizer.Get(http, typeSuffix, title), type: ProblemBase + typeSuffix);
+
+    private static IResult TooManyAttempts(HttpContext http, DateTimeOffset retryAt)
+    {
+        var seconds = Math.Max(1, (int)Math.Ceiling((retryAt - DateTimeOffset.UtcNow).TotalSeconds));
+        http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Problem(http, StatusCodes.Status429TooManyRequests, "login-rate-limited", "Too many login attempts",
+            "Login attempts are temporarily limited. Try again later.");
+    }
 }
