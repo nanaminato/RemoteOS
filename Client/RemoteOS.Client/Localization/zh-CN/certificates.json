@@ -17,6 +17,7 @@
     "certificates.request.title": "申请新证书",
     "certificates.self_signed.title": "新建自签证书",
     "certificates.self_signed.help": "自签证书由此服务器生成，不会联系证书颁发机构。客户端必须信任此证书或其指纹。",
+    "certificates.self_signed.identifiers_hint": "192.168.202.129, server.lan",
     "certificates.self_signed.validity_days": "有效期（天）",
     "certificates.self_signed.create": "创建自签证书",
     "certificates.request.help": "输入主域名以及任意使用者可选名称（SAN），用逗号分隔。HTTP-01 验证要求 80 端口可公网访问；DNS-01 要求服务器配置了受支持的 DNS 提供商。",

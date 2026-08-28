@@ -114,7 +114,7 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         if (!privileges.IsAdministrator) return Failure("create-self-signed", "certificate.admin_required");
         if (!Enum.IsDefined(request.KeyAlgorithm)) return Failure("create-self-signed", "certificate.key_algorithm_invalid");
         if (request.ValidityDays is < 1 or > 825) return Failure("create-self-signed", "certificate.validity_days_invalid");
-        if (!TryNormalizeDomains(request.Domains, CertificateChallengeType.Dns01, out var domains, out var problem))
+        if (!TryNormalizeSelfSignedIdentifiers(request.Domains, out var domains, out var problem))
             return Failure("create-self-signed", problem);
 
         var certificateId = Guid.NewGuid();
@@ -240,7 +240,11 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
             : ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var request = CreateRequest(subject, key, keyAlgorithm);
         var san = new SubjectAlternativeNameBuilder();
-        foreach (var domain in domains) san.AddDnsName(domain);
+        foreach (var domain in domains)
+        {
+            if (IPAddress.TryParse(domain, out var address)) san.AddIpAddress(address);
+            else san.AddDnsName(domain);
+        }
         request.CertificateExtensions.Add(san.Build());
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(keyAlgorithm == CertificateKeyAlgorithm.Rsa2048
@@ -259,6 +263,46 @@ internal sealed class CertificateManager(ICertificateStore certificates, IAcmeSe
         => algorithm == CertificateKeyAlgorithm.Rsa2048
             ? new CertificateRequest(subject, (RSA)key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
             : new CertificateRequest(subject, (ECDsa)key, HashAlgorithmName.SHA256);
+
+    /// <summary>Self-signed certificates are useful on private networks, where an IP address is
+    /// often the connection identity. IP literals are valid SAN values but must not be submitted
+    /// to the DNS-only ACME validation path.</summary>
+    private static bool TryNormalizeSelfSignedIdentifiers(IReadOnlyList<string>? requested, out string[] identifiers, out string problemCode)
+    {
+        if (requested is null || requested.Count is < 1 or > 100)
+        {
+            identifiers = [];
+            problemCode = "certificate.domains_invalid";
+            return false;
+        }
+
+        var ipAddresses = new List<string>();
+        var names = new List<string>();
+        foreach (var raw in requested)
+        {
+            var candidate = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 253 || candidate.Any(char.IsControl))
+            {
+                identifiers = [];
+                problemCode = "certificate.domains_invalid";
+                return false;
+            }
+            if (IPAddress.TryParse(candidate, out var address))
+            {
+                ipAddresses.Add(address.ToString());
+                continue;
+            }
+            if (!TryNormalizeDomains([candidate], CertificateChallengeType.Dns01, out var normalized, out problemCode))
+            {
+                identifiers = [];
+                return false;
+            }
+            names.Add(normalized[0]);
+        }
+        identifiers = names.Concat(ipAddresses).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        problemCode = "";
+        return true;
+    }
 
     private static bool TryNormalizeDomains(IReadOnlyList<string>? requested, CertificateChallengeType challengeType,
         out string[] domains, out string problemCode)

@@ -17,6 +17,7 @@
     "certificates.request.title": "Request a new certificate",
     "certificates.self_signed.title": "Create self-signed certificate",
     "certificates.self_signed.help": "This certificate is generated on this server and does not contact a certificate authority. Clients must trust it or verify its fingerprint.",
+    "certificates.self_signed.identifiers_hint": "192.168.202.129, server.lan",
     "certificates.self_signed.validity_days": "Validity (days)",
     "certificates.self_signed.create": "Create self-signed certificate",
     "certificates.request.help": "Enter the primary domain and any subject alternative names separated by commas. HTTP-01 challenges require port 80 to be publicly reachable; DNS-01 requires a supported DNS provider on the server.",

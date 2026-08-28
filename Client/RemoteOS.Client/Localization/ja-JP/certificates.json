@@ -17,6 +17,7 @@
     "certificates.request.title": "新しい証明書を要求",
     "certificates.self_signed.title": "自己署名証明書を作成",
     "certificates.self_signed.help": "この証明書はこのサーバー上で生成され、認証局には接続しません。クライアント側で信頼するか、フィンガープリントを確認してください。",
+    "certificates.self_signed.identifiers_hint": "192.168.202.129, server.lan",
     "certificates.self_signed.validity_days": "有効期間（日）",
     "certificates.self_signed.create": "自己署名証明書を作成",
     "certificates.request.help": "プライマリドメインと、カンマ区切りのサブジェクト代替名 (SAN) を入力してください。HTTP-01 チャレンジではポート 80 の公開到達性が必要です。DNS-01 はサーバー上の対応 DNS プロバイダーが必要です。",

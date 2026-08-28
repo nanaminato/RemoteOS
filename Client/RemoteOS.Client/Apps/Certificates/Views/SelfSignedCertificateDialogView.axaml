@@ -9,7 +9,7 @@
             <TextBlock Text="{loc:Loc certificates.self_signed.help}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
             <StackPanel Spacing="4">
                 <TextBlock Text="{loc:Loc certificates.request.domains}" Foreground="{DynamicResource TextSecondaryBrush}" />
-                <TextBox Text="{Binding SelfSignedDomains, Mode=TwoWay}" PlaceholderText="{loc:Loc certificates.request.domains_hint}" />
+                <TextBox Text="{Binding SelfSignedDomains, Mode=TwoWay}" PlaceholderText="{loc:Loc certificates.self_signed.identifiers_hint}" />
             </StackPanel>
             <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                 <StackPanel Spacing="4">
