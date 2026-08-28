@@ -49,8 +49,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     ];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
-    [NotifyPropertyChangedFor(nameof(IsExternalServer), nameof(IsIntegratedServer), nameof(IsManagedServer), nameof(IsIntegratedOrManagedServer), nameof(ManagementHint))]
+    [NotifyCanExecuteChangedFor(nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(ToggleManagedCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [NotifyPropertyChangedFor(nameof(IsExternalServer), nameof(IsIntegratedServer), nameof(IsManagedServer), nameof(IsIntegratedOrManagedServer), nameof(IsManagedServerRunning), nameof(ManagementHint), nameof(ManagedLifecycleActionText))]
     private WebServerDto? _selectedServer;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(EditSiteCommand))]
     private WebServerSiteDto? _selectedSite;
@@ -59,6 +59,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string _operationText = string.Empty;
     [ObservableProperty] private string _testResultText = string.Empty;
     [ObservableProperty] private string _selectedStatusText = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleManagedCommand))]
+    [NotifyPropertyChangedFor(nameof(IsManagedServerRunning), nameof(ManagedLifecycleActionText), nameof(ManagedRuntimeStateLabel), nameof(ManagedRuntimeStateDescription))]
+    private WebServerRuntimeState _selectedRuntimeState = WebServerRuntimeState.Unknown;
     [ObservableProperty] private string _installVersion = string.Empty;
     [ObservableProperty] private string _localPackageName = string.Empty;
     [ObservableProperty] private string _siteName = string.Empty;
@@ -72,11 +76,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [ObservableProperty] private string _siteCertificatePath = string.Empty;
     [ObservableProperty] private string _sitePrivateKeyPath = string.Empty;
     [ObservableProperty] private string _siteStatusText = string.Empty;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(ToggleManagedCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand))]
     private bool _isLoading;
     // Every action uses IsOperationRunning in its CanExecute predicate. Keep the command state
     // in sync before and after polling, otherwise controls can retain a stale disabled state.
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand), nameof(CancelOperationCommand))]
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RefreshCommand), nameof(DiscoverCommand), nameof(RefreshWindowsVersionsCommand), nameof(InstallManagedCommand), nameof(SelectLocalPackageCommand), nameof(IntegrateCommand), nameof(EnableAcmeHttp01Command), nameof(StartManagedCommand), nameof(StopCommand), nameof(ToggleManagedCommand), nameof(RestartCommand), nameof(ReloadCommand), nameof(UninstallManagedCommand), nameof(TestConfigurationCommand), nameof(RefreshStatusCommand), nameof(SaveSiteCommand), nameof(DeleteSiteCommand), nameof(NewSiteCommand), nameof(EditSiteCommand), nameof(CancelOperationCommand))]
     private bool _isOperationRunning;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(IsManagedInstallAvailable))]
     private bool _hasManagedInstallation;
@@ -96,7 +100,18 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     public bool IsIntegratedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Integrated;
     public bool IsManagedServer => SelectedServer?.ManagementMode == WebServerManagementMode.Managed;
     public bool IsIntegratedOrManagedServer => IsIntegratedServer || IsManagedServer;
+    public bool IsManagedServerRunning => IsManagedServer && SelectedRuntimeState == WebServerRuntimeState.Running;
     public bool IsManagedInstallAvailable => !HasManagedInstallation;
+    public string ManagedLifecycleActionText => IsManagedServerRunning
+        ? LocalizedText.Get("webservers.action.stop")
+        : LocalizedText.Get("webservers.action.start");
+    public string ManagedRuntimeStateLabel => RuntimeStateText(SelectedRuntimeState);
+    public string ManagedRuntimeStateDescription => SelectedRuntimeState switch
+    {
+        WebServerRuntimeState.Running => LocalizedText.Get("webservers.runtime.running_hint"),
+        WebServerRuntimeState.Stopped => LocalizedText.Get("webservers.runtime.stopped_hint"),
+        _ => LocalizedText.Get("webservers.runtime.unknown_hint"),
+    };
     public string ManagementHint => SelectedServer?.ManagementMode switch
     {
         WebServerManagementMode.Integrated => LocalizedText.Get("webservers.management_hint.integrated"),
@@ -167,6 +182,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
+            SelectedRuntimeState = WebServerRuntimeState.Unknown;
             HasManagedInstallation = false;
             StatusText = LocalizedText.Get("webservers.permission.read_required");
             return;
@@ -179,6 +195,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
+            SelectedRuntimeState = WebServerRuntimeState.Unknown;
             SelectedStatusText = string.Empty;
             foreach (var server in servers) Servers.Add(server);
             HasManagedInstallation = servers.Any(server => server.ManagementMode == WebServerManagementMode.Managed);
@@ -189,6 +206,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             Servers.Clear();
             Statuses.Clear();
             SelectedServer = null;
+            SelectedRuntimeState = WebServerRuntimeState.Unknown;
             HasManagedInstallation = false;
             StatusText = LocalizedText.Format("webservers.status.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
@@ -220,18 +238,26 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRefreshStatus))]
     private async Task RefreshStatusAsync()
     {
-        if (SelectedServer is null) return;
+        var server = SelectedServer;
+        if (server is null) return;
         IsLoading = true;
         try
         {
-            var status = await _client.GetStatusAsync(SelectedServer.Id);
+            var status = await _client.GetStatusAsync(server.Id);
+            // A selection can change while the host request is in flight. Do not paint the
+            // previous instance's process state onto the newly selected instance.
+            if (SelectedServer?.Id != server.Id) return;
+            SelectedRuntimeState = status?.RuntimeState ?? WebServerRuntimeState.Unknown;
             SelectedStatusText = status is null
                 ? LocalizedText.Get("webservers.status.unavailable")
-                : LocalizedText.Format("webservers.status.detail", RuntimeStateText(status.RuntimeState),
-                    string.IsNullOrWhiteSpace(status.ProblemCode) ? string.Empty : ProblemText(status.ProblemCode));
+                : string.IsNullOrWhiteSpace(status.ProblemCode)
+                    ? RuntimeStateText(status.RuntimeState)
+                    : LocalizedText.Format("webservers.status.detail", RuntimeStateText(status.RuntimeState), ProblemText(status.ProblemCode));
         }
         catch (Exception)
         {
+            if (SelectedServer?.Id != server.Id) return;
+            SelectedRuntimeState = WebServerRuntimeState.Unknown;
             SelectedStatusText = LocalizedText.Format("webservers.status.failed", LocalizedText.Get("webservers.error.request_failed"));
         }
         finally { IsLoading = false; }
@@ -333,6 +359,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanStop))]
     private Task StopAsync() => RunOperationAsync("stop", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Stop, ct));
+
+    /// <summary>Uses the observed runtime state so the primary control always performs the
+    /// inverse action: start when stopped or unknown, stop when running.</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleManaged))]
+    private Task ToggleManagedAsync() => IsManagedServerRunning ? StopAsync() : StartManagedAsync();
 
     [RelayCommand(CanExecute = nameof(CanRestart))]
     private Task RestartAsync() => RunOperationAsync("restart", ct => _client.ApplyLifecycleAsync(SelectedServer!.Id, WebServerLifecycleAction.Restart, ct));
@@ -444,6 +475,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     partial void OnSelectedServerChanged(WebServerDto? value)
     {
         SelectedStatusText = ManagementHint;
+        SelectedRuntimeState = WebServerRuntimeState.Unknown;
         TestResultText = string.Empty;
         SelectedSite = null;
         Sites.Clear();
@@ -677,6 +709,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private bool CanEnableAcmeHttp01 => CanSaveSite;
     private bool CanStart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStart == true;
     private bool CanStop => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanStop == true;
+    private bool CanToggleManaged => IsManagedServerRunning ? CanStop : CanStart;
     private bool CanRestart => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanRestart == true;
     private bool CanReload => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanReload == true;
     private bool CanUninstallManaged => HasManagePermission && !IsLoading && !IsOperationRunning && SelectedServer?.Capabilities?.CanUninstall == true;
