@@ -107,6 +107,13 @@ static void VerifyThemePaletteContract()
     Assert(!ThemePaletteImport.TryNormalize(imported, [], accentOverride: null, out _, out var rejectedError)
            && rejectedError == ThemePaletteImportError.InvalidFormat,
         "Palette import accepted a token outside the stable colour contract.");
+
+    var legacy = JsonSerializer.Deserialize<ThemePaletteDto>("""
+        { "formatVersion": 1, "id": "legacy", "name": "Legacy", "mode": "light", "colors": { "Accent": "#0078D4" } }
+        """, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(!ThemePaletteImport.TryNormalize(legacy, [], accentOverride: null, out _, out var legacyError)
+           && legacyError == ThemePaletteImportError.InvalidFormat,
+        "Palette import accepted the removed v1 compatibility format.");
 }
 
 static async Task VerifyCertificateStoreAndSniAsync(string root)

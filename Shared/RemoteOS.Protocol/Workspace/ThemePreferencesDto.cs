@@ -26,7 +26,4 @@ public sealed record ThemePaletteDto
     [JsonPropertyName("lightColors")] public Dictionary<string, string>? LightColors { get; set; }
     [JsonPropertyName("darkColors")] public Dictionary<string, string>? DarkColors { get; set; }
 
-    // v1 import compatibility. The server normalises this representation to v2 before persistence.
-    [JsonPropertyName("mode"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
-    [JsonPropertyName("colors"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public Dictionary<string, string>? Colors { get; set; }
 }

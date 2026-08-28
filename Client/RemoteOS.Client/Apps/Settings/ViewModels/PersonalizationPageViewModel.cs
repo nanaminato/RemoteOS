@@ -163,7 +163,7 @@ public sealed partial class PersonalizationPageViewModel : SettingsPageViewModel
     public bool TryImportCustomPalette(ThemePaletteDto? source, out string? error)
     {
         error = null;
-        if (source is null || source.FormatVersion is not (1 or 2)
+        if (source is null || source.FormatVersion != 2
             || string.IsNullOrWhiteSpace(source.Name) || source.Name.Trim().Length > 80)
         {
             error = T("settings.theme_import.invalid", "This file does not contain a valid RemoteOS theme.");

@@ -70,8 +70,7 @@ public static class ThemePaletteDefaults
         var id = preferences.PaletteId["custom:".Length..];
         var palette = preferences.CustomPalettes?.FirstOrDefault(x => x.Id == id);
         if (palette is null) return null;
-        if (palette.FormatVersion >= 2) return dark ? palette.DarkColors : palette.LightColors;
-        return palette.Mode == (dark ? "dark" : "light") ? palette.Colors : null;
+        return dark ? palette.DarkColors : palette.LightColors;
     }
 
     private static void Overlay(Dictionary<string, string> target, IReadOnlyDictionary<string, string> source)

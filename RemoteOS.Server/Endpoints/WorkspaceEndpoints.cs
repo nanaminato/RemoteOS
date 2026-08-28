@@ -333,24 +333,11 @@ public static class WorkspaceEndpoints
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var palette in palettes)
         {
-            if (palette.FormatVersion is not (1 or 2) || !IsPaletteId(palette.Id) || !ids.Add(palette.Id)
+            if (palette.FormatVersion != 2 || !IsPaletteId(palette.Id) || !ids.Add(palette.Id)
                 || string.IsNullOrWhiteSpace(palette.Name) || palette.Name.Trim().Length > 80)
                 return false;
-            Dictionary<string, string>? light;
-            Dictionary<string, string>? dark;
-            if (palette.FormatVersion == 1)
-            {
-                // v1 held one mode per record. Preserve the user's overrides in both
-                // variants so existing workspaces no longer silently fall back on mode change.
-                if (palette.Mode is not ("light" or "dark") || !TryNormalizeThemeColors(palette.Colors, out var legacy)) return false;
-                light = new(legacy, StringComparer.OrdinalIgnoreCase);
-                dark = new(legacy, StringComparer.OrdinalIgnoreCase);
-            }
-            else
-            {
-                if (!TryNormalizeThemeColors(palette.LightColors, out light)
-                    || !TryNormalizeThemeColors(palette.DarkColors, out dark)) return false;
-            }
+            if (!TryNormalizeThemeColors(palette.LightColors, out var light)
+                || !TryNormalizeThemeColors(palette.DarkColors, out var dark)) return false;
             normalized.Add(new ThemePaletteDto { FormatVersion = 2, Id = palette.Id, Name = palette.Name.Trim(), LightColors = light, DarkColors = dark });
         }
         if (paletteId.StartsWith("custom:", StringComparison.Ordinal) && !ids.Contains(paletteId[7..])) return false;

@@ -14,21 +14,19 @@ public static class ThemePaletteImport
     {
         palette = null;
         error = ThemePaletteImportError.InvalidFormat;
-        if (source is null || source.FormatVersion is not (1 or 2)
+        if (source is null || source.FormatVersion != 2
             || string.IsNullOrWhiteSpace(source.Name) || source.Name.Trim().Length > 80)
             return false;
 
-        var light = source.FormatVersion == 1 ? source.Colors : source.LightColors;
-        var dark = source.FormatVersion == 1 ? source.Colors : source.DarkColors;
-        if (!AreValidColors(light) || !AreValidColors(dark)) return false;
+        if (!AreValidColors(source.LightColors) || !AreValidColors(source.DarkColors)) return false;
 
         palette = new ThemePaletteDto
         {
             FormatVersion = 2,
             Id = MakeUniqueId(source.Id, existingIds),
             Name = source.Name.Trim(),
-            LightColors = NormalizeColors(light!),
-            DarkColors = NormalizeColors(dark!),
+            LightColors = NormalizeColors(source.LightColors!),
+            DarkColors = NormalizeColors(source.DarkColors!),
         };
         var preferences = new ThemePreferencesDto
         {
