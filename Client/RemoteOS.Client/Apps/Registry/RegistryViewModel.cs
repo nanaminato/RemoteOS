@@ -10,6 +10,7 @@ namespace Client.Apps.Registry;
 public sealed partial class RegistryViewModel(IRegistryClient client) : ObservableObject
 {
     private List<RegistryEntryDto> _allEntries = [];
+    private HashSet<string> _expandedKeys = new(StringComparer.Ordinal);
     public ObservableCollection<RegistryKeyNode> Keys { get; } = [];
     public ObservableCollection<RegistryEntryRow> Entries { get; } = [];
     [ObservableProperty] private string _statusText = LocalizedText.Get("registry.status.loading", "Loading registry…");
@@ -34,6 +35,8 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         IsLoading = true;
         try
         {
+            var selectedKey = SelectedKey?.Key;
+            _expandedKeys = Keys.SelectMany(Flatten).Where(node => node.IsExpanded).Select(node => node.Key).ToHashSet(StringComparer.Ordinal);
             var entriesTask = client.ListAsync();
             var summaryTask = client.GetSummaryAsync();
             await Task.WhenAll(entriesTask, summaryTask);
@@ -44,7 +47,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
             root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.current_user", "Current User"), "__current"));
             root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.other_users", "Other Users (access denied)"), "__other"));
             foreach (var entry in _allEntries) AddKey(entry);
-            SelectedKey ??= root.Children[0].Children.FirstOrDefault();
+            SelectedKey = selectedKey is null ? root.Children[0].Children.FirstOrDefault() : FindKey(selectedKey) ?? root.Children[0].Children.FirstOrDefault();
             RebuildEntries();
             StatusText = _allEntries.Count == 0 ? LocalizedText.Get("registry.status.empty", "No values in this key.") : string.Format(LocalizedText.Get("registry.status.count", "{0} value(s)."), _allEntries.Count);
         }
@@ -68,7 +71,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
             await client.SaveAsync(new PutRegistryEntryRequest(Scope, Path, Name, ValueType, document.RootElement.Clone()));
             StatusText = LocalizedText.Get("registry.status.saved", "Value saved.");
             await RefreshAsync();
-            SelectedKey = FindKey($"{Scope}\\{Path}");
+            SelectedKey = FindKey(Path);
         }
         catch (Exception ex) { StatusText = string.Format(LocalizedText.Get("registry.status.save_failed", "Could not save value: {0}"), ex.Message); }
     }
@@ -84,7 +87,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [RelayCommand]
     private Task NewValue()
     {
-        var source = _allEntries.FirstOrDefault(x => $"{x.Scope}\\{x.Path}" == SelectedKey?.Key);
+        var source = _allEntries.FirstOrDefault(x => x.Path == SelectedKey?.Key);
         return ShowNewValueDialogAsync is null ? Task.CompletedTask : ShowNewValueDialogAsync(source?.Scope ?? RegistryScope.Workspace, source?.Path ?? "Workspace\\Desktop\\Preferences");
     }
 
@@ -111,19 +114,19 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         Entries.Clear();
         var key = SelectedKey?.Key;
         if (key is "__root" or "__current" or "__other") key = null;
-        foreach (var entry in _allEntries.Where(x => key is null || $"{x.Scope}\\{x.Path}" == key)) Entries.Add(RegistryEntryRow.From(entry));
+        foreach (var entry in _allEntries.Where(x => key is null || x.Path == key)) Entries.Add(RegistryEntryRow.From(entry));
     }
 
     private void AddKey(RegistryEntryDto entry)
     {
         var root = Keys.Single(x => x.Key == "__root");
         var current = root.Children.Single(x => x.Key == "__current");
-        foreach (var segment in new[] { entry.Scope.ToString() }.Concat(entry.Path.Split('\\', StringSplitOptions.RemoveEmptyEntries)))
+        foreach (var segment in entry.Path.Split('\\', StringSplitOptions.RemoveEmptyEntries))
         {
             var collection = current?.Children ?? Keys;
             var parentKey = current?.Key;
             var key = parentKey is null || parentKey.StartsWith("__", StringComparison.Ordinal) ? segment : parentKey + "\\" + segment;
-            current = collection.FirstOrDefault(x => x.Key == key) ?? new RegistryKeyNode(segment, key);
+            current = collection.FirstOrDefault(x => x.Key == key) ?? new RegistryKeyNode(segment, key) { IsExpanded = _expandedKeys.Contains(key) };
             if (!collection.Contains(current)) collection.Add(current);
         }
     }
@@ -148,6 +151,12 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         "__other" => "HKEY_USERS\\Other Users",
         var key => "HKEY_USERS\\Current User\\" + key,
     };
+
+    private static IEnumerable<RegistryKeyNode> Flatten(RegistryKeyNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children.SelectMany(Flatten)) yield return child;
+    }
 }
 
 public sealed record RegistryEntryRow(RegistryEntryDto Source, string Name, string DesiredValue, string Type)
@@ -161,4 +170,5 @@ public sealed class RegistryKeyNode(string name, string key)
     public string Name { get; } = name;
     public string Key { get; } = key;
     public ObservableCollection<RegistryKeyNode> Children { get; } = [];
+    public bool IsExpanded { get; set; }
 }
