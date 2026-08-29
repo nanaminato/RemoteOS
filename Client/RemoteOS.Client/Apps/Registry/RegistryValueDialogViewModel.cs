@@ -11,13 +11,21 @@ public sealed partial class RegistryValueDialogViewModel : ObservableObject
     private readonly Action<bool> _close;
     [ObservableProperty] private string _valueText;
     [ObservableProperty] private string? _error;
-    public RegistryEntryDto Entry { get; }
-    public bool IsJson => Entry.ValueType == RegistryValueType.Json;
+    public RegistryEntryDto? Entry { get; }
+    [ObservableProperty] private string _name;
+    [ObservableProperty] private RegistryValueType _valueType;
+    public RegistryScope Scope { get; }
+    public string Path { get; }
+    public IReadOnlyList<RegistryValueType> ValueTypes { get; } = Enum.GetValues<RegistryValueType>();
+    public bool IsJson => ValueType == RegistryValueType.Json;
 
     public RegistryValueDialogViewModel(RegistryEntryRow row, IRegistryClient client, Action<bool> close)
     {
-        Entry = row.Source; _client = client; _close = close; ValueText = Entry.DesiredValue.GetRawText();
+        Entry = row.Source; _client = client; _close = close; Scope = Entry.Scope; Path = Entry.Path; Name = Entry.Name; ValueType = Entry.ValueType;
+        ValueText = IsJson ? JsonSerializer.Serialize(Entry.DesiredValue, new JsonSerializerOptions { WriteIndented = true }) : Entry.DesiredValue.GetRawText();
     }
+    public RegistryValueDialogViewModel(RegistryScope scope, string path, IRegistryClient client, Action<bool> close)
+    { Scope = scope; Path = path; _client = client; _close = close; Name = "NewValue"; ValueType = RegistryValueType.String; ValueText = "\"\""; }
 
     [RelayCommand]
     private async Task SaveAsync()
@@ -25,7 +33,9 @@ public sealed partial class RegistryValueDialogViewModel : ObservableObject
         try
         {
             using var value = JsonDocument.Parse(ValueText);
-            await _client.SaveAsync(new PutRegistryEntryRequest(Entry.Scope, Entry.Path, Entry.Name, Entry.ValueType, value.RootElement.Clone()));
+            var compact = JsonSerializer.Serialize(value.RootElement);
+            using var compactDocument = JsonDocument.Parse(compact);
+            await _client.SaveAsync(new PutRegistryEntryRequest(Scope, Path, Name, ValueType, compactDocument.RootElement.Clone()));
             _close(true);
         }
         catch (Exception ex) { Error = ex.Message; }

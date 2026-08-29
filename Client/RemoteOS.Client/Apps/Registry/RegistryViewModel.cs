@@ -21,6 +21,8 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [ObservableProperty] private RegistryValueType _valueType = RegistryValueType.Json;
     [ObservableProperty] private string _valueText = "{}";
     public Func<RegistryEntryRow, Task>? ShowEditDialogAsync { get; set; }
+    public Func<RegistryScope, string, Task>? ShowNewValueDialogAsync { get; set; }
+    public string NavigationPath => SelectedKey?.Key is { } key && !key.StartsWith("__", StringComparison.Ordinal) ? key : "HKEY_USERS";
     public IReadOnlyList<RegistryScope> Scopes { get; } = Enum.GetValues<RegistryScope>();
     public IReadOnlyList<RegistryValueType> ValueTypes { get; } = Enum.GetValues<RegistryValueType>();
 
@@ -49,7 +51,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         finally { IsLoading = false; }
     }
 
-    partial void OnSelectedKeyChanged(RegistryKeyNode? value) => RebuildEntries();
+    partial void OnSelectedKeyChanged(RegistryKeyNode? value) { RebuildEntries(); OnPropertyChanged(nameof(NavigationPath)); }
     partial void OnSelectedEntryChanged(RegistryEntryRow? value)
     {
         if (value is null) return;
@@ -79,9 +81,10 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     }
 
     [RelayCommand]
-    private void NewValue()
+    private Task NewValue()
     {
-        SelectedEntry = null; Name = "NewValue"; ValueType = RegistryValueType.String; ValueText = "\"\"";
+        var source = _allEntries.FirstOrDefault(x => $"{x.Scope}\\{x.Path}" == SelectedKey?.Key);
+        return ShowNewValueDialogAsync is null ? Task.CompletedTask : ShowNewValueDialogAsync(source?.Scope ?? RegistryScope.Workspace, source?.Path ?? "Workspace\\Desktop\\Preferences");
     }
 
     [RelayCommand]

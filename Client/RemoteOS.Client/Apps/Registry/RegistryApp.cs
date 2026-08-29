@@ -33,6 +33,14 @@ public sealed class RegistryApp : RemoteApplicationBase
             });
             if (saved) await viewModel.RefreshAsync();
         };
+        viewModel.ShowNewValueDialogAsync = async (scope, path) =>
+        {
+            var saved = await context.ShowDialogAsync<bool>(window, "New Registry Value", dialog => new RegistryValueDialogView
+            {
+                DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close),
+            });
+            if (saved) await viewModel.RefreshAsync();
+        };
         _ = viewModel.RefreshAsync();
     }
 }
