@@ -8,6 +8,8 @@ public interface IRegistryRepository
 {
     IReadOnlyList<RegistryEntry> List(Guid userId, RegistryScope? scope = null);
     RegistryEntry? Find(Guid userId, RegistryScope scope, Guid scopeId, string path, string name);
+    RegistryEntry Upsert(RegistryEntry entry);
+    bool Delete(Guid userId, RegistryScope scope, Guid scopeId, string path, string name);
     void SeedSynced(RegistryEntry entry);
 }
 
@@ -20,6 +22,16 @@ public sealed class InMemoryRegistryRepository : IRegistryRepository
         .OrderBy(x => x.Scope).ThenBy(x => x.Path, StringComparer.Ordinal).ThenBy(x => x.Name, StringComparer.Ordinal).Select(Copy).ToArray();
     public RegistryEntry? Find(Guid userId, RegistryScope scope, Guid scopeId, string path, string name) =>
         _entries.TryGetValue((userId, scope, scopeId, path, name), out var entry) ? Copy(entry) : null;
+    public RegistryEntry Upsert(RegistryEntry entry)
+    {
+        var saved = _entries.AddOrUpdate(Key(entry), _ => Copy(entry), (_, current) =>
+        {
+            entry.Revision = current.Revision + 1;
+            return Copy(entry);
+        });
+        return Copy(saved);
+    }
+    public bool Delete(Guid userId, RegistryScope scope, Guid scopeId, string path, string name) => _entries.TryRemove((userId, scope, scopeId, path, name), out _);
     public void SeedSynced(RegistryEntry entry) => _entries.TryAdd(Key(entry), Copy(entry));
     private static (Guid, RegistryScope, Guid, string, string) Key(RegistryEntry x) => (x.UserId, x.Scope, x.ScopeId, x.Path, x.Name);
     private static RegistryEntry Copy(RegistryEntry x) => new() { UserId = x.UserId, Scope = x.Scope, ScopeId = x.ScopeId, Path = x.Path, Name = x.Name, ValueType = x.ValueType, ValueJson = x.ValueJson, Revision = x.Revision, State = x.State, DesiredUpdatedAt = x.DesiredUpdatedAt, DesiredUpdatedBy = x.DesiredUpdatedBy, AppliedRevision = x.AppliedRevision, AppliedAt = x.AppliedAt, LastErrorCode = x.LastErrorCode, LastErrorMessage = x.LastErrorMessage };

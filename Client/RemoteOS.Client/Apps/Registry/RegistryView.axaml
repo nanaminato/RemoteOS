@@ -4,24 +4,17 @@
              x:Class="Client.Apps.Registry.RegistryView"
              x:DataType="registry:RegistryViewModel"
              Background="{DynamicResource SurfaceBrush}">
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
-    <DockPanel>
-      <StackPanel Spacing="4"><TextBlock Text="Configuration Registry" FontSize="24" FontWeight="Bold"/><TextBlock Text="Schema-approved desired state; values below are currently read-only." Opacity="0.72"/></StackPanel>
-      <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsLoading}"/>
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+    <DockPanel Margin="0,0,0,8">
+      <StackPanel><TextBlock Text="Registry Editor" FontSize="20" FontWeight="Bold"/><TextBlock Text="Current User" Opacity="0.65"/></StackPanel>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"><Button Content="New Value" Command="{Binding NewValueCommand}"/><Button Content="Refresh" Command="{Binding RefreshCommand}"/></StackPanel>
     </DockPanel>
-    <TextBlock Grid.Row="1" Margin="0,16,0,8" Text="{Binding SummaryText}" Opacity="0.8" />
-    <DataGrid Grid.Row="2" ItemsSource="{Binding Entries}" IsReadOnly="True" AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
-      <DataGrid.Columns>
-        <DataGridTextColumn Header="Scope" Binding="{Binding Scope}" Width="90"/>
-        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="220"/>
-        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="100"/>
-        <DataGridTextColumn Header="Desired value" Binding="{Binding DesiredValue}" Width="*"/>
-        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
-        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="110"/>
-        <DataGridTextColumn Header="Apply" Binding="{Binding ApplyMode}" Width="150"/>
-        <DataGridTextColumn Header="Rev." Binding="{Binding Revision}" Width="60"/>
-      </DataGrid.Columns>
-    </DataGrid>
-    <TextBlock Grid.Row="3" Margin="0,10,0,0" Text="{Binding StatusText}" Opacity="0.75" />
+    <Grid Grid.Row="1" ColumnDefinitions="250,5,*" RowDefinitions="*,Auto">
+      <Border BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0" Padding="4"><TreeView ItemsSource="{Binding Keys}" SelectedItem="{Binding SelectedKey, Mode=TwoWay}"><TreeView.ItemTemplate><TreeDataTemplate DataType="registry:RegistryKeyNode" ItemsSource="{Binding Children}"><TextBlock Text="{Binding Name}"/></TreeDataTemplate></TreeView.ItemTemplate></TreeView></Border>
+      <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns"/>
+      <DataGrid Grid.Column="2" ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry, Mode=TwoWay}" IsReadOnly="True" AutoGenerateColumns="False" CanUserResizeColumns="True"><DataGrid.Columns><DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/><DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="110"/><DataGridTextColumn Header="Data" Binding="{Binding DesiredValue}" Width="*"/></DataGrid.Columns></DataGrid>
+      <Border Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0" Padding="10" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1"><Grid ColumnDefinitions="100,*,90,100,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="7"><TextBlock Text="Path" VerticalAlignment="Center"/><TextBox Grid.Column="1" Text="{Binding Path, Mode=TwoWay}"/><TextBlock Grid.Column="2" Text="Scope" VerticalAlignment="Center"/><ComboBox Grid.Column="3" ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope, Mode=TwoWay}"/><Button Grid.Column="4" Content="Delete" Command="{Binding DeleteCommand}"/><TextBlock Grid.Row="1" Text="Name / type / data" VerticalAlignment="Center"/><StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8"><TextBox Width="150" Text="{Binding Name, Mode=TwoWay}"/><ComboBox Width="105" ItemsSource="{Binding ValueTypes}" SelectedItem="{Binding ValueType, Mode=TwoWay}"/><TextBox Width="360" Text="{Binding ValueText, Mode=TwoWay}"/></StackPanel><Button Grid.Row="1" Grid.Column="4" Content="Save" Command="{Binding SaveCommand}"/></Grid></Border>
+    </Grid>
+    <TextBlock Grid.Row="2" Margin="2,8,0,0" Text="{Binding StatusText}" Opacity="0.7"/>
   </Grid>
 </UserControl>

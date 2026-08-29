@@ -9,7 +9,7 @@ using Rect = RemoteOS.Core.Primitives.Rect;
 
 namespace Client.Apps.Registry;
 
-/// <summary>Built-in, read-only registry browser. Editing is enabled only after the server sync workflow is available.</summary>
+/// <summary>Built-in registry editor for the current user's RemoteOS configuration hive.</summary>
 public sealed class RegistryApp : RemoteApplicationBase
 {
     public override ApplicationManifest Manifest { get; } = new(new AppId("remoteos.registry"), "Registry", "1.0.0", "⚙", "Browse supported RemoteOS configuration values", [AppPermissions.ServerRegistryRead, AppPermissions.ServerRegistryWrite], InstancePolicy: ApplicationInstancePolicy.SingleWindow);

@@ -41,3 +41,6 @@ public static class RegistryApiRoutes
     public const string Entries = $"/{V1}/registry/entries";
     public const string Summary = $"/{V1}/registry/summary";
 }
+
+/// <summary>Editable value payload. Scope ownership is always resolved from the caller token.</summary>
+public sealed record PutRegistryEntryRequest(RegistryScope Scope, string Path, string Name, RegistryValueType ValueType, JsonElement Value);
