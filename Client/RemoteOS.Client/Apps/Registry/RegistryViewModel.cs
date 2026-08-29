@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Client.Localization;
 using RemoteOS.Protocol.Registry;
 
 namespace Client.Apps.Registry;
@@ -11,7 +12,8 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     private List<RegistryEntryDto> _allEntries = [];
     public ObservableCollection<RegistryKeyNode> Keys { get; } = [];
     public ObservableCollection<RegistryEntryRow> Entries { get; } = [];
-    [ObservableProperty] private string _statusText = "Loading registry…";
+    [ObservableProperty] private string _statusText = LocalizedText.Get("registry.status.loading", "Loading registry…");
+    [ObservableProperty] private string _navigationPathInput = "HKEY_USERS";
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private RegistryKeyNode? _selectedKey;
     [ObservableProperty] private RegistryEntryRow? _selectedEntry;
@@ -22,7 +24,6 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [ObservableProperty] private string _valueText = "{}";
     public Func<RegistryEntryRow, Task>? ShowEditDialogAsync { get; set; }
     public Func<RegistryScope, string, Task>? ShowNewValueDialogAsync { get; set; }
-    public string NavigationPath => SelectedKey?.Key is { } key && !key.StartsWith("__", StringComparison.Ordinal) ? key : "HKEY_USERS";
     public IReadOnlyList<RegistryScope> Scopes { get; } = Enum.GetValues<RegistryScope>();
     public IReadOnlyList<RegistryValueType> ValueTypes { get; } = Enum.GetValues<RegistryValueType>();
 
@@ -40,18 +41,18 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
             Keys.Clear();
             Keys.Add(new RegistryKeyNode("HKEY_USERS", "__root"));
             var root = Keys[0];
-            root.Children.Add(new RegistryKeyNode("Current User", "__current"));
-            root.Children.Add(new RegistryKeyNode("Other Users (access denied)", "__other"));
+            root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.current_user", "Current User"), "__current"));
+            root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.other_users", "Other Users (access denied)"), "__other"));
             foreach (var entry in _allEntries) AddKey(entry);
             SelectedKey ??= root.Children[0].Children.FirstOrDefault();
             RebuildEntries();
-            StatusText = _allEntries.Count == 0 ? "No values. Enter a path, name, type, and data to create one." : $"{_allEntries.Count} value(s).";
+            StatusText = _allEntries.Count == 0 ? LocalizedText.Get("registry.status.empty", "No values in this key.") : string.Format(LocalizedText.Get("registry.status.count", "{0} value(s)."), _allEntries.Count);
         }
-        catch (Exception ex) { StatusText = $"Registry unavailable: {ex.Message}"; }
+        catch (Exception ex) { StatusText = string.Format(LocalizedText.Get("registry.status.unavailable", "Registry unavailable: {0}"), ex.Message); }
         finally { IsLoading = false; }
     }
 
-    partial void OnSelectedKeyChanged(RegistryKeyNode? value) { RebuildEntries(); OnPropertyChanged(nameof(NavigationPath)); }
+    partial void OnSelectedKeyChanged(RegistryKeyNode? value) { RebuildEntries(); NavigationPathInput = DisplayPath(value); }
     partial void OnSelectedEntryChanged(RegistryEntryRow? value)
     {
         if (value is null) return;
@@ -65,19 +66,19 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         {
             using var document = JsonDocument.Parse(ValueText);
             await client.SaveAsync(new PutRegistryEntryRequest(Scope, Path, Name, ValueType, document.RootElement.Clone()));
-            StatusText = "Value saved.";
+            StatusText = LocalizedText.Get("registry.status.saved", "Value saved.");
             await RefreshAsync();
             SelectedKey = FindKey($"{Scope}\\{Path}");
         }
-        catch (Exception ex) { StatusText = $"Could not save value: {ex.Message}"; }
+        catch (Exception ex) { StatusText = string.Format(LocalizedText.Get("registry.status.save_failed", "Could not save value: {0}"), ex.Message); }
     }
 
     [RelayCommand]
     private async Task DeleteAsync()
     {
         if (SelectedEntry is null) return;
-        try { await client.DeleteAsync(SelectedEntry.Source.Scope, SelectedEntry.Source.Path, SelectedEntry.Source.Name); StatusText = "Value deleted."; await RefreshAsync(); }
-        catch (Exception ex) { StatusText = $"Could not delete value: {ex.Message}"; }
+        try { await client.DeleteAsync(SelectedEntry.Source.Scope, SelectedEntry.Source.Path, SelectedEntry.Source.Name); StatusText = LocalizedText.Get("registry.status.deleted", "Value deleted."); await RefreshAsync(); }
+        catch (Exception ex) { StatusText = string.Format(LocalizedText.Get("registry.status.delete_failed", "Could not delete value: {0}"), ex.Message); }
     }
 
     [RelayCommand]
@@ -90,6 +91,20 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [RelayCommand]
     private Task EditSelectedAsync() => SelectedEntry is not null && ShowEditDialogAsync is not null
         ? ShowEditDialogAsync(SelectedEntry) : Task.CompletedTask;
+
+    [RelayCommand]
+    private void Navigate()
+    {
+        var input = NavigationPathInput.Trim().Trim('\\');
+        const string root = "HKEY_USERS";
+        if (input.StartsWith(root, StringComparison.OrdinalIgnoreCase)) input = input[root.Length..].Trim('\\');
+        if (input.StartsWith("Current User\\", StringComparison.OrdinalIgnoreCase)) input = input["Current User\\".Length..];
+        if (input.StartsWith("Other Users", StringComparison.OrdinalIgnoreCase)) { StatusText = LocalizedText.Get("registry.status.access_denied", "Other users' registry hives cannot be opened."); return; }
+        if (string.IsNullOrWhiteSpace(input)) { SelectedKey = Keys.SingleOrDefault(x => x.Key == "__root"); return; }
+        var found = FindKey(input);
+        if (found is null) { StatusText = string.Format(LocalizedText.Get("registry.status.path_not_found", "Registry key not found: {0}"), NavigationPathInput); return; }
+        SelectedKey = found;
+    }
 
     private void RebuildEntries()
     {
@@ -125,6 +140,14 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         }
         return current;
     }
+
+    private static string DisplayPath(RegistryKeyNode? node) => node?.Key switch
+    {
+        null or "__root" => "HKEY_USERS",
+        "__current" => "HKEY_USERS\\Current User",
+        "__other" => "HKEY_USERS\\Other Users",
+        var key => "HKEY_USERS\\Current User\\" + key,
+    };
 }
 
 public sealed record RegistryEntryRow(RegistryEntryDto Source, string Name, string DesiredValue, string Type)

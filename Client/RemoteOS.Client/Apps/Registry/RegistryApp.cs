@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Client.Services.Auth;
+using Client.Localization;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -20,14 +21,14 @@ public sealed class RegistryApp : RemoteApplicationBase
         var client = context.Services.GetService(typeof(IRegistryClient)) as IRegistryClient;
         if (session?.State != AuthSessionState.Authenticated || client is null)
         {
-            context.ShowWindow("Registry", new TextBlock { Text = "Sign in to browse the configuration registry.", Margin = new Thickness(24) }, new Rect(200, 160, 460, 180), Manifest.IconGlyph, false, false, false);
+            context.ShowWindow(LocalizedText.Get("application.remoteos.registry.display_name", "Registry"), new TextBlock { Text = LocalizedText.Get("registry.error.sign_in", "Sign in to browse the configuration registry."), Margin = new Thickness(24) }, new Rect(200, 160, 460, 180), Manifest.IconGlyph, false, false, false);
             return;
         }
         var viewModel = new RegistryViewModel(client);
-        var window = context.ShowWindow("Registry", new RegistryView { DataContext = viewModel }, new Rect(80, 60, 1120, 700), Manifest.IconGlyph);
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.registry.display_name", "Registry"), new RegistryView { DataContext = viewModel }, new Rect(80, 60, 1120, 700), Manifest.IconGlyph);
         viewModel.ShowEditDialogAsync = async row =>
         {
-            var saved = await context.ShowDialogAsync<bool>(window, "Edit Registry Value", dialog => new RegistryValueDialogView
+            var saved = await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.edit", "Edit Registry Value"), dialog => new RegistryValueDialogView
             {
                 DataContext = new RegistryValueDialogViewModel(row, client, dialog.Close),
             });
@@ -35,7 +36,7 @@ public sealed class RegistryApp : RemoteApplicationBase
         };
         viewModel.ShowNewValueDialogAsync = async (scope, path) =>
         {
-            var saved = await context.ShowDialogAsync<bool>(window, "New Registry Value", dialog => new RegistryValueDialogView
+            var saved = await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.new", "New Registry Value"), dialog => new RegistryValueDialogView
             {
                 DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close),
             });

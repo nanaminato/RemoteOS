@@ -2,6 +2,7 @@ using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Registry;
+using Client.Localization;
 
 namespace Client.Apps.Registry;
 
@@ -38,7 +39,7 @@ public sealed partial class RegistryValueDialogViewModel : ObservableObject
             await _client.SaveAsync(new PutRegistryEntryRequest(Scope, Path, Name, ValueType, compactDocument.RootElement.Clone()));
             _close(true);
         }
-        catch (Exception ex) { Error = ex.Message; }
+        catch (Exception ex) { Error = string.Format(LocalizedText.Get("registry.error.invalid_value", "Invalid registry value: {0}"), ex.Message); }
     }
     [RelayCommand] private void Cancel() => _close(false);
 }
