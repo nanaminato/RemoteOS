@@ -2,7 +2,7 @@
 
 > 本文档定义 RemoteOS 的服务端注册表（Registry）架构：它如何成为可编辑配置的期望状态真源、如何在多用户/多设备下隔离，以及如何将变更安全地同步为有效配置与运行时状态。
 >
-> **状态：设计中。** 当前 Workspace 偏好、终端/浏览器设置和应用私有设置仍由各自端点直接写入 SQLite；本设计尚未实现。
+> **状态：第一阶段已实现。** 已提供 schema 白名单、按用户/作用域隔离的持久化读取模型、既有 Workspace 配置导入和只读内置注册表应用。现有写入端点仍直接写入 SQLite；`RegistryWriter`、同步器和编辑工作流尚未实现。
 
 - Workspace 的用户与设备模型见 [`RemoteOS.Workspace.md`](./RemoteOS.Workspace.md)
 - 当前持久化边界见 [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md)

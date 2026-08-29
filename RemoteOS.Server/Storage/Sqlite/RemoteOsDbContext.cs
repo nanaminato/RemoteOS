@@ -27,9 +27,29 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<TunnelAuditEntry> TunnelAuditEntries => Set<TunnelAuditEntry>();
     public DbSet<AccountFailureState> AccountFailureStates => Set<AccountFailureState>();
     public DbSet<AuthenticationSecurityEvent> AuthenticationSecurityEvents => Set<AuthenticationSecurityEvent>();
+    public DbSet<RegistryEntry> RegistryEntries => Set<RegistryEntry>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.Entity<RegistryEntry>(e =>
+        {
+            e.ToTable("registry_entries");
+            e.HasKey(x => new { x.UserId, x.Scope, x.ScopeId, x.Path, x.Name });
+            e.Property(x => x.UserId).HasColumnType("TEXT");
+            e.Property(x => x.Scope).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ScopeId).HasColumnType("TEXT");
+            e.Property(x => x.Path).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.ValueType).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ValueJson).IsRequired();
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32).IsRequired();
+            e.Property(x => x.DesiredUpdatedAt).HasColumnType("TEXT");
+            e.Property(x => x.DesiredUpdatedBy).HasMaxLength(256).IsRequired();
+            e.Property(x => x.AppliedAt).HasColumnType("TEXT");
+            e.Property(x => x.LastErrorCode).HasMaxLength(128);
+            e.Property(x => x.LastErrorMessage).HasMaxLength(512);
+            e.HasIndex(x => new { x.UserId, x.Scope, x.ScopeId, x.State });
+        });
         mb.Entity<AccountFailureState>(e =>
         {
             e.ToTable("account_failure_states");

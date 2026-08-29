@@ -1,0 +1,21 @@
+# RemoteOS Registry
+
+> **状态：第一阶段已实现（只读）。**
+
+## 定位与边界
+
+内置应用 `remoteos.registry` 浏览服务器 schema 明确允许的配置型期望状态及其同步状态。它不提供宿主 Windows Registry、任意 SQLite 表、机密、会话或高风险命令的入口。
+
+## 流程与信息架构
+
+应用以单一的可伸展数据表展示 scope、逻辑路径、名称、期望值、类型、版本、状态与生效方式。顶部显示待同步、失败与待重启计数；刷新从服务端重新读取。第一阶段没有编辑入口，避免在同步器上线前产生第二条写入路径。
+
+## 边界、存储与升级
+
+Protocol 定义 `RegistryEntryDto`、状态枚举及 REST 路由；Client 使用 typed `HttpClient`；Server 仅根据 JWT subject 查询本人的条目。SQLite `registry_entries` 的复合主键为 `(UserId, Scope, ScopeId, Path, Name)`。服务启动时把现有 Workspace 的终端外观、桌面偏好与浏览器设置导入为 `Synced` 值，已有条目不会覆盖。
+
+## 平台、安全与验收
+
+该应用和 API 在 Windows、Ubuntu 共享相同的托管实现，不访问任何 OS 注册表。路径由代码 schema 白名单控制，读取以 JWT 用户 ID 为租户边界；未认证、未知 scope 与其他用户数据不可访问。验收包括：两位用户的列表互不包含对方数据；既有 Workspace 第一次启动后有三个 `Synced` 项；重复启动不改变 revision；应用可在离线或未登录时给出失败提示。
+
+后续阶段才会实现 schema 驱动编辑、乐观并发、审计历史、`RegistryWriter` 与 `RegistrySyncWorker`；届时现有配置 PUT 会按配置域迁入该写入链路。

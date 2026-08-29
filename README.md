@@ -176,6 +176,7 @@ RemoteOS/
 | **Process Guardian** | 进程守护（健康检查、自动恢复、原生服务管理） | 🚧 部分实现 |
 | **Firewall** | Linux Server UFW 防火墙状态、默认策略与规则管理 | ✅ 已实现 |
 | **App Installer** | 应用包安装与管理 | ✅ 已实现 |
+| **Registry** | 受 schema 约束的配置注册表浏览（第一阶段只读） | ✅ 已实现 |
 
 ---
 

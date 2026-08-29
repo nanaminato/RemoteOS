@@ -438,6 +438,7 @@ RemoteOS.Server     = Cloud Backend
 | [`NetworkInspector`](./applications/RemoteOS.NetworkInspector.md) | 网络诊断与分析 |
 | [`PortForwarding`](./applications/RemoteOS.PortForwarding.md) | 本机 SSH loopback 隧道 |
 | [`ProcessGuardian`](./applications/RemoteOS.ProcessGuardian.md) | 守护工作负载、健康检查与服务管理 |
+| [`Registry`](./applications/RemoteOS.RegistryApp.md) | 配置注册表浏览与隔离边界（第一阶段只读） |
 | [`TaskManager`](./applications/RemoteOS.TaskManager.md) | 系统指标、进程查看与管理 |
 | [`Terminal`](./applications/RemoteOS.Terminal.md) | PTY、SignalR 与终端会话管理 |
 | [`WebServerManager`](./applications/RemoteOS.WebServerManager.Design.md) | Web Server Provider、Nginx 集成与站点管理（设计中） |

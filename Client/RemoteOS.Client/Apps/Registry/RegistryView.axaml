@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:registry="clr-namespace:Client.Apps.Registry"
+             x:Class="Client.Apps.Registry.RegistryView"
+             x:DataType="registry:RegistryViewModel"
+             Background="{DynamicResource SurfaceBrush}">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
+    <DockPanel>
+      <StackPanel Spacing="4"><TextBlock Text="Configuration Registry" FontSize="24" FontWeight="Bold"/><TextBlock Text="Schema-approved desired state; values below are currently read-only." Opacity="0.72"/></StackPanel>
+      <Button DockPanel.Dock="Right" Content="Refresh" Command="{Binding RefreshCommand}" IsEnabled="{Binding !IsLoading}"/>
+    </DockPanel>
+    <TextBlock Grid.Row="1" Margin="0,16,0,8" Text="{Binding SummaryText}" Opacity="0.8" />
+    <DataGrid Grid.Row="2" ItemsSource="{Binding Entries}" IsReadOnly="True" AutoGenerateColumns="False" GridLinesVisibility="Horizontal">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Scope" Binding="{Binding Scope}" Width="90"/>
+        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="220"/>
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="100"/>
+        <DataGridTextColumn Header="Desired value" Binding="{Binding DesiredValue}" Width="*"/>
+        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
+        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="110"/>
+        <DataGridTextColumn Header="Apply" Binding="{Binding ApplyMode}" Width="150"/>
+        <DataGridTextColumn Header="Rev." Binding="{Binding Revision}" Width="60"/>
+      </DataGrid.Columns>
+    </DataGrid>
+    <TextBlock Grid.Row="3" Margin="0,10,0,0" Text="{Binding StatusText}" Opacity="0.75" />
+  </Grid>
+</UserControl>

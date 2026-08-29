@@ -320,6 +320,7 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
     builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
+    builder.Services.AddScoped<IRegistryRepository, SqliteRegistryRepository>();
     builder.Services.AddScoped<IImageMirrorRepository, SqliteImageMirrorRepository>();
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
@@ -334,6 +335,7 @@ else
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
     builder.Services.AddSingleton<IAppSettingsRepository, InMemoryAppSettingsRepository>();
+    builder.Services.AddSingleton<IRegistryRepository, InMemoryRegistryRepository>();
     builder.Services.AddSingleton<IImageMirrorRepository, InMemoryImageMirrorRepository>();
     builder.Services.AddSingleton<Server.Tunnels.ITunnelAudit, Server.Tunnels.InMemoryTunnelAudit>();
 }
@@ -538,7 +540,21 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_CreatedAt" ON "authentication_security_events" ("CreatedAt");
         CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_AccountKey" ON "authentication_security_events" ("AccountKey");
+
+        CREATE TABLE IF NOT EXISTS "registry_entries" (
+            "UserId" TEXT NOT NULL, "Scope" TEXT NOT NULL, "ScopeId" TEXT NOT NULL,
+            "Path" TEXT NOT NULL, "Name" TEXT NOT NULL, "ValueType" TEXT NOT NULL,
+            "ValueJson" TEXT NOT NULL, "Revision" INTEGER NOT NULL, "State" TEXT NOT NULL,
+            "DesiredUpdatedAt" TEXT NOT NULL, "DesiredUpdatedBy" TEXT NOT NULL,
+            "AppliedRevision" INTEGER NULL, "AppliedAt" TEXT NULL,
+            "LastErrorCode" TEXT NULL, "LastErrorMessage" TEXT NULL,
+            PRIMARY KEY ("UserId", "Scope", "ScopeId", "Path", "Name")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_registry_entries_UserId_Scope_ScopeId_State"
+            ON "registry_entries" ("UserId", "Scope", "ScopeId", "State");
         """);
+
+    Server.ConfigurationRegistry.RegistryBootstrapper.ImportWorkspaceConfiguration(db);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
     // is deliberately not an ad-hoc ALTER/CREATE compatibility patch: operations must remain
@@ -565,6 +581,7 @@ app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapAppCapabilityEndpoints();
 app.MapAppSettingsEndpoints();
+app.MapRegistryEndpoints();
 app.MapImageMirrorEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();
