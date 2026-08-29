@@ -20,6 +20,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [ObservableProperty] private RegistryScope _scope = RegistryScope.Workspace;
     [ObservableProperty] private RegistryValueType _valueType = RegistryValueType.Json;
     [ObservableProperty] private string _valueText = "{}";
+    public Func<RegistryEntryRow, Task>? ShowEditDialogAsync { get; set; }
     public IReadOnlyList<RegistryScope> Scopes { get; } = Enum.GetValues<RegistryScope>();
     public IReadOnlyList<RegistryValueType> ValueTypes { get; } = Enum.GetValues<RegistryValueType>();
 
@@ -35,8 +36,12 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
             await Task.WhenAll(entriesTask, summaryTask);
             _allEntries = (await entriesTask).ToList();
             Keys.Clear();
+            Keys.Add(new RegistryKeyNode("HKEY_USERS", "__root"));
+            var root = Keys[0];
+            root.Children.Add(new RegistryKeyNode("Current User", "__current"));
+            root.Children.Add(new RegistryKeyNode("Other Users (access denied)", "__other"));
             foreach (var entry in _allEntries) AddKey(entry);
-            SelectedKey ??= Keys.FirstOrDefault();
+            SelectedKey ??= root.Children[0].Children.FirstOrDefault();
             RebuildEntries();
             StatusText = _allEntries.Count == 0 ? "No values. Enter a path, name, type, and data to create one." : $"{_allEntries.Count} value(s).";
         }
@@ -79,21 +84,27 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         SelectedEntry = null; Name = "NewValue"; ValueType = RegistryValueType.String; ValueText = "\"\"";
     }
 
+    [RelayCommand]
+    private Task EditSelectedAsync() => SelectedEntry is not null && ShowEditDialogAsync is not null
+        ? ShowEditDialogAsync(SelectedEntry) : Task.CompletedTask;
+
     private void RebuildEntries()
     {
         Entries.Clear();
         var key = SelectedKey?.Key;
+        if (key is "__root" or "__current" or "__other") key = null;
         foreach (var entry in _allEntries.Where(x => key is null || $"{x.Scope}\\{x.Path}" == key)) Entries.Add(RegistryEntryRow.From(entry));
     }
 
     private void AddKey(RegistryEntryDto entry)
     {
-        RegistryKeyNode? current = null;
+        var root = Keys.Single(x => x.Key == "__root");
+        var current = root.Children.Single(x => x.Key == "__current");
         foreach (var segment in new[] { entry.Scope.ToString() }.Concat(entry.Path.Split('\\', StringSplitOptions.RemoveEmptyEntries)))
         {
             var collection = current?.Children ?? Keys;
             var parentKey = current?.Key;
-            var key = parentKey is null ? segment : parentKey + "\\" + segment;
+            var key = parentKey is null || parentKey.StartsWith("__", StringComparison.Ordinal) ? segment : parentKey + "\\" + segment;
             current = collection.FirstOrDefault(x => x.Key == key) ?? new RegistryKeyNode(segment, key);
             if (!collection.Contains(current)) collection.Add(current);
         }
@@ -101,11 +112,12 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
 
     private RegistryKeyNode? FindKey(string key)
     {
-        RegistryKeyNode? current = null;
+        RegistryKeyNode? current = Keys.SingleOrDefault(x => x.Key == "__root")?.Children.SingleOrDefault(x => x.Key == "__current");
+        if (current is null) return null;
         foreach (var segment in key.Split('\\'))
         {
             var collection = current?.Children ?? Keys;
-            current = collection.FirstOrDefault(x => x.Key == (current is null ? segment : current.Key + "\\" + segment));
+            current = collection.FirstOrDefault(x => x.Key == (current is null || current.Key.StartsWith("__", StringComparison.Ordinal) ? segment : current.Key + "\\" + segment));
             if (current is null) return null;
         }
         return current;
