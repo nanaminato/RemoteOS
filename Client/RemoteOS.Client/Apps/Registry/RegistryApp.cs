@@ -28,19 +28,17 @@ public sealed class RegistryApp : RemoteApplicationBase
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.registry.display_name", "Registry"), new RegistryView { DataContext = viewModel }, new Rect(80, 60, 1120, 700), Manifest.IconGlyph);
         viewModel.ShowEditDialogAsync = async row =>
         {
-            var saved = await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.edit", "Edit Registry Value"), dialog => new RegistryValueDialogView
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.edit", "Edit Registry Value"), dialog => new RegistryValueDialogView
             {
-                DataContext = new RegistryValueDialogViewModel(row, client, dialog.Close),
+                DataContext = new RegistryValueDialogViewModel(row, client, dialog.Close, viewModel.ApplySaved),
             });
-            if (saved) await viewModel.RefreshAsync();
         };
         viewModel.ShowNewValueDialogAsync = async (scope, path) =>
         {
-            var saved = await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.new", "New Registry Value"), dialog => new RegistryValueDialogView
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.new", "New Registry Value"), dialog => new RegistryValueDialogView
             {
-                DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close),
+                DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close, viewModel.ApplySaved),
             });
-            if (saved) await viewModel.RefreshAsync();
         };
         _ = viewModel.RefreshAsync();
     }

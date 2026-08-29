@@ -95,6 +95,15 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     private Task EditSelectedAsync() => SelectedEntry is not null && ShowEditDialogAsync is not null
         ? ShowEditDialogAsync(SelectedEntry) : Task.CompletedTask;
 
+    public void ApplySaved(RegistryEntryDto entry)
+    {
+        var index = _allEntries.FindIndex(x => x.Scope == entry.Scope && x.Path == entry.Path && x.Name == entry.Name);
+        if (index >= 0) _allEntries[index] = entry;
+        else _allEntries.Add(entry);
+        RebuildEntries();
+        StatusText = LocalizedText.Get("registry.status.saved", "Value saved.");
+    }
+
     [RelayCommand]
     private void Navigate()
     {
