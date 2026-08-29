@@ -11,9 +11,9 @@ public static class RegistrySchema
 {
     public static IReadOnlyList<RegistrySchemaDefinition> Definitions { get; } =
     [
-        new(RegistryScope.Workspace, "Workspace\\Terminal\\Appearance", "Settings", RegistryValueType.Json, RegistryApplyMode.RestartApplication, "remoteos.terminal"),
-        new(RegistryScope.Workspace, "Workspace\\Desktop\\Preferences", "Settings", RegistryValueType.Json, RegistryApplyMode.Immediate),
-        new(RegistryScope.Workspace, "Workspace\\Browser\\Settings", "Settings", RegistryValueType.Json, RegistryApplyMode.RestartApplication, "remoteos.browser"),
+        new(RegistryScope.Workspace, "Workspace\\Terminal\\Appearance", "(Default)", RegistryValueType.Json, RegistryApplyMode.RestartApplication, "remoteos.terminal"),
+        new(RegistryScope.Workspace, "Workspace\\Desktop\\Preferences", "(Default)", RegistryValueType.Json, RegistryApplyMode.Immediate),
+        new(RegistryScope.Workspace, "Workspace\\Browser\\Settings", "(Default)", RegistryValueType.Json, RegistryApplyMode.RestartApplication, "remoteos.browser"),
     ];
 
     public static RegistrySchemaDefinition? Find(RegistryScope scope, string path, string name) =>

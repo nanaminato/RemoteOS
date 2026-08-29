@@ -1,7 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:registry="clr-namespace:Client.Apps.Registry" xmlns:loc="clr-namespace:Client.Localization" x:Class="Client.Apps.Registry.RegistryValueDialogView" x:DataType="registry:RegistryValueDialogViewModel">
-  <Grid RowDefinitions="Auto,*,Auto" Margin="20" MinWidth="680" MinHeight="420">
-    <StackPanel Spacing="5"><TextBlock Text="{Binding Path}" FontWeight="SemiBold"/><Grid ColumnDefinitions="*,120" ColumnSpacing="8"><TextBox Text="{Binding Name, Mode=TwoWay}"/><ComboBox Grid.Column="1" ItemsSource="{Binding ValueTypes}" SelectedItem="{Binding ValueType, Mode=TwoWay}"/></Grid></StackPanel>
-    <ScrollViewer Grid.Row="1" Margin="0,14" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"><Grid MinHeight="300"><TextBox Text="{Binding ValueText, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="NoWrap" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" FontFamily="Consolas"/></Grid></ScrollViewer>
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,10,0,0"><TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right"><Button Content="{loc:Loc registry.cancel}" Command="{Binding CancelCommand}"/><Button Content="{loc:Loc registry.save}" Command="{Binding SaveCommand}"/></StackPanel></Grid>
+  <Grid RowDefinitions="*,Auto" MinWidth="680" MinHeight="420">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="20" Spacing="14">
+        <TextBlock Text="{Binding Path}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="*,120" ColumnSpacing="8"><TextBox Text="{Binding Name, Mode=TwoWay}"/><ComboBox Grid.Column="1" ItemsSource="{Binding ValueTypes}" SelectedItem="{Binding ValueType, Mode=TwoWay}"/></Grid>
+        <TextBox Text="{Binding ValueText, Mode=TwoWay}" AcceptsReturn="True" TextWrapping="NoWrap" MinHeight="360" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto" FontFamily="Consolas"/>
+        <TextBlock Text="{Binding Error}" Foreground="IndianRed" TextWrapping="Wrap"/>
+      </StackPanel>
+    </ScrollViewer>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="20,10,20,20"><Button Content="{loc:Loc registry.cancel}" Command="{Binding CancelCommand}"/><Button Classes="primary" Content="{loc:Loc registry.save}" Command="{Binding SaveCommand}"/></StackPanel>
   </Grid>
 </UserControl>

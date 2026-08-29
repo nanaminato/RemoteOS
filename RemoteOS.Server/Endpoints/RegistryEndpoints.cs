@@ -40,7 +40,7 @@ public static partial class RegistryEndpoints
         {
             if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
             if (!TryScopeId(principal, userId, request.Scope, out var scopeId)
-                || !PathPattern().IsMatch(request.Path) || !NamePattern().IsMatch(request.Name)
+                || !PathPattern().IsMatch(request.Path) || !(request.Name == "(Default)" || NamePattern().IsMatch(request.Name))
                 || !IsCompatible(request.ValueType, request.Value))
                 return Results.BadRequest(new { message = "Invalid registry value." });
             var now = DateTimeOffset.UtcNow;
@@ -58,7 +58,7 @@ public static partial class RegistryEndpoints
         app.MapDelete(RegistryApiRoutes.Entries, (RegistryScope scope, string path, string name, ClaimsPrincipal principal, IRegistryRepository registry) =>
         {
             if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
-            if (!TryScopeId(principal, userId, scope, out var scopeId) || !PathPattern().IsMatch(path) || !NamePattern().IsMatch(name))
+            if (!TryScopeId(principal, userId, scope, out var scopeId) || !PathPattern().IsMatch(path) || !(name == "(Default)" || NamePattern().IsMatch(name)))
                 return Results.BadRequest(new { message = "Invalid registry value." });
             return registry.Delete(userId, scope, scopeId, path, name) ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization().WithTags("Registry");
@@ -92,7 +92,7 @@ public static partial class RegistryEndpoints
     private static bool TryProjectKnownWorkspaceValue(PutRegistryEntryRequest request, Guid userId, Guid scopeId, IWorkspaceRepository workspaces, out string? error)
     {
         error = null;
-        if (request.Scope != RegistryScope.Workspace || request.Name != "Settings") return true;
+        if (request.Scope != RegistryScope.Workspace || request.Name != "(Default)") return true;
         var workspace = workspaces.FindById(scopeId);
         if (workspace is null || workspace.UserId != userId) { error = "Workspace was not found."; return false; }
         try

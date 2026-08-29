@@ -10,7 +10,6 @@ namespace Client.Apps.Registry;
 public sealed partial class RegistryViewModel(IRegistryClient client) : ObservableObject
 {
     private List<RegistryEntryDto> _allEntries = [];
-    private HashSet<string> _expandedKeys = new(StringComparer.Ordinal);
     public ObservableCollection<RegistryKeyNode> Keys { get; } = [];
     public ObservableCollection<RegistryEntryRow> Entries { get; } = [];
     [ObservableProperty] private string _statusText = LocalizedText.Get("registry.status.loading", "Loading registry…");
@@ -19,7 +18,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     [ObservableProperty] private RegistryKeyNode? _selectedKey;
     [ObservableProperty] private RegistryEntryRow? _selectedEntry;
     [ObservableProperty] private string _path = "Workspace\\Desktop\\Preferences";
-    [ObservableProperty] private string _name = "Settings";
+    [ObservableProperty] private string _name = "(Default)";
     [ObservableProperty] private RegistryScope _scope = RegistryScope.Workspace;
     [ObservableProperty] private RegistryValueType _valueType = RegistryValueType.Json;
     [ObservableProperty] private string _valueText = "{}";
@@ -35,19 +34,19 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         IsLoading = true;
         try
         {
-            var selectedKey = SelectedKey?.Key;
-            _expandedKeys = Keys.SelectMany(Flatten).Where(node => node.IsExpanded).Select(node => node.Key).ToHashSet(StringComparer.Ordinal);
             var entriesTask = client.ListAsync();
             var summaryTask = client.GetSummaryAsync();
             await Task.WhenAll(entriesTask, summaryTask);
             _allEntries = (await entriesTask).ToList();
-            Keys.Clear();
-            Keys.Add(new RegistryKeyNode("HKEY_USERS", "__root"));
-            var root = Keys[0];
-            root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.current_user", "Current User"), "__current"));
-            root.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.other_users", "Other Users (access denied)"), "__other"));
+            if (Keys.Count == 0)
+            {
+                Keys.Add(new RegistryKeyNode("HKEY_USERS", "__root"));
+                var initialRoot = Keys[0];
+                initialRoot.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.current_user", "Current User"), "__current"));
+                initialRoot.Children.Add(new RegistryKeyNode(LocalizedText.Get("registry.tree.other_users", "Other Users (access denied)"), "__other"));
+            }
             foreach (var entry in _allEntries) AddKey(entry);
-            SelectedKey = selectedKey is null ? root.Children[0].Children.FirstOrDefault() : FindKey(selectedKey) ?? root.Children[0].Children.FirstOrDefault();
+            SelectedKey ??= Keys[0].Children[0].Children.FirstOrDefault();
             RebuildEntries();
             StatusText = _allEntries.Count == 0 ? LocalizedText.Get("registry.status.empty", "No values in this key.") : string.Format(LocalizedText.Get("registry.status.count", "{0} value(s)."), _allEntries.Count);
         }
@@ -122,7 +121,9 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
     {
         Entries.Clear();
         var key = SelectedKey?.Key;
-        if (key is "__root" or "__current" or "__other") key = null;
+        // This is a visible access-denied placeholder, never a fallback to the current user's values.
+        if (key == "__other") return;
+        if (key is "__root" or "__current") key = null;
         foreach (var entry in _allEntries.Where(x => key is null || x.Path == key)) Entries.Add(RegistryEntryRow.From(entry));
     }
 
@@ -135,7 +136,7 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
             var collection = current?.Children ?? Keys;
             var parentKey = current?.Key;
             var key = parentKey is null || parentKey.StartsWith("__", StringComparison.Ordinal) ? segment : parentKey + "\\" + segment;
-            current = collection.FirstOrDefault(x => x.Key == key) ?? new RegistryKeyNode(segment, key) { IsExpanded = _expandedKeys.Contains(key) };
+            current = collection.FirstOrDefault(x => x.Key == key) ?? new RegistryKeyNode(segment, key);
             if (!collection.Contains(current)) collection.Add(current);
         }
     }
@@ -161,11 +162,6 @@ public sealed partial class RegistryViewModel(IRegistryClient client) : Observab
         var key => "HKEY_USERS\\Current User\\" + key,
     };
 
-    private static IEnumerable<RegistryKeyNode> Flatten(RegistryKeyNode node)
-    {
-        yield return node;
-        foreach (var child in node.Children.SelectMany(Flatten)) yield return child;
-    }
 }
 
 public sealed record RegistryEntryRow(RegistryEntryDto Source, string Name, string DesiredValue, string Type)
