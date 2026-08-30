@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Client.Localization;
 using Client.Services.Auth;
 using RemoteOS.Protocol.Common;
 using RemoteOS.Protocol.Docker;
@@ -32,21 +33,18 @@ public sealed class RemoteDockerClient(HttpClient http, IAuthSession session) : 
     public async Task<DockerStackDefinitionDto?> GetStackDefinitionAsync(string name, CancellationToken cancellationToken = default) => await TrySendAsync<DockerStackDefinitionDto>(DockerApiRoutes.StackDefinition.Replace("{name}", Uri.EscapeDataString(name)), cancellationToken);
     public Task<DockerOperationResult> CreateNetworkAsync(DockerNetworkCreateRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.Networks, request, cancellationToken);
     public Task<DockerOperationResult> CreateVolumeAsync(DockerVolumeCreateRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.Volumes, request, cancellationToken);
-    public Task<DockerInstallationPlanDto> GetInstallationPlanAsync(CancellationToken cancellationToken = default) => SendAsync<DockerInstallationPlanDto>(HttpMethod.Post, DockerApiRoutes.InstallationPlan, new { }, cancellationToken);
-    public Task<DockerOperationResult> ExecuteInstallationAsync(DockerInstallationExecutionRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.InstallationExecute, request, cancellationToken);
+    public async Task<DockerNetworkDetailsDto?> GetNetworkAsync(string id, CancellationToken cancellationToken = default) => await TrySendAsync<DockerNetworkDetailsDto>(DockerApiRoutes.NetworkById.Replace("{id}", Uri.EscapeDataString(id)), cancellationToken);
+    public async Task<DockerVolumeDetailsDto?> GetVolumeAsync(string name, CancellationToken cancellationToken = default) => await TrySendAsync<DockerVolumeDetailsDto>(DockerApiRoutes.VolumeByName.Replace("{name}", Uri.EscapeDataString(name)), cancellationToken);
     public Task<DockerOperationResult> DeleteNetworkAsync(string id, bool confirmed, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Delete, $"{DockerApiRoutes.NetworkById.Replace("{id}", Uri.EscapeDataString(id))}?confirmed={confirmed.ToString().ToLowerInvariant()}", null, cancellationToken);
     public Task<DockerOperationResult> DeleteVolumeAsync(string name, bool confirmed, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Delete, $"{DockerApiRoutes.VolumeByName.Replace("{name}", Uri.EscapeDataString(name))}?confirmed={confirmed.ToString().ToLowerInvariant()}", null, cancellationToken);
     public async Task<DockerContainerLogsDto?> GetContainerLogsAsync(string id, int tail = 200, CancellationToken cancellationToken = default) => await TrySendAsync<DockerContainerLogsDto>($"{DockerApiRoutes.ContainerLogs.Replace("{id}", Uri.EscapeDataString(id))}?tail={tail}", cancellationToken);
     public async Task<DockerContainerStatsDto?> GetContainerStatsAsync(string id, CancellationToken cancellationToken = default) => await TrySendAsync<DockerContainerStatsDto>(DockerApiRoutes.ContainerStats.Replace("{id}", Uri.EscapeDataString(id)), cancellationToken);
-    public Task<DockerOperationResult> BuildImageAsync(DockerBuildRequest request, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.ImageBuild, request, cancellationToken);
-    public async Task<DockerImageArchiveDto?> ExportImageAsync(string id, CancellationToken cancellationToken = default) => await TrySendAsync<DockerImageArchiveDto>(DockerApiRoutes.ImageExport.Replace("{id}", Uri.EscapeDataString(id)), cancellationToken);
-    public Task<DockerOperationResult> ImportImageAsync(DockerImageArchiveDto archive, CancellationToken cancellationToken = default) => SendAsync<DockerOperationResult>(HttpMethod.Post, DockerApiRoutes.ImageImport, archive, cancellationToken);
 
     private Task<T> SendAsync<T>(string route, CancellationToken cancellationToken) => SendAsync<T>(HttpMethod.Get, route, null, cancellationToken);
     private async Task<T?> TrySendAsync<T>(string route, CancellationToken cancellationToken) where T : class
     {
         if (session.State != AuthSessionState.Authenticated || session.Tokens is null || session.ServerUrl is null)
-            throw new InvalidOperationException("RemoteOS session is not authenticated.");
+            throw new InvalidOperationException(LocalizedText.Get("docker.error.not_signed_in"));
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(session.ServerUrl), route.TrimStart('/')));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
         using var response = await http.SendAsync(request, cancellationToken);
@@ -57,13 +55,13 @@ public sealed class RemoteDockerClient(HttpClient http, IAuthSession session) : 
     private async Task<T> SendAsync<T>(HttpMethod method, string route, object? body, CancellationToken cancellationToken)
     {
         if (session.State != AuthSessionState.Authenticated || session.Tokens is null || session.ServerUrl is null)
-            throw new InvalidOperationException("RemoteOS session is not authenticated.");
+            throw new InvalidOperationException(LocalizedText.Get("docker.error.not_signed_in"));
         using var request = new HttpRequestMessage(method, new Uri(new Uri(session.ServerUrl), route.TrimStart('/')));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
         if (body is not null) request.Content = JsonContent.Create(body, options: RemoteOsJsonOptions.Default);
         using var response = await http.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken)
-            ?? throw new InvalidOperationException("RemoteOS returned an empty response.");
+            ?? throw new InvalidOperationException(LocalizedText.Get("docker.error.empty_response"));
     }
 }

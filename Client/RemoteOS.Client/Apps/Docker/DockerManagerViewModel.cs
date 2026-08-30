@@ -61,6 +61,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     [ObservableProperty] private string _volumeName = string.Empty;
     [ObservableProperty] private string _selectedVolumeDriver = "local";
     [ObservableProperty] private DockerVolumeDto? _selectedVolume;
+    [ObservableProperty] private string _resourceDetailsText = string.Empty;
+    [ObservableProperty] private string _resourceDetailsTitle = string.Empty;
 
     /// <summary>Assigned by the app shell so operations can surface an unavailable Engine immediately.</summary>
     public Func<Task>? ShowDockerUnavailableAsync { get; set; }
@@ -70,6 +72,8 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     public Func<Task>? ShowEditContainerAsync { get; set; }
     public Func<Task>? ShowEditStackAsync { get; set; }
     public Func<Task>? ShowContainerDetailsAsync { get; set; }
+    /// <summary>Assigned by the app shell to display read-only network and volume inspection data.</summary>
+    public Func<Task>? ShowResourceDetailsAsync { get; set; }
     /// <summary>Assigned by the app shell to confirm destructive operations before they reach Docker.</summary>
     public Func<string, Task<bool>>? RequestDeletionConfirmationAsync { get; set; }
     /// <summary>Routes a known server-side Compose directory into RemoteExplorer.</summary>
@@ -182,6 +186,7 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
         NotifyContainerCommands();
         NotifyStackCommands();
         DeleteImageCommand.NotifyCanExecuteChanged(); DeleteNetworkCommand.NotifyCanExecuteChanged(); DeleteVolumeCommand.NotifyCanExecuteChanged();
+        LoadNetworkDetailsCommand.NotifyCanExecuteChanged(); LoadVolumeDetailsCommand.NotifyCanExecuteChanged();
     }
     partial void OnIsDockerInstallRequiredChanged(bool value) => OpenInstallGuideCommand.NotifyCanExecuteChanged();
 
@@ -412,7 +417,35 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             operationName: LocalizedText.Format("docker.operation.delete_network", network.Name));
     }
     private bool CanDeleteNetwork => SelectedNetwork is not null && !IsLoading;
-    partial void OnSelectedNetworkChanged(DockerNetworkDto? value) => DeleteNetworkCommand.NotifyCanExecuteChanged();
+    [RelayCommand(CanExecute = nameof(CanLoadNetworkDetails))]
+    private async Task LoadNetworkDetailsAsync()
+    {
+        var network = SelectedNetwork;
+        if (network is null) return;
+        ResourceDetailsText = string.Empty;
+        await RunReadAsync(async () =>
+        {
+            var details = await client.GetNetworkAsync(network.Id);
+            if (details is null)
+            {
+                StatusText = LocalizedText.Format("docker.resource.details_unavailable", network.Name);
+                return;
+            }
+
+            ResourceDetailsTitle = LocalizedText.Format("docker.resource.network_details", network.Name);
+            ResourceDetailsText = FormatNetworkDetails(details);
+            StatusText = LocalizedText.Format("docker.resource.details_loaded", network.Name);
+        });
+        if (!string.IsNullOrWhiteSpace(ResourceDetailsText) && ShowResourceDetailsAsync is not null)
+            await ShowResourceDetailsAsync();
+    }
+    private bool CanLoadNetworkDetails => SelectedNetwork is not null && !IsLoading;
+    partial void OnSelectedNetworkChanged(DockerNetworkDto? value)
+    {
+        ResourceDetailsText = string.Empty;
+        DeleteNetworkCommand.NotifyCanExecuteChanged();
+        LoadNetworkDetailsCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand] private Task CreateVolumeAsync() => TryCreateVolumeAsync();
 
@@ -438,7 +471,35 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
             operationName: LocalizedText.Format("docker.operation.delete_volume", volume.Name));
     }
     private bool CanDeleteVolume => SelectedVolume is not null && !IsLoading;
-    partial void OnSelectedVolumeChanged(DockerVolumeDto? value) => DeleteVolumeCommand.NotifyCanExecuteChanged();
+    [RelayCommand(CanExecute = nameof(CanLoadVolumeDetails))]
+    private async Task LoadVolumeDetailsAsync()
+    {
+        var volume = SelectedVolume;
+        if (volume is null) return;
+        ResourceDetailsText = string.Empty;
+        await RunReadAsync(async () =>
+        {
+            var details = await client.GetVolumeAsync(volume.Name);
+            if (details is null)
+            {
+                StatusText = LocalizedText.Format("docker.resource.details_unavailable", volume.Name);
+                return;
+            }
+
+            ResourceDetailsTitle = LocalizedText.Format("docker.resource.volume_details", volume.Name);
+            ResourceDetailsText = FormatVolumeDetails(details);
+            StatusText = LocalizedText.Format("docker.resource.details_loaded", volume.Name);
+        });
+        if (!string.IsNullOrWhiteSpace(ResourceDetailsText) && ShowResourceDetailsAsync is not null)
+            await ShowResourceDetailsAsync();
+    }
+    private bool CanLoadVolumeDetails => SelectedVolume is not null && !IsLoading;
+    partial void OnSelectedVolumeChanged(DockerVolumeDto? value)
+    {
+        ResourceDetailsText = string.Empty;
+        DeleteVolumeCommand.NotifyCanExecuteChanged();
+        LoadVolumeDetailsCommand.NotifyCanExecuteChanged();
+    }
 
     private async Task<bool> ConfirmDeletionAsync(string message) =>
         RequestDeletionConfirmationAsync is not null && await RequestDeletionConfirmationAsync(message);
@@ -593,20 +654,35 @@ public sealed partial class DockerManagerViewModel(IRemoteDockerClient client) :
     private static IReadOnlyList<string> Lines(string text) => text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     private static string FormatContainerDetails(DockerContainerDetailsDto details) => string.Join(Environment.NewLine, new[]
     {
-        $"Name: {details.Name}",
-        $"ID: {details.Id}",
-        $"Image: {details.Image}",
-        $"State: {details.State}",
-        $"Status: {details.Status}",
-        $"Created: {details.Created}",
-        $"Restart policy: {details.RestartPolicy}",
-        $"Working directory: {details.WorkingDirectory}",
-        $"Command: {details.Command}",
-        FormatSection("Ports", details.Ports),
-        FormatSection("Mounts", details.Mounts),
-        FormatSection("Networks", details.Networks),
-        FormatSection("Environment", details.Environment),
-        FormatSection("Labels", details.Labels.Select(label => $"{label.Key}={label.Value}"))
+        $"{LocalizedText.Get("docker.container.name")}: {details.Name}",
+        $"{LocalizedText.Get("docker.container.id")}: {details.Id}",
+        $"{LocalizedText.Get("docker.container.image")}: {details.Image}",
+        $"{LocalizedText.Get("docker.table.state")}: {details.State}",
+        $"{LocalizedText.Get("docker.table.status")}: {details.Status}",
+        $"{LocalizedText.Get("docker.container.created_at")}: {details.Created}",
+        $"{LocalizedText.Get("docker.container.restart")}: {details.RestartPolicy}",
+        $"{LocalizedText.Get("docker.container.working_directory")}: {details.WorkingDirectory}",
+        $"{LocalizedText.Get("docker.container.command")}: {details.Command}",
+        FormatSection(LocalizedText.Get("docker.container.ports"), details.Ports),
+        FormatSection(LocalizedText.Get("docker.container.mounts"), details.Mounts),
+        FormatSection(LocalizedText.Get("docker.container.networks"), details.Networks),
+        FormatSection(LocalizedText.Get("docker.container.environment"), details.Environment),
+        FormatSection(LocalizedText.Get("docker.container.labels"), details.Labels.Select(label => $"{label.Key}={label.Value}"))
+    });
+    private static string FormatNetworkDetails(DockerNetworkDetailsDto details) => string.Join(Environment.NewLine, new[]
+    {
+        $"{LocalizedText.Get("docker.table.name")}: {details.Name}",
+        $"{LocalizedText.Get("docker.container.id")}: {details.Id}",
+        $"{LocalizedText.Get("docker.network.driver")}: {details.Driver}",
+        $"{LocalizedText.Get("docker.table.scope")}: {details.Scope}",
+        FormatSection(LocalizedText.Get("docker.resource.attached_containers"), details.Containers)
+    });
+    private static string FormatVolumeDetails(DockerVolumeDetailsDto details) => string.Join(Environment.NewLine, new[]
+    {
+        $"{LocalizedText.Get("docker.table.name")}: {details.Name}",
+        $"{LocalizedText.Get("docker.volume.driver")}: {details.Driver}",
+        $"{LocalizedText.Get("docker.table.mount_point")}: {details.Mountpoint}",
+        FormatSection(LocalizedText.Get("docker.container.labels"), details.Labels.Select(label => $"{label.Key}={label.Value}"))
     });
     private static string FormatSection(string heading, IEnumerable<string> values) => $"{heading}:{Environment.NewLine}{string.Join(Environment.NewLine, values)}";
 }

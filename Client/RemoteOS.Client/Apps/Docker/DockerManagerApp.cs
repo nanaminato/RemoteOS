@@ -41,6 +41,7 @@ public sealed class DockerManagerApp : RemoteApplicationBase
         vm.ShowEditContainerAsync = () => DockerManagerDialogs.ShowEditContainerAsync(context, window!, vm);
         vm.ShowEditStackAsync = () => DockerManagerDialogs.ShowEditStackAsync(context, window!, vm);
         vm.ShowContainerDetailsAsync = () => DockerManagerDialogs.ShowContainerDetailsAsync(context, window!, vm);
+        vm.ShowResourceDetailsAsync = () => DockerManagerDialogs.ShowResourceDetailsAsync(context, window!, vm);
         vm.RequestDeletionConfirmationAsync = async message =>
         {
             var confirmed = false;

@@ -29,6 +29,7 @@
                 <Button Content="{loc:Loc docker.action.restart}" Command="{Binding RestartContainerCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.action.pause}" Command="{Binding PauseContainerCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.action.unpause}" Command="{Binding UnpauseContainerCommand}" Margin="0,0,8,8" />
+                <Button Content="{loc:Loc docker.resource.details}" Command="{Binding LoadContainerDetailsCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.edit}" Command="{Binding EditContainerCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.logs}" Command="{Binding LoadContainerLogsCommand}" Margin="0,0,8,8" />
                 <Button Content="{loc:Loc docker.container.stats}" Command="{Binding LoadContainerStatsCommand}" Margin="0,0,8,8" />

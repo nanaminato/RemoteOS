@@ -7,7 +7,7 @@
     <Grid Margin="20" RowDefinitions="*,Auto" RowSpacing="16">
         <Grid RowDefinitions="Auto,Auto" RowSpacing="4" VerticalAlignment="Top">
             <TextBlock Text="{loc:Loc docker.image.reference}" Foreground="{DynamicResource TextSecondaryBrush}" />
-            <TextBox Grid.Row="1" Text="{Binding ImageReference, Mode=TwoWay}" PlaceholderText="nginx:latest" />
+            <TextBox Grid.Row="1" Text="{Binding ImageReference, Mode=TwoWay}" PlaceholderText="{loc:Loc docker.image.placeholder}" />
         </Grid>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
             <Button Content="{loc:Loc common.cancel}" Click="Cancel_Click" HorizontalContentAlignment="Center" />
