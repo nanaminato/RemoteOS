@@ -32,6 +32,8 @@
     "docker.problem.stack_no_services": "This Compose project has no services to manage.",
     "docker.unavailable_dialog.title": "Docker unavailable",
     "docker.unavailable_dialog.message": "Docker Engine is unavailable, so this operation cannot continue. Start or restore Docker, then refresh the status before trying again.",
+    "docker.read_error.title": "Unable to load Docker information",
+    "docker.read_error.not_found": "The container or its requested information was not found.",
     "docker.containers": "Containers",
     "docker.images": "Images",
     "docker.networks": "Networks",

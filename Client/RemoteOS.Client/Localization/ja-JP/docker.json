@@ -32,6 +32,8 @@
     "docker.problem.stack_no_services": "この Compose プロジェクトには操作可能なサービスがありません。",
     "docker.unavailable_dialog.title": "Docker を利用できません",
     "docker.unavailable_dialog.message": "Docker Engine を利用できないため、この操作は続行できません。Docker を開始または復旧してから、状態を更新して再試行してください。",
+    "docker.read_error.title": "Docker 情報を読み込めません",
+    "docker.read_error.not_found": "コンテナーまたは要求された情報が見つかりません。",
     "docker.containers": "コンテナー",
     "docker.images": "イメージ",
     "docker.networks": "ネットワーク",

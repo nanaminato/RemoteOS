@@ -32,6 +32,8 @@
     "docker.problem.stack_no_services": "此编排项目没有可操作的服务。",
     "docker.unavailable_dialog.title": "Docker 不可用",
     "docker.unavailable_dialog.message": "Docker Engine 当前不可用，因此无法继续此操作。请启动或恢复 Docker，刷新状态后再试。",
+    "docker.read_error.title": "无法加载 Docker 信息",
+    "docker.read_error.not_found": "未找到容器或其相关信息。",
     "docker.containers": "容器",
     "docker.images": "镜像",
     "docker.networks": "网络",
