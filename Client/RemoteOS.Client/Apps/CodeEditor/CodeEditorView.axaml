@@ -19,6 +19,11 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <!-- Keep document tabs compact so they leave more vertical space for code. -->
+        <Style Selector="ListBox.editor-tabs > ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
@@ -40,7 +45,13 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" ColumnDefinitions="48,250,4,*">
+        <Grid Grid.Row="1" x:Name="EditorContentGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="250" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
             <!-- Activity bar only exposes areas that are implemented. -->
             <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0" Padding="4">
                 <StackPanel Spacing="6">
@@ -51,7 +62,8 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0">
+            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,1,0"
+                    IsVisible="{Binding IsSidebarVisible}">
                 <Grid>
                     <Grid IsVisible="{Binding IsExplorerSidebar}" RowDefinitions="Auto,*">
                         <DockPanel Grid.Row="0" Margin="10,8,8,6">
@@ -97,19 +109,21 @@
                 </Grid>
             </Border>
 
-            <GridSplitter Grid.Column="2" Width="4" Background="{DynamicResource SurfaceBrush}" ResizeDirection="Columns" />
+            <GridSplitter Grid.Column="2" Width="6" HorizontalAlignment="Stretch" Background="{DynamicResource SurfaceBrush}"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Cursor="SizeWestEast"
+                          IsVisible="{Binding IsSidebarVisible}" />
 
             <Grid Grid.Column="3" RowDefinitions="Auto,*">
                 <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,0,0,1">
-                    <ListBox ItemsSource="{Binding OpenDocuments}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}" SelectionMode="Single"
+                    <ListBox Classes="editor-tabs" ItemsSource="{Binding OpenDocuments}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}" SelectionMode="Single"
                              Background="Transparent" BorderThickness="0" Padding="0">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="codeEditor:CodeEditorDocument">
-                                <DockPanel Margin="8,6">
-                                    <Button DockPanel.Dock="Right" Content="×" Padding="5,0" Margin="8,0,0,0"
+                                <DockPanel Margin="8,2">
+                                    <Button DockPanel.Dock="Right" Content="×" Padding="3,0" Margin="6,0,0,0"
                                             Command="{Binding DataContext.CloseDocumentCommand, ElementName=Root}" CommandParameter="{Binding}" />
                                     <TextBlock Text="{Binding DisplayName}" />
                                     <TextBlock Text="●" Foreground="{DynamicResource TextPrimaryBrush}" Margin="5,0,0,0" IsVisible="{Binding IsDirty}" />

@@ -1,3 +1,4 @@
+using Avalonia;
 using System.ComponentModel;
 using Avalonia.Controls;
 using AvaloniaEdit.Highlighting;
@@ -6,7 +7,14 @@ namespace Client.Apps.CodeEditor;
 
 public partial class CodeEditorView : UserControl
 {
+    private const double DefaultSidebarWidth = 250;
+    private const double SidebarSplitterWidth = 6;
+
     private CodeEditorViewModel? _viewModel;
+    private double _sidebarWidth = DefaultSidebarWidth;
+
+    private ColumnDefinition SidebarColumn => EditorContentGrid.ColumnDefinitions[1];
+    private ColumnDefinition SidebarSplitterColumn => EditorContentGrid.ColumnDefinitions[2];
 
     public CodeEditorView()
     {
@@ -26,6 +34,7 @@ public partial class CodeEditorView : UserControl
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             Editor.Text = _viewModel.Text;
             UpdateSyntaxHighlighting(_viewModel.CurrentPath);
+            UpdateSidebarLayout(_viewModel.IsSidebarVisible);
         }
     }
 
@@ -35,6 +44,8 @@ public partial class CodeEditorView : UserControl
             Editor.Text = _viewModel?.Text ?? string.Empty;
         else if (eventArgs.PropertyName == nameof(CodeEditorViewModel.CurrentPath))
             UpdateSyntaxHighlighting(_viewModel?.CurrentPath);
+        else if (eventArgs.PropertyName == nameof(CodeEditorViewModel.IsSidebarVisible) && _viewModel is not null)
+            UpdateSidebarLayout(_viewModel.IsSidebarVisible);
     }
 
     private void OnEditorTextChanged(object? sender, EventArgs eventArgs)
@@ -48,5 +59,22 @@ public partial class CodeEditorView : UserControl
         Editor.SyntaxHighlighting = string.IsNullOrWhiteSpace(path)
             ? null
             : HighlightingManager.Instance.GetDefinitionByExtension(Path.GetExtension(path));
+    }
+
+    /// <summary>Collapsing the sidebar releases its space while retaining the user's dragged width.</summary>
+    private void UpdateSidebarLayout(bool isVisible)
+    {
+        if (isVisible)
+        {
+            SidebarColumn.Width = new GridLength(_sidebarWidth, GridUnitType.Pixel);
+            SidebarSplitterColumn.Width = new GridLength(SidebarSplitterWidth, GridUnitType.Pixel);
+            return;
+        }
+
+        if (SidebarColumn.ActualWidth > 0)
+            _sidebarWidth = SidebarColumn.ActualWidth;
+
+        SidebarColumn.Width = new GridLength(0, GridUnitType.Pixel);
+        SidebarSplitterColumn.Width = new GridLength(0, GridUnitType.Pixel);
     }
 }

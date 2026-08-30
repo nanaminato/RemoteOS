@@ -39,6 +39,7 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     [ObservableProperty] private CodeEditorDocument? _activeDocument;
     [ObservableProperty] private CodeEditorFolderNode? _selectedFolderNode;
     [ObservableProperty] private string _activeSidebar = "explorer";
+    [ObservableProperty] private bool _isSidebarVisible = true;
 
     public int CharCount => Text.Length;
     public int LineCount => string.IsNullOrEmpty(Text) ? 1 : Enumerable.Count<char>(Text, character => character == '\n') + 1;
@@ -121,7 +122,18 @@ public sealed partial class CodeEditorViewModel : ObservableObject
     [RelayCommand]
     private void SwitchSidebar(string? sidebar)
     {
-        if (sidebar is "explorer" or "openEditors") ActiveSidebar = sidebar;
+        if (sidebar is not ("explorer" or "openEditors")) return;
+
+        // A second click on the active activity-bar item is a compact toggle, matching
+        // the expected folder/open-files behavior while retaining the selected view.
+        if (ActiveSidebar == sidebar && IsSidebarVisible)
+        {
+            IsSidebarVisible = false;
+            return;
+        }
+
+        ActiveSidebar = sidebar;
+        IsSidebarVisible = true;
     }
 
     [RelayCommand]
