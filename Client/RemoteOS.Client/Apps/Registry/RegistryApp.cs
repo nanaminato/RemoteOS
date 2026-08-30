@@ -7,6 +7,7 @@ using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
 using AppContext = RemoteOS.AppSDK.AppContext;
 using Rect = RemoteOS.Core.Primitives.Rect;
+using Size = RemoteOS.Core.Primitives.Size;
 
 namespace Client.Apps.Registry;
 
@@ -31,14 +32,14 @@ public sealed class RegistryApp : RemoteApplicationBase
             await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.edit", "Edit Registry Value"), dialog => new RegistryValueDialogView
             {
                 DataContext = new RegistryValueDialogViewModel(row, client, dialog.Close, viewModel.ApplySaved),
-            });
+            }, new Size(720, 520));
         };
         viewModel.ShowNewValueDialogAsync = async (scope, path) =>
         {
             await context.ShowDialogAsync<bool>(window, LocalizedText.Get("registry.dialog.new", "New Registry Value"), dialog => new RegistryValueDialogView
             {
                 DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close, viewModel.ApplySaved),
-            });
+            }, new Size(720, 520));
         };
         viewModel.ShowNewKeyDialogAsync = async (scope, parentPath) =>
         {
