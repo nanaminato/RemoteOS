@@ -29,8 +29,15 @@
 - 🪟 **ウィンドウ管理システム** — ウィンドウの完全ライフサイクル：作成、移動、リサイズ、最小化/最大化、Z-Order、モーダルダイアログ
 - 🧩 **アプリケーションSDK** — `IRemoteApplication`インターフェース経由で統一されたウィンドウ管理とライフサイクルを提供
 - 🔌 **SignalRリアルタイム通信** — ターミナルなどのアプリがSignalR Hub経由でリアルタイム双方向通信
-- 🐳 **Docker管理** — リモートDocker Engineの検出、コンテナ/イメージ/Stack管理
-- 🛡️ **プロセスガーディアン** — 保護されたワークロード、ヘルスチェック、自動復旧、ネイティブサービス管理
+- 🐳 **Docker管理** — リモートDocker Engineの検出、コンテナ/イメージ/Stack/ネットワーク/ボリューム管理
+- 🛡️ **プロセスガーディアン** — 保護されたワークロード、ヘルスチェック、自動復旧、ネイティブサービス管理 + ガーディアンログのSignalRブロードキャスト
+- 🔒 **証明書管理** — ACME証明書申請、更新、失効、Kestrelデプロイ；ホストレベルリソースはバージョン化マイグレーションで永続化
+- 🌐 **Webサーバー管理** — Nginx検出、サイト、設定スナップショット、最小侵入インテグレーション
+- 🧾 **Gitクライアント** — リモートホストGitリポジトリ、ブランチ、コミット、プル衝突解決、プッシュと履歴
+- 🚇 **FRPトンネル管理** — NATトラバーサル Server Profile / トンネル定義 / シークレットと監査
+- 🧱 **設定レジストリ** — schema制約のdesired/applied状態機械設定センター
+- 🪞 **ミラーソース管理** — APT/Docker/NPM/PyPIなどのミラーソースをWorkspace設定と同期
+- 🔧 **アプリケーションケイパビリティとプライベートKV** — `/api/v1/capabilities` + App Settings ユーザー/アプリ単位の隔離KV
 - 🌍 **多言語対応** — 中国語、英語、日本語の言語パックを内蔵
 - 🔧 **デベロッパー拡張** — `DevCli`ツール経由でカスタムアプリケーションパッケージのインストールと管理に対応
 
@@ -66,23 +73,42 @@
 │         (ASP.NET Core · クラウドバックエンド · クロスプラットフォーム) │
 │                                                         │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐ ┌──────┐  │
-│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
+│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Browser│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
-│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
-│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
-│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │App-Capab-│ │  AppSettings │ │Registry│ │Image-    │ │
+│  │ilities   │ │              │ │        │ │Mirrors   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
 │                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │         OS Abstraction Layer                     │    │
-│  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
-│  └─────────────────────────────────────────────────┘    │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │   Docker │ │ProcessGuardian│ │Firewall│ │System-   │ │
+│  │          │ │ (SignalR Hub) │ │  (UFW) │ │Monitor   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │WebServers│ │ Certificates │ │  Git   │ │ Tunnels  │ │
+│  │(Nginx…)  │ │  (ACME/Host) │ │        │ │  (FRP)   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  OS Abstraction Layer (Providerインターフェース群)    │  │
+│  │  IIdentityProvider · ISystemMetricsProvider        │  │
+│  │  IFirewallProvider · IWebServerProvider            │  │
+│  │  ICertificateProvider · IGitProvider …             │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Persistence (デュアルドメインSQLite)                │  │
+│  │  業務DB: EF Core + 増分補完; HostGlobal: v1~v7移行  │  │
+│  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────┐
 │              RemoteOS.Guardian.Agent                     │
-│       (独立プロセス · 保護ワークロード · ネイティブサービス) │
+│    (独立プロセス · 保護ワークロード ·                      │
+│     ネイティブサービス管理)                                │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -116,12 +142,20 @@ RemoteOS/
 │   │   │   ├── Explorer/         # ファイルマネージャ
 │   │   │   ├── Terminal/         # ターミナル
 │   │   │   ├── Browser/          # ブラウザ
-│   │   │   ├── Settings/         # 設定センター
+│   │   │   ├── Settings/         # 設定センター（システム/個人設定/時間と言語/ネットワーク/アプリ/ミラー/開発者）
 │   │   │   ├── TaskManager/      # タスクマネージャ
 │   │   │   ├── Docker/           # Dockerマネージャ
 │   │   │   ├── ProcessGuardian/  # プロセスガーディアン
+│   │   │   ├── Firewall/         # Linux UFWファイアウォール
+│   │   │   ├── PortForwarding/   # SSHポートフォワーディング
+│   │   │   ├── Certificates/     # ACME証明書管理
+│   │   │   ├── WebServers/       # Webサーバー管理（Nginxなど）
+│   │   │   ├── Git/              # Gitクライアント
+│   │   │   ├── Tunnels/          # FRPトンネル管理
+│   │   │   ├── Registry/         # 設定レジストリ
 │   │   │   ├── Notepad/          # メモ帳
 │   │   │   ├── CodeEditor/       # コードエディタ
+│   │   │   ├── TextEditor/       # テキストエンコーディングダイアログ（Notepad/CodeEditor共通）
 │   │   │   ├── ImageViewer/      # 画像ビューア
 │   │   │   ├── Welcome/          # ウェルカムページ
 │   │   │   └── AppInstaller/     # アプリインストーラー
@@ -141,12 +175,14 @@ RemoteOS/
 ├── RemoteOS.Server/              # サーバー（ASP.NET Core）
 ├── RemoteOS.Guardian.Agent/      # プロセスガーディアン独立プロセス（ネイティブサービス管理）
 ├── Tools/
-│   └── RemoteOS.DevCli/          # デベロッパーCLIツール
+│   ├── RemoteOS.DevCli/          # デベロッパーCLIツール
+│   └── verify-localization.py    # 多言語検証スクリプト
 ├── examples/
 │   ├── VideoPlayer/              # ビデオプレーヤーサンプルアプリ
-│   └── ServerMonitor/            # サーバーモニターサンプルアプリ
-├── docs/                         # 詳細設計ドキュメント
+│   ├── ServerMonitor/            # サーバーモニターサンプルアプリ
+│   └── HelpCenter/               # ヘルプセンターサンプルアプリ
 ├── deployment/                   # デプロイスクリプト（Linux / Windows）
+├── docs/                         # 詳細設計ドキュメント
 ├── Directory.Packages.props      # 中央パッケージ管理
 └── RemoteOS.sln                  # ソリューションファイル
 ```
@@ -158,17 +194,24 @@ RemoteOS/
 | アプリケーション | 説明 | ステータス |
 |-----------------|------|-----------|
 | **Welcome** | ウェルカムオンボーディングページ、RuntimeとWindowManagerの検証 | ✅ 実装済み |
-| **Notepad** | テキストファイル編集（エンコーディング対応オープン/セーブ） | ✅ 実装済み |
-| **Code Editor** | コードファイル編集（シンタックスハイライト） | ✅ 実装済み |
+| **Notepad** | テキストファイル編集（マルチエンコーディング UTF-8/GBK/Shift-JIS オープン & セーブ） | ✅ 実装済み |
+| **Code Editor** | コードファイル編集（シンタックスハイライト、マルチエンコーディング対応） | ✅ 実装済み |
 | **Image Viewer** | 画像ファイル閲覧（ズームとスクロール） | ✅ 実装済み |
-| **Settings** | システム設定センター（5カテゴリ、設定はWorkspaceに永続化） | ✅ 実装済み |
-| **Terminal** | リモートターミナル（Remote Mode: SignalR + PTY; Local Modeフォールバック） | ✅ 実装済み |
+| **Settings** | システム設定センター（5+ カテゴリページ：システム/個人設定/時間と言語/ネットワーク/アプリ/ミラー/開発者） | ✅ 実装済み |
+| **Terminal** | リモートターミナル（Remote Mode: SignalR + PTY永続セッション; Local Modeフォールバック） | ✅ 実装済み |
 | **Explorer** | リモートファイルマネージャ（REST API + ホストOS権限活用） | ✅ 実装済み |
-| **Browser** | 内蔵ブラウザ（ブックマーク/履歴の永続化） | ✅ 実装済み |
-| **Task Manager** | リモートタスクマネージャ（CPU/メモリ/ディスク/ネットワーク/GPU + プロセスリスト） | ✅ 実装済み |
-| **Docker Manager** | リモートDocker Engine管理（コンテナ/イメージ/Stack/ネットワーク/ボリューム） | 🚧 部分実装 |
-| **Process Guardian** | プロセスガーディアン（ヘルスチェック、自動復旧、ネイティブサービス管理） | 🚧 部分実装 |
-| **App Installer** | アプリパッケージのインストールと管理 | ✅ 実装済み |
+| **Browser** | 内蔵ブラウザ（ブックマーク/履歴、ホームページ & リンク開く位置の永続化） | ✅ 実装済み |
+| **Port Forwarding** | ローカルSSH loopbackトンネル管理（Clientのみ、Serverと同期しない） | ✅ 実装済み |
+| **Task Manager** | リモートタスクマネージャ（パフォーマンスページ: SignalR 1Hzプッシュ + 60s履歴; プロセスページ: 低頻度サンプリング） | ✅ 実装済み |
+| **Docker Manager** | リモートDocker Engine管理（コンテナ/イメージ/Stack/ネットワーク/ボリューム + Composeオーケストレーション） | ✅ 実装済み |
+| **Process Guardian** | 保護ワークロード、IPC、永続化; SignalR `/hubs/guardian-logs` ログブロードキャスト | 🚧 基本実装 |
+| **Firewall** | Linux Server UFWファイアウォール状態、デフォルトポリシーとルール管理 | ✅ 実装済み |
+| **App Installer** | アプリパッケージ（`.roapp`）のインストールと管理 | ✅ 実装済み |
+| **Registry** | 設定レジストリ（キー/値ブラウズ、desired/applied状態機械、サーバー側永続化） | ✅ MVP |
+| **Certificate Manager** | ACME証明書申請、更新、Kestrelデプロイ、失効 & 削除、自己署名証明書 | ✅ MVP |
+| **Web Server Manager** | Nginxインスタンス/サイト/設定スナップショット/操作ログ + 監査（ホストレベル HostGlobal永続化） | ✅ MVP |
+| **Git Client** | リモートGitリポジトリ登録、ブランチ、コミット、プル衝突解決、プッシュ、履歴ログ | ✅ MVP |
+| **Tunnel Manager** | FRP NATトラバーサル（Server Profile/Definition/Secrets/Audit、サーバー側永続化） | ✅ MVP |
 
 ---
 
@@ -211,29 +254,66 @@ dotnet run
 
 ## 📖 ドキュメント
 
+### アーキテクチャ & コアモデル
+
 | ドキュメント | 説明 |
 |-------------|------|
-| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | アーキテクチャ原則、モジュール依存、階層アーキテクチャ |
+| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | アーキテクチャ設計原則、モジュール依存、階層アーキテクチャ |
 | [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | 通信契約、REST/SignalR、シリアライズ規約 |
 | [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | ユーザー/Workspace/Session/Device、マルチデバイスモデル |
+| [RemoteOS.ApplicationActivation.md](./docs/architecture/RemoteOS.ApplicationActivation.md) | アプリ起動URIとウィンドウインスタンスポリシー |
+
+### プラットフォームサービス
+
+| ドキュメント | 説明 |
+|-------------|------|
 | [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | ログインシステム、アイデンティティモデル、OSユーザー統合 |
-| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | デスクトップシェル、ウィンドウ制御、モーダルダイアログ |
-| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | ターミナルアプリ、SignalR、PTY、セッション管理 |
-| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | ファイルマネージャ、REST API、権限活用 |
-| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴 |
-| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
-| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理 |
-| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack管理 |
-| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | プロセスガーディアン、ヘルスチェック、ネイティブサービス管理 |
-| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | サーバーパーシステンス、EF Core + SQLite |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | ログインモジュール実装詳細、mstscスタイルログインウィンドウ |
 | [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | セキュリティ設計、権限昇格、危険操作 |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | サーバーパーシステンス、EF Core + SQLite |
+
+### デスクトップ体験
+
+| ドキュメント | 説明 |
+|-------------|------|
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | デスクトップシェル、ウィンドウ制御、モーダルダイアログ、キーボードルーティング |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | 設定センター、設定永続化、マルチデバイス同期 |
 | [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | 多言語メカニズム、言語パック構造 |
+
+### 内蔵アプリケーション
+
+| ドキュメント | 説明 |
+|-------------|------|
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | ターミナルアプリ、SignalR、PTY、永続セッション管理 |
+| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | ファイルマネージャ、REST API、権限活用 |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | ブラウザ、ブックマーク/履歴/設定同期 |
+| [RemoteOS.PortForwarding.md](./docs/applications/RemoteOS.PortForwarding.md) | SSHポートフォワーディング、ローカルloopbackトンネル |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | タスクマネージャ、システムメトリクス、プロセス管理、SignalRプッシュ再実装 |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Dockerマネージャ、コンテナ/イメージ/Stack/ネットワーク/ボリューム |
+| [RemoteOS.Firewall.md](./docs/applications/RemoteOS.Firewall.md) | Linux Server UFWファイアウォールアプリ |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | プロセスガーディアン、ヘルスチェック、ネイティブサービス管理、ログHub |
+| [RemoteOS.CertificateManager.md](./docs/applications/RemoteOS.CertificateManager.md) | ACME証明書ライフサイクル、Kestrelデプロイ、更新、HostGlobal永続化 |
+| [RemoteOS.WebServerManager.Design.md](./docs/applications/RemoteOS.WebServerManager.Design.md) | Webサーバー管理、Nginx統合、サイト/スナップショット/監査 |
+| [RemoteOS.GitClient.md](./docs/applications/RemoteOS.GitClient.md) | Gitクライアント、リポジトリ/ブランチ/コミット/衝突/履歴 |
+| [RemoteOS.FRP_Integration.Design.md](./docs/applications/RemoteOS.FRP_Integration.Design.md) | FRP NATトラバーサルアーキテクチャ、セキュリティ & 運用境界 |
+| [RemoteOS.RegistryApp.md](./docs/applications/RemoteOS.RegistryApp.md) | 設定レジストリブラウズ、書き込みと隔離境界 |
+| [RemoteOS.CodeEditor.md](./docs/applications/RemoteOS.CodeEditor.md) | コードエディタ、シンタックスハイライト、ファイルセキュリティ境界 |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | ネットワークインスペクター、診断ツール、ネットワーク分析 |
+
+### 開発 & 拡張
+
+| ドキュメント | 説明 |
+|-------------|------|
 | [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | デベロッパークイックスタート、コード構造、デバッグガイド |
 | [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | デベロッパーモード、DevCli、アプリパッケージ公開 |
+| [RemoteOS.AppSettings.md](./docs/development/RemoteOS.AppSettings.md) | アプリプライベート設定ストレージ |
 | [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | 内蔵アプリ設計制約、国際化、クロスプラットフォーム |
 | [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | アプリケーション互換性、プラットフォーム適応、フォールバック |
-| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | ネットワークインスペクター、診断ツール、ネットワーク分析 |
-| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | ログインモジュール実装詳細、mstscスタイルログインウィンドウ |
+
+### プロジェクトドキュメントインデックス
+
+| ドキュメント | 説明 |
+|-------------|------|
 | [RemoteOS.md](./docs/README.md) | プロジェクト構造、コードマップ、現在の進捗 |
 
 ---

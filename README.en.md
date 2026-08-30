@@ -29,8 +29,15 @@
 - 🪟 **Window Management System** — Complete window lifecycle: create, move, resize, minimize/maximize, Z-order, modal dialogs
 - 🧩 **Application SDK** — Applications plug in via the `IRemoteApplication` interface with unified window management and lifecycle
 - 🔌 **SignalR Real-Time Communication** — Applications like Terminal use SignalR Hubs for real-time bidirectional interaction
-- 🐳 **Docker Management** — Remote Docker Engine detection, container/image/Stack management
-- 🛡️ **Process Guardian** — Guarded workloads, health checks, auto-recovery, native service management
+- 🐳 **Docker Management** — Remote Docker Engine detection, container/image/Stack/network/volume management
+- 🛡️ **Process Guardian** — Guarded workloads, health checks, auto-recovery, native service management + guardian log SignalR broadcast
+- 🔒 **Certificate Management** — ACME cert request, renewal, revocation, Kestrel deployment; host-level resources persisted via versioned migrations
+- 🌐 **Web Server Management** — Nginx discovery, sites, config snapshots, minimal-intrusion integration
+- 🧾 **Git Client** — Remote host Git repositories, branches, commits, pull-conflict resolution, push and history
+- 🚇 **FRP Tunnel Management** — NAT traversal Server Profile / tunnel definitions / secrets and audit
+- 🧱 **Configuration Registry** — Schema-constrained desired/applied state-machine configuration center
+- 🪞 **Mirror Source Management** — APT/Docker/NPM/PyPI mirrors synced with Workspace preferences
+- 🔧 **App Capabilities & Private KV** — `/api/v1/capabilities` + App Settings per-user/per-app isolated KV
 - 🌍 **Multi-Language Support** — Built-in language packs for Chinese, English, and Japanese
 - 🔧 **Developer Extensibility** — Install and manage custom application packages via the `DevCli` tool
 
@@ -63,26 +70,46 @@
                                ▼
 ┌─────────────────────────────────────────────────────────┐
 │                   RemoteOS.Server                        │
-│            (ASP.NET Core · Cloud Backend · Cross-Platform)│
+│         (ASP.NET Core · Cloud Backend · Cross-Platform)  │
 │                                                         │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐ ┌──────┐  │
-│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
+│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Browser│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
-│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
-│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
-│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │App-Capab-│ │  AppSettings │ │Registry│ │Image-    │ │
+│  │ilities   │ │              │ │        │ │Mirrors   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
 │                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │         OS Abstraction Layer                     │    │
-│  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
-│  └─────────────────────────────────────────────────┘    │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │   Docker │ │ProcessGuardian│ │Firewall│ │System-   │ │
+│  │          │ │ (SignalR Hub) │ │  (UFW) │ │Monitor   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │WebServers│ │ Certificates │ │  Git   │ │ Tunnels  │ │
+│  │(Nginx…)  │ │  (ACME/Host) │ │        │ │  (FRP)   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  OS Abstraction Layer (Provider interface family)  │  │
+│  │  IIdentityProvider · ISystemMetricsProvider        │  │
+│  │  IFirewallProvider · IWebServerProvider            │  │
+│  │  ICertificateProvider · IGitProvider …             │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Persistence (dual-domain SQLite)                  │  │
+│  │  Business DB: EF Core + incremental backfill;      │  │
+│  │  HostGlobal: v1~v7 migrations                      │  │
+│  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────┐
 │              RemoteOS.Guardian.Agent                     │
-│       (Standalone Process · Guarded Workloads · Native)  │
+│    (Standalone Process · Guarded Workloads · Native      │
+│     Service Management)                                  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -116,12 +143,20 @@ RemoteOS/
 │   │   │   ├── Explorer/         # File Manager
 │   │   │   ├── Terminal/         # Terminal
 │   │   │   ├── Browser/          # Browser
-│   │   │   ├── Settings/         # Settings Center
+│   │   │   ├── Settings/         # Settings Center (System/Personalization/Time&Language/Network/Apps/Mirrors/Developer)
 │   │   │   ├── TaskManager/      # Task Manager
 │   │   │   ├── Docker/           # Docker Manager
 │   │   │   ├── ProcessGuardian/  # Process Guardian
+│   │   │   ├── Firewall/         # Linux UFW Firewall
+│   │   │   ├── PortForwarding/   # SSH Port Forwarding
+│   │   │   ├── Certificates/     # ACME Certificate Manager
+│   │   │   ├── WebServers/       # Web Server Manager (Nginx, etc.)
+│   │   │   ├── Git/              # Git Client
+│   │   │   ├── Tunnels/          # FRP Tunnel Manager
+│   │   │   ├── Registry/         # Configuration Registry
 │   │   │   ├── Notepad/          # Notepad
 │   │   │   ├── CodeEditor/       # Code Editor
+│   │   │   ├── TextEditor/       # Text Encoding Dialog (shared by Notepad/CodeEditor)
 │   │   │   ├── ImageViewer/      # Image Viewer
 │   │   │   ├── Welcome/          # Welcome Page
 │   │   │   └── AppInstaller/     # App Installer
@@ -141,12 +176,14 @@ RemoteOS/
 ├── RemoteOS.Server/              # Server (ASP.NET Core)
 ├── RemoteOS.Guardian.Agent/      # Process guardian standalone (native service management)
 ├── Tools/
-│   └── RemoteOS.DevCli/          # Developer CLI tool
+│   ├── RemoteOS.DevCli/          # Developer CLI tool
+│   └── verify-localization.py    # Localization verification script
 ├── examples/
 │   ├── VideoPlayer/              # Video Player example app
-│   └── ServerMonitor/            # Server Monitor example app
-├── docs/                         # Detailed design documentation
+│   ├── ServerMonitor/            # Server Monitor example app
+│   └── HelpCenter/               # Help Center example app
 ├── deployment/                   # Deployment scripts (Linux / Windows)
+├── docs/                         # Detailed design documentation
 ├── Directory.Packages.props      # Central package management
 └── RemoteOS.sln                  # Solution file
 ```
@@ -158,18 +195,24 @@ RemoteOS/
 | Application | Description | Status |
 |-------------|-------------|--------|
 | **Welcome** | Welcome onboarding page, validates Runtime and WindowManager | ✅ Implemented |
-| **Notepad** | Text file editing (encoding-aware open/save) | ✅ Implemented |
-| **Code Editor** | Code file editing (syntax highlighting) | ✅ Implemented |
+| **Notepad** | Text file editing (multi-encoding UTF-8/GBK/Shift-JIS open & save) | ✅ Implemented |
+| **Code Editor** | Code file editing (syntax highlighting, multi-encoding support) | ✅ Implemented |
 | **Image Viewer** | Image file browsing (zoom and scroll) | ✅ Implemented |
-| **Settings** | System settings center (5 categories, preferences persisted to Workspace) | ✅ Implemented |
-| **Terminal** | Remote Terminal (Remote Mode: SignalR + PTY; Local Mode fallback) | ✅ Implemented |
+| **Settings** | System settings center (5+ category pages: System/Personalization/Time&Language/Network/Apps/Mirrors/Developer) | ✅ Implemented |
+| **Terminal** | Remote Terminal (Remote Mode: SignalR + PTY persistent session; Local Mode fallback) | ✅ Implemented |
 | **Explorer** | Remote File Manager (REST API + host OS permission reuse) | ✅ Implemented |
-| **Browser** | Built-in Browser (bookmarks/history persistence) | ✅ Implemented |
-| **Task Manager** | Remote Task Manager (CPU/Memory/Disk/Network/GPU + process list) | ✅ Implemented |
-| **Docker Manager** | Remote Docker Engine management (container/image/Stack/network/volume) | 🚧 Partial |
-| **Process Guardian** | Process guardian (health checks, auto-recovery, native service management) | 🚧 Partial |
-| **App Installer** | App package installation and management | ✅ Implemented |
-| **Registry** | Schema-approved configuration registry browser (read-only first stage) | ✅ Implemented |
+| **Browser** | Built-in Browser (bookmarks/history, home page & link-open-location persistence) | ✅ Implemented |
+| **Port Forwarding** | Local SSH loopback tunnel management (Client-only, not synced with Server) | ✅ Implemented |
+| **Task Manager** | Remote Task Manager (Performance page: SignalR 1Hz push + 60s history; Processes page: low-frequency sampling) | ✅ Implemented |
+| **Docker Manager** | Remote Docker Engine management (container/image/Stack/network/volume + Compose orchestration) | ✅ Implemented |
+| **Process Guardian** | Guarded workloads, IPC, persistence; SignalR `/hubs/guardian-logs` log broadcast | 🚧 Basic Implementation |
+| **Firewall** | Linux Server UFW firewall status, default policies and rule management | ✅ Implemented |
+| **App Installer** | App package (`.roapp`) installation and management | ✅ Implemented |
+| **Registry** | Configuration Registry (key/value browsing, desired/applied state machine, server-side persistence) | ✅ MVP |
+| **Certificate Manager** | ACME cert request, renewal, Kestrel deployment, revocation & deletion, self-signed certs | ✅ MVP |
+| **Web Server Manager** | Nginx instance/site/config snapshot/operation log + audit (host-level HostGlobal persistence) | ✅ MVP |
+| **Git Client** | Remote Git repo registration, branches, commits, pull-conflict resolution, push, history log | ✅ MVP |
+| **Tunnel Manager** | FRP NAT traversal (Server Profile/Definition/Secrets/Audit, server-side persistence) | ✅ MVP |
 
 ---
 
@@ -212,29 +255,66 @@ The client will open a login dialog. Enter your host system username and passwor
 
 ## 📖 Documentation
 
+### Architecture & Core Models
+
 | Document | Description |
 |----------|-------------|
-| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | Architecture principles, module dependencies, layered architecture |
+| [RemoteOS.Architecture.md](./docs/architecture/RemoteOS.Architecture.md) | Architecture design principles, module dependencies, layered architecture |
 | [RemoteOS.Protocol.md](./docs/architecture/RemoteOS.Protocol.md) | Communication contracts, REST/SignalR, serialization conventions |
 | [RemoteOS.Workspace.md](./docs/architecture/RemoteOS.Workspace.md) | User/Workspace/Session/Device, multi-device model |
+| [RemoteOS.ApplicationActivation.md](./docs/architecture/RemoteOS.ApplicationActivation.md) | Application launch URI and window instance policies |
+
+### Platform Services
+
+| Document | Description |
+|----------|-------------|
 | [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | Login system, identity model, OS user integration |
-| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | Desktop shell, window control, modal dialogs |
-| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | Terminal app, SignalR, PTY, session management |
-| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | File manager, REST API, permission reuse |
-| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | Browser, bookmarks/history |
-| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
-| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | Task manager, system metrics, process management |
-| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack management |
-| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | Process guardian, health checks, native service management |
-| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | Server persistence, EF Core + SQLite |
+| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | Login module implementation details, mstsc-style login window |
 | [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | Security design, privilege elevation, dangerous operations |
+| [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | Server persistence, EF Core + SQLite |
+
+### Desktop Experience
+
+| Document | Description |
+|----------|-------------|
+| [RemoteOS.Desktop.md](./docs/desktop/RemoteOS.Desktop.md) | Desktop shell, window control, modal dialogs, keyboard routing |
+| [RemoteOS.Settings.md](./docs/desktop/RemoteOS.Settings.md) | Settings center, preference persistence, multi-device sync |
 | [RemoteOS.Localization.md](./docs/desktop/RemoteOS.Localization.md) | Multi-language mechanism, language pack structure |
+
+### Built-in Applications
+
+| Document | Description |
+|----------|-------------|
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | Terminal app, SignalR, PTY, persistent session management |
+| [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | File manager, REST API, permission reuse |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | Browser, bookmarks/history/preference sync |
+| [RemoteOS.PortForwarding.md](./docs/applications/RemoteOS.PortForwarding.md) | SSH port forwarding, local loopback tunnels |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | Task manager, system metrics, process management, SignalR push rewrite |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker manager, container/image/Stack/network/volume |
+| [RemoteOS.Firewall.md](./docs/applications/RemoteOS.Firewall.md) | Linux Server UFW firewall app |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | Process guardian, health checks, native service management, log Hub |
+| [RemoteOS.CertificateManager.md](./docs/applications/RemoteOS.CertificateManager.md) | ACME certificate lifecycle, Kestrel deployment, renewal, HostGlobal persistence |
+| [RemoteOS.WebServerManager.Design.md](./docs/applications/RemoteOS.WebServerManager.Design.md) | Web Server management, Nginx integration, sites/snapshots/audit |
+| [RemoteOS.GitClient.md](./docs/applications/RemoteOS.GitClient.md) | Git client, repo/branch/commit/conflict/history |
+| [RemoteOS.FRP_Integration.Design.md](./docs/applications/RemoteOS.FRP_Integration.Design.md) | FRP NAT traversal architecture, security & operations boundaries |
+| [RemoteOS.RegistryApp.md](./docs/applications/RemoteOS.RegistryApp.md) | Configuration Registry browsing, writes and isolation boundaries |
+| [RemoteOS.CodeEditor.md](./docs/applications/RemoteOS.CodeEditor.md) | Code editor, syntax highlighting, file security boundaries |
+| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | Network inspector, diagnostics tool, network analysis |
+
+### Development & Extension
+
+| Document | Description |
+|----------|-------------|
 | [RemoteOS.Develop.md](./docs/development/RemoteOS.Develop.md) | Developer quick start, code structure, debugging guide |
 | [RemoteOS.DeveloperMode.md](./docs/development/RemoteOS.DeveloperMode.md) | Developer mode, DevCli, app package publishing |
+| [RemoteOS.AppSettings.md](./docs/development/RemoteOS.AppSettings.md) | App private configuration storage |
 | [RemoteOS.BuiltInApplication.Conventions.md](./docs/development/RemoteOS.BuiltInApplication.Conventions.md) | Built-in app design constraints, i18n, cross-platform |
 | [RemoteOS.ApplicationCompatibility.md](./docs/development/RemoteOS.ApplicationCompatibility.md) | Application compatibility, platform adaptation, fallback |
-| [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | Network inspector, diagnostics tool, network analysis |
-| [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | Login module implementation details, mstsc-style login window |
+
+### Project Document Index
+
+| Document | Description |
+|----------|-------------|
 | [RemoteOS.md](./docs/README.md) | Project structure, code map, current progress |
 
 ---
