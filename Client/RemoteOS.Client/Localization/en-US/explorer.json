@@ -35,6 +35,7 @@
         "explorer.status.move_failed": "Move failed: {0}",
         "explorer.status.file_not_selectable": "The specified file does not exist or does not match the selected filter.",
         "explorer.status.file_select_failed": "Could not select file: {0}",
+        "explorer.status.file_name_invalid": "Enter a valid file name without a path.",
         "explorer.status.item_missing": "The item no longer exists.",
         "explorer.status.properties_read_failed": "Could not read properties: {0}",
         "explorer.status.no_file_opener": "No file-opening application is available.",

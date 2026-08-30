@@ -60,6 +60,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
             ? pickerOptions.Filters
             : [ExplorerFileFilter.AllFiles]);
         SelectedFilter = Filters[0];
+        PickerEntryName = pickerOptions?.DefaultFileName ?? string.Empty;
         _pickerInitialized = true;
     }
 
@@ -115,15 +116,20 @@ public sealed partial class ExplorerViewModel : ObservableObject
         || !string.IsNullOrWhiteSpace(AddressbarPath);
     public bool IsPickerMode => _pickerOptions is not null && _selectPaths is not null;
     public bool IsFolderPickerMode => IsPickerMode && _pickerOptions!.Mode == ExplorerPickerMode.SelectFolder;
+    public bool IsSaveFilePickerMode => IsPickerMode && _pickerOptions!.Mode == ExplorerPickerMode.SaveFile;
     public bool IsFilePickerMode => IsPickerMode && !IsFolderPickerMode;
     public bool AllowMultipleFiles => IsFilePickerMode && _pickerOptions!.AllowMultiple;
     public DataGridSelectionMode EntrySelectionMode => !IsPickerMode || AllowMultipleFiles
         ? DataGridSelectionMode.Extended
         : DataGridSelectionMode.Single;
     public string PickerEntryLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.folder_label") : LocalizedText.Get("explorer.picker.file_name_label");
-    public string PickerConfirmLabel => IsFolderPickerMode ? LocalizedText.Get("explorer.picker.select_folder") : LocalizedText.Get("common.open");
+    public string PickerConfirmLabel => IsFolderPickerMode
+        ? LocalizedText.Get("explorer.picker.select_folder")
+        : IsSaveFilePickerMode ? LocalizedText.Get("common.save") : LocalizedText.Get("common.open");
     public bool CanConfirmPicker => IsFolderPickerMode
         ? SelectedEntries.Any(IsFolder) || !string.IsNullOrWhiteSpace(AddressbarPath)
+        : IsSaveFilePickerMode
+            ? !string.IsNullOrWhiteSpace(AddressbarPath) && IsValidSaveFileName(PickerEntryName)
         : SelectedEntries.Any(IsSelectableFile) || !string.IsNullOrWhiteSpace(PickerEntryName);
     public bool HasTransferProgress => IsTransferActive;
     public double TransferProgress => TransferTotalBytes > 0
@@ -585,6 +591,23 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         if (!IsPickerMode || _selectPaths is null) return;
 
+        if (IsSaveFilePickerMode)
+        {
+            if (string.IsNullOrWhiteSpace(AddressbarPath))
+            {
+                StatusText = LocalizedText.Get("explorer.status.enter_target_directory_first");
+                return;
+            }
+            if (!IsValidSaveFileName(PickerEntryName))
+            {
+                StatusText = LocalizedText.Get("explorer.status.file_name_invalid");
+                return;
+            }
+
+            _selectPaths([CombineRemotePath(AddressbarPath, PickerEntryName.Trim())]);
+            return;
+        }
+
         var selected = IsFolderPickerMode
             ? SelectedEntries.Where(IsFolder).Select(entry => entry.Path).ToArray()
             : SelectedEntries.Where(IsSelectableFile).Select(entry => entry.Path).ToArray();
@@ -623,6 +646,15 @@ public sealed partial class ExplorerViewModel : ObservableObject
     private bool IsSelectableFile(FileSystemEntryDto entry)
         => entry.Type == FileSystemEntryType.File && (!IsFilePickerMode || MatchesSelectedFilter(entry.Name));
 
+    private static bool IsValidSaveFileName(string? name)
+    {
+        var trimmed = name?.Trim();
+        return !string.IsNullOrWhiteSpace(trimmed)
+            && trimmed is not "." and not ".."
+            && !trimmed.Contains('/')
+            && !trimmed.Contains('\\');
+    }
+
     private static bool IsFolder(FileSystemEntryDto entry)
         => entry.Type is FileSystemEntryType.Directory or FileSystemEntryType.Drive;
 
@@ -638,7 +670,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         _isUpdatingPickerText = true;
         PickerEntryName = IsFolderPickerMode
             ? SelectedEntries.FirstOrDefault(IsFolder)?.Name ?? string.Empty
-            : string.Join(" ", SelectedEntries.Where(IsSelectableFile).Select(entry => $"\"{entry.Name}\""));
+            : IsSaveFilePickerMode
+                ? SelectedEntries.FirstOrDefault(IsSelectableFile)?.Name ?? PickerEntryName
+                : string.Join(" ", SelectedEntries.Where(IsSelectableFile).Select(entry => $"\"{entry.Name}\""));
         _isUpdatingPickerText = false;
         ConfirmPickerCommand.NotifyCanExecuteChanged();
     }
