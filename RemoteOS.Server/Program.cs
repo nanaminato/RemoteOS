@@ -556,6 +556,11 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_registry_entries_UserId_Scope_ScopeId_State"
             ON "registry_entries" ("UserId", "Scope", "ScopeId", "State");
+        CREATE TABLE IF NOT EXISTS "registry_keys" (
+            "UserId" TEXT NOT NULL, "Scope" TEXT NOT NULL, "ScopeId" TEXT NOT NULL,
+            "Path" TEXT NOT NULL, "CreatedAt" TEXT NOT NULL, "CreatedBy" TEXT NOT NULL,
+            PRIMARY KEY ("UserId", "Scope", "ScopeId", "Path")
+        );
         """);
 
     Server.ConfigurationRegistry.RegistryBootstrapper.ImportWorkspaceConfiguration(db);

@@ -16,8 +16,11 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
     private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(5);
     private readonly object _gate = new();
     private readonly ConcurrentDictionary<EntryKey, RegistryEntry> _entries = new();
+    private readonly ConcurrentDictionary<KeyKey, RegistryKey> _keys = new();
     private readonly HashSet<EntryKey> _dirty = [];
     private readonly HashSet<EntryKey> _deleted = [];
+    private readonly HashSet<KeyKey> _dirtyKeys = [];
+    private readonly HashSet<KeyKey> _deletedKeys = [];
     private readonly CancellationTokenSource _stopping = new();
     private Task? _flushLoop;
 
@@ -27,6 +30,9 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
         var entries = await db.RegistryEntries.AsNoTracking().ToListAsync(cancellationToken);
         foreach (var entry in entries)
             _entries[EntryKey.From(entry)] = Copy(entry);
+        var keys = await db.RegistryKeys.AsNoTracking().ToListAsync(cancellationToken);
+        foreach (var key in keys)
+            _keys[KeyKey.From(key)] = Copy(key);
 
         _flushLoop = FlushLoopAsync(_stopping.Token);
     }
@@ -89,6 +95,51 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
         _entries.TryAdd(key, Copy(entry));
     }
 
+    public IReadOnlyList<RegistryKey> ListChildKeys(Guid userId, RegistryScope scope, Guid scopeId, string parentPath) =>
+        _keys.Values.Concat(_entries.Values.Select(x => new RegistryKey { UserId = x.UserId, Scope = x.Scope, ScopeId = x.ScopeId, Path = x.Path }))
+            .Where(x => x.UserId == userId && x.Scope == scope && x.ScopeId == scopeId && IsDirectChild(x.Path, parentPath))
+            .GroupBy(x => x.Path, StringComparer.Ordinal).Select(x => Copy(x.First())).OrderBy(x => x.Path, StringComparer.Ordinal).ToArray();
+
+    public RegistryKey CreateKey(RegistryKey key)
+    {
+        var keyId = KeyKey.From(key);
+        lock (_gate)
+        {
+            if (_keys.TryGetValue(keyId, out var existing)) return Copy(existing);
+            var saved = Copy(key);
+            _keys[keyId] = saved;
+            _deletedKeys.Remove(keyId);
+            _dirtyKeys.Add(keyId);
+            return Copy(saved);
+        }
+    }
+
+    public bool DeleteKeyTree(Guid userId, RegistryScope scope, Guid scopeId, string path)
+    {
+        var prefix = path + "\\";
+        lock (_gate)
+        {
+            var entryKeys = _entries.Keys.Where(x => x.UserId == userId && x.Scope == scope && x.ScopeId == scopeId
+                && (x.Path == path || x.Path.StartsWith(prefix, StringComparison.Ordinal))).ToArray();
+            var keyKeys = _keys.Keys.Where(x => x.UserId == userId && x.Scope == scope && x.ScopeId == scopeId
+                && (x.Path == path || x.Path.StartsWith(prefix, StringComparison.Ordinal))).ToArray();
+            if (entryKeys.Length == 0 && keyKeys.Length == 0) return false;
+            foreach (var key in entryKeys)
+            {
+                _entries.TryRemove(key, out _);
+                _dirty.Remove(key);
+                _deleted.Add(key);
+            }
+            foreach (var key in keyKeys)
+            {
+                _keys.TryRemove(key, out _);
+                _dirtyKeys.Remove(key);
+                _deletedKeys.Add(key);
+            }
+            return true;
+        }
+    }
+
     private async Task FlushLoopAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(FlushInterval);
@@ -104,13 +155,19 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
     {
         Dictionary<EntryKey, RegistryEntry> dirty;
         EntryKey[] deleted;
+        Dictionary<KeyKey, RegistryKey> dirtyKeys;
+        KeyKey[] deletedKeys;
         lock (_gate)
         {
-            if (_dirty.Count == 0 && _deleted.Count == 0) return;
+            if (_dirty.Count == 0 && _deleted.Count == 0 && _dirtyKeys.Count == 0 && _deletedKeys.Count == 0) return;
             dirty = _dirty
                 .Where(key => _entries.TryGetValue(key, out _))
                 .ToDictionary(key => key, key => Copy(_entries[key]));
             deleted = _deleted.ToArray();
+            dirtyKeys = _dirtyKeys
+                .Where(key => _keys.TryGetValue(key, out _))
+                .ToDictionary(key => key, key => Copy(_keys[key]));
+            deletedKeys = _deletedKeys.ToArray();
         }
 
         try
@@ -137,6 +194,16 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
                     [key.UserId, key.Scope, key.ScopeId, key.Path, key.Name], cancellationToken);
                 if (existing is not null) db.RegistryEntries.Remove(existing);
             }
+            foreach (var key in dirtyKeys.Values)
+            {
+                var existing = await db.RegistryKeys.FindAsync([key.UserId, key.Scope, key.ScopeId, key.Path], cancellationToken);
+                if (existing is null) db.RegistryKeys.Add(Copy(key));
+            }
+            foreach (var key in deletedKeys)
+            {
+                var existing = await db.RegistryKeys.FindAsync([key.UserId, key.Scope, key.ScopeId, key.Path], cancellationToken);
+                if (existing is not null) db.RegistryKeys.Remove(existing);
+            }
             await db.SaveChangesAsync(cancellationToken);
 
             lock (_gate)
@@ -155,6 +222,14 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
                 {
                     // A later upsert wins over the delete snapshot and remains dirty.
                     if (!_entries.ContainsKey(key)) _deleted.Remove(key);
+                }
+                foreach (var key in dirtyKeys.Keys)
+                {
+                    if (_keys.ContainsKey(key)) _dirtyKeys.Remove(key);
+                }
+                foreach (var key in deletedKeys)
+                {
+                    if (!_keys.ContainsKey(key)) _deletedKeys.Remove(key);
                 }
             }
         }
@@ -188,8 +263,21 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
         target.LastErrorMessage = null;
     }
 
+    private static bool IsDirectChild(string candidate, string parent) => candidate.StartsWith(parent + "\\", StringComparison.Ordinal)
+        && candidate[(parent.Length + 1)..].IndexOf('\\') < 0;
+
+    private static RegistryKey Copy(RegistryKey x) => new()
+    {
+        UserId = x.UserId, Scope = x.Scope, ScopeId = x.ScopeId, Path = x.Path,
+        CreatedAt = x.CreatedAt, CreatedBy = x.CreatedBy,
+    };
+
     private readonly record struct EntryKey(Guid UserId, RegistryScope Scope, Guid ScopeId, string Path, string Name)
     {
         public static EntryKey From(RegistryEntry entry) => new(entry.UserId, entry.Scope, entry.ScopeId, entry.Path, entry.Name);
+    }
+    private readonly record struct KeyKey(Guid UserId, RegistryScope Scope, Guid ScopeId, string Path)
+    {
+        public static KeyKey From(RegistryKey key) => new(key.UserId, key.Scope, key.ScopeId, key.Path);
     }
 }

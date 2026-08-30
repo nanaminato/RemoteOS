@@ -9,10 +9,14 @@ namespace Client.Apps.Registry;
 
 public sealed class RegistryClient(HttpClient http, IAuthSession session) : IRegistryClient
 {
-    public Task<IReadOnlyList<RegistryEntryDto>> ListAsync(CancellationToken cancellationToken = default) =>
-        GetAsync<IReadOnlyList<RegistryEntryDto>>(RegistryApiRoutes.Entries, cancellationToken);
-    public Task<RegistrySummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default) =>
-        GetAsync<RegistrySummaryDto>(RegistryApiRoutes.Summary, cancellationToken);
+    public Task<IReadOnlyList<RegistryEntryDto>> ListValuesAsync(RegistryScope scope, string path, CancellationToken cancellationToken = default) =>
+        GetAsync<IReadOnlyList<RegistryEntryDto>>($"{RegistryApiRoutes.Entries}?scope={Uri.EscapeDataString(scope.ToString())}&path={Uri.EscapeDataString(path)}", cancellationToken);
+    public Task<IReadOnlyList<RegistryKeyDto>> ListKeysAsync(RegistryScope scope, string parentPath, CancellationToken cancellationToken = default) =>
+        GetAsync<IReadOnlyList<RegistryKeyDto>>($"{RegistryApiRoutes.Keys}?scope={Uri.EscapeDataString(scope.ToString())}&path={Uri.EscapeDataString(parentPath)}", cancellationToken);
+    public Task<RegistryKeyDto> CreateKeyAsync(CreateRegistryKeyRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<RegistryKeyDto>(HttpMethod.Post, RegistryApiRoutes.Keys, request, cancellationToken);
+    public Task DeleteKeyAsync(RegistryScope scope, string path, CancellationToken cancellationToken = default) =>
+        SendAsync<object>(HttpMethod.Delete, $"{RegistryApiRoutes.Keys}?scope={Uri.EscapeDataString(scope.ToString())}&path={Uri.EscapeDataString(path)}", null, cancellationToken);
     public Task<RegistryEntryDto> SaveAsync(PutRegistryEntryRequest request, CancellationToken cancellationToken = default) =>
         SendAsync<RegistryEntryDto>(HttpMethod.Put, RegistryApiRoutes.Entries, request, cancellationToken);
     public Task DeleteAsync(RegistryScope scope, string path, string name, CancellationToken cancellationToken = default) =>

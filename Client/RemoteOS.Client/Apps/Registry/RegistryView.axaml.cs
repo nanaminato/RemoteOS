@@ -6,7 +6,11 @@ namespace Client.Apps.Registry;
 
 public partial class RegistryView : UserControl
 {
-    public RegistryView() => InitializeComponent();
+    public RegistryView()
+    {
+        InitializeComponent();
+        RegistryTree.AddHandler(TreeViewItem.ExpandedEvent, TreeItemExpanded);
+    }
     private void EntriesGrid_DoubleTapped(object? sender, RoutedEventArgs e) =>
         (DataContext as RegistryViewModel)?.EditSelectedCommand.Execute(null);
     private void NewValue_Click(object? sender, RoutedEventArgs e) => (DataContext as RegistryViewModel)?.NewValueCommand.Execute(null);
@@ -17,5 +21,10 @@ public partial class RegistryView : UserControl
         if (e.Key != Key.Enter) return;
         (DataContext as RegistryViewModel)?.NavigateCommand.Execute(null);
         e.Handled = true;
+    }
+    private async void TreeItemExpanded(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is TreeViewItem { DataContext: RegistryKeyNode key })
+            await ((DataContext as RegistryViewModel)?.LoadChildrenAsync(key) ?? Task.CompletedTask);
     }
 }

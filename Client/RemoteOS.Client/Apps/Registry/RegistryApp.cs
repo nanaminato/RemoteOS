@@ -40,6 +40,13 @@ public sealed class RegistryApp : RemoteApplicationBase
                 DataContext = new RegistryValueDialogViewModel(scope, path, client, dialog.Close, viewModel.ApplySaved),
             });
         };
+        viewModel.ShowNewKeyDialogAsync = async (scope, parentPath) =>
+        {
+            await context.ShowDialogAsync<bool>(window, "New Registry Key", dialog => new RegistryKeyDialogView
+            {
+                DataContext = new RegistryKeyDialogViewModel(scope, parentPath, client, dialog.Close, viewModel.ApplyCreatedKey),
+            });
+        };
         _ = viewModel.RefreshAsync();
     }
 }

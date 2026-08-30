@@ -104,6 +104,13 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
     await cache.StartAsync(CancellationToken.None);
     Assert(cache.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "14",
         "Registry cache did not hydrate SQLite state at startup.");
+    cache.CreateKey(new RegistryKey
+    {
+        UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+        Path = "Workspace\\Custom", CreatedAt = DateTimeOffset.UtcNow, CreatedBy = "test",
+    });
+    Assert(cache.ListChildKeys(userId, RegistryScope.Workspace, workspaceId, "Workspace").Any(x => x.Path == "Workspace\\Custom"),
+        "An empty registry key was not available from its direct parent.");
 
     var updated = cache.Upsert(new RegistryEntry
     {
@@ -123,12 +130,16 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
         var persisted = await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)");
         Assert(persisted?.ValueJson == "12" && persisted.State == RegistryEntryState.Synced,
             "Registry shutdown flush did not persist the latest cached value.");
+        Assert(await db.RegistryKeys.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom") is not null,
+            "Registry shutdown flush did not persist an empty key.");
     }
 
     var restored = new CachedSqliteRegistryRepository(factory);
     await restored.StartAsync(CancellationToken.None);
     Assert(restored.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "12",
         "Registry restart did not recover the synchronized value.");
+    Assert(restored.DeleteKeyTree(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom"),
+        "Registry key deletion did not remove the cached key.");
     await restored.StopAsync(CancellationToken.None);
 }
 

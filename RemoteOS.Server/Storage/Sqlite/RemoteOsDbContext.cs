@@ -28,6 +28,7 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<AccountFailureState> AccountFailureStates => Set<AccountFailureState>();
     public DbSet<AuthenticationSecurityEvent> AuthenticationSecurityEvents => Set<AuthenticationSecurityEvent>();
     public DbSet<RegistryEntry> RegistryEntries => Set<RegistryEntry>();
+    public DbSet<RegistryKey> RegistryKeys => Set<RegistryKey>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -49,6 +50,17 @@ public sealed class RemoteOsDbContext : DbContext
             e.Property(x => x.LastErrorCode).HasMaxLength(128);
             e.Property(x => x.LastErrorMessage).HasMaxLength(512);
             e.HasIndex(x => new { x.UserId, x.Scope, x.ScopeId, x.State });
+        });
+        mb.Entity<RegistryKey>(e =>
+        {
+            e.ToTable("registry_keys");
+            e.HasKey(x => new { x.UserId, x.Scope, x.ScopeId, x.Path });
+            e.Property(x => x.UserId).HasColumnType("TEXT");
+            e.Property(x => x.Scope).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ScopeId).HasColumnType("TEXT");
+            e.Property(x => x.Path).HasMaxLength(256).IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnType("TEXT");
+            e.Property(x => x.CreatedBy).HasMaxLength(256).IsRequired();
         });
         mb.Entity<AccountFailureState>(e =>
         {

@@ -16,14 +16,40 @@ public static partial class RegistryEndpoints
 {
     public static IEndpointRouteBuilder MapRegistryEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(RegistryApiRoutes.Entries, (string? scope, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        app.MapGet(RegistryApiRoutes.Entries, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry) =>
         {
             if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
             RegistryScope? parsed = null;
             if (!string.IsNullOrWhiteSpace(scope) && (!Enum.TryParse<RegistryScope>(scope, true, out var requestedScope) || !Enum.IsDefined(requestedScope)))
                 return Results.BadRequest(new { message = "Scope must be user, workspace, or device." });
             if (!string.IsNullOrWhiteSpace(scope)) parsed = Enum.Parse<RegistryScope>(scope, true);
-            return Results.Ok(registry.List(userId, parsed).Select(ToDto));
+            if (parsed is null || string.IsNullOrWhiteSpace(path) || !PathPattern().IsMatch(path) || !TryScopeId(principal, userId, parsed.Value, out var scopeId))
+                return Results.BadRequest(new { message = "Scope and a valid key path are required." });
+            return Results.Ok(registry.List(userId, parsed).Where(x => x.ScopeId == scopeId && x.Path == path).Select(ToDto));
+        }).RequireAuthorization().WithTags("Registry");
+
+        app.MapGet(RegistryApiRoutes.Keys, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        {
+            if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
+            if (!Enum.TryParse<RegistryScope>(scope, true, out var parsed) || !Enum.IsDefined(parsed)
+                || string.IsNullOrWhiteSpace(path) || !PathPattern().IsMatch(path)
+                || !TryScopeId(principal, userId, parsed, out var scopeId))
+                return Results.BadRequest(new { message = "Scope and a valid parent key path are required." });
+            return Results.Ok(registry.ListChildKeys(userId, parsed, scopeId, path).Select(x => new RegistryKeyDto(x.Scope, x.Path)));
+        }).RequireAuthorization().WithTags("Registry");
+
+        app.MapPost(RegistryApiRoutes.Keys, (CreateRegistryKeyRequest request, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        {
+            if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
+            if (request.Scope != RegistryScope.Workspace || !TryScopeId(principal, userId, request.Scope, out var scopeId)
+                || !IsWorkspaceChildPath(request.Path))
+                return Results.BadRequest(new { message = "Only keys below Workspace can be created." });
+            var saved = registry.CreateKey(new Server.Domain.RegistryKey
+            {
+                UserId = userId, Scope = request.Scope, ScopeId = scopeId, Path = request.Path.Trim(),
+                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = userId.ToString("D"),
+            });
+            return Results.Ok(new RegistryKeyDto(saved.Scope, saved.Path));
         }).RequireAuthorization().WithTags("Registry");
 
         app.MapGet(RegistryApiRoutes.Summary, (ClaimsPrincipal principal, IRegistryRepository registry) =>
@@ -62,6 +88,14 @@ public static partial class RegistryEndpoints
                 return Results.BadRequest(new { message = "Invalid registry value." });
             return registry.Delete(userId, scope, scopeId, path, name) ? Results.NoContent() : Results.NotFound();
         }).RequireAuthorization().WithTags("Registry");
+
+        app.MapDelete(RegistryApiRoutes.Keys, (RegistryScope scope, string path, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        {
+            if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
+            if (scope != RegistryScope.Workspace || !TryScopeId(principal, userId, scope, out var scopeId) || !IsWorkspaceChildPath(path))
+                return Results.BadRequest(new { message = "Only keys below Workspace can be deleted." });
+            return registry.DeleteKeyTree(userId, scope, scopeId, path) ? Results.NoContent() : Results.NotFound();
+        }).RequireAuthorization().WithTags("Registry");
         return app;
     }
 
@@ -89,6 +123,11 @@ public static partial class RegistryEndpoints
         _ => false,
     };
 
+    private static bool IsWorkspaceChildPath(string? path) => path is not null
+        && PathPattern().IsMatch(path)
+        && path.StartsWith("Workspace\\", StringComparison.Ordinal)
+        && path.Length > "Workspace\\".Length;
+
     private static bool TryProjectKnownWorkspaceValue(PutRegistryEntryRequest request, Guid userId, Guid scopeId, IWorkspaceRepository workspaces, out string? error)
     {
         error = null;
@@ -105,7 +144,7 @@ public static partial class RegistryEndpoints
                     _ = request.Value.Deserialize<TerminalSettingsDto>(RemoteOsJsonOptions.Default) ?? TerminalSettingsDto.Default;
                     return true;
                 case "Workspace\\Desktop\\Preferences": workspace.Preferences = request.Value.Deserialize<WorkspacePreferencesDto>(RemoteOsJsonOptions.Default) ?? WorkspacePreferencesDto.Default; break;
-                case "Workspace\\Browser\\Settings": workspace.BrowserSettings = (request.Value.Deserialize<BrowserSettingsDto>(RemoteOsJsonOptions.Default) ?? BrowserSettingsDto.Default).Normalize(); break;
+                case "Workspace\\Browser": workspace.BrowserSettings = (request.Value.Deserialize<BrowserSettingsDto>(RemoteOsJsonOptions.Default) ?? BrowserSettingsDto.Default).Normalize(); break;
                 default: return true;
             }
             workspaces.Update(workspace);
