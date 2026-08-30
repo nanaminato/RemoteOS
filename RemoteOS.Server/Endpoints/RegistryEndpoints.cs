@@ -99,7 +99,11 @@ public static partial class RegistryEndpoints
         {
             switch (request.Path)
             {
-                case "Workspace\\Terminal\\Appearance": workspace.TerminalSettings = request.Value.Deserialize<TerminalSettingsDto>(RemoteOsJsonOptions.Default) ?? TerminalSettingsDto.Default; break;
+                // Terminal appearance is read directly from the registry cache. Do not touch
+                // Workspace.TerminalSettings: it is a legacy migration source only.
+                case "Workspace\\Terminal\\Appearance":
+                    _ = request.Value.Deserialize<TerminalSettingsDto>(RemoteOsJsonOptions.Default) ?? TerminalSettingsDto.Default;
+                    return true;
                 case "Workspace\\Desktop\\Preferences": workspace.Preferences = request.Value.Deserialize<WorkspacePreferencesDto>(RemoteOsJsonOptions.Default) ?? WorkspacePreferencesDto.Default; break;
                 case "Workspace\\Browser\\Settings": workspace.BrowserSettings = (request.Value.Deserialize<BrowserSettingsDto>(RemoteOsJsonOptions.Default) ?? BrowserSettingsDto.Default).Normalize(); break;
                 default: return true;

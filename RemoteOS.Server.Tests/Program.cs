@@ -12,6 +12,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,8 @@ using Server.Tunnels;
 using Server.Runtimes;
 using Server.Secrets;
 using Server.WebServer;
+using Server.ConfigurationRegistry;
+using RemoteOS.Protocol.Registry;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -47,6 +50,7 @@ try
     VerifyWorkspacePreferencesJsonContract();
     VerifyThemePaletteContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
+    await VerifyRegistryRuntimeCacheAsync(root);
     await VerifyPerformanceSamplerAsync();
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
@@ -73,6 +77,59 @@ static void VerifyWorkspacePreferencesJsonContract()
 
     Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
     Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
+}
+
+static async Task VerifyRegistryRuntimeCacheAsync(string root)
+{
+    var path = Path.Combine(root, "registry-cache.db");
+    var options = new DbContextOptionsBuilder<RemoteOsDbContext>().UseSqlite($"Data Source={path}").Options;
+    var userId = Guid.NewGuid();
+    var workspaceId = Guid.NewGuid();
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        await db.Database.EnsureCreatedAsync();
+        db.RegistryEntries.Add(new RegistryEntry
+        {
+            UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+            Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+            ValueJson = "14", Revision = 1, State = RegistryEntryState.Synced,
+            DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
+            AppliedRevision = 1, AppliedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    var factory = new PooledDbContextFactory<RemoteOsDbContext>(options);
+    var cache = new CachedSqliteRegistryRepository(factory);
+    await cache.StartAsync(CancellationToken.None);
+    Assert(cache.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "14",
+        "Registry cache did not hydrate SQLite state at startup.");
+
+    var updated = cache.Upsert(new RegistryEntry
+    {
+        UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+        Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+        ValueJson = "12", DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
+    });
+    Assert(updated.ValueJson == "12" && updated.State == RegistryEntryState.PendingSync && updated.Revision == 2,
+        "Registry writes must update the in-memory source before durable synchronization.");
+    await using (var db = new RemoteOsDbContext(options))
+        Assert((await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)"))?.ValueJson == "14",
+            "Registry cache unexpectedly wrote through instead of batching durable synchronization.");
+
+    await cache.StopAsync(CancellationToken.None);
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        var persisted = await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)");
+        Assert(persisted?.ValueJson == "12" && persisted.State == RegistryEntryState.Synced,
+            "Registry shutdown flush did not persist the latest cached value.");
+    }
+
+    var restored = new CachedSqliteRegistryRepository(factory);
+    await restored.StartAsync(CancellationToken.None);
+    Assert(restored.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "12",
+        "Registry restart did not recover the synchronized value.");
+    await restored.StopAsync(CancellationToken.None);
 }
 
 static void VerifyThemePaletteContract()

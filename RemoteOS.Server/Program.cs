@@ -320,7 +320,11 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
     builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
-    builder.Services.AddScoped<IRegistryRepository, SqliteRegistryRepository>();
+    // The registry is the runtime configuration source. It is hydrated once at startup and
+    // batches durable SQLite writes in the background, so configuration reads never hit SQLite.
+    builder.Services.AddSingleton<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>();
+    builder.Services.AddSingleton<IRegistryRepository>(sp => sp.GetRequiredService<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>());
     builder.Services.AddScoped<IImageMirrorRepository, SqliteImageMirrorRepository>();
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();

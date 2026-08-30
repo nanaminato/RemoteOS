@@ -1,8 +1,12 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using RemoteOS.Protocol.Common;
+using RemoteOS.Protocol.Registry;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
+using Server.Domain;
 using Server.Storage;
 
 namespace Server.Endpoints;
@@ -12,13 +16,14 @@ public static class WorkspaceEndpoints
 {
     public static IEndpointRouteBuilder MapWorkspaceEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(WorkspaceApiRoutes.TerminalSettings, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapGet(WorkspaceApiRoutes.TerminalSettings, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.TerminalSettings);
+            if (workspace is null) return Results.NotFound();
+            return Results.Ok(ReadTerminalSettings(registry, workspace));
         }).RequireAuthorization().WithTags("Workspace");
 
-        app.MapPut(WorkspaceApiRoutes.TerminalSettings, (Guid id, TerminalSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapPut(WorkspaceApiRoutes.TerminalSettings, (Guid id, TerminalSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null)
@@ -27,8 +32,7 @@ public static class WorkspaceEndpoints
             if (!TryNormalize(request, out var normalized))
                 return Results.BadRequest(new { message = "Invalid terminal appearance settings." });
 
-            workspace.TerminalSettings = normalized;
-            workspaces.Update(workspace);
+            WriteTerminalSettings(registry, workspace, normalized, workspace.UserId.ToString("D"));
             return Results.Ok(normalized);
         }).RequireAuthorization().WithTags("Workspace");
 
@@ -176,6 +180,44 @@ public static class WorkspaceEndpoints
             request.CursorColor.ToUpperInvariant());
         return true;
     }
+
+    private static TerminalSettingsDto ReadTerminalSettings(IRegistryRepository registry, Server.Domain.Workspace workspace)
+    {
+        var entry = registry.Find(workspace.UserId, RegistryScope.Workspace, workspace.Id, TerminalAppearancePath, DefaultValueName);
+        if (entry is not null)
+        {
+            try
+            {
+                var value = JsonSerializer.Deserialize<TerminalSettingsDto>(entry.ValueJson, RemoteOsJsonOptions.Default);
+                if (value is not null && TryNormalize(value, out var normalized)) return normalized;
+            }
+            catch (JsonException) { }
+        }
+
+        // Compatibility only for pre-registry workspaces. Once seeded, every later read comes
+        // from the in-memory registry rather than the Workspace JSON column.
+        var fallback = workspace.TerminalSettings;
+        if (!TryNormalize(fallback, out fallback)) fallback = TerminalSettingsDto.Default;
+        WriteTerminalSettings(registry, workspace, fallback, "migration");
+        return fallback;
+    }
+
+    private static void WriteTerminalSettings(IRegistryRepository registry, Server.Domain.Workspace workspace, TerminalSettingsDto settings, string updatedBy) =>
+        registry.Upsert(new RegistryEntry
+        {
+            UserId = workspace.UserId,
+            Scope = RegistryScope.Workspace,
+            ScopeId = workspace.Id,
+            Path = TerminalAppearancePath,
+            Name = DefaultValueName,
+            ValueType = RegistryValueType.Json,
+            ValueJson = JsonSerializer.Serialize(settings, RemoteOsJsonOptions.Default),
+            DesiredUpdatedAt = DateTimeOffset.UtcNow,
+            DesiredUpdatedBy = updatedBy,
+        });
+
+    private const string TerminalAppearancePath = "Workspace\\Terminal\\Appearance";
+    private const string DefaultValueName = "(Default)";
 
     private static bool IsHexColor(string? color) => color is { Length: 7 }
         && color[0] == '#'
