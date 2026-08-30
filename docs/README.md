@@ -121,7 +121,7 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 - **类型**：Class Library
 - **定位**：RemoteOS Shell，类似 `explorer.exe`。
 - **职责**：Desktop、Taskbar、StartMenu、MainWindow、Shell 生命周期。
-- **包含内置应用**：Welcome、Notebook、Code Editor、Image Viewer、Settings、Terminal、Explorer、Browser、TaskManager。
+- **包含内置应用**：Welcome、Notepad、Code Editor、Image Viewer、Settings、Terminal、Explorer、Browser、TaskManager、DockerManager、ProcessGuardian、Firewall、PortForwarding、CertificateManager、GitClient、TunnelManager、WebServerManager、Registry、AppInstaller、TextEditor（编码支持）。
 - **系统启动时装配**：`WindowManager`、`ApplicationManager`、Shell Services。
 
 ### 4.3 RemoteOS.Core
@@ -199,16 +199,16 @@ Windows Server Test/             跨平台能力验证测试床（原生 API 探
 
 ### 4.8 RemoteOS.Protocol
 
-- **定位**：Client↔Server 通信契约层。已完整定义全部 DTO/路由/Hub 契约（Common/Identity/Workspace/Desktop/Files/Hubs）。
-- **包含**：DTO（sealed record + `[property: JsonPropertyName]`）、API Contract（`*ApiRoutes` 路由常量）、SignalR Hub 接口（`IWorkspaceHubClient` / `ITerminalHubClient` + Methods/Events 常量）、序列化约定。Client Proxy 实现位于 `RemoteOS.Client`，Hub/端点实现位于 `RemoteOS.Server`。详见 [`RemoteOS.Protocol.md`](./architecture/RemoteOS.Protocol.md)。
+- **定位**：Client↔Server 通信契约层。已完整定义全部 DTO/路由/Hub 契约（Common/Identity/Workspace/Desktop/Hubs/Files/Browser/SystemMonitor/Docker/Git/Firewall/Tunnels/Certificates/WebServers/Registry/AppSettings/Capabilities/ImageMirrors/ProcessGuardian/Health）。
+- **包含**：DTO（sealed record + `[property: JsonPropertyName]`）、API Contract（`*ApiRoutes` 路由常量）、SignalR Hub 接口（`IWorkspaceHubClient` / `ITerminalHubClient` / `IPerformanceHubClient` / `IGuardianLogsHubClient` + Methods/Events 常量）、序列化约定。Client Proxy 实现位于 `RemoteOS.Client`，Hub/端点实现位于 `RemoteOS.Server`。详见 [`RemoteOS.Protocol.md`](./architecture/RemoteOS.Protocol.md)。
 - **规则**：所有 Client / Server 通信必须经过 Protocol。禁止业务代码直接调用 HTTP / WebSocket。Protocol 程序集零 PackageReference。
 
 ### 4.9 RemoteOS.Server
 
-- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（Windows LogonUser / Linux PAM + NSS）+ 持久化仓储（EF Core + SQLite，User/Workspace/Device，含 TerminalSettings / BrowserSettings / Preferences）+ 文件管理端点（`/api/v1/files/*`：drives/special/list/info/download/content/properties/permissions/directory/delete/rename/move/copy/upload，`IFileService` + `LocalFileService` 以宿主 OS 进程身份执行 IO，复用宿主用户/权限）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化）+ Workspace 偏好端点（`/api/v1/workspaces/{id}/preferences`，壁纸/主题/时间格式/语言/区域/默认程序）+ 系统监控端点（`/api/v1/system/*`：metrics/processes/processes/{id}，`ISystemMetricsProvider` 跨平台采集 CPU/内存/磁盘/网络/GPU + 进程列表，不持久化）+ Docker 管理端点（`/api/v1/docker/*`：status/containers/images/stacks/networks/volumes，`IDockerEngineService` + `IDockerComposeService`，调用 `docker` CLI）+ 进程守护端点（`/api/v1/guardian/*` + SignalR Hub `/hubs/guardian-logs`，`IProcessGuardianService` 通过命名管道与 Guardian Agent IPC）。详见 [`RemoteOS.Login.md`](./platform/RemoteOS.Login.md) / [`RemoteOS.Explorer.md`](./applications/RemoteOS.Explorer.md) / [`RemoteOS.Browser.md`](./applications/RemoteOS.Browser.md) / [`RemoteOS.Settings.md`](./desktop/RemoteOS.Settings.md) / [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md) / [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)。
+- **定位**：RemoteOS Cloud Backend，**跨平台运行于 Ubuntu / Windows Server**。已实现 auth 端点（login/refresh/logout/me）+ JWT + `IIdentityProvider`（Windows LogonUser / Linux PAM + NSS）+ 持久化仓储（EF Core + SQLite + HostGlobal 自写迁移器，User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry/AppSettings/ImageMirrors/GitRepository/Tunnel*/Registry*/AuthenticationProtection 落业务库，Certificate*/WebServer* 等宿主级资源落 HostGlobal 版本化迁移）+ 文件管理端点（`/api/v1/files/*`）+ 浏览器端点（`/api/v1/browser/*`，按用户隔离书签/历史 + `BrowserSettings` 持久化）+ Workspace 端点（preferences / window-layout）+ 系统监控端点（`/api/v1/system/*` + SignalR `/hubs/performance` 1Hz 推送）+ 应用能力端点（`/api/v1/capabilities`）+ AppSettings 端点（`/api/v1/app-settings`，应用私有 KV）+ 注册表端点（`/api/v1/registry`，配置注册表 desired/applied 状态机）+ 镜像源端点（`/api/v1/image-mirrors`，APT/Docker/NPM 等镜像源配置）+ Docker 管理端点（`/api/v1/docker/*`：status/containers/images/stacks/networks/volumes，`IDockerEngineService` + `IDockerComposeService` 调 `docker` CLI）+ 进程守护端点（`/api/v1/guardian/*` + SignalR Hub `/hubs/guardian-logs`，`IProcessGuardianService` 通过命名管道与 Guardian Agent IPC）+ WebServer 端点（`/api/v1/webservers/*`：实例/站点/快照/操作）+ 证书端点（`/api/v1/certificates/*`：ACME 申请、续期、部署、吊销，HostGlobal 表持久化）+ Git 端点（`/api/v1/git/*`：仓库/分支/提交/拉取/推送/冲突/历史）+ 隧道端点（`/api/v1/tunnels/*`：FRP Server Profile / Definition / Secrets / Audit）+ 防火墙端点（Linux UFW，`/api/v1/firewall/*`）+ 健康检查端点（`/healthz` / `/ready`）。详见各应用文档与 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)、[`RemoteOS.Protocol.md`](./architecture/RemoteOS.Protocol.md)。
 - **负责**：Authentication、Identity Mapping（跨平台 OS 用户集成）、Workspace、Session、Device、Storage、Sync、Remote Runtime、Compute、Security Integration。
-- **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` / `ISystemMetricsProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
-- **持久化**：User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落 SQLite（EF Core），Session/刷新令牌/PTY 进程维持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)。
+- **架构**：单一代码库 + OS 抽象层（`IIdentityProvider` / `ISystemMetricsProvider` / `IFirewallProvider` / `IWebServerProvider` / `ICertificateProvider` / `IGitProvider` 等接口 + Linux/Windows 各自实现），平台差异封装在抽象之后。
+- **持久化**：业务库（User/Workspace(含 TerminalSettings/BrowserSettings/Preferences/WindowLayout)/Device/Bookmark/HistoryEntry/AppSettings/ImageMirrors/GitRepository/TunnelServerProfile/TunnelDefinition/TunnelSecret/TunnelAuditEntry/RegistryKey/RegistryEntry/AccountFailureState/AuthenticationSecurityEvent 落 SQLite，EF Core + 启动时增量 `CREATE TABLE IF NOT EXISTS` 补齐）；HostGlobal 库（证书/WebServer 操作流水与记录，`HostGlobalMigrationRunner` 自写 v1~v7 版本化迁移，事务保证）；Session / 刷新令牌 / PTY 进程保持内存（各有语义理由）。详见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)。
 - **不负责**：UI Rendering、Window Management、Screen Streaming。
 - **详见**：[`RemoteOS.Authentication.md`](./platform/RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](./platform/RemoteOS.Security.md)、[`RemoteOS.Workspace.md`](./architecture/RemoteOS.Workspace.md)、[`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)
 
@@ -259,19 +259,25 @@ Application Package
 | 应用 | 用途 | 状态 |
 |------|------|------|
 | **Welcome** | 验证 Runtime、WindowManager | 已实现 |
-| **Notebook** | 远端文本文件编辑（编码打开与保存） | 已实现 |
+| **Notepad** | 远端文本文件编辑（编码打开与保存） | 已实现 |
 | **Code Editor** | 远端代码文件编辑（语法高亮、多文件夹工作区与多标签编辑） | 设计中（单文件编辑已实现） |
 | **Image Viewer** | 常见远端图片文件浏览（缩放与滚动） | 已实现 |
-| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | 已实现（壁纸/主题/时间格式/语言/区域/默认程序 + 服务端同步） |
-| **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode） | 已实现（Remote Mode + Local 回退） |
+| **Settings** | 系统设置中心（5+ 分类页，偏好持久化到 Workspace：壁纸/主题调色板/时间格式/语言/区域/默认程序/桌面显示配置/镜像源/开发者/应用权限） | 已实现（壁纸/主题/调色板/时间格式/语言/区域/默认程序/桌面图标/首次配置 + 服务端同步；应用能力/AppSettings/镜像源页面对接完成） |
+| **Terminal** | 远端终端（RoyalTerminal + SignalR Remote Mode，持久 PTY 会话） | 已实现（Remote Mode + Local 回退 + Attach 缓冲回放） |
 | **Explorer** | 远端文件管理器（Jaya UI 移植 + REST API + 宿主 OS 权限复用） | 已实现（浏览、基本操作、文件打开方式、属性与 Linux 权限编辑） |
 | **Browser** | 内置浏览器（Avalonia.Controls.WebView + 书签/历史持久化到 Server） | 已实现（导航 + 书签 + 历史 + 浏览器偏好） |
-| **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/磁盘/网络/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 + 进程页，跨平台指标采集） |
-| **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器、镜像、Stack、网络与卷管理 | 已实现（状态和资源只读列表、容器启停重启、Compose 校验/部署/停止；其余功能设计中，详见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)） |
-| **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载的声明持久化与启停重启；健康/日志/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)） |
-| **CertificateManager** | 本机 ACME 证书申请、部署与续期 | 已实现（基础 UI、预检、申请/取消、续期、Kestrel 部署、吊销与删除；DNS-01、Wildcard 与其他 Web Server 部署设计中，详见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)） |
-| **WebServerManager** | Nginx 发现、最小侵入集成与后续托管 | 设计中（尚未实现，详见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)） |
-| **GitClient** | 远端宿主机 Git 仓库版本控制（分支切换/新建/删除、提交、拉取含冲突解决、推送、历史、Revert、Diff） | 设计中（参考 TortoiseGit，Server 端跨平台 `git` CLI，凭据委托宿主 OS，详见 [`RemoteOS.GitClient.md`](./applications/RemoteOS.GitClient.md)） |
+| **TaskManager** | 远端宿主 OS 任务管理器（CPU/内存/文件系统/网络/磁盘 I/O/GPU 占用 + 进程列表，可结束任务） | 已实现（性能页 SignalR 1Hz 推送、60s 历史、跨平台采集；进程页低频采样与分页） |
+| **DockerManager** | 本机 Docker Engine 的检测/安装引导、容器/镜像/Stack/网络/卷管理 | 已实现（状态检测、资源只读列表、容器启停重启/拉取镜像/Compose 校验部署停止/网络与卷管理；详见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)） |
+| **ProcessGuardian** | 受守护工作负载、健康检查、自动恢复、日志与原生服务管理 | 已实现（独立 Agent、本机认证 IPC、工作负载声明持久化与启停重启；SignalR `/hubs/guardian-logs` 日志广播；健康/服务适配设计中，详见 [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)） |
+| **Firewall** | Linux Server UFW 防火墙状态、默认策略与规则管理 | 已实现（Linux 专用；root 会话免再次验证，其他用户 PAM 一次性确认） |
+| **CertificateManager** | 本机 ACME 证书申请、部署与续期 | 已实现（基础 UI、预检、申请/取消、续期、Kestrel 部署、吊销与删除、自签证书；DNS-01/Wildcard、Nginx/Apache/IIS 部署、部署审计落 HostGlobal，详见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)） |
+| **WebServerManager** | Nginx 发现、最小侵入集成与托管 | 已实现 MVP（实例/站点/配置快照/操作流水、已安装 Nginx 确认、审计落 HostGlobal；更多 Provider 设计中，详见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)） |
+| **GitClient** | 远端宿主机 Git 仓库版本控制（仓库登记、分支、提交、拉取含冲突解决、推送、历史 Log、Remotes） | 已实现 MVP（跨平台 `git` CLI 调用、凭据委托宿主 OS；详见 [`RemoteOS.GitClient.md`](./applications/RemoteOS.GitClient.md)） |
+| **TunnelManager** | FRP 内网穿透（Server Profile / 隧道定义 / Secrets / 审计） | 已实现 MVP（配置持久化 + 审计，FRP 运行时诊断与日志；替代旧 PortForwarding 桌面图标位） |
+| **Registry** | 受 schema 约束的配置注册表（键/值浏览、desired/applied 状态机、审计） | 已实现 MVP（第一阶段只读+写入，服务端落表 registry_keys/registry_entries） |
+| **App Installer** | 应用包（`.roapp`）安装与管理 | 已实现 |
+| **Text Encoding Support** | 记事本/代码编辑器的多编码打开与保存（UTF-8/GBK/Shift-JIS 等） | 已实现（`TextFileEncodings` 枚举 + 编码对话框，跨 Notepad/CodeEditor 复用） |
+| **Port Forwarding** | Client 本机 SSH loopback 隧道（不经 Server 同步） | 已实现（SSH 本地转发、仅监听 127.0.0.1，Client 本地配置持久化） |
 
 ---
 
@@ -334,9 +340,10 @@ Application Package
 |------|------|------|
 | 阶段 0 | Desktop / Wallpaper / Icon / Taskbar / WindowManager | 完成（+ 宿主窗口控制 / mstsc 连接栏 / 模态对话框，见 [`RemoteOS.Desktop.md`](./desktop/RemoteOS.Desktop.md)） |
 | 阶段 1 | Runtime / App.SDK / Launch App / Create Window / Modal Dialog | 完成 |
-| 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode；RemoteExplorer 浏览、文件打开方式、属性与基本操作；RemoteBrowser 导航+书签+历史+浏览器偏好；RemoteTaskManager 性能页+进程页，跨平台指标采集） |
-| 阶段 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 完成（登录模块；服务端 SQLite 持久化——User/Workspace(含 TerminalSettings/BrowserSettings/Preferences)/Device/Bookmark/HistoryEntry 落库，见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md)；设置中心——偏好持久化到 Workspace + 多设备同步，见 [`RemoteOS.Settings.md`](./desktop/RemoteOS.Settings.md)） |
-| 阶段 4 | DockerManager / ProcessGuardian | 部分完成（DockerManager：状态/资源只读、容器启停重启、Compose 校验/部署/停止；ProcessGuardian：独立 Agent、IPC、工作负载启停重启；健康/日志/服务适配设计中，见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md) / [`RemoteOS.ProcessGuardian.md`](./applications/RemoteOS.ProcessGuardian.md)） |
+| 阶段 2 | RemoteBrowser / RemoteTerminal / RemoteExplorer / RemoteTaskManager | 完成（RemoteTerminal Local+Remote Mode+持久会话；RemoteExplorer 基本操作；RemoteBrowser 导航+书签+历史+偏好；RemoteTaskManager 性能页 SignalR 1Hz 推送+60s 历史） |
+| 阶段 3 | RemoteServer：Account / Workspace / Sync / Storage / Remote State | 完成（登录模块；服务端 SQLite 双域持久化——业务库 User/Workspace/Device/Bookmark/HistoryEntry/AppSettings/ImageMirrors/Git/Tunnel*/Registry*/AuthenticationProtection + HostGlobal 证书/WebServer v1~v7 版本化迁移；设置中心——偏好扩展到主题调色板/桌面显示/文本编码/窗口布局 + 多设备同步；见 [`RemoteOS.Storage.md`](./platform/RemoteOS.Storage.md) / [`RemoteOS.Settings.md`](./desktop/RemoteOS.Settings.md)） |
+| 阶段 4 | DockerManager / ProcessGuardian / Firewall | 已基本完成（Docker：容器/镜像/Stack/网络/卷全量；ProcessGuardian：Agent+IPC+持久化+SignalR 日志广播；Firewall：Linux UFW 读写；健康检查/systemd/SCM 仍设计中） |
+| 阶段 5 | CertificateManager / WebServerManager / GitClient / TunnelManager / Registry | 已实现 MVP（证书：ACME+Kestrel 部署+续期+吊销+自签；WebServer：Nginx 实例/站点/快照/操作流水+审计；Git：仓库/分支/提交/拉取冲突/推送/历史；Tunnel：FRP Profile+Definition+Secrets+审计；Registry：键/值浏览+写入 desired/applied 状态机；均有服务端端点与持久化） |
 
 ---
 

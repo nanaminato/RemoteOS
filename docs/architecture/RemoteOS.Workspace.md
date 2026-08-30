@@ -132,14 +132,48 @@ Workspace
 
 Desktop State 表示桌面环境状态，包含：Wallpaper、Theme、Desktop Layout、Icon Position、Taskbar State。
 
+当前 `WorkspacePreferencesDto`（作为 Workspace 导航属性 `OwnsOne + ToJson` 单列 JSON 持久化）已落地以下 Desktop State 字段（定义见 [`WorkspacePreferencesDto.cs`](../../Shared/RemoteOS.Protocol/Workspace/WorkspacePreferencesDto.cs) 与 [`DesktopDisplaySettingsDto.cs`](../../Shared/RemoteOS.Protocol/Desktop/DesktopDisplaySettingsDto.cs)）：
+
+| 字段 | 类型 | 含义 | 默认值 |
+|------|------|------|--------|
+| `wallpaperKey` | `string` | 壁纸标识。前缀 `builtin:` 表示内置壁纸，`custom:` 表示 Workspace 托管图片 blob id。 | `builtin:bloom` |
+| `theme` | `ThemeKind` enum | 明亮/暗黑主题。 | `Light` |
+| `themePreferences.styleId` | `string` | 主题风格标识。 | `remoteos` |
+| `themePreferences.paletteId` | `string` | 调色板标识。`builtin:remoteos-blue` 为默认；可选择自定义调色板（见下）。 | `builtin:remoteos-blue` |
+| `themePreferences.accentOverride` | `string?` | 可选强调色覆盖（`#RRGGBB[AA]`）。若设置则覆盖当前调色板中的 Accent token。 | `null` |
+| `themePreferences.customPalettes[]` | `ThemePaletteDto[]` | 工作区自定义调色板列表，每项包含 `id/name/lightColors/darkColors`。Light/Dark 同一调色板共用 `id`，颜色字典必须符合 `ThemePaletteContract.RequiredColorTokens` 且由 `ThemePaletteValidator` 完成对比度校验。 | `[]` |
+| `desktopDisplay.showBuiltInApps` | `bool` | 是否在桌面显示内置应用图标。 | `true` |
+| `desktopDisplay.visibleAppIds[]` | `List<string>` | 当 `showBuiltInApps=true` 且非空时，仅显示列表中的内置应用；空则显示全部。 | `[]` |
+| `desktopDisplay.showServerDesktopFiles` | `bool` | 是否显示服务器桌面的一般文件（非快捷方式）。 | `true` |
+| `desktopDisplay.showServerDesktopShortcuts` | `bool` | 是否显示服务器桌面的 `.lnk` / `.desktop` 快捷方式。 | `false` |
+| `desktopDisplay.hasCompletedFirstTimeSetup` | `bool` | 用户是否完成首次桌面配置（跳过也算完成）。用于首次登录弹引导。 | `false` |
+
 例如：
 
 ```text
 Desktop
-  Wallpaper: default
-  Theme:     Dark
-  Icons:     Browser, Terminal, Explorer
+  Wallpaper: builtin:bloom
+  Theme:     Dark  (palette = builtin:remoteos-blue)
+  Icons:     Browser, Terminal, Explorer    (desktopDisplay.visibleAppIds 过滤)
 ```
+
+除偏好 JSON 外，窗口位置与尺寸作为独立的 Workspace 状态持久化：`WorkspaceWindowLayoutDto.Windows: IReadOnlyList<WindowSizeDto>(key,width,height)`，每个 key 由应用自身声明（例如 `appId + ":" + windowInstanceId`）。路由 `GET/PUT /workspaces/{id}/window-layout` 读写该快照，登录后 `PreferencesSync` 按 key 恢复窗口尺寸（位置由窗口管理器的"打开偏好"策略再次决定）。
+
+---
+
+## 5.1 Locale & Text Encoding State
+
+Locale（时间/日期/语言/区域）与文本编码默认值同样挂在 `WorkspacePreferencesDto`，跨设备共享：
+
+| 字段 | 类型 | 含义 | 默认值 |
+|------|------|------|--------|
+| `timeFormat` | `string` | `24h` 或 `12h`。 | `24h` |
+| `dateFormat` | `string` | `DateTime` 短日期格式串。 | `yyyy/M/d` |
+| `language` | `string` | 语言标记（`en-US` / `zh-CN` / `ja-JP` 等）。 | `en-US` |
+| `region` | `string` | 区域标记（影响默认星期起、数字/货币格式）。 | `en-US` |
+| `notepadDefaultEncoding` | `string?` | Notepad 打开文件时的默认字符集。`TextEncodingPreferences.Default = UTF-8`。 | `UTF-8` |
+| `codeEditorDefaultEncoding` | `string?` | Code Editor 打开文件时的默认字符集。 | `UTF-8` |
+| `defaultApps[]` | `List<DefaultAppMappingDto>` | 扩展名 → 默认 AppId 映射（可变集合，EF Core 以 JSON 内部序号追踪项）。 | `[]` |
 
 ---
 
@@ -434,7 +468,15 @@ User → One Persistent Workspace → Multiple Device Session
 - Session 只是连接关系
 - Controller 管理控制权
 
-> 落地状态：Workspace 持久化已实现（EF Core + SQLite，User / Workspace(含 TerminalSettings) / Device 落库；Session / 刷新令牌 / PTY 进程维持内存，各有语义理由）。终端外观配置 TerminalSettings 随 Workspace 以 JSON 列持久，跨重启保留。终端 PTY 会话由 `TerminalSessionManager` 持有（与 Hub 连接解耦），断开仅 detach 保留、再次登录 `Start(Attach)` 回放 1MB 环形缓冲恢复历史输出——契合 §7 Runtime State "Client 断开 → Workspace Running → Runtime Continue → 重新连接 Restore" 模型。详见 [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md) 与 [`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md)。
+> 落地状态：Workspace 持久化已实现（EF Core + SQLite，User / Workspace(含 TerminalSettings/BrowserSettings/Preferences/WindowLayout) / Device 落库；Session / 刷新令牌 / PTY 进程维持内存，各有语义理由）。
+>
+> **Preferences JSON 已扩字段**（`OwnsOne + ToJson`，新增字段无需改 schema）：
+> - **主题调色板**：`ThemePreferencesDto`（styleId/paletteId/accentOverride/customPalettes[]，每调色板包含 Light/Dark 双色变体，需通过 ThemePaletteValidator 对比度校验）。
+> - **桌面显示**：`DesktopDisplaySettingsDto`（内置应用显隐、可见应用白名单、服务器桌面文件/快捷方式、首次配置完成位）。
+> - **文本编码**：`notepadDefaultEncoding` / `codeEditorDefaultEncoding`，默认 `UTF-8`，由 Notepad/CodeEditor 打开对话框使用（见 `TextEditor/` 共用编码对话框）。
+> - **窗口布局**：`WorkspaceWindowLayoutDto` 作为独立 Workspace 状态（GET/PUT `/workspaces/{id}/window-layout`），保存每个窗口 key 的 (width,height)，登录后恢复尺寸。
+>
+> 终端外观配置 TerminalSettings 随 Workspace 以 JSON 列持久，跨重启保留。终端 PTY 会话由 `TerminalSessionManager` 持有（与 Hub 连接解耦），断开仅 detach 保留、再次登录 `Start(Attach)` 回放 1MB 环形缓冲恢复历史输出——契合 §7 Runtime State "Client 断开 → Workspace Running → Runtime Continue → 重新连接 Restore" 模型。详见 [`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md)、[`RemoteOS.Terminal.md`](../applications/RemoteOS.Terminal.md) 与 [`RemoteOS.Settings.md`](../desktop/RemoteOS.Settings.md)。
 
 RemoteOS 的目标：
 

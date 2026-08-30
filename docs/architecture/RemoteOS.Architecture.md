@@ -211,9 +211,33 @@ Client ←── Protocol ──→ Server
 
 - **定位**：RemoteOS Cloud Backend，跨平台运行于 Ubuntu / Windows Server。
 - **提供**：Authentication、Workspace、Storage、Sync、Remote Runtime、Compute API、Security Integration。
-- **架构**：单一代码库 + OS 抽象层（`IIdentityProvider`、`IFileSystem`、`IProcessManager`、`IServiceManager` 等接口 + Linux/Windows 实现）。原生 API 先在 `Windows Server Test` 测试床验证，再迁移到 Server 抽象层实现。
+- **架构**：单一代码库 + OS 抽象层。平台差异封装在 Provider 抽象接口族之后，Linux/Windows 各自提供实现；所有原生 OS API 先在 `Windows Server Test` 测试床验证，再迁移进抽象层实现。
+  - 身份：`IIdentityProvider`（`WindowsLogonProvider` / `LinuxPamProvider`，占位）
+  - 系统指标：`ISystemMetricsProvider`（`WindowsMetricsProvider` / `LinuxMetricsProvider`）
+  - 防火墙：`IFirewallProvider`（`LinuxUfwFirewallProvider` / Windows 暂禁用）
+  - Web Server：`IWebServerProvider`（Nginx 优先，IIS/Apache 设计中）
+  - 证书：`ICertificateProvider`（ACME + 宿主机证书存储，Kestrel 部署已实现）
+  - Git：`IGitProvider`（跨平台 `git` CLI 封装，凭据委托宿主 OS）
+  - 隧道运行时：`ITunnelRuntimeProvider`（FRP managed/external 两种模式）
+  - Docker：`IDockerEngineService` / `IDockerComposeService`（基于 `docker` CLI）
+  - 守护：`IProcessGuardianService`（命名管道 IPC ↔ Guardian Agent）
+  - 文件：`IFileService`（`LocalFileService`，以宿主 OS 进程身份执行 IO）
+- **端点族（Program.cs 已注册 17 组 + 健康检查）**：
+  - `MapAuthEndpoints`（login/refresh/logout/me）、`MapWorkspaceEndpoints`（preferences / window-layout）
+  - `MapFileEndpoints`、`MapBrowserEndpoints`（书签/历史/设置）、`MapSystemMonitorEndpoints` + SignalR `/hubs/performance`
+  - `MapAppCapabilityEndpoints`（`/api/v1/capabilities`，宣告当前 Server 身份/平台支持）
+  - `MapAppSettingsEndpoints`（应用私有 KV，按 UserId/Scope/ScopeId/AppId/Key 隔离）
+  - `MapRegistryEndpoints`（配置注册表 keys/values 浏览+写入 desired/applied 状态机）
+  - `MapImageMirrorEndpoints`（APT/Docker/NPM/PyPI 等镜像源配置随 Workspace 同步）
+  - `MapDockerEndpoints`、`MapProcessGuardianEndpoints` + SignalR `/hubs/guardian-logs`
+  - `MapWebServerEndpoints`（实例/站点/快照/操作）、`MapCertificateEndpoints`（ACME 生命周期+部署）
+  - `MapGitEndpoints`、`MapTunnelEndpoints`、`MapFirewallEndpoints`、`MapHealthEndpoints`（`/healthz` / `/ready`）
+- **持久化（双域 SQLite）**：
+  - 业务库：EF Core `EnsureCreated` + 启动时 `CREATE TABLE IF NOT EXISTS` 增量补齐；覆盖 User/Workspace(含 TerminalSettings/BrowserSettings/Preferences/WindowLayout)/Device/Bookmark/HistoryEntry/AppSettings/ImageMirrors/GitRepository/TunnelServerProfile/TunnelDefinition/TunnelSecret/TunnelAuditEntry/RegistryKey/RegistryEntry/AccountFailureState/AuthenticationSecurityEvent
+  - HostGlobal 域：证书/WebServer 等宿主级资源不挂 DbContext，走 `HostGlobalMigrationRunner` 自写 v1~v7 版本化迁移（事务保证 + 列存在性判断）；含 certificate_* 与 webserver_* 全套操作流水/记录/审计
+- **进程内内存态（不落库，各有语义理由）**：Session / 刷新令牌 / PTY 由 `TerminalSessionManager` 持有的进程 + Guardian Agent 守护运行态
 - **禁止**：UI Rendering、Desktop Rendering、Screen Streaming。
-- **详见**：[`RemoteOS.Authentication.md`](../platform/RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)
+- **详见**：[`RemoteOS.Authentication.md`](../platform/RemoteOS.Authentication.md)、[`RemoteOS.Security.md`](../platform/RemoteOS.Security.md)、[`RemoteOS.Storage.md`](../platform/RemoteOS.Storage.md)、[`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md)
 
 ---
 
@@ -275,8 +299,13 @@ RemoteOS 应用分为两类。
 
 - **原则 1 — UI 本地渲染**。禁止 Screen Capture、Pixel Streaming。
 - **原则 2 — 状态优先**。RemoteOS 同步 State / Data / Command，而不是 Image / Frame。
-- **原则 3 — 模块单向依赖**。禁止反向引用。
-- **原则 4 — 应用隔离**。应用只能通过 App.SDK / Runtime API 访问系统能力。
+- **原则 3 — 模块单向依赖**。禁止反向引用；所有 Client/Server 通信必须经 `RemoteOS.Protocol`。
+- **原则 4 — 应用隔离**。应用只能通过 App.SDK / Runtime API 访问系统能力；私有 KV 经 `MapAppSettingsEndpoints` 隔离，禁止直接读写 SQLite 文件。
+- **原则 5 — 用户/权限委托宿主 OS**。RemoteOS 不建独立 ACL/密码体系；身份走 `IIdentityProvider`，文件权限走宿主 IO 身份，提权（PAM/UAC/SCM/sudo）交给宿主。
+- **原则 6 — 持久化双域隔离**。
+  - User/Workspace 域：业务库（EF Core + 增量补齐），每用户隔离。
+  - HostGlobal 域：证书/WebServer 等宿主级资源走 `HostGlobalMigrationRunner` 独立版本化迁移，不纳入业务 DbContext，确保证书签发/WebServer 操作的可恢复性独立于业务 schema 演进。
+- **原则 7 — OS 抽象先探测后集成**。任何原生 OS API（Win32、/proc、PAM、UFW、Nginx 控制、systemd/SCM）先在「Windows Server Test」测试床验证，再进入 `*Provider` 实现，确保 Ubuntu/Windows Server 两种路径都有设计位。
 
 ---
 
@@ -300,7 +329,18 @@ RemoteOS 应用分为两类。
 4. `RemoteOS.Runtime`
 5. `RemoteOS.App.SDK`
 
-服务端能力（登录与身份、安全、Workspace、云同步、Storage、Docker 管理）按设计文档逐步实现，详见 [`RemoteOS.md`](../README.md) §10。
+服务端能力按「**先 Protocol，再 Endpoints + Provider，最后 Client App UI**」节奏实现：
+
+- 身份与登录 → 已完成（`IIdentityProvider` + auth 端点 + JWT + 安全防护表）
+- Workspace / Preferences / Window Layout → 已完成（业务库 JSON 列持久化，多设备同步）
+- Storage / Files / Browser → 已完成（REST + 书签/历史/AppSettings 持久化）
+- SystemMonitor + TaskManager → 已完成（`ISystemMetricsProvider` + SignalR `/hubs/performance` 推送）
+- Docker / ProcessGuardian / Firewall → 已基本完成（CLI 封装 + Guardian Agent IPC + UFW，健康/服务适配设计中）
+- Registry / AppSettings / Capabilities / ImageMirrors → 已实现 MVP（配置状态机+应用私有 KV+能力宣告+镜像源同步）
+- Certificates / WebServers → 已实现 MVP（ACME 证书闭环 + Nginx 最小侵入集成，HostGlobal 自写迁移器）
+- Git / Tunnels → 已实现 MVP（Git CLI 封装 / FRP 配置持久化与审计）
+
+每个能力落地必须：先有 Protocol 契约（`Shared/RemoteOS.Protocol/*`），再有 Server 端点与仓储，然后是 Client 应用（`Apps/*/`）。详见 [`RemoteOS.Protocol.md`](./RemoteOS.Protocol.md) 与各个应用设计文档。
 
 ---
 

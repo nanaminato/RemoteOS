@@ -3,6 +3,22 @@
   <component name="JsonSchemaMappingsProjectConfiguration">
     <state>
       <map>
+        <entry key="API Builder">
+          <value>
+            <SchemaInfo>
+              <option name="name" value="API Builder" />
+              <option name="relativePathToSchema" value="https://www.schemastore.org/apibuilder.json" />
+              <option name="applicationDefined" value="true" />
+              <option name="patterns">
+                <list>
+                  <Item>
+                    <option name="path" value="Client/RemoteOS.Client/Localization/en-US/api.json" />
+                  </Item>
+                </list>
+              </option>
+            </SchemaInfo>
+          </value>
+        </entry>
         <entry key="Foxx Manifest">
           <value>
             <SchemaInfo>

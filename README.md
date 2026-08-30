@@ -29,8 +29,15 @@
 - 🪟 **窗口管理系统** — 完整的窗口生命周期：创建、移动、缩放、最小化/最大化、Z-Order、模态对话框
 - 🧩 **应用 SDK** — 应用通过 `IRemoteApplication` 接口接入，享受统一的窗口管理与生命周期
 - 🔌 **SignalR 实时通信** — 终端等应用通过 SignalR Hub 实现实时双向交互
-- 🐳 **Docker 管理** — 远端 Docker Engine 检测、容器/镜像/Stack 管理
-- 🛡️ **进程守护** — 受守护工作负载、健康检查、自动恢复、原生服务管理
+- 🐳 **Docker 管理** — 远端 Docker Engine 检测、容器/镜像/Stack/网络/卷管理
+- 🛡️ **进程守护** — 受守护工作负载、健康检查、自动恢复、原生服务管理 + 守护日志 SignalR 广播
+- 🔒 **证书管理** — ACME 证书申请、续期、吊销、Kestrel 部署；宿主级资源走版本化迁移持久化
+- 🌐 **Web Server 管理** — Nginx 发现、站点、配置快照与最小侵入集成
+- 🧾 **Git 客户端** — 远端宿主机 Git 仓库、分支、提交、拉取冲突解决、推送与历史
+- 🚇 **FRP 隧道管理** — 内网穿透 Server Profile / 隧道定义 / 密钥与审计
+- 🧱 **配置注册表** — 受 schema 约束的 desired/applied 状态机配置中心
+- 🪞 **镜像源管理** — APT/Docker/NPM/PyPI 等镜像源随 Workspace 偏好同步
+- 🔧 **应用能力与私有 KV** — `/api/v1/capabilities` + App Settings 按用户/应用隔离 KV
 - 🌍 **多语言支持** — 内置中文、英文、日文语言包
 - 🔧 **开发者扩展** — 支持通过 `DevCli` 工具安装和管理自定义应用包
 
@@ -66,17 +73,35 @@
 │            (ASP.NET Core · 云端后端 · 跨平台)              │
 │                                                         │
 │  ┌────────┐ ┌────────┐ ┌────────┐ ┌───────┐ ┌──────┐  │
-│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Terminal│  │
+│  │  Auth  │ │Workspace│ │ Storage│ │Files  │ │Browser│  │
 │  └────────┘ └────────┘ └────────┘ └───────┘ └──────┘  │
 │                                                         │
-│  ┌──────────────┐ ┌────────────────┐ ┌──────────────┐  │
-│  │   Docker     │ │ ProcessGuardian│ │ SystemMonitor │  │
-│  └──────────────┘ └────────────────┘ └──────────────┘  │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │App-Capab-│ │  AppSettings │ │Registry│ │Image-    │ │
+│  │ilities   │ │              │ │        │ │Mirrors   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
 │                                                         │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │         OS Abstraction Layer                     │    │
-│  │  (IIdentityProvider · ISystemMetricsProvider …)  │    │
-│  └─────────────────────────────────────────────────┘    │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │   Docker │ │ProcessGuardian│ │Firewall│ │System-   │ │
+│  │          │ │ (SignalR Hub) │ │  (UFW) │ │Monitor   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌──────────┐ ┌──────────────┐ ┌────────┐ ┌──────────┐ │
+│  │WebServers│ │ Certificates │ │  Git   │ │ Tunnels  │ │
+│  │(Nginx…)  │ │  (ACME/Host) │ │        │ │  (FRP)   │ │
+│  └──────────┘ └──────────────┘ └────────┘ └──────────┘ │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  OS Abstraction Layer (Provider 接口族)             │  │
+│  │  IIdentityProvider · ISystemMetricsProvider        │  │
+│  │  IFirewallProvider · IWebServerProvider            │  │
+│  │  ICertificateProvider · IGitProvider …             │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  Persistence (双域 SQLite)                          │  │
+│  │  业务库: EF Core + 增量补齐; HostGlobal: v1~v7 迁移 │  │
+│  └───────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -116,15 +141,20 @@ RemoteOS/
 │   │   │   ├── Explorer/         # 文件管理器
 │   │   │   ├── Terminal/         # 终端
 │   │   │   ├── Browser/          # 浏览器
-│   │   │   ├── Settings/         # 设置中心
+│   │   │   ├── Settings/         # 设置中心（系统/个性化/时间语言/网络/应用/镜像源/开发者）
 │   │   │   ├── TaskManager/      # 任务管理器
 │   │   │   ├── Docker/           # Docker 管理器
 │   │   │   ├── ProcessGuardian/  # 进程守护
 │   │   │   ├── Firewall/         # Linux UFW 防火墙
 │   │   │   ├── PortForwarding/   # SSH 端口转发
+│   │   │   ├── Certificates/     # ACME 证书管理
+│   │   │   ├── WebServers/       # Web Server 管理器（Nginx 等）
+│   │   │   ├── Git/              # Git 客户端
+│   │   │   ├── Tunnels/          # FRP 隧道管理
+│   │   │   ├── Registry/         # 配置注册表
 │   │   │   ├── Notepad/          # 记事本
 │   │   │   ├── CodeEditor/       # 代码编辑器
-│   │   │   ├── TextEditor/       # 文本编辑器（编码支持）
+│   │   │   ├── TextEditor/       # 文本编码对话框（Notepad/CodeEditor 共用）
 │   │   │   ├── ImageViewer/      # 图片查看器
 │   │   │   ├── Welcome/          # 欢迎页
 │   │   │   └── AppInstaller/     # 应用安装器
@@ -163,20 +193,24 @@ RemoteOS/
 | 应用 | 说明 | 状态 |
 |------|------|------|
 | **Welcome** | 欢迎引导页，验证 Runtime 与 WindowManager | ✅ 已实现 |
-| **Notepad** | 文本文件编辑（编码打开与保存） | ✅ 已实现 |
-| **Code Editor** | 代码文件编辑（语法高亮） | ✅ 已实现 |
+| **Notepad** | 文本文件编辑（多编码 UTF-8/GBK/Shift-JIS 打开与保存） | ✅ 已实现 |
+| **Code Editor** | 代码文件编辑（语法高亮、多编码支持） | ✅ 已实现 |
 | **Image Viewer** | 图片文件浏览（缩放与滚动） | ✅ 已实现 |
-| **Settings** | 系统设置中心（5 分类页，偏好持久化到 Workspace） | ✅ 已实现 |
-| **Terminal** | 远端终端（Remote Mode：SignalR + PTY；Local Mode 回退） | ✅ 已实现 |
+| **Settings** | 系统设置中心（5+ 分类页：系统/个性化/时间和语言/网络/应用/镜像源/开发者） | ✅ 已实现 |
+| **Terminal** | 远端终端（Remote Mode：SignalR + PTY 持久会话；Local Mode 回退） | ✅ 已实现 |
 | **Explorer** | 远端文件管理器（REST API + 宿主 OS 权限复用） | ✅ 已实现 |
-| **Browser** | 内置浏览器（书签/历史、主页与链接打开位置） | ✅ 已实现 |
-| **Port Forwarding** | 本机 SSH loopback 隧道管理（不参与同步） | ✅ 已实现 |
-| **Task Manager** | 远端任务管理器（CPU/内存/磁盘/网络/GPU + 进程列表） | ✅ 已实现 |
-| **Docker Manager** | 远端 Docker Engine 管理（容器/镜像/Stack/网络/卷） | 🚧 部分实现 |
-| **Process Guardian** | 进程守护（健康检查、自动恢复、原生服务管理） | 🚧 部分实现 |
+| **Browser** | 内置浏览器（书签/历史、主页与链接打开位置持久化） | ✅ 已实现 |
+| **Port Forwarding** | 本机 SSH loopback 隧道管理（仅 Client 本地，不参与 Server 同步） | ✅ 已实现 |
+| **Task Manager** | 远端任务管理器（性能页 SignalR 1Hz 推送 + 60s 历史；进程页低频采样） | ✅ 已实现 |
+| **Docker Manager** | 远端 Docker Engine 管理（容器/镜像/Stack/网络/卷 + Compose 编排） | ✅ 已实现 |
+| **Process Guardian** | 守护工作负载、IPC、持久化；SignalR `/hubs/guardian-logs` 日志广播 | 🚧 基本实现 |
 | **Firewall** | Linux Server UFW 防火墙状态、默认策略与规则管理 | ✅ 已实现 |
-| **App Installer** | 应用包安装与管理 | ✅ 已实现 |
-| **Registry** | 受 schema 约束的配置注册表浏览（第一阶段只读） | ✅ 已实现 |
+| **App Installer** | 应用包（`.roapp`）安装与管理 | ✅ 已实现 |
+| **Registry** | 配置注册表（键/值浏览、desired/applied 状态机、服务端持久化） | ✅ MVP |
+| **Certificate Manager** | ACME 证书申请、续期、Kestrel 部署、吊销与删除、自签证书 | ✅ MVP |
+| **Web Server Manager** | Nginx 实例/站点/配置快照/操作流水+审计（宿主级 HostGlobal 持久化） | ✅ MVP |
+| **Git Client** | 远端 Git 仓库登记、分支、提交、拉取冲突解决、推送、历史 Log | ✅ MVP |
+| **Tunnel Manager** | FRP 内网穿透（Server Profile/Definition/Secrets/Audit，Server 端持久化） | ✅ MVP |
 
 ---
 
@@ -249,14 +283,19 @@ dotnet run
 
 | 文档 | 说明 |
 |------|------|
-| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、会话管理 |
+| [RemoteOS.Terminal.md](./docs/applications/RemoteOS.Terminal.md) | 终端应用、SignalR、PTY、持久会话管理 |
 | [RemoteOS.Explorer.md](./docs/applications/RemoteOS.Explorer.md) | 文件管理器、REST API、权限复用 |
-| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | 浏览器、书签/历史 |
-| [RemoteOS.PortForwarding.md](./docs/applications/RemoteOS.PortForwarding.md) | SSH 端口转发、本机隧道管理 |
-| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理 |
-| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack 管理 |
+| [RemoteOS.Browser.md](./docs/applications/RemoteOS.Browser.md) | 浏览器、书签/历史/偏好同步 |
+| [RemoteOS.PortForwarding.md](./docs/applications/RemoteOS.PortForwarding.md) | SSH 端口转发、本机 loopback 隧道 |
+| [RemoteOS.TaskManager.md](./docs/applications/RemoteOS.TaskManager.md) | 任务管理器、系统指标、进程管理、SignalR 推送重写 |
+| [RemoteOS.DockerManager.md](./docs/applications/RemoteOS.DockerManager.md) | Docker 管理器、容器/镜像/Stack/网络/卷 |
 | [RemoteOS.Firewall.md](./docs/applications/RemoteOS.Firewall.md) | Linux Server UFW 防火墙应用 |
-| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理 |
+| [RemoteOS.ProcessGuardian.md](./docs/applications/RemoteOS.ProcessGuardian.md) | 进程守护、健康检查、原生服务管理、日志 Hub |
+| [RemoteOS.CertificateManager.md](./docs/applications/RemoteOS.CertificateManager.md) | ACME 证书生命周期、Kestrel 部署、续期、HostGlobal 持久化 |
+| [RemoteOS.WebServerManager.Design.md](./docs/applications/RemoteOS.WebServerManager.Design.md) | Web Server 管理、Nginx 集成、站点/快照/审计 |
+| [RemoteOS.GitClient.md](./docs/applications/RemoteOS.GitClient.md) | Git 客户端、仓库/分支/提交/冲突/历史 |
+| [RemoteOS.FRP_Integration.Design.md](./docs/applications/RemoteOS.FRP_Integration.Design.md) | FRP 内网穿透架构、安全与运维边界 |
+| [RemoteOS.RegistryApp.md](./docs/applications/RemoteOS.RegistryApp.md) | 配置注册表浏览、写入与隔离边界 |
 | [RemoteOS.CodeEditor.md](./docs/applications/RemoteOS.CodeEditor.md) | 代码编辑器、语法高亮、文件安全边界 |
 | [RemoteOS.NetworkInspector.md](./docs/applications/RemoteOS.NetworkInspector.md) | 网络检查器、诊断工具、网络分析 |
 
