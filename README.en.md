@@ -169,6 +169,7 @@ RemoteOS/
 | **Docker Manager** | Remote Docker Engine management (container/image/Stack/network/volume) | 🚧 Partial |
 | **Process Guardian** | Process guardian (health checks, auto-recovery, native service management) | 🚧 Partial |
 | **App Installer** | App package installation and management | ✅ Implemented |
+| **Registry** | Schema-approved configuration registry browser (read-only first stage) | ✅ Implemented |
 
 ---
 

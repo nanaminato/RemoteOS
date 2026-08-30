@@ -296,7 +296,7 @@ builder.Services.AddHostedService<Server.Certificate.KestrelCertificateStartupSe
 builder.Services.AddHostedService<Server.Certificate.CertificateRenewalWorker>();
 
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
-// User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
+// User / Workspace（身份与会话归属）/ Device 持久化；Workspace 配置由注册表持久化。
 // 详见 docs/RemoteOS.Storage.md。
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
 var storageOpts = builder.Configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions();
@@ -320,6 +320,11 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<IDeviceRepository, SqliteDeviceRepository>();
     builder.Services.AddScoped<IBrowserRepository, SqliteBrowserRepository>();
     builder.Services.AddScoped<IAppSettingsRepository, SqliteAppSettingsRepository>();
+    // The registry is the runtime configuration source. It is hydrated once at startup and
+    // batches durable SQLite writes in the background, so configuration reads never hit SQLite.
+    builder.Services.AddSingleton<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>();
+    builder.Services.AddSingleton<IRegistryRepository>(sp => sp.GetRequiredService<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.ConfigurationRegistry.CachedSqliteRegistryRepository>());
     builder.Services.AddScoped<IImageMirrorRepository, SqliteImageMirrorRepository>();
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
@@ -334,6 +339,7 @@ else
     builder.Services.AddSingleton<IDeviceRepository, InMemoryDeviceRepository>();
     builder.Services.AddSingleton<IBrowserRepository, InMemoryBrowserRepository>();
     builder.Services.AddSingleton<IAppSettingsRepository, InMemoryAppSettingsRepository>();
+    builder.Services.AddSingleton<IRegistryRepository, InMemoryRegistryRepository>();
     builder.Services.AddSingleton<IImageMirrorRepository, InMemoryImageMirrorRepository>();
     builder.Services.AddSingleton<Server.Tunnels.ITunnelAudit, Server.Tunnels.InMemoryTunnelAudit>();
 }
@@ -388,24 +394,6 @@ if (storageProvider == "sqlite")
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RemoteOsDbContext>();
     db.Database.EnsureCreated();
-
-    // EnsureCreated does not add columns to an existing database. Browser settings are an
-    // owned JSON value on Workspace, so upgrade older deployments before reading/writing it.
-    var hasBrowserSettings = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'browser_settings'").Single() > 0;
-    if (!hasBrowserSettings)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"browser_settings\" TEXT NULL;");
-
-    // 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）——与 browser_settings 同模式：OwnsOne ToJson 单列。
-    var hasPreferences = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'preferences'").Single() > 0;
-    if (!hasPreferences)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"preferences\" TEXT NULL;");
-
-    var hasWindowLayouts = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'window_layouts'").Single() > 0;
-    if (!hasWindowLayouts)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"window_layouts\" TEXT NULL;");
 
     // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
     db.Database.ExecuteSqlRaw("""
@@ -538,6 +526,23 @@ if (storageProvider == "sqlite")
         );
         CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_CreatedAt" ON "authentication_security_events" ("CreatedAt");
         CREATE INDEX IF NOT EXISTS "IX_authentication_security_events_AccountKey" ON "authentication_security_events" ("AccountKey");
+
+        CREATE TABLE IF NOT EXISTS "registry_entries" (
+            "UserId" TEXT NOT NULL, "Scope" TEXT NOT NULL, "ScopeId" TEXT NOT NULL,
+            "Path" TEXT NOT NULL, "Name" TEXT NOT NULL, "ValueType" TEXT NOT NULL,
+            "ValueJson" TEXT NOT NULL, "Revision" INTEGER NOT NULL, "State" TEXT NOT NULL,
+            "DesiredUpdatedAt" TEXT NOT NULL, "DesiredUpdatedBy" TEXT NOT NULL,
+            "AppliedRevision" INTEGER NULL, "AppliedAt" TEXT NULL,
+            "LastErrorCode" TEXT NULL, "LastErrorMessage" TEXT NULL,
+            PRIMARY KEY ("UserId", "Scope", "ScopeId", "Path", "Name")
+        );
+        CREATE INDEX IF NOT EXISTS "IX_registry_entries_UserId_Scope_ScopeId_State"
+            ON "registry_entries" ("UserId", "Scope", "ScopeId", "State");
+        CREATE TABLE IF NOT EXISTS "registry_keys" (
+            "UserId" TEXT NOT NULL, "Scope" TEXT NOT NULL, "ScopeId" TEXT NOT NULL,
+            "Path" TEXT NOT NULL, "CreatedAt" TEXT NOT NULL, "CreatedBy" TEXT NOT NULL,
+            PRIMARY KEY ("UserId", "Scope", "ScopeId", "Path")
+        );
         """);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
@@ -565,6 +570,7 @@ app.MapAuthEndpoints();
 app.MapFileEndpoints();
 app.MapAppCapabilityEndpoints();
 app.MapAppSettingsEndpoints();
+app.MapRegistryEndpoints();
 app.MapImageMirrorEndpoints();
 app.MapWorkspaceEndpoints();
 app.MapBrowserEndpoints();

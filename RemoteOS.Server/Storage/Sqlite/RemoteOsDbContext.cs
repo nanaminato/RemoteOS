@@ -1,13 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using RemoteOS.Protocol.Browser;
-using RemoteOS.Protocol.Common;
-using RemoteOS.Protocol.Workspace;
 using Server.Domain;
-using System.Text.Json;
 
 namespace Server.Storage.Sqlite;
 
-/// <summary>EF Core DbContext。持久化 User / Workspace（含 TerminalSettings）/ Device / Bookmark / HistoryEntry 五个「持久实体」。
+/// <summary>EF Core DbContext。持久化 User / Workspace（身份与归属）/ Device / Bookmark / HistoryEntry 等实体。
 /// Session / refresh token / PTY 进程不在本上下文（维持内存，见 docs/RemoteOS.Storage.md）。</summary>
 public sealed class RemoteOsDbContext : DbContext
 {
@@ -27,9 +23,41 @@ public sealed class RemoteOsDbContext : DbContext
     public DbSet<TunnelAuditEntry> TunnelAuditEntries => Set<TunnelAuditEntry>();
     public DbSet<AccountFailureState> AccountFailureStates => Set<AccountFailureState>();
     public DbSet<AuthenticationSecurityEvent> AuthenticationSecurityEvents => Set<AuthenticationSecurityEvent>();
+    public DbSet<RegistryEntry> RegistryEntries => Set<RegistryEntry>();
+    public DbSet<RegistryKey> RegistryKeys => Set<RegistryKey>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        mb.Entity<RegistryEntry>(e =>
+        {
+            e.ToTable("registry_entries");
+            e.HasKey(x => new { x.UserId, x.Scope, x.ScopeId, x.Path, x.Name });
+            e.Property(x => x.UserId).HasColumnType("TEXT");
+            e.Property(x => x.Scope).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ScopeId).HasColumnType("TEXT");
+            e.Property(x => x.Path).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+            e.Property(x => x.ValueType).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ValueJson).IsRequired();
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(32).IsRequired();
+            e.Property(x => x.DesiredUpdatedAt).HasColumnType("TEXT");
+            e.Property(x => x.DesiredUpdatedBy).HasMaxLength(256).IsRequired();
+            e.Property(x => x.AppliedAt).HasColumnType("TEXT");
+            e.Property(x => x.LastErrorCode).HasMaxLength(128);
+            e.Property(x => x.LastErrorMessage).HasMaxLength(512);
+            e.HasIndex(x => new { x.UserId, x.Scope, x.ScopeId, x.State });
+        });
+        mb.Entity<RegistryKey>(e =>
+        {
+            e.ToTable("registry_keys");
+            e.HasKey(x => new { x.UserId, x.Scope, x.ScopeId, x.Path });
+            e.Property(x => x.UserId).HasColumnType("TEXT");
+            e.Property(x => x.Scope).HasConversion<string>().HasMaxLength(16).IsRequired();
+            e.Property(x => x.ScopeId).HasColumnType("TEXT");
+            e.Property(x => x.Path).HasMaxLength(256).IsRequired();
+            e.Property(x => x.CreatedAt).HasColumnType("TEXT");
+            e.Property(x => x.CreatedBy).HasMaxLength(256).IsRequired();
+        });
         mb.Entity<AccountFailureState>(e =>
         {
             e.ToTable("account_failure_states");
@@ -126,39 +154,6 @@ public sealed class RemoteOsDbContext : DbContext
             // One User One Persistent Workspace——按 UserId 唯一索引，对应 InMemoryWorkspaceRepository._byUserId
             e.HasIndex(w => w.UserId).IsUnique();
 
-            // TerminalSettings 作为 JSON 列：EF Core 9+ 的 ToJson，把 TerminalSettingsDto（6 字段 record）
-            // 序列化为单列 JSON 文本。配置可演进——新增外观字段无需改 schema。
-            e.OwnsOne(w => w.TerminalSettings, t =>
-            {
-                t.ToJson("terminal_settings");
-            });
-            e.OwnsOne(w => w.BrowserSettings, b =>
-            {
-                b.ToJson("browser_settings");
-            });
-            // Preferences 同模式：壁纸/主题/时间格式/语言/区域/默认程序，单列 JSON 文本（可演进，新增字段不改 schema）。
-            e.OwnsOne(w => w.Preferences, p =>
-            {
-                p.ToJson("preferences");
-                // JSON array elements use EF's synthesized ordinal key. CLR properties
-                // such as Scheme must remain payload fields, not entity keys.
-                p.OwnsMany(x => x.DefaultApps);
-                p.OwnsOne(x => x.DesktopDisplay);
-                // ThemePreferences contains custom palettes whose Colors payload is a
-                // Dictionary<string, string>. EF cannot model a dictionary as an owned
-                // navigation, so keep this extensible leaf as serialized JSON inside the
-                // workspace preferences document. The public API shape remains unchanged.
-                p.Property(x => x.ThemePreferences).HasConversion(
-                    preferences => JsonSerializer.Serialize(preferences, JsonSerializerOptions.Default),
-                    json => JsonSerializer.Deserialize<ThemePreferencesDto>(json, JsonSerializerOptions.Default)
-                        ?? ThemePreferencesDto.Default);
-            });
-            e.OwnsOne(w => w.WindowLayouts, l =>
-            {
-                l.ToJson("window_layouts");
-                // See DefaultApps above: Key is JSON payload, not the EF entity key.
-                l.OwnsMany(x => x.Windows);
-            });
         });
 
         // ── devices ──

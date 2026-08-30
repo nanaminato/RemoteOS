@@ -162,6 +162,10 @@ public static class Bootstrapper
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "app-settings"))
             .AddHttpMessageHandler<AcceptLanguageHandler>()
             .AddRemoteOsAuthentication();
+        services.AddHttpClient<Client.Apps.Registry.IRegistryClient, Client.Apps.Registry.RegistryClient>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "registry"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
         services.AddSingleton<ISettingsNavigation, SettingsNavigationService>();
         services.AddSingleton<ExternalAppContextFactory>();
         services.AddSingleton<DeveloperPackageManager>();
@@ -195,6 +199,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Tunnels.TunnelManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Registry.RegistryApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {

@@ -6,6 +6,7 @@ using RemoteOS.Protocol.Identity;
 using RemoteOS.Protocol.Workspace;
 using Server.Domain;
 using Server.Identity;
+using Server.ConfigurationRegistry;
 using Server.Storage;
 
 namespace Server.Endpoints;
@@ -24,6 +25,7 @@ public static class AuthEndpoints
                 IIdentityProvider idp,
                 IUserRepository users,
                 IWorkspaceRepository wss,
+                IRegistryRepository registry,
                 ISessionRepository sess,
                 IDeviceRepository devs,
                 JwtTokenService jwt,
@@ -76,6 +78,10 @@ public static class AuthEndpoints
                            State = WorkspaceState.Running,
                            CreatedAt = now,
                        });
+
+                // Configuration defaults are registry values. The legacy Workspace JSON columns
+                // are intentionally not consulted or updated.
+                WorkspaceConfigurationRegistry.EnsureDefaults(registry, ws, user.Id.ToString("D"));
 
                 // 查/建 Device（按 name+platform 复用，更新版本与登录时间）
                 var platformStr = req.ClientPlatform.ToString().ToLowerInvariant();

@@ -12,6 +12,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,12 +23,15 @@ using RemoteOS.Protocol.WebServers;
 using RemoteOS.Protocol.Tunnels;
 using Server.Certificate;
 using Server.Domain;
+using Server.Storage;
 using Server.Storage.Sqlite;
 using Server.SystemPerformance;
 using Server.Tunnels;
 using Server.Runtimes;
 using Server.Secrets;
 using Server.WebServer;
+using Server.ConfigurationRegistry;
+using RemoteOS.Protocol.Registry;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -47,6 +51,7 @@ try
     VerifyWorkspacePreferencesJsonContract();
     VerifyThemePaletteContract();
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
+    await VerifyRegistryRuntimeCacheAsync(root);
     await VerifyPerformanceSamplerAsync();
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
@@ -73,6 +78,70 @@ static void VerifyWorkspacePreferencesJsonContract()
 
     Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
     Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
+}
+
+static async Task VerifyRegistryRuntimeCacheAsync(string root)
+{
+    var path = Path.Combine(root, "registry-cache.db");
+    var options = new DbContextOptionsBuilder<RemoteOsDbContext>().UseSqlite($"Data Source={path}").Options;
+    var userId = Guid.NewGuid();
+    var workspaceId = Guid.NewGuid();
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        await db.Database.EnsureCreatedAsync();
+        db.RegistryEntries.Add(new RegistryEntry
+        {
+            UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+            Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+            ValueJson = "14", Revision = 1, State = RegistryEntryState.Synced,
+            DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
+            AppliedRevision = 1, AppliedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    var factory = new PooledDbContextFactory<RemoteOsDbContext>(options);
+    var cache = new CachedSqliteRegistryRepository(factory);
+    await cache.StartAsync(CancellationToken.None);
+    Assert(cache.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "14",
+        "Registry cache did not hydrate SQLite state at startup.");
+    cache.CreateKey(new RegistryKey
+    {
+        UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+        Path = "Workspace\\Custom", CreatedAt = DateTimeOffset.UtcNow, CreatedBy = "test",
+    });
+    Assert(cache.ListChildKeys(userId, RegistryScope.Workspace, workspaceId, "Workspace").Any(x => x.Path == "Workspace\\Custom"),
+        "An empty registry key was not available from its direct parent.");
+
+    var updated = cache.Upsert(new RegistryEntry
+    {
+        UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
+        Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+        ValueJson = "12", DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
+    });
+    Assert(updated.ValueJson == "12" && updated.State == RegistryEntryState.PendingSync && updated.Revision == 2,
+        "Registry writes must update the in-memory source before durable synchronization.");
+    await using (var db = new RemoteOsDbContext(options))
+        Assert((await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)"))?.ValueJson == "14",
+            "Registry cache unexpectedly wrote through instead of batching durable synchronization.");
+
+    await cache.StopAsync(CancellationToken.None);
+    await using (var db = new RemoteOsDbContext(options))
+    {
+        var persisted = await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)");
+        Assert(persisted?.ValueJson == "12" && persisted.State == RegistryEntryState.Synced,
+            "Registry shutdown flush did not persist the latest cached value.");
+        Assert(await db.RegistryKeys.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom") is not null,
+            "Registry shutdown flush did not persist an empty key.");
+    }
+
+    var restored = new CachedSqliteRegistryRepository(factory);
+    await restored.StartAsync(CancellationToken.None);
+    Assert(restored.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "12",
+        "Registry restart did not recover the synchronized value.");
+    Assert(restored.DeleteKeyTree(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom"),
+        "Registry key deletion did not remove the cached key.");
+    await restored.StopAsync(CancellationToken.None);
 }
 
 static void VerifyThemePaletteContract()
@@ -565,13 +634,10 @@ static async Task VerifyOperationIdempotencyAsync(string root)
     Assert((await WaitForWebOperationAsync(webOperations, webFirst.OperationId)).State == WebServerOperationState.Succeeded, "WebServer operation did not complete.");
 }
 
-static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
+static Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
 {
-    var databasePath = Path.Combine(root, "workspace-preferences.db");
-    var options = new DbContextOptionsBuilder<RemoteOsDbContext>()
-        .UseSqlite($"Data Source={databasePath}")
-        .Options;
     var workspaceId = Guid.NewGuid();
+    var userId = Guid.NewGuid();
     var originalMapping = new DefaultAppMappingDto("https", "remoteos.browser");
     var themePreferences = new ThemePreferencesDto
     {
@@ -596,40 +662,20 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
         ],
     };
 
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        await db.Database.EnsureCreatedAsync();
-        db.Workspaces.Add(new Workspace
-        {
-            Id = workspaceId,
-            UserId = Guid.NewGuid(),
-            Name = "Preference update regression test",
-            CreatedAt = DateTimeOffset.UtcNow,
-            Preferences = new WorkspacePreferencesDto(
-                WorkspacePreferencesDto.BuiltInWallpaperPrefix + "bloom", ThemeKind.Light,
-                WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping],
-                ThemePreferences: themePreferences)
-        });
-        await db.SaveChangesAsync();
-    }
-
+    var workspace = new Workspace { Id = workspaceId, UserId = userId, Name = "Preference registry regression test", CreatedAt = DateTimeOffset.UtcNow };
+    var registry = new InMemoryRegistryRepository();
+    WorkspaceConfigurationRegistry.EnsureDefaults(registry, workspace, "test");
     var customWallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + Guid.NewGuid().ToString("N");
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        var repository = new SqliteWorkspaceRepository(db);
-        var workspace = repository.FindById(workspaceId) ?? throw new InvalidOperationException("Workspace was not loaded.");
-        workspace.Preferences.WallpaperKey = customWallpaperKey;
-        repository.Update(workspace);
-    }
-
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        var workspace = await db.Workspaces.AsNoTracking().SingleAsync(w => w.Id == workspaceId);
-        Assert(workspace.Preferences.WallpaperKey == customWallpaperKey, "Wallpaper key was not persisted.");
-        Assert(workspace.Preferences.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
-        Assert(workspace.Preferences.ThemePreferences?.CustomPalettes.Single().LightColors?["Accent"] == "#0078D4",
-            "Custom theme palette colors were not persisted.");
-    }
+    var preferences = new WorkspacePreferencesDto(
+        customWallpaperKey, ThemeKind.Light, WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping],
+        ThemePreferences: themePreferences);
+    WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, preferences, "test");
+    var stored = WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, WorkspacePreferencesDto.Default);
+    Assert(stored.WallpaperKey == customWallpaperKey, "Wallpaper key was not stored in the registry.");
+    Assert(stored.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
+    Assert(stored.ThemePreferences?.CustomPalettes.Single().LightColors?["Accent"] == "#0078D4",
+        "Custom theme palette colors were not persisted.");
+    return Task.CompletedTask;
 }
 
 static async Task VerifyWebServerProviderRoutingAsync()

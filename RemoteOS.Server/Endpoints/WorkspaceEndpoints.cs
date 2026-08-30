@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.RegularExpressions;
 using RemoteOS.Protocol.Desktop;
 using RemoteOS.Protocol.Workspace;
+using Server.ConfigurationRegistry;
 using Server.Storage;
 
 namespace Server.Endpoints;
@@ -12,13 +13,14 @@ public static class WorkspaceEndpoints
 {
     public static IEndpointRouteBuilder MapWorkspaceEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(WorkspaceApiRoutes.TerminalSettings, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapGet(WorkspaceApiRoutes.TerminalSettings, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.TerminalSettings);
+            if (workspace is null) return Results.NotFound();
+            return Results.Ok(ReadTerminalSettings(registry, workspace));
         }).RequireAuthorization().WithTags("Workspace");
 
-        app.MapPut(WorkspaceApiRoutes.TerminalSettings, (Guid id, TerminalSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapPut(WorkspaceApiRoutes.TerminalSettings, (Guid id, TerminalSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null)
@@ -27,20 +29,19 @@ public static class WorkspaceEndpoints
             if (!TryNormalize(request, out var normalized))
                 return Results.BadRequest(new { message = "Invalid terminal appearance settings." });
 
-            workspace.TerminalSettings = normalized;
-            workspaces.Update(workspace);
+            WriteTerminalSettings(registry, workspace, normalized, workspace.UserId.ToString("D"));
             return Results.Ok(normalized);
         }).RequireAuthorization().WithTags("Workspace");
 
         // ── 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）── 与 TerminalSettings 同模式：GET 直读，PUT 校验后整列覆盖。
-        app.MapGet(WorkspaceApiRoutes.Preferences, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapGet(WorkspaceApiRoutes.Preferences, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.Preferences);
+            return workspace is null ? Results.NotFound() : Results.Ok(ReadPreferences(registry, workspace));
         }).RequireAuthorization().WithTags("Workspace");
 
         app.MapPut(WorkspaceApiRoutes.Preferences, async (Guid id, WorkspacePreferencesDto request, ClaimsPrincipal principal,
-            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
+            IWorkspaceRepository workspaces, IRegistryRepository registry, WorkspaceWallpaperStore wallpapers) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null)
@@ -49,9 +50,8 @@ public static class WorkspaceEndpoints
             if (!TryNormalize(request, out var normalized))
                 return Results.BadRequest(new { message = "Invalid workspace preferences." });
 
-            var previousKey = workspace.Preferences.WallpaperKey;
-            ApplyPreferences(workspace.Preferences, normalized);
-            workspaces.Update(workspace);
+            var previousKey = ReadPreferences(registry, workspace).WallpaperKey;
+            WritePreferences(registry, workspace, normalized, workspace.UserId.ToString("D"));
             // Switching back to a preset must not leave the previously selected private image
             // on disk indefinitely. Cleanup is best-effort: the updated preference remains valid
             // even if a transient filesystem error delays removal.
@@ -67,7 +67,7 @@ public static class WorkspaceEndpoints
         // 图片壁纸属于 Workspace 托管资源，不读取或修改宿主机桌面壁纸。上传成功后原子地更新
         // WallpaperKey，避免客户端在图片尚未同步时引用一个不存在的 blob。
         app.MapPost(WorkspaceApiRoutes.Wallpaper, async (Guid id, HttpContext context, ClaimsPrincipal principal,
-            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
+            IWorkspaceRepository workspaces, IRegistryRepository registry, WorkspaceWallpaperStore wallpapers) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null) return Results.NotFound();
@@ -81,17 +81,16 @@ public static class WorkspaceEndpoints
             try
             {
                 var stored = await wallpapers.SaveAsync(id, file, context.RequestAborted);
-                var previousKey = workspace.Preferences.WallpaperKey;
+                var currentPreferences = ReadPreferences(registry, workspace);
+                var previousKey = currentPreferences.WallpaperKey;
                 try
                 {
-                    // Preferences is an EF-tracked owned JSON object. Replacing it would
-                    // re-parent DefaultApps and mutate EF's synthesized ordinal key.
-                    workspace.Preferences.WallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + stored.Id;
-                    workspaces.Update(workspace);
+                    var updated = currentPreferences with { WallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + stored.Id };
+                    WritePreferences(registry, workspace, updated, workspace.UserId.ToString("D"));
                 }
                 catch
                 {
-                    // The blob has no database reference until SaveChanges succeeds.
+                    // The blob has no registry reference until the cached write is accepted.
                     // Delete it on every persistence failure so retries do not leak files.
                     try { await wallpapers.DeleteAsync(id, stored.Id); }
                     catch { /* best-effort cleanup; preserve the database failure */ }
@@ -103,7 +102,7 @@ public static class WorkspaceEndpoints
                     try { await wallpapers.DeleteAsync(id, previousId); }
                     catch { /* best-effort orphan cleanup */ }
                 }
-                return Results.Ok(workspace.Preferences);
+                return Results.Ok(ReadPreferences(registry, workspace));
             }
             catch (InvalidWallpaperException ex)
             {
@@ -112,25 +111,25 @@ public static class WorkspaceEndpoints
         }).RequireAuthorization().WithTags("Workspace");
 
         app.MapGet(WorkspaceApiRoutes.WallpaperContent, (Guid id, string blobId, ClaimsPrincipal principal,
-            IWorkspaceRepository workspaces, WorkspaceWallpaperStore wallpapers) =>
+            IWorkspaceRepository workspaces, IRegistryRepository registry, WorkspaceWallpaperStore wallpapers) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             // A blob is readable only while it is the Workspace's selected image. This prevents
             // stale/orphaned ids from acting as a file-access capability.
-            if (workspace is null || !TryGetCustomWallpaperId(workspace.Preferences.WallpaperKey, out var currentId)
+            if (workspace is null || !TryGetCustomWallpaperId(ReadPreferences(registry, workspace).WallpaperKey, out var currentId)
                 || !string.Equals(currentId, blobId, StringComparison.OrdinalIgnoreCase))
                 return Results.NotFound();
             var resource = wallpapers.OpenRead(id, blobId);
             return resource is null ? Results.NotFound() : Results.File(resource.Value.Stream, resource.Value.ContentType);
         }).RequireAuthorization().WithTags("Workspace");
 
-        app.MapGet(WorkspaceApiRoutes.WindowLayouts, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapGet(WorkspaceApiRoutes.WindowLayouts, (Guid id, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.WindowLayouts);
+            return workspace is null ? Results.NotFound() : Results.Ok(ReadWindowLayouts(registry, workspace));
         }).RequireAuthorization().WithTags("Workspace");
 
-        app.MapPut(WorkspaceApiRoutes.WindowLayouts, (Guid id, WorkspaceWindowLayoutDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapPut(WorkspaceApiRoutes.WindowLayouts, (Guid id, WorkspaceWindowLayoutDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = FindAuthorizedWorkspace(id, principal, workspaces);
             if (workspace is null)
@@ -138,8 +137,7 @@ public static class WorkspaceEndpoints
             if (!TryNormalize(request, out var layouts))
                 return Results.BadRequest(new { message = "Invalid workspace window layouts." });
 
-            workspace.WindowLayouts = layouts;
-            workspaces.Update(workspace);
+            WriteWindowLayouts(registry, workspace, layouts, workspace.UserId.ToString("D"));
             return Results.Ok(layouts);
         }).RequireAuthorization().WithTags("Workspace");
 
@@ -176,6 +174,39 @@ public static class WorkspaceEndpoints
             request.CursorColor.ToUpperInvariant());
         return true;
     }
+
+    private static TerminalSettingsDto ReadTerminalSettings(IRegistryRepository registry, Server.Domain.Workspace workspace)
+    {
+        var value = WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.TerminalPath, TerminalSettingsDto.Default);
+        if (TryNormalize(value, out var normalized)) return normalized;
+        WriteTerminalSettings(registry, workspace, TerminalSettingsDto.Default, "system");
+        return TerminalSettingsDto.Default;
+    }
+
+    private static void WriteTerminalSettings(IRegistryRepository registry, Server.Domain.Workspace workspace, TerminalSettingsDto settings, string updatedBy) =>
+        WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.TerminalPath, settings, updatedBy);
+
+    private static WorkspacePreferencesDto ReadPreferences(IRegistryRepository registry, Server.Domain.Workspace workspace)
+    {
+        var value = WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, WorkspacePreferencesDto.Default);
+        if (TryNormalize(value, out var normalized)) return normalized;
+        WritePreferences(registry, workspace, WorkspacePreferencesDto.Default, "system");
+        return WorkspacePreferencesDto.Default;
+    }
+
+    private static void WritePreferences(IRegistryRepository registry, Server.Domain.Workspace workspace, WorkspacePreferencesDto preferences, string updatedBy) =>
+        WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, preferences, updatedBy);
+
+    private static WorkspaceWindowLayoutDto ReadWindowLayouts(IRegistryRepository registry, Server.Domain.Workspace workspace)
+    {
+        var value = WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.WindowManagerPath, WorkspaceWindowLayoutDto.Default);
+        if (TryNormalize(value, out var normalized)) return normalized;
+        WriteWindowLayouts(registry, workspace, WorkspaceWindowLayoutDto.Default, "system");
+        return WorkspaceWindowLayoutDto.Default;
+    }
+
+    private static void WriteWindowLayouts(IRegistryRepository registry, Server.Domain.Workspace workspace, WorkspaceWindowLayoutDto layouts, string updatedBy) =>
+        WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.WindowManagerPath, layouts, updatedBy);
 
     private static bool IsHexColor(string? color) => color is { Length: 7 }
         && color[0] == '#'
@@ -282,37 +313,6 @@ public static class WorkspaceEndpoints
         if (!Guid.TryParseExact(value, "N", out _)) return false;
         id = value;
         return true;
-    }
-
-    /// <summary>
-    /// Applies an API payload to the existing EF-tracked Preferences graph. JSON array items
-    /// use a synthesized ordinal as their key, therefore neither this object nor its owned
-    /// collections may be replaced wholesale.
-    /// </summary>
-    private static void ApplyPreferences(WorkspacePreferencesDto target, WorkspacePreferencesDto source)
-    {
-        target.WallpaperKey = source.WallpaperKey;
-        target.Theme = source.Theme;
-        target.TimeFormat = source.TimeFormat;
-        target.DateFormat = source.DateFormat;
-        target.Language = source.Language;
-        target.Region = source.Region;
-        target.NotepadDefaultEncoding = source.NotepadDefaultEncoding;
-        target.CodeEditorDefaultEncoding = source.CodeEditorDefaultEncoding;
-        target.ThemePreferences = source.ThemePreferences;
-
-        target.DefaultApps.Clear();
-        target.DefaultApps.AddRange(source.DefaultApps);
-
-        var sourceDisplay = source.DesktopDisplay ?? DesktopDisplaySettingsDto.Default;
-        var targetDisplay = target.DesktopDisplay ?? new DesktopDisplaySettingsDto();
-        targetDisplay.ShowBuiltInApps = sourceDisplay.ShowBuiltInApps;
-        targetDisplay.ShowServerDesktopFiles = sourceDisplay.ShowServerDesktopFiles;
-        targetDisplay.ShowServerDesktopShortcuts = sourceDisplay.ShowServerDesktopShortcuts;
-        targetDisplay.HasCompletedFirstTimeSetup = sourceDisplay.HasCompletedFirstTimeSetup;
-        targetDisplay.VisibleAppIds.Clear();
-        targetDisplay.VisibleAppIds.AddRange(sourceDisplay.VisibleAppIds);
-        target.DesktopDisplay = targetDisplay;
     }
 
     private static bool TryNormalizeThemePreferences(ThemePreferencesDto? request, out ThemePreferencesDto preferences)
