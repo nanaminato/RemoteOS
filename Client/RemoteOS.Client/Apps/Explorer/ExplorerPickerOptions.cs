@@ -4,6 +4,7 @@ namespace Client.Apps.Explorer;
 public enum ExplorerPickerMode
 {
     OpenFile,
+    SaveFile,
     SelectFolder,
 }
 
@@ -15,10 +16,11 @@ public sealed record ExplorerFileFilter(string Label, IReadOnlyList<string> Patt
 }
 
 /// <summary>
-/// Configures a RemoteExplorer picker. Filters apply only to <see cref="ExplorerPickerMode.OpenFile"/>.
+/// Configures a RemoteExplorer picker. Filters apply to file pickers.
 /// Patterns use standard wildcard syntax, for example <c>*.txt</c> or <c>*.cs</c>.
 /// </summary>
 public sealed record ExplorerPickerOptions(
     ExplorerPickerMode Mode = ExplorerPickerMode.OpenFile,
     bool AllowMultiple = false,
-    IReadOnlyList<ExplorerFileFilter>? Filters = null);
+    IReadOnlyList<ExplorerFileFilter>? Filters = null,
+    string? DefaultFileName = null);

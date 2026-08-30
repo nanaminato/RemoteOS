@@ -105,13 +105,22 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
                 return new ExplorerMainView { DataContext = picker };
             }, GetFilePickerBounds(window));
 
-        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, LocalizedText.Get("code_editor.save_remote_file"), dialog =>
+        viewModel.RequestSavePathAsync = defaultName => files is null
+            ? Task.FromResult<string?>(null)
+            : context.ShowDialogAsync<string>(window, LocalizedText.Get("code_editor.save_remote_file"), dialog =>
         {
-            var vm = new TextInputDialogViewModel(LocalizedText.Get("code_editor.remote_path_prompt"), defaultName,
-                savePath => dialog.Close(savePath ?? string.Empty), LocalizedText.Get("common.save"),
-                savePath => !string.IsNullOrWhiteSpace(savePath));
-            return new TextInputDialogView { DataContext = vm };
-        });
+            var picker = new ExplorerViewModel(files,
+                new ExplorerPickerOptions(ExplorerPickerMode.SaveFile, Filters: [
+                    new ExplorerFileFilter(LocalizedText.Get("code_editor.source_file_filter"), SupportedExtensions.Select(extension => $"*{extension}")
+                        .Concat(SupportedFileNames).ToArray()),
+                ], DefaultFileName: defaultName),
+                paths => dialog.Close(paths[0]))
+            {
+                CancelAction = dialog.Cancel,
+            };
+            _ = picker.LoadRootAsync();
+            return new ExplorerMainView { DataContext = picker };
+        }, GetFilePickerBounds(window));
         viewModel.RequestEncodingActionAsync = () => context.ShowDialogAsync<EncodingDialogAction?>(window,
             LocalizedText.Get("common.file_encoding"), dialog =>
                 new EncodingActionDialogView { DataContext = new EncodingActionDialogViewModel(action =>

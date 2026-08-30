@@ -78,12 +78,22 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
                 _ = picker.LoadRootAsync();
                 return new ExplorerMainView { DataContext = picker };
             }, GetFilePickerBounds(window));
-        viewModel.RequestSavePathAsync = defaultName => context.ShowDialogAsync<string>(window, LocalizedText.Get("notepad.save_remote_file"), dialog =>
+        viewModel.RequestSavePathAsync = defaultName => files is null
+            ? Task.FromResult<string?>(null)
+            : context.ShowDialogAsync<string>(window, LocalizedText.Get("notepad.save_remote_file"), dialog =>
         {
-            var vm = new TextInputDialogViewModel(LocalizedText.Get("notepad.remote_path_prompt"), defaultName, path => dialog.Close(path ?? string.Empty), LocalizedText.Get("common.save"),
-                path => !string.IsNullOrWhiteSpace(path));
-            return new TextInputDialogView { DataContext = vm };
-        });
+            var picker = new ExplorerViewModel(files,
+                new ExplorerPickerOptions(ExplorerPickerMode.SaveFile, Filters: [
+                    new ExplorerFileFilter(LocalizedText.Get("notepad.text_file_filter"), SupportedExtensions.Select(extension => $"*{extension}").ToArray(),
+                        IncludeExtensionlessFiles: true),
+                ], DefaultFileName: defaultName),
+                paths => dialog.Close(paths[0]))
+            {
+                CancelAction = dialog.Cancel,
+            };
+            _ = picker.LoadRootAsync();
+            return new ExplorerMainView { DataContext = picker };
+        }, GetFilePickerBounds(window));
         viewModel.RequestEncodingActionAsync = () => context.ShowDialogAsync<EncodingDialogAction?>(window,
             LocalizedText.Get("common.file_encoding"), dialog =>
                 new EncodingActionDialogView { DataContext = new EncodingActionDialogViewModel(action =>
