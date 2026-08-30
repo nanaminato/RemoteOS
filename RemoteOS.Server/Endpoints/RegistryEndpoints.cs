@@ -3,8 +3,6 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using RemoteOS.Protocol.Common;
-using RemoteOS.Protocol.Browser;
-using RemoteOS.Protocol.Workspace;
 using RemoteOS.Protocol.Registry;
 using Server.ConfigurationRegistry;
 using Server.Storage;
@@ -16,7 +14,7 @@ public static partial class RegistryEndpoints
 {
     public static IEndpointRouteBuilder MapRegistryEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(RegistryApiRoutes.Entries, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        app.MapGet(RegistryApiRoutes.Entries, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry, IWorkspaceRepository workspaces) =>
         {
             if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
             RegistryScope? parsed = null;
@@ -25,16 +23,18 @@ public static partial class RegistryEndpoints
             if (!string.IsNullOrWhiteSpace(scope)) parsed = Enum.Parse<RegistryScope>(scope, true);
             if (parsed is null || string.IsNullOrWhiteSpace(path) || !PathPattern().IsMatch(path) || !TryScopeId(principal, userId, parsed.Value, out var scopeId))
                 return Results.BadRequest(new { message = "Scope and a valid key path are required." });
+            EnsureWorkspaceDefaults(parsed.Value, userId, scopeId, workspaces, registry);
             return Results.Ok(registry.List(userId, parsed).Where(x => x.ScopeId == scopeId && x.Path == path).Select(ToDto));
         }).RequireAuthorization().WithTags("Registry");
 
-        app.MapGet(RegistryApiRoutes.Keys, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry) =>
+        app.MapGet(RegistryApiRoutes.Keys, (string? scope, string? path, ClaimsPrincipal principal, IRegistryRepository registry, IWorkspaceRepository workspaces) =>
         {
             if (!TryUserId(principal, out var userId)) return Results.Unauthorized();
             if (!Enum.TryParse<RegistryScope>(scope, true, out var parsed) || !Enum.IsDefined(parsed)
                 || string.IsNullOrWhiteSpace(path) || !PathPattern().IsMatch(path)
                 || !TryScopeId(principal, userId, parsed, out var scopeId))
                 return Results.BadRequest(new { message = "Scope and a valid parent key path are required." });
+            EnsureWorkspaceDefaults(parsed, userId, scopeId, workspaces, registry);
             return Results.Ok(registry.ListChildKeys(userId, parsed, scopeId, path).Select(x => new RegistryKeyDto(x.Scope, x.Path)));
         }).RequireAuthorization().WithTags("Registry");
 
@@ -70,8 +70,8 @@ public static partial class RegistryEndpoints
                 || !IsCompatible(request.ValueType, request.Value))
                 return Results.BadRequest(new { message = "Invalid registry value." });
             var now = DateTimeOffset.UtcNow;
-            if (!TryProjectKnownWorkspaceValue(request, userId, scopeId, workspaces, out var projectionError))
-                return Results.BadRequest(new { message = projectionError });
+            if (!VerifyWorkspaceOwner(request.Scope, userId, scopeId, workspaces, out var ownershipError))
+                return Results.BadRequest(new { message = ownershipError });
             var saved = registry.Upsert(new Server.Domain.RegistryEntry
             {
                 UserId = userId, Scope = request.Scope, ScopeId = scopeId, Path = request.Path.Trim(), Name = request.Name.Trim(),
@@ -128,29 +128,19 @@ public static partial class RegistryEndpoints
         && path.StartsWith("Workspace\\", StringComparison.Ordinal)
         && path.Length > "Workspace\\".Length;
 
-    private static bool TryProjectKnownWorkspaceValue(PutRegistryEntryRequest request, Guid userId, Guid scopeId, IWorkspaceRepository workspaces, out string? error)
+    private static bool VerifyWorkspaceOwner(RegistryScope scope, Guid userId, Guid scopeId, IWorkspaceRepository workspaces, out string? error)
     {
         error = null;
-        if (request.Scope != RegistryScope.Workspace || request.Name != "(Default)") return true;
+        if (scope != RegistryScope.Workspace) return true;
         var workspace = workspaces.FindById(scopeId);
         if (workspace is null || workspace.UserId != userId) { error = "Workspace was not found."; return false; }
-        try
-        {
-            switch (request.Path)
-            {
-                // Terminal appearance is read directly from the registry cache. Do not touch
-                // Workspace.TerminalSettings: it is a legacy migration source only.
-                case "Workspace\\Terminal\\Appearance":
-                    _ = request.Value.Deserialize<TerminalSettingsDto>(RemoteOsJsonOptions.Default) ?? TerminalSettingsDto.Default;
-                    return true;
-                case "Workspace\\Desktop\\Preferences": workspace.Preferences = request.Value.Deserialize<WorkspacePreferencesDto>(RemoteOsJsonOptions.Default) ?? WorkspacePreferencesDto.Default; break;
-                case "Workspace\\Browser": workspace.BrowserSettings = (request.Value.Deserialize<BrowserSettingsDto>(RemoteOsJsonOptions.Default) ?? BrowserSettingsDto.Default).Normalize(); break;
-                default: return true;
-            }
-            workspaces.Update(workspace);
-            return true;
-        }
-        catch (JsonException) { error = "The value does not match this registry key's configuration format."; return false; }
+        return true;
+    }
+
+    private static void EnsureWorkspaceDefaults(RegistryScope scope, Guid userId, Guid scopeId, IWorkspaceRepository workspaces, IRegistryRepository registry)
+    {
+        if (scope == RegistryScope.Workspace && workspaces.FindById(scopeId) is { UserId: var owner } workspace && owner == userId)
+            WorkspaceConfigurationRegistry.EnsureDefaults(registry, workspace, userId.ToString("D"));
     }
 
     private static RegistryEntryDto ToDto(Server.Domain.RegistryEntry entry)

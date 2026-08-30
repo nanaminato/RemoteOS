@@ -23,6 +23,7 @@ using RemoteOS.Protocol.WebServers;
 using RemoteOS.Protocol.Tunnels;
 using Server.Certificate;
 using Server.Domain;
+using Server.Storage;
 using Server.Storage.Sqlite;
 using Server.SystemPerformance;
 using Server.Tunnels;
@@ -633,13 +634,10 @@ static async Task VerifyOperationIdempotencyAsync(string root)
     Assert((await WaitForWebOperationAsync(webOperations, webFirst.OperationId)).State == WebServerOperationState.Succeeded, "WebServer operation did not complete.");
 }
 
-static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
+static Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
 {
-    var databasePath = Path.Combine(root, "workspace-preferences.db");
-    var options = new DbContextOptionsBuilder<RemoteOsDbContext>()
-        .UseSqlite($"Data Source={databasePath}")
-        .Options;
     var workspaceId = Guid.NewGuid();
+    var userId = Guid.NewGuid();
     var originalMapping = new DefaultAppMappingDto("https", "remoteos.browser");
     var themePreferences = new ThemePreferencesDto
     {
@@ -664,40 +662,20 @@ static async Task VerifyTrackedWorkspaceWallpaperUpdateAsync(string root)
         ],
     };
 
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        await db.Database.EnsureCreatedAsync();
-        db.Workspaces.Add(new Workspace
-        {
-            Id = workspaceId,
-            UserId = Guid.NewGuid(),
-            Name = "Preference update regression test",
-            CreatedAt = DateTimeOffset.UtcNow,
-            Preferences = new WorkspacePreferencesDto(
-                WorkspacePreferencesDto.BuiltInWallpaperPrefix + "bloom", ThemeKind.Light,
-                WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping],
-                ThemePreferences: themePreferences)
-        });
-        await db.SaveChangesAsync();
-    }
-
+    var workspace = new Workspace { Id = workspaceId, UserId = userId, Name = "Preference registry regression test", CreatedAt = DateTimeOffset.UtcNow };
+    var registry = new InMemoryRegistryRepository();
+    WorkspaceConfigurationRegistry.EnsureDefaults(registry, workspace, "test");
     var customWallpaperKey = WorkspacePreferencesDto.CustomWallpaperPrefix + Guid.NewGuid().ToString("N");
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        var repository = new SqliteWorkspaceRepository(db);
-        var workspace = repository.FindById(workspaceId) ?? throw new InvalidOperationException("Workspace was not loaded.");
-        workspace.Preferences.WallpaperKey = customWallpaperKey;
-        repository.Update(workspace);
-    }
-
-    await using (var db = new RemoteOsDbContext(options))
-    {
-        var workspace = await db.Workspaces.AsNoTracking().SingleAsync(w => w.Id == workspaceId);
-        Assert(workspace.Preferences.WallpaperKey == customWallpaperKey, "Wallpaper key was not persisted.");
-        Assert(workspace.Preferences.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
-        Assert(workspace.Preferences.ThemePreferences?.CustomPalettes.Single().LightColors?["Accent"] == "#0078D4",
-            "Custom theme palette colors were not persisted.");
-    }
+    var preferences = new WorkspacePreferencesDto(
+        customWallpaperKey, ThemeKind.Light, WorkspacePreferencesDto.TimeFormat24H, "yyyy/M/d", "en-US", "en-US", [originalMapping],
+        ThemePreferences: themePreferences);
+    WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, preferences, "test");
+    var stored = WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.DesktopPath, WorkspacePreferencesDto.Default);
+    Assert(stored.WallpaperKey == customWallpaperKey, "Wallpaper key was not stored in the registry.");
+    Assert(stored.DefaultApps.SequenceEqual([originalMapping]), "Changing the wallpaper modified default-app mappings.");
+    Assert(stored.ThemePreferences?.CustomPalettes.Single().LightColors?["Accent"] == "#0078D4",
+        "Custom theme palette colors were not persisted.");
+    return Task.CompletedTask;
 }
 
 static async Task VerifyWebServerProviderRoutingAsync()

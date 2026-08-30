@@ -5,8 +5,7 @@ using Server.Domain;
 
 namespace Server.Storage.Sqlite;
 
-/// <summary>Workspace 仓储的 EF Core + SQLite 实现。Scoped。TerminalSettings 随 Workspace 以 JSON 列持久化。
-/// 对应 InMemoryWorkspaceRepository。读取时若 TerminalSettings 为空（防御旧数据）回退 Default。</summary>
+/// <summary>Workspace 仓储的 EF Core + SQLite 实现。Workspace 配置由注册表持有，不映射到本实体。</summary>
 public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
 {
     private readonly RemoteOsDbContext _db;
@@ -36,17 +35,5 @@ public sealed class SqliteWorkspaceRepository : IWorkspaceRepository
         _db.SaveChanges();
     }
 
-    /// <summary>TerminalSettings 在领域模型默认非空，但旧数据/异常情况下 JSON 列可能为 null——读取时兜底。</summary>
-    private static Workspace? Normalize(Workspace? w)
-    {
-        if (w is not null && w.TerminalSettings is null)
-            w.TerminalSettings = TerminalSettingsDto.Default;
-        if (w is not null && w.BrowserSettings is null)
-            w.BrowserSettings = BrowserSettingsDto.Default;
-        if (w is not null && w.Preferences is null)
-            w.Preferences = WorkspacePreferencesDto.Default;
-        if (w is not null && w.WindowLayouts is null)
-            w.WindowLayouts = WorkspaceWindowLayoutDto.Default;
-        return w;
-    }
+    private static Workspace? Normalize(Workspace? w) => w;
 }

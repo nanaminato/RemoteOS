@@ -296,7 +296,7 @@ builder.Services.AddHostedService<Server.Certificate.KestrelCertificateStartupSe
 builder.Services.AddHostedService<Server.Certificate.CertificateRenewalWorker>();
 
 // 持久化仓储：按 Storage:Provider 选择 sqlite（EF Core + SQLite，默认）或 memory（内存，开发回退）。
-// User / Workspace(含 TerminalSettings) / Device 持久化；Session 始终内存（连接关系，运行时状态，重启失效合理）。
+// User / Workspace（身份与会话归属）/ Device 持久化；Workspace 配置由注册表持久化。
 // 详见 docs/RemoteOS.Storage.md。
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
 var storageOpts = builder.Configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions();
@@ -394,24 +394,6 @@ if (storageProvider == "sqlite")
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RemoteOsDbContext>();
     db.Database.EnsureCreated();
-
-    // EnsureCreated does not add columns to an existing database. Browser settings are an
-    // owned JSON value on Workspace, so upgrade older deployments before reading/writing it.
-    var hasBrowserSettings = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'browser_settings'").Single() > 0;
-    if (!hasBrowserSettings)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"browser_settings\" TEXT NULL;");
-
-    // 用户偏好（壁纸/主题/时间格式/语言/区域/默认程序）——与 browser_settings 同模式：OwnsOne ToJson 单列。
-    var hasPreferences = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'preferences'").Single() > 0;
-    if (!hasPreferences)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"preferences\" TEXT NULL;");
-
-    var hasWindowLayouts = db.Database.SqlQueryRaw<long>(
-        "SELECT COUNT(*) AS \"Value\" FROM pragma_table_info('workspaces') WHERE name = 'window_layouts'").Single() > 0;
-    if (!hasWindowLayouts)
-        db.Database.ExecuteSqlRaw("ALTER TABLE \"workspaces\" ADD COLUMN \"window_layouts\" TEXT NULL;");
 
     // 增量补齐：仅当表不存在时创建（与 EF Core 模型一致，索引/列类型对齐 OnModelCreating）。
     db.Database.ExecuteSqlRaw("""
@@ -562,8 +544,6 @@ if (storageProvider == "sqlite")
             PRIMARY KEY ("UserId", "Scope", "ScopeId", "Path")
         );
         """);
-
-    Server.ConfigurationRegistry.RegistryBootstrapper.ImportWorkspaceConfiguration(db);
 
     // Host-global certificate/WebServer state uses independently versioned migrations. This
     // is deliberately not an ad-hoc ALTER/CREATE compatibility patch: operations must remain

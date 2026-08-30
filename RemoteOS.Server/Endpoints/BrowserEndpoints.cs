@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RemoteOS.Protocol.Browser;
+using Server.ConfigurationRegistry;
 using Server.Storage;
 
 namespace Server.Endpoints;
@@ -13,23 +14,23 @@ public static class BrowserEndpoints
 
     public static IEndpointRouteBuilder MapBrowserEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(BrowserApiRoutes.Settings, (ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapGet(BrowserApiRoutes.Settings, (ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = workspaces.FindByUserId(GetUserId(principal));
-            return workspace is null ? Results.NotFound() : Results.Ok(workspace.BrowserSettings.Normalize());
+            return workspace is null ? Results.NotFound() : Results.Ok(ReadSettings(registry, workspace));
         })
         .RequireAuthorization()
         .WithTags("Browser");
 
-        app.MapPut(BrowserApiRoutes.Settings, (BrowserSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces) =>
+        app.MapPut(BrowserApiRoutes.Settings, (BrowserSettingsDto request, ClaimsPrincipal principal, IWorkspaceRepository workspaces, IRegistryRepository registry) =>
         {
             var workspace = workspaces.FindByUserId(GetUserId(principal));
             if (workspace is null)
                 return Results.NotFound();
 
-            workspace.BrowserSettings = request.Normalize();
-            workspaces.Update(workspace);
-            return Results.Ok(workspace.BrowserSettings);
+            var settings = request.Normalize();
+            WorkspaceConfigurationRegistry.Write(registry, workspace, WorkspaceConfigurationRegistry.BrowserPath, settings, workspace.UserId.ToString("D"));
+            return Results.Ok(settings);
         })
         .RequireAuthorization()
         .WithTags("Browser");
@@ -126,6 +127,9 @@ public static class BrowserEndpoints
                   ?? throw new InvalidOperationException("JWT 缺少 sub claim。");
         return Guid.Parse(sub);
     }
+
+    private static BrowserSettingsDto ReadSettings(IRegistryRepository registry, Server.Domain.Workspace workspace) =>
+        WorkspaceConfigurationRegistry.Read(registry, workspace, WorkspaceConfigurationRegistry.BrowserPath, BrowserSettingsDto.Default).Normalize();
 
     private static IResult Problem(int status, string typeSuffix, string title, string detail)
         => Results.Problem(detail: detail, statusCode: status, title: title, type: ProblemBase + typeSuffix);

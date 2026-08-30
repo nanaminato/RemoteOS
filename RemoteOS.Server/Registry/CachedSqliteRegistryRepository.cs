@@ -29,7 +29,13 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var entries = await db.RegistryEntries.AsNoTracking().ToListAsync(cancellationToken);
         foreach (var entry in entries)
-            _entries[EntryKey.From(entry)] = Copy(entry);
+        {
+            // Workspace JSON columns were retired in favour of these direct registry keys.
+            // Keep their old registry projections out of the runtime source without mutating
+            // a user's historical database rows.
+            if (!IsRetiredWorkspaceConfiguration(entry.Path))
+                _entries[EntryKey.From(entry)] = Copy(entry);
+        }
         var keys = await db.RegistryKeys.AsNoTracking().ToListAsync(cancellationToken);
         foreach (var key in keys)
             _keys[KeyKey.From(key)] = Copy(key);
@@ -265,6 +271,9 @@ public sealed class CachedSqliteRegistryRepository(IDbContextFactory<RemoteOsDbC
 
     private static bool IsDirectChild(string candidate, string parent) => candidate.StartsWith(parent + "\\", StringComparison.Ordinal)
         && candidate[(parent.Length + 1)..].IndexOf('\\') < 0;
+
+    private static bool IsRetiredWorkspaceConfiguration(string path) => path is
+        "Workspace\\Terminal\\Appearance" or "Workspace\\Desktop\\Preferences" or "Workspace\\Browser\\Settings";
 
     private static RegistryKey Copy(RegistryKey x) => new()
     {
