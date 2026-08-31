@@ -44,7 +44,7 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
                 };
                 _ = picker.LoadRootAsync();
                 return new ExplorerMainView { DataContext = picker };
-            }, new Avalonia.Size(720, 520));
+            }, new RemoteOS.Core.Primitives.Size(720, 520));
         };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
