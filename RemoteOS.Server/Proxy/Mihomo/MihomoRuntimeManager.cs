@@ -240,7 +240,7 @@ public sealed class MihomoRuntimeManager(
             foreach (var entry in archive.Entries)
             {
                 EnsureSafeArchiveEntry(entry.FullName, entry.Length);
-                if (!entry.FullName.EndsWith("/", StringComparison.Ordinal) && Path.GetFileName(entry.FullName.Replace('\\', '/')).Equals(BinaryName(), StringComparison.OrdinalIgnoreCase))
+                if (!entry.FullName.EndsWith("/", StringComparison.Ordinal) && IsExpectedArchiveBinary(Path.GetFileName(entry.FullName.Replace('\\', '/'))))
                 {
                     if (binary is not null) throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
                     binary = entry;
@@ -384,6 +384,9 @@ public sealed class MihomoRuntimeManager(
             || Path.IsPathRooted(name) || normal.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(segment => segment is "." or ".."))
             throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
     }
+    private static bool IsExpectedArchiveBinary(string fileName) => OperatingSystem.IsWindows()
+        ? fileName.StartsWith("mihomo", StringComparison.OrdinalIgnoreCase) && fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+        : fileName.Equals(BinaryName(), StringComparison.OrdinalIgnoreCase);
     private static async Task CopyLimitedAsync(Stream input, Stream output, CancellationToken cancellationToken)
     {
         var buffer = new byte[81920]; long total = 0;
