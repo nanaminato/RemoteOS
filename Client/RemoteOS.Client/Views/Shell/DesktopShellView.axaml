@@ -184,8 +184,11 @@
                             <StackPanel Spacing="6" HorizontalAlignment="Center">
                                 <Border Width="48" Height="48" CornerRadius="8" Background="{DynamicResource SurfaceBrush}"
                                         HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding IconGlyph}" FontSize="26"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Grid>
+                                        <Image Source="{Binding IconImage}" IsVisible="{Binding HasIconImage}" Stretch="Uniform" Margin="4" />
+                                        <TextBlock Text="{Binding IconGlyph}" IsVisible="{Binding !HasIconImage}" FontSize="26"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
                                 </Border>
                                 <Border Background="{DynamicResource OverlayScrimBrush}" CornerRadius="4" Padding="4,1">
                                     <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="White"
@@ -283,9 +286,9 @@
                                     CommandParameter="{Binding}"
                                     ToolTip.Tip="{Binding DisplayName}">
                                 <Grid RowDefinitions="*,4">
-                                    <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="18"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TaskbarForegroundBrush}" />
+                                    <Image Grid.Row="0" Source="{Binding IconImage}" IsVisible="{Binding HasIconImage}" Stretch="Uniform" Margin="12" />
+                                    <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" IsVisible="{Binding !HasIconImage}" FontSize="18"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TaskbarForegroundBrush}" />
                                     <Border Grid.Row="0" Width="16" Height="16" CornerRadius="8"
                                             Background="{DynamicResource AccentBrush}"
                                             HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -337,7 +340,8 @@
                                     CommandParameter="{Binding}">
                                 <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="10">
                                     <Grid RowDefinitions="*,Auto">
-                                        <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" FontSize="34"
+                                        <Image Grid.Row="0" Source="{Binding IconImage}" IsVisible="{Binding HasIconImage}" Stretch="Uniform" Margin="12" />
+                                        <TextBlock Grid.Row="0" Text="{Binding IconGlyph}" IsVisible="{Binding !HasIconImage}" FontSize="34"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         <StackPanel Grid.Row="1" Spacing="2">
                                             <TextBlock Text="{Binding Title}" FontSize="12"
@@ -375,8 +379,11 @@
                                 <Button Classes="start-item" Command="{Binding LaunchCommand}"
                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
                                     <Grid ColumnDefinitions="40,*">
-                                        <TextBlock Grid.Column="0" Text="{Binding IconGlyph}" FontSize="20"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Grid Grid.Column="0" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Image Source="{Binding IconImage}" IsVisible="{Binding HasIconImage}" Stretch="Uniform" />
+                                            <TextBlock Text="{Binding IconGlyph}" IsVisible="{Binding !HasIconImage}" FontSize="20"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Grid>
                                         <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DisplayName}" FontSize="13" />
                                             <TextBlock Text="{Binding Description}" FontSize="11"

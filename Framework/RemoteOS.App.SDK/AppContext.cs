@@ -11,11 +11,12 @@ namespace RemoteOS.AppSDK;
 /// </summary>
 public sealed class AppContext
 {
-    public AppContext(AppId appId, IWindowManager windowManager, IServiceProvider services)
+    public AppContext(AppId appId, IWindowManager windowManager, IServiceProvider services, ApplicationManifest? manifest = null)
     {
         AppId = appId;
         WindowManager = windowManager;
         Services = services;
+        Manifest = manifest;
     }
 
     /// <summary>The id of the application this context belongs to.</summary>
@@ -29,6 +30,7 @@ public sealed class AppContext
     /// package applications; they receive <see cref="IExternalAppContext"/> instead.
     /// </summary>
     public IServiceProvider Services { get; }
+    public ApplicationManifest? Manifest { get; }
 
     /// <summary>Activates a host-validated <c>remoteos://</c> route or manifest-declared external URI as this application.</summary>
     public IAppActivation Activations => new AppActivationScope(AppId, Services.GetService(typeof(IAppActivationService)) as IAppActivationService);
@@ -68,11 +70,12 @@ public sealed class AppContext
             Title: title,
             Content: content,
             Bounds: bounds,
-            IconGlyph: iconGlyph,
+            IconGlyph: iconGlyph ?? Manifest?.IconGlyph,
             CanResize: canResize,
             CanMinimize: canMinimize,
             CanMaximize: canMaximize,
-            InitialPlacement: initialPlacement));
+            InitialPlacement: initialPlacement,
+            IconPath: Manifest?.EffectiveIconPath));
     }
 
     /// <summary>Displays an application window over the entire desktop, including shell chrome.</summary>

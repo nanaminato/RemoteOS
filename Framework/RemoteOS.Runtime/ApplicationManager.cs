@@ -80,7 +80,7 @@ public sealed class ApplicationManager : IAppActivationService
             RequestUndecidedPermissions(app.Manifest.Id);
             return true;
         }
-        fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
+        fileOpener.OpenFile(new AppContext(id, _windowManager, _services, app.Manifest), path);
         RequestUndecidedPermissions(app.Manifest.Id);
         return true;
     }
@@ -145,7 +145,7 @@ public sealed class ApplicationManager : IAppActivationService
             RequestUndecidedPermissions(app.Manifest.Id);
             return true;
         }
-        fileOpener.OpenFile(new AppContext(id, _windowManager, _services), path);
+        fileOpener.OpenFile(new AppContext(id, _windowManager, _services, app.Manifest), path);
         RequestUndecidedPermissions(app.Manifest.Id);
         return true;
     }
@@ -167,7 +167,7 @@ public sealed class ApplicationManager : IAppActivationService
         if (terminal is not IOpenTerminalApplication terminalOpener || !EnsureCompatible(terminal.Manifest))
             return false;
 
-        terminalOpener.OpenTerminal(new AppContext(terminal.Manifest.Id, _windowManager, _services), workingDirectory);
+        terminalOpener.OpenTerminal(new AppContext(terminal.Manifest.Id, _windowManager, _services, terminal.Manifest), workingDirectory);
         RequestUndecidedPermissions(terminal.Manifest.Id);
         return true;
     }
@@ -375,7 +375,7 @@ public sealed class ApplicationManager : IAppActivationService
         if (!EnsureCompatible(app.Manifest))
             return false;
 
-        var context = new AppContext(app.Manifest.Id, _windowManager, _services);
+        var context = new AppContext(app.Manifest.Id, _windowManager, _services, app.Manifest);
         var existing = FindExistingPrimaryWindow(app.Manifest.Id);
         if (existing is not null && app.Manifest.InstancePolicy == ApplicationInstancePolicy.SingleWindow)
         {

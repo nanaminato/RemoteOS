@@ -11,6 +11,7 @@ public sealed class WindowInfo
 
     public string Title { get; set; } = string.Empty;
     public string? IconGlyph { get; set; }
+    public string? IconPath { get; set; }
 
     public Rect Bounds { get; set; }
     public Rect RestoreBounds { get; set; }

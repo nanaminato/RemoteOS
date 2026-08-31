@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
+using Avalonia.Media;
+using RemoteOS.WindowManager;
 
 namespace Client.ViewModels.Shell;
 
@@ -16,12 +18,15 @@ public partial class AppEntryViewModel : ObservableObject
         Id = info.Id;
         DisplayName = info.DisplayName;
         IconGlyph = info.IconGlyph;
+        IconImage = AppIconImageLoader.Load(info.IconPath);
         Description = info.Description;
     }
 
     public AppId Id { get; }
     public string DisplayName { get; }
     public string? IconGlyph { get; }
+    public IImage? IconImage { get; }
+    public bool HasIconImage => IconImage is not null;
     public string? Description { get; }
     [ObservableProperty] private bool _isDesktopSelected;
 

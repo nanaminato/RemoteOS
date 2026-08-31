@@ -4,6 +4,7 @@
   "version": "0.2.0-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.ServerMonitor.dll",
   "entryType": "RemoteOS.Examples.ServerMonitor.ServerMonitorApp",
+  "iconPath": "assets/icon.png",
   "iconGlyph": "📈",
   "description": "Performance dashboard with locally saved refresh preferences",
   "serverRequirements": {

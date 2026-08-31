@@ -65,7 +65,10 @@ public sealed class ExternalAppContextFactory
         _activations = activations;
     }
 
-    public IExternalAppContext Create(AppId appId) => new ExternalAppContext(
+    public IExternalAppContext Create(ApplicationManifest manifest)
+    {
+        var appId = manifest.Id;
+        return new ExternalAppContext(
         appId,
         new AppPermissionScope(appId, _permissionRequests),
         new DesktopAppearanceCapability(appId, _permissions, _settings, _settingsClient, _session, _defaultApps),
@@ -77,7 +80,8 @@ public sealed class ExternalAppContextFactory
         _systemLanguage,
         new ExternalAppActivation(appId, _activations),
         _settingsNavigation,
-        new ExternalAppWindowService(appId, _windowManager));
+        new ExternalAppWindowService(manifest, _windowManager));
+    }
 
     private sealed record ExternalAppContext(
         AppId AppId,
@@ -135,7 +139,7 @@ public sealed class ExternalAppContextFactory
             document.Key, document.Value, document.SchemaVersion, document.Revision, document.UpdatedAt);
     }
 
-    private sealed class ExternalAppWindowService(AppId appId, IWindowManager windowManager) : IExternalAppWindowService
+    private sealed class ExternalAppWindowService(ApplicationManifest manifest, IWindowManager windowManager) : IExternalAppWindowService
     {
         public IExternalAppWindowHandle ShowWindow(
             string title,
@@ -147,15 +151,16 @@ public sealed class ExternalAppContextFactory
             bool canMaximize = true)
         {
             var window = windowManager.Create(new WindowCreateOptions(
-                OwnerAppId: appId,
+                OwnerAppId: manifest.Id,
                 Title: title,
                 Content: content,
                 Bounds: bounds,
-                IconGlyph: iconGlyph,
+                IconGlyph: iconGlyph ?? manifest.IconGlyph,
                 CanResize: canResize,
                 CanMinimize: canMinimize,
                 CanMaximize: canMaximize,
-                InitialPlacement: WindowInitialPlacement.CenteredCascade));
+                InitialPlacement: WindowInitialPlacement.CenteredCascade,
+                IconPath: manifest.EffectiveIconPath));
             return new ExternalAppWindowHandle(window, windowManager);
         }
     }
