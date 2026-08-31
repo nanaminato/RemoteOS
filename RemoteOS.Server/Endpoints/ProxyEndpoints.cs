@@ -22,6 +22,13 @@ public static class ProxyEndpoints
                 await audit.RecordAsync(actor, "runtime.install", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
+        app.MapPost(ProxyApiRoutes.RuntimeInstallFromFile, (InstallProxyRuntimeFromFileRequest request, HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
+            QueueAsync(context, operations, "runtime.install_from_file", async (actor, token) =>
+            {
+                var result = await runtime.InstallManagedFromArchiveAsync(request.EngineId, request.Version, request.ArchivePath, token);
+                await audit.RecordAsync(actor, "runtime.install_from_file", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
+                return result.ProblemCode;
+            }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.RuntimeRollback, (HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
             QueueAsync(context, operations, "runtime.rollback", async (actor, token) =>
             {

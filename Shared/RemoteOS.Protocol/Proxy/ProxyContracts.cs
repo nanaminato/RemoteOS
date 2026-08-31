@@ -57,6 +57,7 @@ public static class ProxyApiRoutes
     public const string Recovery = Proxy + "/recovery";
     public const string OperationsPattern = "/operations/{operationId:guid}";
     public const string RuntimeInstall = Runtime + "/install";
+    public const string RuntimeInstallFromFile = Runtime + "/install/from-file";
     public const string RuntimeRollback = Runtime + "/rollback";
     public const string RuntimeUninstall = Runtime + "/uninstall";
     public const string RuntimeExternalDetection = Runtime + "/detect-external";
@@ -128,6 +129,8 @@ public sealed record UpsertProxyProfileRequest(string Name, string EngineId, lon
 public sealed record SelectProxyGroupRequest(string Proxy);
 public sealed record ProxyTunRequest(Guid ProfileId);
 public sealed record ProxyRuntimeRequest(string EngineId, string? Version = null, string? ExternalPath = null);
+/// <summary>Installs a pinned Mihomo archive already present on the RemoteOS Server.</summary>
+public sealed record InstallProxyRuntimeFromFileRequest(string EngineId, string? Version, string ArchivePath);
 public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

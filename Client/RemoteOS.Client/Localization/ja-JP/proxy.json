@@ -11,6 +11,10 @@
     "proxy.start": "開始",
     "proxy.stop": "停止",
     "proxy.restart": "再起動",
-    "proxy.emergency_disable": "TUN を緊急停止"
+    "proxy.emergency_disable": "TUN を緊急停止",
+    "proxy.runtime_install_from_server_file": "サーバーファイルからインストール",
+    "proxy.runtime_server_file_hint": "RemoteOS Server にある、信頼済みの現在のリリースと一致する Mihomo アーカイブを選択します。",
+    "proxy.runtime.select_server_package": "サーバー上の Mihomo パッケージを選択",
+    "proxy.runtime.package_filter": "Mihomo パッケージ"
   }
 }

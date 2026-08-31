@@ -1,5 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Client.Apps.Explorer;
+using Client.Apps.Explorer.ViewModels;
+using Client.Apps.Explorer.Views;
 using Client.Apps.Proxy.Views;
 using Client.Localization;
 using Client.Services.Auth;
@@ -25,8 +28,24 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         {
             context.ShowWindow(LocalizedText.Get("proxy.title"), new TextBlock { Text = LocalizedText.Get("proxy.login_required"), Margin = new Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false); return;
         }
+        var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new ProxyManagerViewModel(repository, context.Permissions.IsGranted(AppPermissions.ServerProxyManage), context.Permissions.IsGranted(AppPermissions.ServerProxyTunManage));
         var window = context.ShowWindow(LocalizedText.Get("proxy.title"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
+        vm.RequestServerRuntimePackageAsync = async () =>
+        {
+            if (files is null) return null;
+            return await context.ShowDialogAsync<string?>(window, LocalizedText.Get("proxy.runtime.select_server_package"), dialog =>
+            {
+                var picker = new ExplorerViewModel(files,
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [new ExplorerFileFilter(LocalizedText.Get("proxy.runtime.package_filter"), ["*.zip", "*.gz"])]),
+                    paths => dialog.Close(paths.FirstOrDefault()))
+                {
+                    CancelAction = dialog.Cancel,
+                };
+                _ = picker.LoadRootAsync();
+                return new ExplorerMainView { DataContext = picker };
+            }, new Avalonia.Size(720, 520));
+        };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
         context.WindowManager.WindowClosed += closed; _ = vm.StartAsync();

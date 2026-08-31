@@ -25,6 +25,8 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [ObservableProperty] private string _profileName = string.Empty;
     [ObservableProperty] private string _selectedProxy = string.Empty;
 
+    public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
+
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
     public string RuntimeState => Runtime?.State.ToString() ?? "—";
@@ -72,6 +74,14 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [RelayCommand(CanExecute = nameof(CanManage))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
     [RelayCommand(CanExecute = nameof(CanManage))] private Task RestartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Restart);
     [RelayCommand(CanExecute = nameof(CanManage))] private Task InstallRuntimeAsync() => QueueAsync(() => repository.InstallRuntimeAsync(Overview?.EngineId ?? "mihomo"));
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task InstallRuntimeFromServerFileAsync()
+    {
+        if (RequestServerRuntimePackageAsync is not { } requestPackage) return;
+        var archivePath = await requestPackage();
+        if (!string.IsNullOrWhiteSpace(archivePath))
+            await QueueAsync(() => repository.InstallRuntimeFromServerFileAsync(Overview?.EngineId ?? "mihomo", archivePath));
+    }
     [RelayCommand(CanExecute = nameof(CanManage))] private Task RollbackRuntimeAsync() => QueueAsync(() => repository.RollbackRuntimeAsync());
     [RelayCommand(CanExecute = nameof(CanManage))] private Task UninstallRuntimeAsync() => QueueAsync(() => repository.UninstallRuntimeAsync());
     [RelayCommand(CanExecute = nameof(CanEnableTun))] private Task EnableTunAsync() => QueueAsync(() => repository.EnableTunAsync(SelectedProfile!.Id));
@@ -187,7 +197,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private void NotifyCommands()
     {
         RefreshCommand.NotifyCanExecuteChanged(); StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
-        InstallRuntimeCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
+        InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged();

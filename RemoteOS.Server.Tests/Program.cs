@@ -266,6 +266,7 @@ static void VerifyProxyProtocolContract()
 {
     Assert(ProxyApiRoutes.Proxy == "/api/v1/proxy" && ProxyApiRoutes.ProfilePattern.StartsWith("/profiles/", StringComparison.Ordinal),
         "Proxy routes must keep one versioned public base and group-relative patterns.");
+    Assert(ProxyApiRoutes.RuntimeInstallFromFile == ProxyApiRoutes.Runtime + "/install/from-file", "Proxy server-file runtime install route changed unexpectedly.");
     var overview = new ProxyOverviewDto("test-engine", new(true, true, true, true, true, true), new(true, true, false, false, false, true),
         new("test-engine", ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, "1.0.0", null, true, false),
         new(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true), ProxyOperatingMode.ListenerOnly,
@@ -328,6 +329,17 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     Assert(installed.State == ProxyRuntimeState.Running && installed.IntegrityVerified && installed.Version == MihomoRuntimeManifest.SupportedVersion,
         "A verified Mihomo fixture did not activate only after controller health.");
     Assert(privileged.InstalledService && privileged.RestartCount == 1, "Managed Mihomo did not use the constrained native-service operations.");
+
+    var serverArchivePath = Path.Combine(root, "mihomo-server-package.gz");
+    await File.WriteAllBytesAsync(serverArchivePath, archive);
+    var serverFilePrivileged = new TestProxyPrivilegedOperations();
+    var serverFileManager = new MihomoRuntimeManager(new TestProxyPaths(Path.Combine(root, "mihomo-server-file")), new FixtureHttpClientFactory([]),
+        serverFilePrivileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] });
+    var installedFromServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, serverArchivePath, CancellationToken.None);
+    Assert(installedFromServerFile.State == ProxyRuntimeState.Running && installedFromServerFile.IntegrityVerified && serverFilePrivileged.InstalledService,
+        "A verified Mihomo archive already on the Server did not activate.");
+    var invalidServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, Path.Combine(root, "missing-mihomo-package.gz"), CancellationToken.None);
+    Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeIntegrityFailed, "A missing Server-side Mihomo archive was accepted.");
 
     privileged.FailReplacement = true;
     var failedUpdate = await manager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
