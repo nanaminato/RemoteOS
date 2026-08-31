@@ -48,6 +48,7 @@ try
     await VerifyProxyHostProfileRepositoryAsync(root);
     await VerifyProxyConfigurationTransactionAsync(root);
     await VerifyProxyTunSafetyAsync(root);
+    await VerifyHostNetworkSafetyDiscoveryAsync();
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
@@ -641,6 +642,20 @@ static async Task VerifyProxyTunSafetyAsync(string root)
     platform.SnapshotSafe = true; platform.ApplySucceeds = false;
     Assert(await service.EnableAsync(Guid.NewGuid(), CancellationToken.None) == ProxyProblemCodes.TunActivationFailed && !(await service.GetStatusAsync(CancellationToken.None)).HasRecoveryMarker,
         "Failed TUN activation did not rollback and clear its marker.");
+    platform.ApplySucceeds = true; platform.ManagementRouteVerifies = false;
+    Assert(await service.EnableAsync(Guid.NewGuid(), CancellationToken.None) == ProxyProblemCodes.ManagementRouteUnsafe && platform.RestoreCount == 3,
+        "TUN activation that cut the management path was not rolled back.");
+}
+
+static async Task VerifyHostNetworkSafetyDiscoveryAsync()
+{
+    if (!OperatingSystem.IsLinux()) return;
+    var snapshot = await new HostProxyNetworkSafetyPlatform().CaptureManagementRouteAsync(CancellationToken.None);
+    if (snapshot is null) return; // Minimal containers may have no usable host route; that is fail-closed.
+    Assert(snapshot.ManagementPathSafe && !string.IsNullOrWhiteSpace(snapshot.EgressInterface)
+        && snapshot.SystemBypass.Contains("loopback") && snapshot.SystemBypass.Contains("remoteos-listeners")
+        && snapshot.SystemBypass.Contains("default-gateway") && snapshot.SystemBypass.Contains("ssh"),
+        "Linux management-route snapshot omitted mandatory system bypass protections.");
 }
 
 static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
@@ -971,6 +986,19 @@ sealed class TransactionTestEngine : IProxyEngine
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
     public Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyLogEntryDto>>([]);
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
+}
+
+sealed class TestProxyNetworkSafetyPlatform : IProxyNetworkSafetyPlatform
+{
+    public bool SnapshotSafe { get; set; }
+    public bool ApplySucceeds { get; set; } = true;
+    public bool ManagementRouteVerifies { get; set; } = true;
+    public int ApplyCount { get; private set; }
+    public int RestoreCount { get; private set; }
+    public Task<ProxyManagementRouteSnapshot?> CaptureManagementRouteAsync(CancellationToken cancellationToken) => Task.FromResult<ProxyManagementRouteSnapshot?>(new("test", DateTimeOffset.UtcNow, SnapshotSafe, "eth0", "192.0.2.1", ["loopback", "remoteos-listeners"]));
+    public Task<bool> ApplyTunAsync(ProxyManagementRouteSnapshot snapshot, CancellationToken cancellationToken) { ApplyCount++; return Task.FromResult(ApplySucceeds); }
+    public Task<bool> VerifyManagementRouteAsync(ProxyManagementRouteSnapshot snapshot, CancellationToken cancellationToken) => Task.FromResult(ManagementRouteVerifies);
+    public Task<bool> RestoreAsync(ProxyManagementRouteSnapshot snapshot, CancellationToken cancellationToken) { RestoreCount++; return Task.FromResult(true); }
 }
 
 sealed class DelegateHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) : HttpMessageHandler

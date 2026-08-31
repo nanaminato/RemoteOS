@@ -46,9 +46,10 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManifest>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Proxy.Mihomo.MihomoRuntimeProbe>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
-builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.UnavailableProxyNetworkSafetyPlatform>();
+builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
 builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());
+builder.Services.AddHostedService<Server.Proxy.ProxyRecoveryHostedService>();
 
 builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
 var authSecurity = builder.Configuration.GetSection("AuthenticationSecurity").Get<AuthSecurityOptions>() ?? new AuthSecurityOptions();

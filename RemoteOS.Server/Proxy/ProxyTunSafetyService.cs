@@ -19,6 +19,7 @@ public sealed class ProxyTunSafetyService(IProxyPlatformPaths paths, IProxyNetwo
             var marker = new RecoveryMarker(Guid.NewGuid(), profileId, snapshot, DateTimeOffset.UtcNow);
             await WriteMarkerAsync(marker, cancellationToken);
             if (!await platform.ApplyTunAsync(snapshot, cancellationToken)) return await RestoreAndReportAsync(marker, cancellationToken, ProxyProblemCodes.TunActivationFailed);
+            if (!await platform.VerifyManagementRouteAsync(snapshot, cancellationToken)) return await RestoreAndReportAsync(marker, cancellationToken, ProxyProblemCodes.ManagementRouteUnsafe);
             return null;
         }
         finally { _gate.Release(); }
@@ -54,7 +55,7 @@ public sealed class ProxyTunSafetyService(IProxyPlatformPaths paths, IProxyNetwo
     {
         var path = MarkerPath(); if (!File.Exists(path)) return null;
         try { await using var input = File.OpenRead(path); return await JsonSerializer.DeserializeAsync<RecoveryMarker>(input, cancellationToken: cancellationToken); }
-        catch (JsonException) { return new RecoveryMarker(Guid.Empty, Guid.Empty, new("corrupt", DateTimeOffset.UtcNow, false), DateTimeOffset.UtcNow); }
+        catch (JsonException) { return new RecoveryMarker(Guid.Empty, Guid.Empty, new("corrupt", DateTimeOffset.UtcNow, false, "", "", []), DateTimeOffset.UtcNow); }
     }
     private async Task WriteMarkerAsync(RecoveryMarker marker, CancellationToken cancellationToken)
     {
