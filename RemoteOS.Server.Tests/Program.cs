@@ -55,6 +55,7 @@ try
     VerifyTunnelProtocolContract();
     VerifyProxyProtocolContract();
     await VerifyMihomoControllerSafetyAsync();
+    await VerifyProxyDiagnosticLogsAsync(root);
     await VerifyMihomoRuntimeSafetyAsync(root);
     VerifyFrpTomlSafety();
     await VerifyFrpRuntimeInstallAndRollbackAsync(root);
@@ -311,6 +312,20 @@ static async Task VerifyMihomoControllerSafetyAsync()
     Assert(authorization == "Bearer controller-secret", "Controller secret was not kept in the Server-only authorization header.");
 }
 
+static async Task VerifyProxyDiagnosticLogsAsync(string root)
+{
+    var diagnostics = new ProxyDiagnosticLogStore(new TestProxyPaths(Path.Combine(root, "proxy-diagnostics")));
+    await diagnostics.WriteAsync("warning", "Managed Mihomo service start failed: token=private-value", CancellationToken.None);
+    var entries = await diagnostics.ReadAsync(10, CancellationToken.None);
+    Assert(entries.Count == 1 && entries[0].Level == "warning" && !entries[0].Message.Contains("private-value", StringComparison.Ordinal)
+        && entries[0].Message.Contains("[REDACTED]", StringComparison.Ordinal), "Proxy installation diagnostics were not retained and sanitized.");
+
+    var engine = new MihomoEngine(new HealthyMihomoController(), new UnavailableMihomoConfigurationValidator(), diagnostics);
+    var combined = await engine.GetLogsAsync(10, CancellationToken.None);
+    Assert(combined.Any(entry => entry.Message.Contains("Managed Mihomo service start failed", StringComparison.Ordinal)),
+        "Proxy diagnostic logs were not exposed when the controller log was unavailable.");
+}
+
 static async Task VerifyMihomoRuntimeSafetyAsync(string root)
 {
     if (MihomoRuntimeManifest.CurrentRid() != "linux-x64") return;
@@ -340,6 +355,13 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
         "A verified Mihomo archive already on the Server did not activate.");
     var invalidServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, Path.Combine(root, "missing-mihomo-package.gz"), CancellationToken.None);
     Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeIntegrityFailed, "A missing Server-side Mihomo archive was accepted.");
+
+    var firstInstallPrivileged = new TestProxyPrivilegedOperations { FailServiceInstallation = true, FailUninstalledServiceRemoval = true };
+    var firstInstallManager = new MihomoRuntimeManager(new TestProxyPaths(Path.Combine(root, "mihomo-first-install-failure")), new FixtureHttpClientFactory(archive),
+        firstInstallPrivileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] });
+    var firstInstallFailure = await firstInstallManager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+    Assert(firstInstallFailure.ProblemCode == ProxyProblemCodes.PrivilegedOperationUnavailable,
+        "A failed first-time service installation was incorrectly reported as a recovery-required failure.");
 
     privileged.FailReplacement = true;
     var failedUpdate = await manager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
@@ -963,14 +985,24 @@ sealed class HealthyMihomoController : IMihomoControllerClient
 sealed class TestProxyPrivilegedOperations : IProxyPrivilegedOperations
 {
     public bool FailReplacement { get; set; }
+    public bool FailServiceInstallation { get; set; }
+    public bool FailUninstalledServiceRemoval { get; set; }
     public bool InstalledService { get; private set; }
     public int RestartCount { get; private set; }
     private ProxyPrivilegedResult Result(bool replacement = false) => replacement && FailReplacement ? new(false, ProxyProblemCodes.PrivilegedOperationUnavailable) : new(true);
     public Task<ProxyPrivilegedResult> InstallRuntimeAsync(InstallProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> RemoveRuntimeAsync(RemoveProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> ReplaceRuntimeAsync(ReplaceProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result(replacement: true));
-    public Task<ProxyPrivilegedResult> InstallServiceAsync(InstallProxyServiceOperation request, CancellationToken cancellationToken) { InstalledService = true; return Task.FromResult(Result()); }
-    public Task<ProxyPrivilegedResult> RemoveServiceAsync(RemoveProxyServiceOperation request, CancellationToken cancellationToken) { InstalledService = false; return Task.FromResult(Result()); }
+    public Task<ProxyPrivilegedResult> InstallServiceAsync(InstallProxyServiceOperation request, CancellationToken cancellationToken)
+    {
+        if (FailServiceInstallation) return Task.FromResult(new ProxyPrivilegedResult(false, ProxyProblemCodes.PrivilegedOperationUnavailable));
+        InstalledService = true; return Task.FromResult(Result());
+    }
+    public Task<ProxyPrivilegedResult> RemoveServiceAsync(RemoveProxyServiceOperation request, CancellationToken cancellationToken)
+    {
+        if (!InstalledService && FailUninstalledServiceRemoval) return Task.FromResult(new ProxyPrivilegedResult(false, ProxyProblemCodes.PrivilegedOperationUnavailable));
+        InstalledService = false; return Task.FromResult(Result());
+    }
     public Task<ProxyPrivilegedResult> SetServiceStartupAsync(SetProxyServiceStartupOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> StartServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> StopServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());

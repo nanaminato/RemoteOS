@@ -17,8 +17,13 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
 
     public async Task<ProxyPrivilegedResult> InstallRuntimeAsync(InstallProxyRuntimeOperation request, CancellationToken cancellationToken) =>
         await ActivateRuntimeAsync(request.EngineId, request.Version, request.ReleaseDirectoryId, cancellationToken);
-    public async Task<ProxyPrivilegedResult> ReplaceRuntimeAsync(ReplaceProxyRuntimeOperation request, CancellationToken cancellationToken) =>
-        await ActivateRuntimeAsync(request.EngineId, request.Version, request.ReleaseDirectoryId, cancellationToken);
+    public async Task<ProxyPrivilegedResult> ReplaceRuntimeAsync(ReplaceProxyRuntimeOperation request, CancellationToken cancellationToken)
+    {
+        var activated = await ActivateRuntimeAsync(request.EngineId, request.Version, request.ReleaseDirectoryId, cancellationToken);
+        return !activated.Succeeded || !OperatingSystem.IsWindows()
+            ? activated
+            : await ConfigureWindowsServiceAsync(cancellationToken);
+    }
     public async Task<ProxyPrivilegedResult> RemoveRuntimeAsync(RemoveProxyRuntimeOperation request, CancellationToken cancellationToken)
     {
         if (request.EngineId != Engine) return Invalid();
@@ -50,8 +55,10 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
         }
         if (OperatingSystem.IsWindows())
         {
-            var binary = ActiveBinaryPath();
-            return await ScAsync(["create", Service, "binPath=", QuoteWindows(binary), "start=", "auto"], cancellationToken);
+            var configured = await ConfigureWindowsServiceAsync(cancellationToken);
+            return configured.Succeeded
+                ? configured
+                : await ScAsync(["create", Service, "binPath=", WindowsServiceCommandLine(), "start=", "auto"], cancellationToken);
         }
         return Unsupported();
     }
@@ -119,13 +126,34 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
     {
         if (!IsServiceRequest(request.EngineId, request.ServiceName)) return Task.FromResult(Invalid());
         if (OperatingSystem.IsLinux()) return SystemctlAsync([action, Service], cancellationToken);
-        if (OperatingSystem.IsWindows()) return ScAsync([action == "try-restart" ? "start" : action, Service], cancellationToken);
+        if (OperatingSystem.IsWindows()) return WindowsServiceActionAsync(action, cancellationToken);
         return Task.FromResult(Unsupported());
     }
     private static bool IsServiceRequest(string engineId, string serviceName) => engineId == Engine && serviceName == Service;
     private static bool IsRelease(string version, string releaseId) => version == Mihomo.MihomoRuntimeManifest.SupportedVersion && releaseId == version + "-" + Mihomo.MihomoRuntimeManifest.CurrentRid();
     private string ActivePath() => Path.Combine(paths.GetEngineVersionsDirectory(Engine), ActiveLink);
-    private string ActiveBinaryPath() => Path.Combine(ActivePath(), BinaryName());
+    private string ActiveBinaryPath()
+    {
+        if (!OperatingSystem.IsWindows()) return Path.Combine(ActivePath(), BinaryName());
+        try
+        {
+            var releaseId = File.ReadAllText(ActivePath() + ".txt").Trim();
+            if (IsRelease(Mihomo.MihomoRuntimeManifest.SupportedVersion, releaseId))
+                return Path.Combine(paths.GetEngineVersionsDirectory(Engine), releaseId, BinaryName());
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return Path.Combine(ActivePath(), BinaryName());
+    }
+    private Task<ProxyPrivilegedResult> ConfigureWindowsServiceAsync(CancellationToken cancellationToken) =>
+        ScAsync(["config", Service, "binPath=", WindowsServiceCommandLine(), "start=", "auto"], cancellationToken);
+    private string WindowsServiceCommandLine() => QuoteWindows(ActiveBinaryPath()) + " -f " + QuoteWindows(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"));
+    private async Task<ProxyPrivilegedResult> WindowsServiceActionAsync(string action, CancellationToken cancellationToken)
+    {
+        if (action != "restart") return await ScAsync([action == "try-restart" ? "start" : action, Service], cancellationToken);
+        await ScAsync(["stop", Service], cancellationToken);
+        return await ScAsync(["start", Service], cancellationToken);
+    }
     private string SystemdUnitPath => "/etc/systemd/system/remoteos-mihomo.service";
     private string SystemdUnit() => string.Join('\n',
         "[Unit]",

@@ -42,6 +42,7 @@ builder.Services.AddSingleton<Server.Proxy.IProxyEngineRegistry, Server.Proxy.Pr
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyPrivilegedOperations, Server.Proxy.Platform.NativeMihomoPrivilegedOperations>();
 builder.Services.AddSingleton<Server.Proxy.IProxyPlatformPaths, Server.Proxy.Platform.ProxyPlatformPaths>();
 builder.Services.AddSingleton<Server.Proxy.IProxyPlatformService, Server.Proxy.Platform.ProxyPlatformService>();
+builder.Services.AddSingleton<Server.Proxy.IProxyDiagnosticLogStore, Server.Proxy.ProxyDiagnosticLogStore>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManifest>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Proxy.Mihomo.MihomoRuntimeProbe>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();

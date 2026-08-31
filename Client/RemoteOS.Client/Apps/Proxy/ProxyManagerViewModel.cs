@@ -199,6 +199,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             if (operation.State is ProxyOperationState.Succeeded or ProxyOperationState.Failed or ProxyOperationState.Cancelled or ProxyOperationState.Interrupted)
             {
                 if (operation.State == ProxyOperationState.Succeeded) await RefreshAsync();
+                else await LoadLogsAsync();
                 return;
             }
             await Task.Delay(TimeSpan.FromSeconds(1));
@@ -247,6 +248,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     {
         try { apply(await load()); }
         // Controller-specific pages simply remain empty until a runtime is healthy.
+        catch (ProxyRequestException) { }
+        catch (HttpRequestException) { }
+    }
+    private async Task LoadLogsAsync()
+    {
+        try { Replace(Logs, await repository.ListLogsAsync()); }
         catch (ProxyRequestException) { }
         catch (HttpRequestException) { }
     }

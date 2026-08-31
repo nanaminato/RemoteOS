@@ -3,7 +3,7 @@ using RemoteOS.Protocol.Proxy;
 namespace Server.Proxy.Mihomo;
 
 /// <summary>First engine implementation. It exposes only neutral contracts and cannot be reached by a RemoteOS Client.</summary>
-public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConfigurationValidator validator) : IProxyEngine
+public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConfigurationValidator validator, IProxyDiagnosticLogStore? diagnostics = null) : IProxyEngine
 {
     public const string Id = "mihomo";
     public string EngineId => Id;
@@ -36,7 +36,12 @@ public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConf
     public async Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken)
     {
         var result = await controller.GetLogsAsync(limit, cancellationToken);
-        return result.Succeeded ? result.Value! : [];
+        var controllerLogs = result.Succeeded ? result.Value! : [];
+        IReadOnlyList<ProxyLogEntryDto> diagnosticLogs = diagnostics is null ? [] : await diagnostics.ReadAsync(limit, cancellationToken);
+        return controllerLogs.Concat(diagnosticLogs)
+            .OrderByDescending(entry => entry.Timestamp)
+            .Take(Math.Clamp(limit, 1, 500))
+            .ToArray();
     }
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => controller.GetDnsStatusAsync(cancellationToken);
 }

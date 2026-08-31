@@ -18,7 +18,8 @@ public sealed class MihomoRuntimeManager(
     IMihomoControllerClient controller,
     IProxyControllerSecretStore controllerSecrets,
     MihomoControllerOptions controllerOptions,
-    MihomoRuntimeManifest manifest) : IProxyRuntimeManager
+    MihomoRuntimeManifest manifest,
+    IProxyDiagnosticLogStore? diagnostics = null) : IProxyRuntimeManager
 {
     private const string ServiceName = "remoteos-mihomo";
     private const string ServiceConfigurationId = "mihomo-default";
@@ -56,6 +57,7 @@ public sealed class MihomoRuntimeManager(
             ? Task.FromResult(Unsupported(engineId))
             : InstallManagedCoreAsync(version, async (release, destination, token) =>
             {
+                await WriteDiagnosticAsync("info", "Managed Mihomo installation is downloading the trusted release.", token);
                 await ReportStageAsync(stageReporter, "downloading");
                 await DownloadAndVerifyAsync(release, destination, token);
             }, stageReporter, cancellationToken);
@@ -68,6 +70,7 @@ public sealed class MihomoRuntimeManager(
             ? Task.FromResult(Unsupported(engineId))
             : InstallManagedCoreAsync(version, async (release, destination, token) =>
             {
+                await WriteDiagnosticAsync("info", "Managed Mihomo installation is reading the selected Server archive.", token);
                 await ReportStageAsync(stageReporter, "copying");
                 await CopyAndVerifyArchiveAsync(release, archivePath, destination, token);
             }, stageReporter, cancellationToken);
@@ -76,56 +79,87 @@ public sealed class MihomoRuntimeManager(
     {
         var release = manifest.Find(version);
         if (release is null)
+        {
+            await WriteDiagnosticAsync("warning", "Managed Mihomo installation was rejected because the requested release is not trusted for this host.", cancellationToken);
             return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, null, null, false, false,
                 MihomoRuntimeManifest.CurrentRid() == "unsupported" ? ProxyProblemCodes.RuntimeUnsupportedPlatform : ProxyProblemCodes.RuntimeVersionUnsupported);
+        }
 
         await _gate.WaitAsync(cancellationToken);
         try
         {
             await ReportStageAsync(stageReporter, "preparing");
             var before = await ReadStateAsync(cancellationToken);
+            await WriteDiagnosticAsync("info", before?.ActiveVersion is { Length: > 0 }
+                ? "Managed Mihomo installation is preparing a runtime update."
+                : "Managed Mihomo installation is preparing the first runtime activation.", cancellationToken);
             var finalDirectory = VersionDirectory(release.Version);
             try
             {
+                var serviceInstalled = false;
                 if (!Directory.Exists(finalDirectory))
                     await StageAndInstallReleaseAsync(release, finalDirectory, stageArchiveAsync, stageReporter, cancellationToken);
 
                 await ReportStageAsync(stageReporter, "checking");
                 if (await probe.GetVersionAsync(ExecutablePath(release.Version), cancellationToken) is null)
+                {
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo runtime verification failed after extraction.", cancellationToken);
                     return Failure(before, ProxyProblemCodes.RuntimeHealthCheckFailed);
+                }
 
                 await ReportStageAsync(stageReporter, "activating");
                 var runtimeOperation = before?.ActiveVersion is { Length: > 0 }
                     ? await privileged.ReplaceRuntimeAsync(new ReplaceProxyRuntimeOperation(MihomoEngine.Id, release.Version, ReleaseDirectoryId(release.Version)), cancellationToken)
                     : await privileged.InstallRuntimeAsync(new InstallProxyRuntimeOperation(MihomoEngine.Id, release.Version, ReleaseDirectoryId(release.Version)), cancellationToken);
-                if (!runtimeOperation.Succeeded) return Failure(before, runtimeOperation.ProblemCode);
+                if (!runtimeOperation.Succeeded)
+                {
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo runtime activation failed: " + runtimeOperation.ProblemCode, cancellationToken);
+                    return Failure(before, runtimeOperation.ProblemCode);
+                }
 
                 // First boot has no Profile yet. This fixed bootstrap file intentionally keeps TUN
                 // off and only exposes the controller on loopback; Goal 4 replaces it transactionally.
                 var bootstrap = await EnsureBootstrapConfigurationAsync(cancellationToken);
-                if (!bootstrap.Succeeded) return await RestorePreviousAsync(before, release.Version, bootstrap.ProblemCode, cancellationToken);
+                if (!bootstrap.Succeeded)
+                {
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo bootstrap configuration failed: " + bootstrap.ProblemCode, cancellationToken);
+                    return await RestorePreviousAsync(before, release.Version, bootstrap.ProblemCode, serviceInstalled, cancellationToken);
+                }
 
                 if (before?.ActiveVersion is null)
                 {
                     await ReportStageAsync(stageReporter, "installing_service");
                     var installService = await privileged.InstallServiceAsync(new InstallProxyServiceOperation(MihomoEngine.Id, ServiceName, ServiceConfigurationId), cancellationToken);
-                    if (!installService.Succeeded) return await RestorePreviousAsync(before, release.Version, installService.ProblemCode, cancellationToken);
+                    if (!installService.Succeeded)
+                    {
+                        await WriteDiagnosticAsync("warning", "Managed Mihomo service installation failed: " + installService.ProblemCode, cancellationToken);
+                        return await RestorePreviousAsync(before, release.Version, installService.ProblemCode, serviceInstalled, cancellationToken);
+                    }
+                    serviceInstalled = true;
                 }
 
                 await ReportStageAsync(stageReporter, "starting");
                 var start = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-                if (!start.Succeeded) return await RestorePreviousAsync(before, release.Version, start.ProblemCode, cancellationToken);
+                if (!start.Succeeded)
+                {
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo service start failed: " + start.ProblemCode, cancellationToken);
+                    return await RestorePreviousAsync(before, release.Version, start.ProblemCode, serviceInstalled, cancellationToken);
+                }
                 if (!await controller.IsReachableAsync(cancellationToken))
-                    return await RestorePreviousAsync(before, release.Version, ProxyProblemCodes.RuntimeHealthCheckFailed, cancellationToken);
+                {
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo service started but its loopback controller health check failed.", cancellationToken);
+                    return await RestorePreviousAsync(before, release.Version, ProxyProblemCodes.RuntimeHealthCheckFailed, serviceInstalled, cancellationToken);
+                }
 
                 await WriteStateAsync(new RuntimeState(release.Version, before?.ActiveVersion, DateTimeOffset.UtcNow), cancellationToken);
+                await WriteDiagnosticAsync("info", "Managed Mihomo installation completed successfully.", cancellationToken);
                 await ReportStageAsync(stageReporter, "completed");
                 return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, release.Version, before?.ActiveVersion, true, false);
             }
-            catch (RuntimeInstallException exception) { return Failure(before, exception.ProblemCode); }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Failure(before, ProxyProblemCodes.RuntimeHealthCheckFailed); }
-            catch (IOException) { return Failure(before, ProxyProblemCodes.RuntimeIntegrityFailed); }
-            catch (UnauthorizedAccessException) { return Failure(before, ProxyProblemCodes.PrivilegedOperationUnavailable); }
+            catch (RuntimeInstallException exception) { await WriteDiagnosticAsync("warning", "Managed Mihomo installation failed: " + exception.ProblemCode, cancellationToken); return Failure(before, exception.ProblemCode); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { await WriteDiagnosticAsync("warning", "Managed Mihomo installation timed out during a runtime operation.", cancellationToken); return Failure(before, ProxyProblemCodes.RuntimeHealthCheckFailed); }
+            catch (IOException) { await WriteDiagnosticAsync("warning", "Managed Mihomo installation encountered a file-system error.", cancellationToken); return Failure(before, ProxyProblemCodes.RuntimeIntegrityFailed); }
+            catch (UnauthorizedAccessException) { await WriteDiagnosticAsync("warning", "Managed Mihomo installation was denied access to a protected host resource.", cancellationToken); return Failure(before, ProxyProblemCodes.PrivilegedOperationUnavailable); }
         }
         finally { _gate.Release(); }
     }
@@ -261,24 +295,46 @@ public sealed class MihomoRuntimeManager(
         MakePrivateExecutable(target);
     }
 
-    private async Task<ProxyRuntimeDto> RestorePreviousAsync(RuntimeState? before, string attemptedVersion, string problemCode, CancellationToken cancellationToken)
+    private async Task<ProxyRuntimeDto> RestorePreviousAsync(RuntimeState? before, string attemptedVersion, string problemCode, bool serviceInstalled, CancellationToken cancellationToken)
     {
+        await WriteDiagnosticAsync("warning", "Managed Mihomo installation is rolling back after: " + problemCode, cancellationToken);
         if (before?.ActiveVersion is { Length: > 0 } previous && File.Exists(ExecutablePath(previous)))
         {
             var replacement = await privileged.ReplaceRuntimeAsync(new ReplaceProxyRuntimeOperation(MihomoEngine.Id, previous, ReleaseDirectoryId(previous)), cancellationToken);
-            if (!replacement.Succeeded) return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
+            if (!replacement.Succeeded)
+            {
+                await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not restore the previous runtime: " + replacement.ProblemCode, cancellationToken);
+                return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
+            }
             var restart = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
             if (!restart.Succeeded || !await controller.IsReachableAsync(cancellationToken))
+            {
+                await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not restore a healthy service and controller.", cancellationToken);
                 return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
+            }
         }
         else
         {
-            var stop = await privileged.StopServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-            var service = await privileged.RemoveServiceAsync(new RemoveProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
+            if (serviceInstalled)
+            {
+                // A failed Windows service start can report "not active" when stopped.  The
+                // removal result and runtime cleanup are authoritative for rollback success.
+                await privileged.StopServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
+                var service = await privileged.RemoveServiceAsync(new RemoveProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
+                if (!service.Succeeded)
+                {
+                    await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not remove the failed service: " + service.ProblemCode, cancellationToken);
+                    return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
+                }
+            }
             var runtime = await privileged.RemoveRuntimeAsync(new RemoveProxyRuntimeOperation(MihomoEngine.Id), cancellationToken);
-            if (!stop.Succeeded || !service.Succeeded || !runtime.Succeeded)
+            if (!runtime.Succeeded)
+            {
+                await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not remove the failed runtime: " + runtime.ProblemCode, cancellationToken);
                 return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
+            }
         }
+        await WriteDiagnosticAsync("info", "Managed Mihomo rollback completed; the original failure remains: " + problemCode, cancellationToken);
         return Failure(before, problemCode, attemptedVersion);
     }
 
@@ -402,6 +458,10 @@ public sealed class MihomoRuntimeManager(
         if (stageReporter is null) return;
         try { await stageReporter(stage); }
         catch { /* Progress reporting must never interrupt a runtime installation. */ }
+    }
+    private async Task WriteDiagnosticAsync(string level, string message, CancellationToken cancellationToken)
+    {
+        if (diagnostics is not null) await diagnostics.WriteAsync(level, message, cancellationToken);
     }
     private static void MakePrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void MakePrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
