@@ -16,58 +16,58 @@ public static class ProxyEndpoints
             .RequireAuthorization("ProxyManage").WithTags("Proxy");
 
         app.MapPost(ProxyApiRoutes.RuntimeInstall, (ProxyRuntimeRequest request, HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "runtime.install", async token =>
+            QueueAsync(context, operations, "runtime.install", async (actor, token) =>
             {
                 var result = await runtime.InstallManagedAsync(request.EngineId, request.Version, token);
-                await audit.RecordAsync(Actor(context.User), "runtime.install", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
+                await audit.RecordAsync(actor, "runtime.install", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.RuntimeRollback, (HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "runtime.rollback", async token =>
+            QueueAsync(context, operations, "runtime.rollback", async (actor, token) =>
             {
                 var result = await runtime.RollbackManagedAsync("mihomo", token);
-                await audit.RecordAsync(Actor(context.User), "runtime.rollback", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
+                await audit.RecordAsync(actor, "runtime.rollback", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapDelete(ProxyApiRoutes.RuntimeUninstall, (HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "runtime.uninstall", async token =>
+            QueueAsync(context, operations, "runtime.uninstall", async (actor, token) =>
             {
                 var result = await runtime.UninstallManagedAsync("mihomo", token);
-                await audit.RecordAsync(Actor(context.User), "runtime.uninstall", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
+                await audit.RecordAsync(actor, "runtime.uninstall", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
 
         app.MapPost(ProxyApiRoutes.Lifecycle, (string action, HttpContext context, ProxyOperationStore operations, IProxyLifecycleService lifecycle, ProxyAuditStore audit, CancellationToken ct) =>
         {
             if (!Enum.TryParse<ProxyLifecycleAction>(action, true, out var parsed)) return Task.FromResult<IResult>(Problem(ProxyProblemCodes.NotSupported, StatusCodes.Status400BadRequest));
-            return QueueAsync(context, operations, "lifecycle." + action.ToLowerInvariant(), async token =>
+            return QueueAsync(context, operations, "lifecycle." + action.ToLowerInvariant(), async (actor, token) =>
             {
                 var problem = await lifecycle.ExecuteLifecycleAsync(parsed, token);
-                await audit.RecordAsync(Actor(context.User), "lifecycle." + action.ToLowerInvariant(), string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
+                await audit.RecordAsync(actor, "lifecycle." + action.ToLowerInvariant(), string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
                 return problem;
             }, ct);
         }).RequireAuthorization("ProxyManage").WithTags("Proxy");
 
         app.MapGet(ProxyApiRoutes.Tun, (IProxyTunSafetyService tun, CancellationToken ct) => tun.GetStatusAsync(ct)).RequireAuthorization("ProxyRead").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.TunEnable, (ProxyTunRequest request, HttpContext context, ProxyOperationStore operations, IProxyTunSafetyService tun, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "tun.enable", async token =>
+            QueueAsync(context, operations, "tun.enable", async (actor, token) =>
             {
                 var problem = await tun.EnableAsync(request.ProfileId, token);
-                await audit.RecordAsync(Actor(context.User), "tun.enable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
+                await audit.RecordAsync(actor, "tun.enable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
                 return problem;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.TunDisable, (HttpContext context, ProxyOperationStore operations, IProxyTunSafetyService tun, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "tun.disable", async token =>
+            QueueAsync(context, operations, "tun.disable", async (actor, token) =>
             {
                 var problem = await tun.DisableAsync(token);
-                await audit.RecordAsync(Actor(context.User), "tun.disable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
+                await audit.RecordAsync(actor, "tun.disable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
                 return problem;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.TunEmergencyDisable, (HttpContext context, ProxyOperationStore operations, IProxyTunSafetyService tun, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "tun.emergency-disable", async token =>
+            QueueAsync(context, operations, "tun.emergency-disable", async (actor, token) =>
             {
                 var problem = await tun.EmergencyDisableAsync(token);
-                await audit.RecordAsync(Actor(context.User), "tun.emergency-disable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
+                await audit.RecordAsync(actor, "tun.emergency-disable", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, token);
                 return problem;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapGet(ProxyApiRoutes.Recovery, (IProxyRecoveryService recovery, CancellationToken ct) => recovery.GetStatusAsync(ct)).RequireAuthorization("ProxyRead").WithTags("Proxy");
@@ -113,9 +113,11 @@ public static class ProxyEndpoints
         return app;
     }
 
-    private static async Task<IResult> QueueAsync(HttpContext context, ProxyOperationStore store, string kind, Func<CancellationToken, Task<string?>> action, CancellationToken ct)
+    private static async Task<IResult> QueueAsync(HttpContext context, ProxyOperationStore store, string kind, Func<string, CancellationToken, Task<string?>> action, CancellationToken ct)
     {
-        try { var item = await store.EnqueueAsync(context.Request.Headers["Idempotency-Key"].ToString(), kind, action, ct); return Results.Accepted(ProxyApiRoutes.Proxy + "/operations/" + item.OperationId, new ProxyOperationAcceptedDto(item.OperationId)); }
+        var actor = Actor(context.User);
+        var idempotencyKey = context.Request.Headers["Idempotency-Key"].ToString();
+        try { var item = await store.EnqueueAsync(idempotencyKey, kind, token => action(actor, token), ct); return Results.Accepted(ProxyApiRoutes.Proxy + "/operations/" + item.OperationId, new ProxyOperationAcceptedDto(item.OperationId)); }
         catch (ProxyOperationValidationException error) { return Problem(error.ProblemCode, StatusCodes.Status400BadRequest); }
     }
     private static string Route(string pattern) => ProxyApiRoutes.Proxy + pattern;
