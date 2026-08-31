@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Avalonia.Media;
 using RemoteOS.Core.Applications;
 using RemoteOS.WindowManager;
 
@@ -30,6 +31,8 @@ public sealed partial class TaskbarGroupViewModel : ObservableObject
     public bool HasMultipleWindows => WindowCount > 1;
     public bool IsActive => Windows.Any(window => window.IsActive);
     public string? IconGlyph => Windows.FirstOrDefault()?.IconGlyph;
+    public IImage? IconImage => Windows.FirstOrDefault()?.IconImage;
+    public bool HasIconImage => IconImage is not null;
 
     public void Update(IEnumerable<ManagedWindow> windows)
     {
@@ -41,5 +44,7 @@ public sealed partial class TaskbarGroupViewModel : ObservableObject
         OnPropertyChanged(nameof(HasMultipleWindows));
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(IconGlyph));
+        OnPropertyChanged(nameof(IconImage));
+        OnPropertyChanged(nameof(HasIconImage));
     }
 }

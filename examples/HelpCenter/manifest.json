@@ -4,6 +4,7 @@
   "version": "0.1.0-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.HelpCenter.dll",
   "entryType": "RemoteOS.Examples.HelpCenter.HelpCenterApp",
+  "iconPath": "assets/icon.png",
   "iconGlyph": "❔",
   "description": "Offline, localized guides opened through help:// links",
   "instancePolicy": "SingleWindow",

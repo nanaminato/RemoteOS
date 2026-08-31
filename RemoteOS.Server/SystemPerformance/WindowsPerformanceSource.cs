@@ -14,11 +14,14 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
     {
         cancellationToken.ThrowIfCancellationRequested();
         var memory = ReadMemory();
+        var filesystems = ReadFilesystemInfo();
         var disks = ReadDiskCounters();
+        var filesystemIdsByDisk = ReadDiskFilesystemIds();
         return ValueTask.FromResult(new PerformanceInfoDto(
             new CpuInfoDto(null, null, Environment.ProcessorCount, null, null),
             new MemoryInfoDto(memory.TotalBytes, memory.SwapTotalBytes),
-            ReadFilesystemInfo(), disks.Select(x => new DiskInfoDto(x.Id, x.Id.Replace("windows-disk:", "PhysicalDrive", StringComparison.Ordinal), null, [])).ToArray(), ReadNetworkInfo(),
+            filesystems, disks.Select(x => new DiskInfoDto(x.Id, x.Id.Replace("windows-disk:", "PhysicalDrive", StringComparison.Ordinal), null,
+                int.TryParse(x.Id.AsSpan("windows-disk:".Length), out var number) && filesystemIdsByDisk.TryGetValue(number, out var ids) ? ids : [])).ToArray(), ReadNetworkInfo(),
             new PerformanceCapabilitiesDto(true, false, false, disks.Count > 0, disks.Count > 0, false, true, false)));
     }
 
@@ -116,6 +119,56 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
     }
 
     /// <summary>
+    /// Resolves Windows volumes to their backing physical disks. A volume may span multiple disks,
+    /// so every extent is preserved rather than choosing an arbitrary first disk.
+    /// </summary>
+    private static IReadOnlyDictionary<int, IReadOnlyList<string>> ReadDiskFilesystemIds()
+    {
+        var result = new Dictionary<int, List<string>>();
+        try
+        {
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                try
+                {
+                    if (!drive.IsReady) continue;
+                    var volume = drive.RootDirectory.FullName.TrimEnd('\\');
+                    if (volume.Length != 2 || volume[1] != ':') continue;
+                    var handle = NativeMethods.CreateFile($@"\\.\{volume}", 0,
+                        NativeMethods.FileShareRead | NativeMethods.FileShareWrite, IntPtr.Zero, NativeMethods.OpenExisting, 0, IntPtr.Zero);
+                    if (handle == NativeMethods.InvalidHandleValue) continue;
+                    try
+                    {
+                        const int bufferSize = 512;
+                        var buffer = Marshal.AllocHGlobal(bufferSize);
+                        try
+                        {
+                            if (!NativeMethods.DeviceIoControlRaw(handle, NativeMethods.IoctlVolumeGetDiskExtents, IntPtr.Zero, 0,
+                                    buffer, bufferSize, out var returned, IntPtr.Zero) || returned < Marshal.SizeOf<VOLUME_DISK_EXTENTS_HEADER>()) continue;
+                            var header = Marshal.PtrToStructure<VOLUME_DISK_EXTENTS_HEADER>(buffer);
+                            var offset = Marshal.SizeOf<VOLUME_DISK_EXTENTS_HEADER>();
+                            var extentSize = Marshal.SizeOf<DISK_EXTENT>();
+                            for (var index = 0; index < header.NumberOfDiskExtents && offset + extentSize <= returned; index++, offset += extentSize)
+                            {
+                                var extent = Marshal.PtrToStructure<DISK_EXTENT>(buffer + offset);
+                                if (!result.TryGetValue((int)extent.DiskNumber, out var filesystemIds))
+                                    result[(int)extent.DiskNumber] = filesystemIds = [];
+                                var id = FilesystemId(drive);
+                                if (!filesystemIds.Contains(id, StringComparer.Ordinal)) filesystemIds.Add(id);
+                            }
+                        }
+                        finally { Marshal.FreeHGlobal(buffer); }
+                    }
+                    finally { NativeMethods.CloseHandle(handle); }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return result.ToDictionary(x => x.Key, x => (IReadOnlyList<string>)x.Value.ToArray());
+    }
+
+    /// <summary>
     /// IOCTL_DISK_PERFORMANCE is a direct Windows disk-driver counter source. Devices which deny the query
     /// are simply absent, allowing the capability flag to remain honest on restricted service accounts.
     /// </summary>
@@ -203,6 +256,7 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
         public const uint FileShareWrite = 0x00000002;
         public const uint OpenExisting = 3;
         public const uint IoctlDiskPerformance = 0x00070020;
+        public const uint IoctlVolumeGetDiskExtents = 0x00560000;
         public static readonly IntPtr InvalidHandleValue = new(-1);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -224,6 +278,11 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool DeviceIoControl(IntPtr device, uint ioControlCode, IntPtr inBuffer, uint inBufferSize,
             out DISK_PERFORMANCE outBuffer, int outBufferSize, out uint bytesReturned, IntPtr overlapped);
+
+        [DllImport("kernel32.dll", EntryPoint = "DeviceIoControl", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool DeviceIoControlRaw(IntPtr device, uint ioControlCode, IntPtr inBuffer, uint inBufferSize,
+            IntPtr outBuffer, int outBufferSize, out uint bytesReturned, IntPtr overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -274,4 +333,10 @@ public sealed class WindowsPerformanceSource : ISystemPerformanceSource
         public uint StorageDeviceNumber;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public ushort[] StorageManagerName;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct VOLUME_DISK_EXTENTS_HEADER { public uint NumberOfDiskExtents; public uint Reserved; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DISK_EXTENT { public uint DiskNumber; public long StartingOffset; public long ExtentLength; }
 }

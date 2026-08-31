@@ -432,6 +432,8 @@ static async Task VerifyPerformanceSamplerAsync()
         Assert(linuxSample.Cpu.LogicalProcessors.Count > 0, "Linux performance source did not read per-logical-CPU counters.");
         Assert(linuxInfo.Filesystems.All(filesystem => filesystem.MountPoint == "/"), "Linux performance source reported a non-root filesystem.");
         Assert(linuxSample.Filesystems.Count <= 1, "Linux performance source reported more than the root filesystem.");
+        Assert(linuxInfo.Disks.SelectMany(disk => disk.FilesystemIds).All(id => linuxInfo.Filesystems.Any(filesystem => filesystem.Id == id)),
+            "Linux disk-to-filesystem mapping referenced an unknown filesystem.");
     }
 
     var source = new FakePerformanceSource();

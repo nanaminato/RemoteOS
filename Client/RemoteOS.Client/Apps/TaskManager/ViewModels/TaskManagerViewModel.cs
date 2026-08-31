@@ -172,8 +172,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
         if (Info is null) return;
         PerformanceItems.Add(new(PerformanceResourceKind.Cpu, "cpu", "CPU", Info.Cpu.Model ?? "处理器", Color.Parse("#0078D4")));
         PerformanceItems.Add(new(PerformanceResourceKind.Memory, "memory", "内存", FormatBytes(Info.Memory.TotalBytes), Color.Parse("#8A2BE2")));
-        foreach (var filesystem in Info.Filesystems) PerformanceItems.Add(new(PerformanceResourceKind.Filesystem, filesystem.Id, filesystem.Name, filesystem.MountPoint, Color.Parse("#1A9B58")));
-        foreach (var disk in Info.Disks) PerformanceItems.Add(new(PerformanceResourceKind.Disk, disk.Id, disk.Name, disk.Model ?? "磁盘 I/O", Color.Parse("#A65E00")));
+        foreach (var disk in Info.Disks.OrderBy(DiskSortKey, StringComparer.OrdinalIgnoreCase)) PerformanceItems.Add(new(PerformanceResourceKind.Disk, disk.Id, DiskTitle(disk), disk.Model ?? "磁盘 I/O", Color.Parse("#A65E00")));
         foreach (var network in Info.Networks) PerformanceItems.Add(new(PerformanceResourceKind.Network, network.Id, network.Name, "网络适配器", Color.Parse("#C45A00")));
         SelectedPerformanceItem = selected is null ? PerformanceItems.FirstOrDefault() : PerformanceItems.FirstOrDefault(x => x.Kind == selected.Value.Kind && x.Id == selected.Value.Id) ?? PerformanceItems.FirstOrDefault();
     }
@@ -227,16 +226,12 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
                     ("缓冲区", FormatBytes(memory.BufferedBytes)),
                     ("交换总量", FormatBytes(memory.SwapTotalBytes)));
                 break;
-            case PerformanceResourceKind.Filesystem:
-                var filesystem = snapshot.Filesystems.FirstOrDefault(x => x.Id == item.Id);
-                if (filesystem is not null) item.Update(filesystem.Percent, 100, $"{FormatBytes(filesystem.UsedBytes)} / {FormatBytes(filesystem.TotalBytes)}", $"{filesystem.Percent:0}%", "已用空间", FormatBytes(filesystem.UsedBytes), "可用空间", FormatBytes(filesystem.AvailableBytes), "总容量", FormatBytes(filesystem.TotalBytes), "使用率", $"{filesystem.Percent:0}%");
-                break;
             case PerformanceResourceKind.Disk:
                 var disk = snapshot.Disks.FirstOrDefault(x => x.Id == item.Id);
                 if (disk is not null)
                 {
                     var rate = disk.ReadBytesPerSecond + disk.WriteBytesPerSecond;
-                    item.Update(rate, Math.Max(1_048_576, rate * 1.25), $"读取 {FormatRate(disk.ReadBytesPerSecond)}", $"写入 {FormatRate(disk.WriteBytesPerSecond)}", "读取速度", FormatRate(disk.ReadBytesPerSecond), "写入速度", FormatRate(disk.WriteBytesPerSecond), "读取 IOPS", $"{disk.ReadIops:0}", "写入 IOPS", $"{disk.WriteIops:0}");
+                    item.Update(rate, Math.Max(1_048_576, rate * 1.25), $"读取 {FormatRate(disk.ReadBytesPerSecond)}", $"写入 {FormatRate(disk.WriteBytesPerSecond)}", "读取速度", FormatRate(disk.ReadBytesPerSecond), "写入速度", FormatRate(disk.WriteBytesPerSecond), "活动时间", FormatPercent(disk.ActivityPercent), "平均响应时间", FormatLatency(disk.LatencyMs));
                 }
                 break;
             case PerformanceResourceKind.Network:
@@ -261,6 +256,35 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
 
     private static string FormatBytes(long? bytes) => bytes is null or < 0 ? "—" : Converters.BytesConverter.FormatBytes(bytes.Value);
     private static string FormatRate(long bytes) => Converters.BytesConverter.FormatBytes(bytes) + "/秒";
+    private static string FormatPercent(double? percent) => percent is null ? "—" : $"{percent.Value:0}%";
+    private static string FormatLatency(double? milliseconds) => milliseconds is null ? "—" : $"{milliseconds.Value:0.0} ms";
+    private string DiskSortKey(DiskInfoDto disk)
+    {
+        var firstWindowsVolume = disk.FilesystemIds
+            .Select(id => Info?.Filesystems.FirstOrDefault(filesystem => filesystem.Id == id)?.MountPoint)
+            .Where(mount => mount is { Length: >= 2 } && mount[1] == ':')
+            .OrderBy(mount => mount, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        return firstWindowsVolume is null ? $"~{disk.Id}" : $"{firstWindowsVolume}\0{disk.Id}";
+    }
+    private string DiskTitle(DiskInfoDto disk)
+    {
+        var title = disk.Id.StartsWith("windows-disk:", StringComparison.Ordinal)
+            ? $"磁盘 {disk.Id["windows-disk:".Length..]}"
+            : disk.Name;
+        var mounts = disk.FilesystemIds
+            .Select(id => Info?.Filesystems.FirstOrDefault(filesystem => filesystem.Id == id))
+            .Where(filesystem => filesystem is not null)
+            .Select(filesystem => FormatMountName(filesystem!))
+            .ToArray();
+        return mounts.Length == 0 ? title : $"{title} ({string.Join(", ", mounts)})";
+    }
+
+    private static string FormatMountName(FilesystemInfoDto filesystem)
+    {
+        var mount = filesystem.MountPoint;
+        return mount.Length >= 2 && mount[1] == ':' ? mount.TrimEnd('\\', '/') : mount;
+    }
     private static string FormatFrequency(double? mhz) => mhz is null ? "—" : mhz >= 1000 ? $"{mhz / 1000:0.00} GHz" : $"{mhz:0} MHz";
     private static string FormatCount(long? value) => value is null or < 0 ? "—" : value.Value.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
     private static string FormatBoolean(bool? value) => value is null ? "—" : value.Value ? "已启用" : "未启用";
@@ -268,7 +292,7 @@ public sealed partial class TaskManagerViewModel : ObservableObject, IAsyncDispo
 }
 
 public enum TaskManagerTab { Performance, Processes }
-public enum PerformanceResourceKind { Cpu, Memory, Filesystem, Disk, Network }
+public enum PerformanceResourceKind { Cpu, Memory, Disk, Network }
 
 public sealed partial class PerformanceResourceItem : ObservableObject
 {

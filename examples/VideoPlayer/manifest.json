@@ -4,6 +4,7 @@
   "version": "0.2.1-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.VideoPlayer.dll",
   "entryType": "RemoteOS.Examples.VideoPlayer.VideoPlayerApp",
+  "iconPath": "assets/icon.png",
   "iconGlyph": "🎬",
   "description": "VLC-based remote video player for Windows",
   "clientPlatforms": ["windows"],

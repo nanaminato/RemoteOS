@@ -20,10 +20,18 @@ public sealed record ApplicationManifest(
     bool SupportsExtensionlessFiles = false,
     bool SupportsTextFiles = false,
     ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
-    IReadOnlyList<string>? SupportedUriSchemes = null)
+    IReadOnlyList<string>? SupportedUriSchemes = null,
+    string? IconPath = null)
 {
     /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
     public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);
+
+    /// <summary>Image icon supplied by a package, or the convention-based built-in application icon.</summary>
+    public string? EffectiveIconPath => !string.IsNullOrWhiteSpace(IconPath)
+        ? IconPath
+        : Id.Value.StartsWith("remoteos.", StringComparison.Ordinal)
+            ? $"avares://RemoteOS.Client/Assets/AppIcons/{Id.Value["remoteos.".Length..]}.png"
+            : null;
 
     /// <summary>Requirements imposed on the connected server. A null value means unrestricted.</summary>
     public ApplicationServerRequirements Server => ServerRequirements ?? new ApplicationServerRequirements();
@@ -84,5 +92,5 @@ public sealed record ApplicationManifest(
         ?? Array.Empty<string>();
 
     public ApplicationInfo ToInfo() => new(Id, DisplayName, IconGlyph, Description, Permissions, FileExtensions, Version, LocalizedMetadata,
-        FileNames, SupportsExtensionlessFiles, SupportsTextFiles, UriSchemes);
+        FileNames, SupportsExtensionlessFiles, SupportsTextFiles, UriSchemes, EffectiveIconPath);
 }

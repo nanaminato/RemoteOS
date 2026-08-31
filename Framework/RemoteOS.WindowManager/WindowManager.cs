@@ -100,6 +100,7 @@ public sealed class WindowManager : IWindowManager
             OwnerAppId = options.OwnerAppId,
             Title = options.Title,
             IconGlyph = options.IconGlyph,
+            IconPath = options.IconPath,
             Bounds = bounds,
             RestoreBounds = bounds,
             MinSize = new Size(240, 160),
@@ -165,7 +166,8 @@ public sealed class WindowManager : IWindowManager
             CanResize: true,
             CanMinimize: false,
             CanMaximize: false,
-            IsModalDialog: true));
+            IsModalDialog: true,
+            IconPath: owner.Info.IconPath));
         var dialogHost = GetWindowHost(owner);
         MoveToHost(dialogWindow, dialogHost);
         dialog.Attach(dialogWindow);

@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using RemoteOS.Core.Input;
 using RemoteOS.Core.Windows;
 
@@ -35,6 +37,8 @@ public partial class ManagedWindow : ObservableObject
 
     [ObservableProperty] private string _title = string.Empty;
     [ObservableProperty] private string? _iconGlyph;
+    [ObservableProperty] private IImage? _iconImage;
+    public bool HasIconImage => IconImage is not null;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MaximizeGlyph))]
     [NotifyPropertyChangedFor(nameof(IsOnScreen))]
@@ -58,11 +62,14 @@ public partial class ManagedWindow : ObservableObject
     {
         Title = Info.Title;
         IconGlyph = Info.IconGlyph;
+        IconImage = AppIconImageLoader.Load(Info.IconPath);
         State = Info.State;
         CanMinimize = Info.CanMinimize;
         CanMaximize = Info.CanMaximize;
         CanResize = Info.CanResize;
     }
+
+    partial void OnIconImageChanged(IImage? value) => OnPropertyChanged(nameof(HasIconImage));
 
     public event EventHandler? FocusRequested;
     public event EventHandler? CloseRequested;

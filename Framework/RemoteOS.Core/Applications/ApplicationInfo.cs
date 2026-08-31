@@ -13,7 +13,8 @@ public sealed record ApplicationInfo(
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
     bool SupportsTextFiles = false,
-    IReadOnlyList<string>? SupportedUriSchemes = null)
+    IReadOnlyList<string>? SupportedUriSchemes = null,
+    string? IconPath = null)
 {
     public IReadOnlyList<string> Permissions => RequestedPermissions ?? Array.Empty<string>();
 

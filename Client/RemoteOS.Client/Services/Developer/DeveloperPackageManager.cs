@@ -102,7 +102,7 @@ public sealed class DeveloperPackageManager
             staging = string.Empty;
 
             var record = new DeveloperAppRecord(appId, manifest.DisplayName.Trim(), version, destination, manifest.EntryAssembly.Trim(), manifest.EntryType.Trim(),
-                manifest.IconGlyph, manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
+                manifest.IconGlyph, ResolveIconPath(destination, manifest.IconPath), manifest.Description, manifest.RequestedPermissions ?? Array.Empty<string>(),
                 manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata,
                 manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements,
                 manifest.SupportedFileNames ?? Array.Empty<string>(), manifest.SupportsExtensionlessFiles,
@@ -209,7 +209,8 @@ public sealed class DeveloperPackageManager
         record.ClientPlatforms, record.ServerRequirements, record.SupportedFileNames, record.SupportsExtensionlessFiles,
         SupportsTextFiles: false,
         InstancePolicy: record.InstancePolicy,
-        SupportedUriSchemes: record.SupportedUriSchemes);
+        SupportedUriSchemes: record.SupportedUriSchemes,
+        IconPath: record.IconPath);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
@@ -252,6 +253,14 @@ public sealed class DeveloperPackageManager
             throw new InvalidOperationException("manifest.json is missing a required field.");
         if (!manifest.EntryAssembly.Replace('\\', '/').StartsWith("lib/", StringComparison.Ordinal))
             throw new InvalidOperationException("entryAssembly must point to a DLL under lib/.");
+        if (!string.IsNullOrWhiteSpace(manifest.IconPath))
+        {
+            var iconPath = manifest.IconPath.Replace('\\', '/');
+            var extension = Path.GetExtension(iconPath);
+            if (Path.IsPathRooted(iconPath) || iconPath.StartsWith("../", StringComparison.Ordinal)
+                || !new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".ico" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                throw new InvalidOperationException("iconPath must be a package-relative PNG, JPEG, WebP, BMP, GIF, or ICO file.");
+        }
         if (manifest.LocalizedMetadata?.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value.DisplayName)) == true)
             throw new InvalidOperationException("localizedMetadata must use non-empty culture names and display names.");
         if (manifest.SupportedUriSchemes?.Any(scheme => string.IsNullOrWhiteSpace(scheme)
@@ -308,6 +317,15 @@ public sealed class DeveloperPackageManager
         var resolved = Path.GetFullPath(Path.Combine(packageRoot, relativePath));
         if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Package path is outside its installation directory.");
+        return resolved;
+    }
+
+    private static string? ResolveIconPath(string packageRoot, string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return null;
+        var resolved = ResolvePackagePath(packageRoot, relativePath);
+        if (!File.Exists(resolved))
+            throw new InvalidOperationException("iconPath does not refer to a file in the application package.");
         return resolved;
     }
 
@@ -377,7 +395,7 @@ public sealed class DeveloperPackageManager
         {
             try
             {
-                await Owner.GetOrLoad(Record).Application.ActivateAsync(ContextFactory.Create(Manifest.Id));
+                await Owner.GetOrLoad(Record).Application.ActivateAsync(ContextFactory.Create(Manifest));
             }
             catch (Exception exception)
             {
@@ -415,7 +433,7 @@ public sealed class DeveloperPackageManager
             try
             {
                 if (Owner.GetOrLoad(Record).Application is IExternalAppActivationHandler handler)
-                    await handler.HandleActivationAsync(ContextFactory.Create(Manifest.Id), request.Uri);
+                    await handler.HandleActivationAsync(ContextFactory.Create(Manifest), request.Uri);
             }
             catch (Exception exception)
             {
@@ -437,7 +455,7 @@ public sealed class DeveloperPackageManager
             try
             {
                 await ((IExternalFileOpenApplication)Owner.GetOrLoad(Record).Application)
-                    .OpenFileAsync(ContextFactory.Create(Manifest.Id), path);
+                    .OpenFileAsync(ContextFactory.Create(Manifest), path);
             }
             catch (Exception exception)
             {
@@ -464,7 +482,8 @@ public sealed record DeveloperPackageManifest(
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
     string? InstancePolicy = null,
-    IReadOnlyList<string>? SupportedUriSchemes = null);
+    IReadOnlyList<string>? SupportedUriSchemes = null,
+    string? IconPath = null);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -474,6 +493,7 @@ internal sealed record DeveloperAppRecord(
     string EntryAssembly,
     string EntryType,
     string? IconGlyph,
+    string? IconPath,
     string? Description,
     IReadOnlyList<string> RequestedPermissions,
     IReadOnlyList<string> SupportedFileExtensions,

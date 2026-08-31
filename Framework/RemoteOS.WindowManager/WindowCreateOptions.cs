@@ -16,4 +16,5 @@ public sealed record WindowCreateOptions(
     bool CanMinimize = true,
     bool CanMaximize = true,
     bool IsModalDialog = false,
-    WindowInitialPlacement InitialPlacement = WindowInitialPlacement.Explicit);
+    WindowInitialPlacement InitialPlacement = WindowInitialPlacement.Explicit,
+    string? IconPath = null);
