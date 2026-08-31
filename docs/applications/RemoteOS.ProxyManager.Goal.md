@@ -1,6 +1,6 @@
 # RemoteOS 代理管理器（Goal 执行版）
 
-> 状态：实施中（Goal 0 已冻结；Goal 1 待实施）  
+> 状态：实施中（Goal 0–3 已完成；Goal 4 待实施）  
 > 建立日期：2026-08-31  
 > 适用范围：`.NET 10` Server、Avalonia Client、Windows / Windows Server / Ubuntu / Ubuntu Server  
 > 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](../../PROXY_IMPLEMENTATION_DISCOVERY.md)
@@ -136,6 +136,8 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 **验收**：Client 永不访问 `127.0.0.1:9090` 或其他 Controller 地址，Controller JSON 不离开 Server；Controller secret 未出现在任何序列化结果、日志或异常；Controller 不可用、未知字段、超时和不安全日志均返回稳定、安全结果；不新增 WebSocket/socket 框架。
 
 ### Goal 3：Runtime、原生服务与受限特权操作
+
+**状态**：已完成。`MihomoRuntimeManager` 仅接受源代码固定的 Mihomo 发布清单，以有界下载、SHA-256、归档条目限制、架构/版本探测与 immutable 版本目录处理 Managed Runtime；激活只有在 TUN 关闭的 bootstrap 配置、受限原生服务操作和本机 Controller health 均通过后才写 active/previous state。`NativeMihomoPrivilegedOperations` 只识别 `remoteos-mihomo`、固定 systemd/SCM 动作和受控路径；无主机权限时安全返回 `proxy.privileged_operation_unavailable`，不请求密码或退化为 shell。平台真实安装/回滚验证留给 Goal 9。
 
 **工作**：实现 External 只读检测与 Managed Mihomo Runtime 的固定清单、暂存、归档检查、SHA-256 验证、版本目录、active/previous、健康检查、升级、回滚和卸载。建立 Windows/Linux `IProxyPlatformService` 及强类型 Proxy 特权操作边界，安装/删除并控制原生服务。服务控制可提取 `INativeServiceAdapter` 的安全公共部分，但不创建平行服务管理器。首次安装成功标准为 TUN 关闭状态下的 Controller health check。
 

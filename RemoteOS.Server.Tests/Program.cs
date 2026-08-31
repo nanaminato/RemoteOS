@@ -34,6 +34,8 @@ using Server.ConfigurationRegistry;
 using RemoteOS.Protocol.Registry;
 using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Mihomo;
+using Server.Proxy;
+using Server.Proxy.Platform;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -49,6 +51,7 @@ try
     VerifyTunnelProtocolContract();
     VerifyProxyProtocolContract();
     await VerifyMihomoControllerSafetyAsync();
+    await VerifyMihomoRuntimeSafetyAsync(root);
     VerifyFrpTomlSafety();
     await VerifyFrpRuntimeInstallAndRollbackAsync(root);
     await VerifyTunnelSecretLifecycleAsync(root);
@@ -301,6 +304,60 @@ static async Task VerifyMihomoControllerSafetyAsync()
     Assert(logs.Succeeded && log is not null && !log.Message.Contains("controller-secret", StringComparison.Ordinal)
         && !log.Message.Contains("private-value", StringComparison.Ordinal), "Mihomo controller logs were not sanitized.");
     Assert(authorization == "Bearer controller-secret", "Controller secret was not kept in the Server-only authorization header.");
+}
+
+static async Task VerifyMihomoRuntimeSafetyAsync(string root)
+{
+    if (MihomoRuntimeManifest.CurrentRid() != "linux-x64") return;
+    var archive = CreateMihomoFixtureArchive();
+    var digest = Convert.ToHexString(SHA256.HashData(archive)).ToLowerInvariant();
+    var release = new MihomoRuntimeRelease(MihomoRuntimeManifest.SupportedVersion, "linux-x64", "mihomo-linux-amd64-v1.19.30.gz", "gz", digest);
+    var paths = new TestProxyPaths(Path.Combine(root, "mihomo-runtime"));
+    var privileged = new TestProxyPrivilegedOperations();
+    var manager = new MihomoRuntimeManager(paths, new FixtureHttpClientFactory(archive), privileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] });
+
+    var missingExternal = await manager.DetectExternalAsync(MihomoEngine.Id, Path.Combine(root, "does-not-exist"), CancellationToken.None);
+    Assert(missingExternal.ProblemCode == ProxyProblemCodes.ExternalRuntimeInvalid && missingExternal.ExternalPathConfigured,
+        "A missing external runtime was accepted or exposed a host path.");
+
+    var installed = await manager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+    Assert(installed.State == ProxyRuntimeState.Running && installed.IntegrityVerified && installed.Version == MihomoRuntimeManifest.SupportedVersion,
+        "A verified Mihomo fixture did not activate only after controller health.");
+    Assert(privileged.InstalledService && privileged.RestartCount == 1, "Managed Mihomo did not use the constrained native-service operations.");
+
+    privileged.FailReplacement = true;
+    var failedUpdate = await manager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+    var afterFailedUpdate = await manager.GetAsync(MihomoEngine.Id, CancellationToken.None);
+    Assert(failedUpdate.ProblemCode == ProxyProblemCodes.PrivilegedOperationUnavailable && afterFailedUpdate.Version == MihomoRuntimeManifest.SupportedVersion,
+        "A failed runtime replacement changed the active version.");
+
+    var traversalArchive = CreateMihomoTraversalArchive();
+    var traversalDigest = Convert.ToHexString(SHA256.HashData(traversalArchive)).ToLowerInvariant();
+    var traversalManager = new MihomoRuntimeManager(new TestProxyPaths(Path.Combine(root, "mihomo-traversal")), new FixtureHttpClientFactory(traversalArchive),
+        new TestProxyPrivilegedOperations(), new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(),
+        new MihomoRuntimeManifest { Releases = [release with { ArchiveFormat = "zip", AssetName = "mihomo-windows-amd64-v1.19.30.zip", Sha256 = traversalDigest, Rid = "linux-x64" }] });
+    var traversal = await traversalManager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+    Assert(traversal.ProblemCode == ProxyProblemCodes.RuntimeIntegrityFailed, "A path-traversal runtime archive was accepted.");
+}
+
+static byte[] CreateMihomoFixtureArchive()
+{
+    var binary = new byte[64]; binary[0] = 0x7f; binary[1] = (byte)'E'; binary[2] = (byte)'L'; binary[3] = (byte)'F'; binary[4] = 2; binary[5] = 1;
+    BitConverter.GetBytes((ushort)62).CopyTo(binary, 18);
+    using var output = new MemoryStream();
+    using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true)) gzip.Write(binary);
+    return output.ToArray();
+}
+
+static byte[] CreateMihomoTraversalArchive()
+{
+    using var output = new MemoryStream();
+    using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+    {
+        var traversal = archive.CreateEntry("../mihomo");
+        using var writer = traversal.Open(); writer.Write([1, 2, 3]);
+    }
+    return output.ToArray();
 }
 
 static void VerifyFrpTomlSafety()
@@ -797,6 +854,51 @@ sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory
 sealed class StaticProxySecretStore : IProxyControllerSecretStore
 {
     public Task<string> GetOrCreateAsync(CancellationToken cancellationToken) => Task.FromResult("controller-secret");
+}
+
+sealed class TestProxyPaths(string root) : IProxyPlatformPaths
+{
+    public string GetEngineVersionsDirectory(string engineId) => Path.Combine(root, "engines", engineId, "versions");
+    public string GetProtectedConfigurationDirectory() => Path.Combine(root, "config");
+    public string GetStateDirectory() => Path.Combine(root, "state");
+    public string GetSanitizedLogDirectory() => Path.Combine(root, "logs");
+}
+
+sealed class TestMihomoRuntimeProbe : IMihomoRuntimeProbe
+{
+    public Task<string?> GetVersionAsync(string executablePath, CancellationToken cancellationToken) => Task.FromResult(File.Exists(executablePath) ? "Mihomo v1.19.30" : null);
+}
+
+sealed class HealthyMihomoController : IMihomoControllerClient
+{
+    public Task<bool> IsReachableAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyGroupDto>>.Success([]));
+    public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyConnectionDto>>.Success([]));
+    public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyLogEntryDto>>.Success([]));
+    public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
+    public Task<string?> ReloadAsync(CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+}
+
+sealed class TestProxyPrivilegedOperations : IProxyPrivilegedOperations
+{
+    public bool FailReplacement { get; set; }
+    public bool InstalledService { get; private set; }
+    public int RestartCount { get; private set; }
+    private ProxyPrivilegedResult Result(bool replacement = false) => replacement && FailReplacement ? new(false, ProxyProblemCodes.PrivilegedOperationUnavailable) : new(true);
+    public Task<ProxyPrivilegedResult> InstallRuntimeAsync(InstallProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> RemoveRuntimeAsync(RemoveProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> ReplaceRuntimeAsync(ReplaceProxyRuntimeOperation request, CancellationToken cancellationToken) => Task.FromResult(Result(replacement: true));
+    public Task<ProxyPrivilegedResult> InstallServiceAsync(InstallProxyServiceOperation request, CancellationToken cancellationToken) { InstalledService = true; return Task.FromResult(Result()); }
+    public Task<ProxyPrivilegedResult> RemoveServiceAsync(RemoveProxyServiceOperation request, CancellationToken cancellationToken) { InstalledService = false; return Task.FromResult(Result()); }
+    public Task<ProxyPrivilegedResult> SetServiceStartupAsync(SetProxyServiceStartupOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> StartServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> StopServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> RestartServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) { RestartCount++; return Task.FromResult(Result()); }
+    public Task<ProxyPrivilegedResult> WriteProtectedConfigurationAsync(WriteProxyConfigurationOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> RestoreNetworkConfigurationAsync(RestoreProxyNetworkOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+    public Task<ProxyPrivilegedResult> RepairServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
 }
 
 sealed class DelegateHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) : HttpMessageHandler

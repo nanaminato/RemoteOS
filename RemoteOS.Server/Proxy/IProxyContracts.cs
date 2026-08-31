@@ -28,6 +28,9 @@ public interface IProxyRuntimeManager
 {
     Task<ProxyRuntimeDto> GetAsync(string engineId, CancellationToken cancellationToken);
     Task<ProxyRuntimeDto> DetectExternalAsync(string engineId, string executablePath, CancellationToken cancellationToken);
+    Task<ProxyRuntimeDto> InstallManagedAsync(string engineId, string? version, CancellationToken cancellationToken);
+    Task<ProxyRuntimeDto> RollbackManagedAsync(string engineId, CancellationToken cancellationToken);
+    Task<ProxyRuntimeDto> UninstallManagedAsync(string engineId, CancellationToken cancellationToken);
 }
 
 public interface IProxyProfileService

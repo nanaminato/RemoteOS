@@ -197,6 +197,30 @@ internal static class HostGlobalMigrationRunner
             await ExecuteAsync(connection, transaction,
                 "INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (7, CURRENT_TIMESTAMP);", cancellationToken);
         }
+        if (!await IsAppliedAsync(connection, transaction, 8, cancellationToken))
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE proxy_profiles (
+                    profile_id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    engine_id TEXT NOT NULL,
+                    is_active INTEGER NOT NULL,
+                    revision INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX ix_proxy_profiles_active ON proxy_profiles(is_active) WHERE is_active = 1;
+                CREATE TABLE proxy_configuration_audits (
+                    audit_id TEXT NOT NULL PRIMARY KEY,
+                    profile_id TEXT NULL,
+                    action TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    problem_code TEXT NULL,
+                    created_at TEXT NOT NULL
+                );
+                INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (8, CURRENT_TIMESTAMP);
+                """, cancellationToken);
+        }
         transaction.Commit();
     }
 
