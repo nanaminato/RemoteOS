@@ -32,6 +32,7 @@ using Server.Secrets;
 using Server.WebServer;
 using Server.ConfigurationRegistry;
 using RemoteOS.Protocol.Registry;
+using RemoteOS.Protocol.Proxy;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -45,6 +46,7 @@ try
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
     VerifyTunnelProtocolContract();
+    VerifyProxyProtocolContract();
     VerifyFrpTomlSafety();
     await VerifyFrpRuntimeInstallAndRollbackAsync(root);
     await VerifyTunnelSecretLifecycleAsync(root);
@@ -92,7 +94,7 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
         db.RegistryEntries.Add(new RegistryEntry
         {
             UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
-            Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+            Path = "Workspace\\Custom\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
             ValueJson = "14", Revision = 1, State = RegistryEntryState.Synced,
             DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
             AppliedRevision = 1, AppliedAt = DateTimeOffset.UtcNow,
@@ -103,7 +105,7 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
     var factory = new PooledDbContextFactory<RemoteOsDbContext>(options);
     var cache = new CachedSqliteRegistryRepository(factory);
     await cache.StartAsync(CancellationToken.None);
-    Assert(cache.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "14",
+    Assert(cache.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom\\Appearance", "(Default)")?.ValueJson == "14",
         "Registry cache did not hydrate SQLite state at startup.");
     cache.CreateKey(new RegistryKey
     {
@@ -116,19 +118,19 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
     var updated = cache.Upsert(new RegistryEntry
     {
         UserId = userId, Scope = RegistryScope.Workspace, ScopeId = workspaceId,
-        Path = "Workspace\\Terminal\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
+        Path = "Workspace\\Custom\\Appearance", Name = "(Default)", ValueType = RegistryValueType.Number,
         ValueJson = "12", DesiredUpdatedAt = DateTimeOffset.UtcNow, DesiredUpdatedBy = "test",
     });
     Assert(updated.ValueJson == "12" && updated.State == RegistryEntryState.PendingSync && updated.Revision == 2,
         "Registry writes must update the in-memory source before durable synchronization.");
     await using (var db = new RemoteOsDbContext(options))
-        Assert((await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)"))?.ValueJson == "14",
+        Assert((await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom\\Appearance", "(Default)"))?.ValueJson == "14",
             "Registry cache unexpectedly wrote through instead of batching durable synchronization.");
 
     await cache.StopAsync(CancellationToken.None);
     await using (var db = new RemoteOsDbContext(options))
     {
-        var persisted = await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)");
+        var persisted = await db.RegistryEntries.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom\\Appearance", "(Default)");
         Assert(persisted?.ValueJson == "12" && persisted.State == RegistryEntryState.Synced,
             "Registry shutdown flush did not persist the latest cached value.");
         Assert(await db.RegistryKeys.FindAsync(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom") is not null,
@@ -137,7 +139,7 @@ static async Task VerifyRegistryRuntimeCacheAsync(string root)
 
     var restored = new CachedSqliteRegistryRepository(factory);
     await restored.StartAsync(CancellationToken.None);
-    Assert(restored.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Terminal\\Appearance", "(Default)")?.ValueJson == "12",
+    Assert(restored.Find(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom\\Appearance", "(Default)")?.ValueJson == "12",
         "Registry restart did not recover the synchronized value.");
     Assert(restored.DeleteKeyTree(userId, RegistryScope.Workspace, workspaceId, "Workspace\\Custom"),
         "Registry key deletion did not remove the cached key.");
@@ -249,6 +251,24 @@ static void VerifyTunnelProtocolContract()
     var definition = new TunnelDefinitionDto(Guid.NewGuid(), profile.Id, "ssh", "frp", TunnelProtocol.Tcp, "127.0.0.1", 22, 6000, null, true, false, false, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
     var roundTrip = JsonSerializer.Deserialize<TunnelDefinitionDto>(JsonSerializer.Serialize(definition, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default), RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
     Assert(roundTrip?.Protocol == TunnelProtocol.Tcp && roundTrip.RemotePort == 6000, "Tunnel desired-state DTO JSON contract changed.");
+}
+
+static void VerifyProxyProtocolContract()
+{
+    Assert(ProxyApiRoutes.Proxy == "/api/v1/proxy" && ProxyApiRoutes.ProfilePattern.StartsWith("/profiles/", StringComparison.Ordinal),
+        "Proxy routes must keep one versioned public base and group-relative patterns.");
+    var overview = new ProxyOverviewDto("test-engine", new(true, true, true, true, true, true), new(true, true, false, false, false, true),
+        new("test-engine", ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, "1.0.0", null, true, false),
+        new(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true), ProxyOperatingMode.ListenerOnly,
+        new(Guid.NewGuid(), "profile", "test-engine", true, 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow), 0, new(false, false, null));
+    var json = JsonSerializer.Serialize(overview, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(!json.Contains("secret", StringComparison.OrdinalIgnoreCase) && !json.Contains("token", StringComparison.OrdinalIgnoreCase)
+        && !json.Contains("yaml", StringComparison.OrdinalIgnoreCase) && !json.Contains("\"externalPath\"", StringComparison.OrdinalIgnoreCase),
+        "Proxy public contracts must not serialize secret, raw configuration, or host-path material.");
+    var codes = typeof(ProxyProblemCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+        .Select(field => field.GetRawConstantValue() as string ?? string.Empty).ToArray();
+    Assert(codes.Length > 0 && codes.All(code => code.StartsWith("proxy.", StringComparison.Ordinal)
+        && code == code.ToLowerInvariant() && code.Count(character => character == '.') == 1), "Proxy problem codes must be lower-case dotted values.");
 }
 
 static void VerifyFrpTomlSafety()
@@ -479,7 +499,7 @@ static async Task VerifyHostGlobalMigrationAsync(string root)
     await connection.OpenAsync();
     await using var command = connection.CreateCommand();
     command.CommandText = "SELECT MAX(version) FROM remoteos_host_schema_migrations;";
-    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 6, "HostGlobal migrations did not reach the expected version.");
+    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 7, "HostGlobal migrations did not reach the expected version.");
 }
 
 static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)

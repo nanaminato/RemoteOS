@@ -14,7 +14,7 @@ public enum TunnelRuntimeInstallationState { Idle, Queued, Downloading, Copying,
 public sealed record TunnelServerProfileDto(
     Guid Id, string Name, string Host, int Port, TunnelAuthKind AuthKind, bool TokenConfigured,
     TunnelTlsMode TlsMode, TunnelRuntimeMode RuntimeMode, string? ExternalExecutablePath,
-    long Revision, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? Token = null);
+    long Revision, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 /// <summary>Safe desired-state projection. It never contains generated TOML or credentials.</summary>
 public sealed record TunnelDefinitionDto(

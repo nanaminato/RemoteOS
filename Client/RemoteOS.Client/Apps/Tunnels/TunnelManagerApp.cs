@@ -72,7 +72,7 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         {
             var editableProfile = profile is null ? null : await client.GetProfileAsync(profile.Id);
             if (profile is not null && editableProfile is null) return;
-            var editor = new TunnelProfileEditorViewModel(client, editableProfile, editableProfile?.Token)
+            var editor = new TunnelProfileEditorViewModel(client, editableProfile, null)
             {
                 SavedAsync = vm.RefreshAfterChildAsync,
                 RequestDeletionConfirmationAsync = () => ConfirmAsync(LocalizedText.Get("common.delete"), LocalizedText.Get("tunnels.server.delete_confirmation"), LocalizedText.Get("common.delete")),

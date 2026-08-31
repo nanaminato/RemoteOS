@@ -28,6 +28,17 @@ public static class AppPermissions
     public const string ServerTunnelsManage = "server.tunnels.manage";
     public const string ServerRegistryRead = "server.registry.read";
     public const string ServerRegistryWrite = "server.registry.write";
+    public const string ServerProxyRead = "server.proxy.read";
+    public const string ServerProxyManage = "server.proxy.manage";
+    public const string ServerProxyProfileRead = "server.proxy.profile.read";
+    public const string ServerProxyProfileManage = "server.proxy.profile.manage";
+    public const string ServerProxyConnectionRead = "server.proxy.connection.read";
+    public const string ServerProxyConnectionClose = "server.proxy.connection.close";
+    public const string ServerProxyTunRead = "server.proxy.tun.read";
+    public const string ServerProxyTunManage = "server.proxy.tun.manage";
+    public const string ServerProxyRuntimeRead = "server.proxy.runtime.read";
+    public const string ServerProxyRuntimeManage = "server.proxy.runtime.manage";
+    public const string ServerProxyRecoveryExecute = "server.proxy.recovery.execute";
 
     /// <summary>
     /// English source metadata for every capability. Client UI resolves each value through
@@ -60,6 +71,17 @@ public static class AppPermissions
         new(ServerTunnelsManage, "Manage tunnels", "Create, change, apply, stop, and delete server tunnel configuration and FRP runtime settings.", "server_network"),
         new(ServerRegistryRead, "Read configuration registry", "Browse supported RemoteOS configuration values and their synchronization state.", "server_management"),
         new(ServerRegistryWrite, "Modify configuration registry", "Change supported RemoteOS configuration values through the registry workflow.", "server_management"),
+        new(ServerProxyRead, "Read proxy status", "View safe proxy runtime, health, and sanitized diagnostics.", "server_network"),
+        new(ServerProxyManage, "Manage proxy", "Manage proxy lifecycle and safe engine configuration.", "server_network"),
+        new(ServerProxyProfileRead, "Read proxy profiles", "View proxy profile metadata without configuration content.", "server_network"),
+        new(ServerProxyProfileManage, "Manage proxy profiles", "Create and change proxy profile metadata and configuration.", "server_network"),
+        new(ServerProxyConnectionRead, "Read proxy connections", "View active proxy connection metadata.", "server_network"),
+        new(ServerProxyConnectionClose, "Close proxy connections", "Close individual proxy connections.", "server_network"),
+        new(ServerProxyTunRead, "Read proxy TUN state", "View proxy TUN and management-route protection state.", "server_network"),
+        new(ServerProxyTunManage, "Manage proxy TUN", "Enable or disable host-wide proxy TUN networking.", "server_network"),
+        new(ServerProxyRuntimeRead, "Read proxy runtime", "View managed or external proxy runtime status.", "server_network"),
+        new(ServerProxyRuntimeManage, "Manage proxy runtime", "Install, update, roll back, or remove a verified proxy runtime.", "server_network"),
+        new(ServerProxyRecoveryExecute, "Recover proxy networking", "Run the emergency proxy network recovery operation.", "server_network"),
     ];
 
     public static AppPermissionDefinition? Find(string? permissionId) =>

@@ -1,6 +1,6 @@
 # RemoteOS 代理管理器（Goal 执行版）
 
-> 状态：待实施（Phase 0 已完成）  
+> 状态：实施中（Goal 0 已冻结；Goal 1 待实施）  
 > 建立日期：2026-08-31  
 > 适用范围：`.NET 10` Server、Avalonia Client、Windows / Windows Server / Ubuntu / Ubuntu Server  
 > 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](../../PROXY_IMPLEMENTATION_DISCOVERY.md)
@@ -113,13 +113,15 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 
 ### Goal 0：确认调研结论、冻结决策与威胁模型
 
-**状态**：已完成调研；在写代码前确认其仍然有效。
+**状态**：已完成。冻结记录见 [Goal 0 decision record](./RemoteOS.ProxyManager.Goal0.md)。
 
 **工作**：复核 `PROXY_IMPLEMENTATION_DISCOVERY.md` 中的 Solution、授权、Service、特权、持久化、操作、秘密、Client 与 UI 结论。冻结 V1 Windows/Linux/CPU 发布矩阵、Mihomo 支持版本范围、固定发布清单与哈希材料来源、主机级 schema/migration 方案、平台路径/保留策略、问题码表、权限矩阵、审计事件和不支持能力的返回约定。明确当前缺少通用 elevation workflow 是 Phase 3 的设计门槛。
 
 **验收**：没有未决的“假定已有”服务或权限抽象；威胁模型覆盖恶意归档、路径遍历、校验失败、YAML/命令注入、秘密泄露、Controller 暴露、操作中断、路由/DNS 损坏、管理连接中断、Defender/组织策略拒绝；关键设计决定写入本文或设计文档。
 
 ### Goal 1：协议、授权与无秘密领域骨架
+
+**状态**：已完成。`Shared/RemoteOS.Protocol/Proxy` 定义了无秘密的 Engine-neutral 合约、路由和问题码；`RemoteOS.Server/Proxy` 仅包含窄的 Server 领域边界，尚未接入 Mihomo、Runtime、Service、TUN、API 或 UI。
 
 **工作**：在 `Shared/RemoteOS.Protocol/Proxy` 添加 Engine/platform capabilities、operating/runtime/TUN/health/operation 状态、Profile、Runtime、Groups、Connections、Logs、DNS、Recovery DTO、路由常量与小写点分 problem code。添加 Engine-neutral Server 接口、engine registry、`IProxyPlatformService` 和平台路径抽象，但不实现下载、原生服务、Controller、TUN 或 UI。增加 AppPermissions/manifest 所需稳定 capability 声明，并设计 Server read/manage/dangerous policies。
 
