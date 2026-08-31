@@ -8,7 +8,7 @@ namespace Server.Proxy.Platform;
 /// every executable, service name, argument and target path is derived from fixed constants.
 /// Calling it without the required OS rights safely returns a stable unavailable result.
 /// </summary>
-public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) : IProxyPrivilegedOperations
+public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, IProxyDiagnosticLogStore? diagnostics = null) : IProxyPrivilegedOperations
 {
     private const string Engine = Mihomo.MihomoEngine.Id;
     private const string Service = "remoteos-mihomo";
@@ -35,8 +35,16 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
             if (Directory.Exists(versions)) Directory.Delete(versions, recursive: true);
             return Success();
         }
-        catch (IOException) { return Unavailable(); }
-        catch (UnauthorizedAccessException) { return Unavailable(); }
+        catch (IOException)
+        {
+            await WriteDiagnosticAsync("error", "Managed Mihomo runtime cleanup could not delete the runtime directory; a service process may still be using it.", cancellationToken);
+            return Unavailable();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await WriteDiagnosticAsync("error", "Managed Mihomo runtime cleanup was denied access to the runtime directory.", cancellationToken);
+            return Unavailable();
+        }
     }
 
     public async Task<ProxyPrivilegedResult> InstallServiceAsync(InstallProxyServiceOperation request, CancellationToken cancellationToken)
@@ -150,9 +158,19 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
     private string WindowsServiceCommandLine() => QuoteWindows(ActiveBinaryPath()) + " -f " + QuoteWindows(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"));
     private async Task<ProxyPrivilegedResult> WindowsServiceActionAsync(string action, CancellationToken cancellationToken)
     {
-        if (action != "restart") return await ScAsync([action == "try-restart" ? "start" : action, Service], cancellationToken);
-        await ScAsync(["stop", Service], cancellationToken);
-        return await ScAsync(["start", Service], cancellationToken);
+        if (action == "restart")
+        {
+            // A first installation has no running process, so a failed stop is intentionally
+            // ignored before starting the newly created service.
+            var stop = await ScAsync(["stop", Service], cancellationToken);
+            if (stop.Succeeded) await WaitForWindowsServiceStoppedAsync(cancellationToken);
+            return await ScAsync(["start", Service], cancellationToken);
+        }
+
+        var command = action == "try-restart" ? "start" : action;
+        var result = await ScAsync([command, Service], cancellationToken);
+        if (command == "stop" && result.Succeeded) await WaitForWindowsServiceStoppedAsync(cancellationToken);
+        return result;
     }
     private string SystemdUnitPath => "/etc/systemd/system/remoteos-mihomo.service";
     private string SystemdUnit() => string.Join('\n',
@@ -174,22 +192,54 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths) 
         "");
     private static string BinaryName() => OperatingSystem.IsWindows() ? "mihomo.exe" : "mihomo";
     private static string QuoteWindows(string value) => "\"" + value.Replace("\"", "", StringComparison.Ordinal) + "\"";
-    private static Task<ProxyPrivilegedResult> SystemctlAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("/usr/bin/systemctl", arguments, cancellationToken);
-    private static Task<ProxyPrivilegedResult> ScAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("sc.exe", arguments, cancellationToken);
-    private static async Task<ProxyPrivilegedResult> RunFixedAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private Task<ProxyPrivilegedResult> SystemctlAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("/usr/bin/systemctl", arguments, cancellationToken);
+    private Task<ProxyPrivilegedResult> ScAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("sc.exe", arguments, cancellationToken);
+    private async Task<ProxyPrivilegedResult> RunFixedAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    {
+        var result = await RunFixedCommandAsync(executable, arguments, cancellationToken);
+        if (!result.Succeeded)
+            await WriteDiagnosticAsync("warning", "Managed Mihomo privileged command " + DescribeCommand(executable, arguments)
+                + " failed" + (result.ExitCode is { } exitCode ? " with exit code " + exitCode : "")
+                + (string.IsNullOrWhiteSpace(result.Output) ? "." : ": " + result.Output), cancellationToken);
+        return result.Succeeded ? Success() : Unavailable();
+    }
+    private async Task<FixedCommandResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         try
         {
-            using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true } };
+            using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true } };
             foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-            if (!process.Start()) return Unavailable();
+            if (!process.Start()) return new(false, null, "The process could not be started.");
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(TimeSpan.FromSeconds(15));
             await process.WaitForExitAsync(timeout.Token);
-            return process.ExitCode == 0 ? Success() : Unavailable();
+            var standardOutput = await output;
+            var standardError = await error;
+            var text = (standardOutput + " " + standardError).Trim();
+            return new(process.ExitCode == 0, process.ExitCode, text);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Unavailable(); }
-        catch { return Unavailable(); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, null, "The command timed out after 15 seconds."); }
+        catch (Exception exception) { return new(false, null, exception.GetType().Name); }
     }
+    private async Task WaitForWindowsServiceStoppedAsync(CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var status = await RunFixedCommandAsync("sc.exe", ["query", Service], cancellationToken);
+            if (!status.Succeeded || status.Output.Contains("STOPPED", StringComparison.OrdinalIgnoreCase)) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+        }
+        await WriteDiagnosticAsync("warning", "Managed Mihomo service did not report a stopped state before runtime cleanup.", cancellationToken);
+    }
+    private async Task WriteDiagnosticAsync(string level, string message, CancellationToken cancellationToken)
+    {
+        if (diagnostics is not null) await diagnostics.WriteAsync(level, message, cancellationToken);
+    }
+    private static string DescribeCommand(string executable, IReadOnlyList<string> arguments) => Path.GetFileNameWithoutExtension(executable)
+        + " " + (arguments.Count > 0 ? arguments[0] : "operation");
+    private sealed record FixedCommandResult(bool Succeeded, int? ExitCode, string Output);
     private static ProxyPrivilegedResult Success() => new(true);
     private static ProxyPrivilegedResult Invalid() => new(false, ProxyProblemCodes.NotSupported);
     private static ProxyPrivilegedResult Unavailable() => new(false, ProxyProblemCodes.PrivilegedOperationUnavailable);
