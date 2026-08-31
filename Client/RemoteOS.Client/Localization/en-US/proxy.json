@@ -1,0 +1,16 @@
+{
+  "Culture": "en-US",
+  "Strings": {
+    "proxy.title": "Proxy Manager",
+    "proxy.login_required": "Sign in to a RemoteOS Server to manage its proxy.",
+    "proxy.status.loading": "Loading proxy status…",
+    "proxy.status.ready": "Runtime: {0}; health: {1}",
+    "proxy.status.recovery_required": "Network recovery is required before another TUN action.",
+    "proxy.status.operation_queued": "The operation was queued on the Server.",
+    "proxy.status.failed": "Proxy request failed: {0}",
+    "proxy.start": "Start",
+    "proxy.stop": "Stop",
+    "proxy.restart": "Restart",
+    "proxy.emergency_disable": "Emergency disable TUN"
+  }
+}

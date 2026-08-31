@@ -1,0 +1,16 @@
+{
+  "Culture": "ja-JP",
+  "Strings": {
+    "proxy.title": "プロキシ マネージャー",
+    "proxy.login_required": "プロキシを管理するには RemoteOS Server にサインインしてください。",
+    "proxy.status.loading": "プロキシ状態を読み込んでいます…",
+    "proxy.status.ready": "ランタイム: {0}; ヘルス: {1}",
+    "proxy.status.recovery_required": "別の TUN 操作の前にネットワーク回復が必要です。",
+    "proxy.status.operation_queued": "操作はサーバーにキュー登録されました。",
+    "proxy.status.failed": "プロキシ要求に失敗しました: {0}",
+    "proxy.start": "開始",
+    "proxy.stop": "停止",
+    "proxy.restart": "再起動",
+    "proxy.emergency_disable": "TUN を緊急停止"
+  }
+}

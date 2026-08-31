@@ -49,6 +49,9 @@ builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeS
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
 builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());
+builder.Services.AddSingleton<Server.Proxy.ProxyOperationStore>();
+builder.Services.AddSingleton<Server.Proxy.ProxyAuditStore>();
+builder.Services.AddSingleton<Server.Proxy.IProxyLifecycleService, Server.Proxy.ProxyLifecycleService>();
 builder.Services.AddHostedService<Server.Proxy.ProxyRecoveryHostedService>();
 
 builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
@@ -217,6 +220,13 @@ builder.Services.AddAuthorization(options =>
         || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "observer")));
     options.AddPolicy("TunnelsManage", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
         context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
+    options.AddPolicy("ProxyRead", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim("role", "observer")
+        || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "observer")));
+    options.AddPolicy("ProxyManage", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
+    options.AddPolicy("ProxyDangerous", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
 });
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
@@ -352,8 +362,8 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelAudit, Server.Tunnels.TunnelAudit>();
-    builder.Services.AddScoped<Server.Proxy.IProxyProfileRepository, Server.Proxy.SqliteProxyProfileRepository>();
-    builder.Services.AddScoped<Server.Proxy.IProxyProfileService, Server.Proxy.ProxyProfileService>();
+    builder.Services.AddSingleton<Server.Proxy.IProxyProfileRepository, Server.Proxy.SqliteProxyProfileRepository>();
+    builder.Services.AddSingleton<Server.Proxy.IProxyProfileService, Server.Proxy.ProxyProfileService>();
     builder.Services.AddScoped<Server.Proxy.IProxyConfigurationTransactionService, Server.Proxy.ProxyConfigurationTransactionService>();
     builder.Services.AddScoped<Server.Proxy.IProxyConfigurationService, Server.Proxy.ProxyConfigurationService>();
 }
@@ -608,6 +618,7 @@ app.MapWebServerEndpoints();
 app.MapCertificateEndpoints();
 app.MapGitEndpoints();
 app.MapTunnelEndpoints();
+app.MapProxyEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

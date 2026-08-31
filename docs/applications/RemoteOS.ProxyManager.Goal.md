@@ -1,6 +1,6 @@
 # RemoteOS 代理管理器（Goal 执行版）
 
-> 状态：实施中（Goal 0–4 已完成；Goal 5 待实施）  
+> 状态：实施中（Goal 0–8 与 Goal 10 已实现；Goal 9 需要受控 Windows/Ubuntu 环境验证）
 > 建立日期：2026-08-31  
 > 适用范围：`.NET 10` Server、Avalonia Client、Windows / Windows Server / Ubuntu / Ubuntu Server  
 > 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](../../PROXY_IMPLEMENTATION_DISCOVERY.md)
@@ -198,6 +198,10 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 - **Client**：repository 路由/认证、本地化动态更新、命令重入/取消、权限禁用和异常状态呈现；不模拟 Controller 协议。
 
 ### 5.2 手工验证矩阵
+
+当前环境未执行的、需要特权和隔离网络的 Goal 5/9 平台测试，逐项记录在
+[`docs/testing/RemoteOS.ProxyManager.SkippedTests.md`](../testing/RemoteOS.ProxyManager.SkippedTests.md)。
+在该清单全部完成前，Proxy Manager 不得标为 V1 完成。
 
 | 场景 | 需要确认的结果 |
 |---|---|

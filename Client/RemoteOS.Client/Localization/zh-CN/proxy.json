@@ -1,0 +1,16 @@
+{
+  "Culture": "zh-CN",
+  "Strings": {
+    "proxy.title": "代理管理器",
+    "proxy.login_required": "请登录 RemoteOS Server 后再管理代理。",
+    "proxy.status.loading": "正在加载代理状态…",
+    "proxy.status.ready": "运行时：{0}；健康状态：{1}",
+    "proxy.status.recovery_required": "需要先恢复网络，才能执行其他 TUN 操作。",
+    "proxy.status.operation_queued": "操作已在服务器端排队。",
+    "proxy.status.failed": "代理请求失败：{0}",
+    "proxy.start": "启动",
+    "proxy.stop": "停止",
+    "proxy.restart": "重启",
+    "proxy.emergency_disable": "紧急禁用 TUN"
+  }
+}
