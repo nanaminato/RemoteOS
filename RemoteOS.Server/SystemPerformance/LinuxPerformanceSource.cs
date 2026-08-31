@@ -103,17 +103,46 @@ public sealed class LinuxPerformanceSource : ISystemPerformanceSource
     private static IReadOnlyList<DiskInfoDto> ReadDiskInfo()
     {
         var result = new List<DiskInfoDto>();
+        var rootFilesystemId = GetRootFilesystem() is { IsReady: true } root ? FilesystemId(root) : null;
+        var rootDevice = ReadMountDevice("/");
         try
         {
             foreach (var path in Directory.EnumerateDirectories("/sys/block"))
             {
                 var name = Path.GetFileName(path);
                 if (IsVirtualBlockDevice(name)) continue;
-                result.Add(new DiskInfoDto(DiskId(name), name, ReadText(Path.Combine(path, "device/model")), Array.Empty<string>()));
+                var filesystemIds = rootFilesystemId is not null && IsDeviceOnDisk(rootDevice, name)
+                    ? new[] { rootFilesystemId }
+                    : Array.Empty<string>();
+                result.Add(new DiskInfoDto(DiskId(name), name, ReadText(Path.Combine(path, "device/model")), filesystemIds));
             }
         }
         catch { }
         return result;
+    }
+
+    /// <summary>Maps the host root mount to its whole block device while ignoring virtual mount sources such as overlay.</summary>
+    private static string? ReadMountDevice(string mountPoint)
+    {
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/mounts"))
+            {
+                var fields = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (fields.Length >= 2 && string.Equals(fields[1], mountPoint, StringComparison.Ordinal)) return fields[0];
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static bool IsDeviceOnDisk(string? device, string diskName)
+    {
+        if (string.IsNullOrWhiteSpace(device)) return false;
+        var prefix = $"/dev/{diskName}";
+        if (!device.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        var suffix = device[prefix.Length..];
+        return suffix.Length == 0 || char.IsDigit(suffix[0]) || suffix[0] == 'p' && suffix.Length > 1 && char.IsDigit(suffix[1]);
     }
 
     private static IReadOnlyList<RawDiskCounters> ReadDiskCounters()
