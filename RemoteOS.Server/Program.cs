@@ -28,6 +28,19 @@ builder.Services.AddDataProtection();
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
 
+// Proxy Goal 2: a Server-only, loopback-only controller adapter. There is deliberately no
+// endpoint mapping or client registration until Goal 6, and no service/process management until Goal 3.
+var mihomoController = builder.Configuration.GetSection("Proxy:Mihomo:Controller").Get<Server.Proxy.Mihomo.MihomoControllerOptions>()
+    ?? new Server.Proxy.Mihomo.MihomoControllerOptions();
+mihomoController.Validate();
+builder.Services.AddSingleton(mihomoController);
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IProxyControllerSecretStore, Server.Proxy.Mihomo.DataProtectionProxyControllerSecretStore>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator, Server.Proxy.Mihomo.UnavailableMihomoConfigurationValidator>();
+builder.Services.AddHttpClient<Server.Proxy.Mihomo.IMihomoControllerClient, Server.Proxy.Mihomo.MihomoControllerClient>();
+builder.Services.AddSingleton<Server.Proxy.IProxyEngine, Server.Proxy.Mihomo.MihomoEngine>();
+builder.Services.AddSingleton<Server.Proxy.IProxyEngineRegistry, Server.Proxy.ProxyEngineRegistry>();
+builder.Services.AddSingleton<Server.Proxy.Platform.IProxyPrivilegedOperations, Server.Proxy.Platform.UnavailableProxyPrivilegedOperations>();
+
 builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
 var authSecurity = builder.Configuration.GetSection("AuthenticationSecurity").Get<AuthSecurityOptions>() ?? new AuthSecurityOptions();
 if (authSecurity.EndpointPermitLimit <= 0 || authSecurity.EndpointWindowSeconds <= 0

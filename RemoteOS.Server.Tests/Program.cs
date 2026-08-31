@@ -33,6 +33,7 @@ using Server.WebServer;
 using Server.ConfigurationRegistry;
 using RemoteOS.Protocol.Registry;
 using RemoteOS.Protocol.Proxy;
+using Server.Proxy.Mihomo;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -47,6 +48,7 @@ try
     await VerifyOperationIdempotencyAsync(root);
     VerifyTunnelProtocolContract();
     VerifyProxyProtocolContract();
+    await VerifyMihomoControllerSafetyAsync();
     VerifyFrpTomlSafety();
     await VerifyFrpRuntimeInstallAndRollbackAsync(root);
     await VerifyTunnelSecretLifecycleAsync(root);
@@ -269,6 +271,36 @@ static void VerifyProxyProtocolContract()
         .Select(field => field.GetRawConstantValue() as string ?? string.Empty).ToArray();
     Assert(codes.Length > 0 && codes.All(code => code.StartsWith("proxy.", StringComparison.Ordinal)
         && code == code.ToLowerInvariant() && code.Count(character => character == '.') == 1), "Proxy problem codes must be lower-case dotted values.");
+}
+
+static async Task VerifyMihomoControllerSafetyAsync()
+{
+    var publicBindingRejected = false;
+    try { _ = new MihomoControllerClient(new HttpClient(), new StaticProxySecretStore(), new MihomoControllerOptions { Endpoint = new Uri("http://198.51.100.9:9090") }); }
+    catch (InvalidOperationException) { publicBindingRejected = true; }
+    Assert(publicBindingRejected, "Public controller binding was accepted.");
+
+    string? authorization = null;
+    var handler = new DelegateHandler(async request =>
+    {
+        authorization = request.Headers.Authorization?.ToString();
+        var payload = request.RequestUri!.PathAndQuery switch
+        {
+            "/proxies" => "{\"proxies\":{\"AUTO\":{\"type\":\"Selector\",\"now\":\"node-a\",\"all\":[\"node-a\",\"node-b\"]}}}",
+            _ when request.RequestUri.PathAndQuery.StartsWith("/logs", StringComparison.Ordinal) => "[{\"time\":\"2026-08-31T00:00:00Z\",\"type\":\"info\",\"payload\":\"Authorization: Bearer controller-secret token=private-value\"}]",
+            _ => "{}",
+        };
+        await Task.CompletedTask;
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload, Encoding.UTF8, "application/json") };
+    });
+    var client = new MihomoControllerClient(new HttpClient(handler), new StaticProxySecretStore(), new MihomoControllerOptions { Endpoint = new Uri("http://127.0.0.1:9090/") });
+    var groups = await client.GetGroupsAsync(CancellationToken.None);
+    Assert(groups.Succeeded && groups.Value!.Single().Selected == "node-a", "Mihomo groups were not mapped to neutral contracts.");
+    var logs = await client.GetLogsAsync(10, CancellationToken.None);
+    var log = logs.Value?.Single();
+    Assert(logs.Succeeded && log is not null && !log.Message.Contains("controller-secret", StringComparison.Ordinal)
+        && !log.Message.Contains("private-value", StringComparison.Ordinal), "Mihomo controller logs were not sanitized.");
+    Assert(authorization == "Bearer controller-secret", "Controller secret was not kept in the Server-only authorization header.");
 }
 
 static void VerifyFrpTomlSafety()
@@ -760,6 +792,16 @@ sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
     }
+}
+
+sealed class StaticProxySecretStore : IProxyControllerSecretStore
+{
+    public Task<string> GetOrCreateAsync(CancellationToken cancellationToken) => Task.FromResult("controller-secret");
+}
+
+sealed class DelegateHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => handler(request);
 }
 
 sealed class TestHostEnvironment(string contentRoot) : IHostEnvironment

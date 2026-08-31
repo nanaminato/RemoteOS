@@ -1,0 +1,55 @@
+using RemoteOS.Protocol.Proxy;
+
+namespace Server.Proxy.Mihomo;
+
+/// <summary>First engine implementation. It exposes only neutral contracts and cannot be reached by a RemoteOS Client.</summary>
+public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConfigurationValidator validator) : IProxyEngine
+{
+    public const string Id = "mihomo";
+    public string EngineId => Id;
+
+    public Task<ProxyEngineCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ProxyEngineCapabilities(true, true, true, true, true, true));
+
+    public async Task<ProxyHealthDto> GetHealthAsync(CancellationToken cancellationToken)
+    {
+        var reachable = await controller.IsReachableAsync(cancellationToken);
+        return reachable
+            ? new(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true)
+            : new(ProxyRuntimeState.Degraded, ProxyTunState.Disabled, ProxyHealthState.Degraded, false, false, false, ProxyProblemCodes.ControllerUnavailable);
+    }
+
+    public Task<string?> ValidateConfigurationAsync(string configurationPath, CancellationToken cancellationToken) => validator.ValidateAsync(configurationPath, cancellationToken);
+    public Task<string?> ReloadAsync(CancellationToken cancellationToken) => controller.ReloadAsync(cancellationToken);
+    public async Task<IReadOnlyList<ProxyGroupDto>> GetGroupsAsync(CancellationToken cancellationToken)
+    {
+        var result = await controller.GetGroupsAsync(cancellationToken);
+        return result.Succeeded ? result.Value! : [];
+    }
+    public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => controller.SelectGroupAsync(groupName, proxyName, cancellationToken);
+    public async Task<IReadOnlyList<ProxyConnectionDto>> GetConnectionsAsync(CancellationToken cancellationToken)
+    {
+        var result = await controller.GetConnectionsAsync(cancellationToken);
+        return result.Succeeded ? result.Value! : [];
+    }
+    public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => controller.CloseConnectionAsync(connectionId, cancellationToken);
+    public async Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken)
+    {
+        var result = await controller.GetLogsAsync(limit, cancellationToken);
+        return result.Succeeded ? result.Value! : [];
+    }
+    public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => controller.GetDnsStatusAsync(cancellationToken);
+}
+
+/// <summary>Goal 3 supplies the service-owned implementation; Goal 2 deliberately has no CLI or shell fallback.</summary>
+public interface IMihomoConfigurationValidator
+{
+    Task<string?> ValidateAsync(string configurationPath, CancellationToken cancellationToken);
+}
+
+/// <summary>Safe pre-runtime default. Goal 3 replaces it with the native-service validator.</summary>
+public sealed class UnavailableMihomoConfigurationValidator : IMihomoConfigurationValidator
+{
+    public Task<string?> ValidateAsync(string configurationPath, CancellationToken cancellationToken) =>
+        Task.FromResult<string?>(ProxyProblemCodes.RuntimeNotInstalled);
+}

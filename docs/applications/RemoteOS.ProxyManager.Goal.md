@@ -129,6 +129,8 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 
 ### Goal 2：Mihomo Adapter 与本地 Controller 安全
 
+**状态**：已完成。`RemoteOS.Server/Proxy/Mihomo` 以本机 REST Controller 适配器、受保护 Controller secret、bounded/sanitized logs 和中性 DTO 映射实现；仅注册 Server DI，尚未开放 Endpoint 或 Client 访问。
+
 **工作**：实现 Server-only `MihomoEngine` 和 local-only Controller client，生成并以 Proxy-scoped SecretStore 保存 Controller secret；提供能力、状态、组/节点、选择、连接、关闭连接、受限日志、配置验证和 reload 映射。限制日志体积和保留时间，实施统一 sanitizer。必要时先使用 bounded REST；实时能力仅在有需求时复用既有 SignalR 合约。
 
 **验收**：Client 永不访问 `127.0.0.1:9090` 或其他 Controller 地址，Controller JSON 不离开 Server；Controller secret 未出现在任何序列化结果、日志或异常；Controller 不可用、未知字段、超时和不安全日志均返回稳定、安全结果；不新增 WebSocket/socket 框架。
