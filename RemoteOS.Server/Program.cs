@@ -46,6 +46,9 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManifest>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Proxy.Mihomo.MihomoRuntimeProbe>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.UnavailableProxyNetworkSafetyPlatform>();
+builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
+builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());
 
 builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
 var authSecurity = builder.Configuration.GetSection("AuthenticationSecurity").Get<AuthSecurityOptions>() ?? new AuthSecurityOptions();
@@ -348,6 +351,10 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelAudit, Server.Tunnels.TunnelAudit>();
+    builder.Services.AddScoped<Server.Proxy.IProxyProfileRepository, Server.Proxy.SqliteProxyProfileRepository>();
+    builder.Services.AddScoped<Server.Proxy.IProxyProfileService, Server.Proxy.ProxyProfileService>();
+    builder.Services.AddScoped<Server.Proxy.IProxyConfigurationTransactionService, Server.Proxy.ProxyConfigurationTransactionService>();
+    builder.Services.AddScoped<Server.Proxy.IProxyConfigurationService, Server.Proxy.ProxyConfigurationService>();
 }
 else
 {

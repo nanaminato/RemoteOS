@@ -49,6 +49,15 @@ public interface IProxyRecoveryService
     Task<ProxyRecoveryStatusDto> GetStatusAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>Server-only during Goal 5. No Endpoint or Client may invoke this boundary yet.</summary>
+public interface IProxyTunSafetyService : IProxyRecoveryService
+{
+    Task<string?> EnableAsync(Guid profileId, CancellationToken cancellationToken);
+    Task<string?> DisableAsync(CancellationToken cancellationToken);
+    Task<string?> EmergencyDisableAsync(CancellationToken cancellationToken);
+    Task<string?> EvaluateRecoveryAsync(CancellationToken cancellationToken);
+}
+
 /// <summary>Platform boundary only; it does not expose commands, passwords, or arbitrary paths.</summary>
 public interface IProxyPlatformService
 {

@@ -1,6 +1,6 @@
 # RemoteOS 代理管理器（Goal 执行版）
 
-> 状态：实施中（Goal 0–3 已完成；Goal 4 待实施）  
+> 状态：实施中（Goal 0–4 已完成；Goal 5 待实施）  
 > 建立日期：2026-08-31  
 > 适用范围：`.NET 10` Server、Avalonia Client、Windows / Windows Server / Ubuntu / Ubuntu Server  
 > 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](../../PROXY_IMPLEMENTATION_DISCOVERY.md)
@@ -144,6 +144,8 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 **验收**：不存在/非文件/不可执行/不匹配架构的 External 路径不会被接管；校验失败、归档穿越、超限、缺少二进制、锁定文件、启动超时和健康失败都不能激活新版本；升级失败保留 active/previous 工作版本；没有 shell 拼接、OS 密码收集或通用执行 API；Windows Defender 与防火墙未被修改。
 
 ### Goal 4：主机级 Profile 与配置事务
+
+**状态**：已完成。host-global schema v8 存储 Proxy Profile 元数据与配置审计引用，绝不使用 Workspace preferences；raw YAML 仅位于平台受保护目录。配置事务以全局串行锁执行临时写入、Engine 验证、备份、原子提交、reload/health check，并在失败时恢复最后一个工作 YAML；无法恢复则返回 `proxy.recovery_required`。Endpoint/UI 仍未暴露 raw YAML。
 
 **工作**：实现 Proxy metadata/repository、活动 Profile、raw YAML 受保护读写、Managed overlay、配置验证、临时写、备份、原子提交、reload/restart、健康检查和回滚。Profile 删除 active 项时阻止或要求先显式切换；V1 不提供完整结构化 YAML 编辑器。订阅仅在其 SecretStore、授权、更新/失败策略完成后纳入，不能以明文 URL/token 作为普通 Profile 字段。
 

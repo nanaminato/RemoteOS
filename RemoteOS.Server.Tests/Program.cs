@@ -45,6 +45,9 @@ try
     VerifyCertificateApiRoutes();
     await VerifyRenewalRetryAsync(root);
     await VerifyHostGlobalMigrationAsync(root);
+    await VerifyProxyHostProfileRepositoryAsync(root);
+    await VerifyProxyConfigurationTransactionAsync(root);
+    await VerifyProxyTunSafetyAsync(root);
     await VerifyDeploymentAndNginxSnapshotsAsync(root);
     await VerifyWebServerProviderRoutingAsync();
     await VerifyOperationIdempotencyAsync(root);
@@ -588,7 +591,56 @@ static async Task VerifyHostGlobalMigrationAsync(string root)
     await connection.OpenAsync();
     await using var command = connection.CreateCommand();
     command.CommandText = "SELECT MAX(version) FROM remoteos_host_schema_migrations;";
-    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 7, "HostGlobal migrations did not reach the expected version.");
+    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 8, "HostGlobal migrations did not reach the expected version.");
+    command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_profiles');";
+    Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy profile metadata table was not migrated.");
+}
+
+static async Task VerifyProxyHostProfileRepositoryAsync(string root)
+{
+    var databasePath = Path.Combine(root, "proxy-profiles.db");
+    await HostGlobalMigrationRunner.MigrateAsync($"Data Source={databasePath}", CancellationToken.None);
+    var repository = new SqliteProxyProfileRepository(new TestHostEnvironment(root), Options.Create(new StorageOptions { DatabasePath = databasePath }));
+    var first = await repository.UpsertAsync(null, "Primary", MihomoEngine.Id, null, CancellationToken.None);
+    var second = await repository.UpsertAsync(null, "Fallback", MihomoEngine.Id, null, CancellationToken.None);
+    var active = await repository.SetActiveAsync(first.Id, CancellationToken.None);
+    Assert(active?.IsActive == true && (await repository.ListAsync(CancellationToken.None)).Count == 2, "Host-global Proxy profiles were not persisted.");
+    Assert(!await repository.DeleteAsync(first.Id, CancellationToken.None), "The active Proxy profile was deleted without an explicit switch.");
+    Assert(await repository.SetActiveAsync(second.Id, CancellationToken.None) is { IsActive: true } && await repository.DeleteAsync(first.Id, CancellationToken.None),
+        "Switching the active Proxy profile did not allow the previous profile to be deleted.");
+}
+
+static async Task VerifyProxyConfigurationTransactionAsync(string root)
+{
+    var databasePath = Path.Combine(root, "proxy-configuration.db");
+    await HostGlobalMigrationRunner.MigrateAsync($"Data Source={databasePath}", CancellationToken.None);
+    var profiles = new SqliteProxyProfileRepository(new TestHostEnvironment(root), Options.Create(new StorageOptions { DatabasePath = databasePath }));
+    var profile = await profiles.UpsertAsync(null, "Transaction", MihomoEngine.Id, null, CancellationToken.None);
+    var engine = new TransactionTestEngine();
+    var paths = new TestProxyPaths(Path.Combine(root, "proxy-configuration-files"));
+    var service = new ProxyConfigurationTransactionService(paths, new ProxyEngineRegistry([engine]), profiles);
+    Assert(await service.ApplyAsync(profile.Id, "mode: rule\n", CancellationToken.None) is null, "Valid Proxy YAML was not applied.");
+    engine.FailNextReload = true;
+    Assert(await service.ApplyAsync(profile.Id, "mode: global\n", CancellationToken.None) == ProxyProblemCodes.ConfigApplyFailed,
+        "Failed reload did not report a transactional apply failure.");
+    var active = await File.ReadAllTextAsync(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"));
+    Assert(active == "mode: rule\n", "Failed Proxy configuration apply did not restore the last working YAML.");
+}
+
+static async Task VerifyProxyTunSafetyAsync(string root)
+{
+    var platform = new TestProxyNetworkSafetyPlatform { SnapshotSafe = true };
+    var service = new ProxyTunSafetyService(new TestProxyPaths(Path.Combine(root, "proxy-tun")), platform);
+    Assert(await service.EnableAsync(Guid.NewGuid(), CancellationToken.None) is null, "TUN safety transaction rejected a safe management route.");
+    Assert((await service.GetStatusAsync(CancellationToken.None)).HasRecoveryMarker, "TUN marker was not durable before network activation.");
+    Assert(await service.EmergencyDisableAsync(CancellationToken.None) is null && platform.RestoreCount == 1,
+        "Emergency TUN disable did not restore the captured management route.");
+    platform.SnapshotSafe = false;
+    Assert(await service.EnableAsync(Guid.NewGuid(), CancellationToken.None) == ProxyProblemCodes.ManagementRouteUnsafe && platform.ApplyCount == 1,
+        "An unsafe management route was allowed to change the network.");
+    platform.SnapshotSafe = true; platform.ApplySucceeds = false;
+    Assert(await service.EnableAsync(Guid.NewGuid(), CancellationToken.None) == ProxyProblemCodes.TunActivationFailed && !(await service.GetStatusAsync(CancellationToken.None)).HasRecoveryMarker,
+        "Failed TUN activation did not rollback and clear its marker.");
 }
 
 static async Task VerifyDeploymentAndNginxSnapshotsAsync(string root)
@@ -899,6 +951,26 @@ sealed class TestProxyPrivilegedOperations : IProxyPrivilegedOperations
     public Task<ProxyPrivilegedResult> WriteProtectedConfigurationAsync(WriteProxyConfigurationOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> RestoreNetworkConfigurationAsync(RestoreProxyNetworkOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> RepairServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+}
+
+sealed class TransactionTestEngine : IProxyEngine
+{
+    public string EngineId => MihomoEngine.Id;
+    public bool FailNextReload { get; set; }
+    public Task<ProxyEngineCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyEngineCapabilities(true, true, false, false, false, false));
+    public Task<ProxyHealthDto> GetHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyHealthDto(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true));
+    public Task<string?> ValidateConfigurationAsync(string configurationPath, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<string?> ReloadAsync(CancellationToken cancellationToken)
+    {
+        var failed = FailNextReload; FailNextReload = false;
+        return Task.FromResult<string?>(failed ? ProxyProblemCodes.ControllerUnavailable : null);
+    }
+    public Task<IReadOnlyList<ProxyGroupDto>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyGroupDto>>([]);
+    public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
+    public Task<IReadOnlyList<ProxyConnectionDto>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyConnectionDto>>([]);
+    public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
+    public Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyLogEntryDto>>([]);
+    public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
 }
 
 sealed class DelegateHandler(Func<HttpRequestMessage, Task<HttpResponseMessage>> handler) : HttpMessageHandler

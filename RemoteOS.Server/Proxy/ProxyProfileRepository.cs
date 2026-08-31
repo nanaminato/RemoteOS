@@ -11,6 +11,7 @@ public interface IProxyProfileRepository
     Task<IReadOnlyList<ProxyProfileDto>> ListAsync(CancellationToken cancellationToken);
     Task<ProxyProfileDto?> GetAsync(Guid id, CancellationToken cancellationToken);
     Task<ProxyProfileDto> UpsertAsync(Guid? id, string name, string engineId, long? expectedRevision, CancellationToken cancellationToken);
+    Task<ProxyProfileDto?> SetActiveAsync(Guid id, CancellationToken cancellationToken);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
 }
 
@@ -59,6 +60,13 @@ public sealed class SqliteProxyProfileRepository(IHostEnvironment environment, I
         await using var connection = await OpenAsync(cancellationToken); await using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM proxy_profiles WHERE profile_id=$id AND is_active=0;"; command.Parameters.AddWithValue("$id", id.ToString("D"));
         return await command.ExecuteNonQueryAsync(cancellationToken) != 0;
+    }
+    public async Task<ProxyProfileDto?> SetActiveAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken); await using var transaction = connection.BeginTransaction();
+        await using (var clear = connection.CreateCommand()) { clear.Transaction = transaction; clear.CommandText = "UPDATE proxy_profiles SET is_active=0 WHERE is_active=1;"; await clear.ExecuteNonQueryAsync(cancellationToken); }
+        await using (var activate = connection.CreateCommand()) { activate.Transaction = transaction; activate.CommandText = "UPDATE proxy_profiles SET is_active=1,revision=revision+1,updated_at=$updated WHERE profile_id=$id;"; activate.Parameters.AddWithValue("$id", id.ToString("D")); activate.Parameters.AddWithValue("$updated", DateTimeOffset.UtcNow.ToString("O")); if (await activate.ExecuteNonQueryAsync(cancellationToken) == 0) { transaction.Rollback(); return null; } }
+        transaction.Commit(); return await GetAsync(id, cancellationToken);
     }
     private async Task<SqliteConnection> OpenAsync(CancellationToken cancellationToken) { var connection = new SqliteConnection(_connectionString); await connection.OpenAsync(cancellationToken); return connection; }
     private static async Task<ProxyProfileDto?> GetForUpdateAsync(SqliteConnection connection, SqliteTransaction transaction, Guid id, CancellationToken cancellationToken)
