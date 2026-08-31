@@ -31,7 +31,7 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new ProxyManagerViewModel(repository, context.Permissions.IsGranted(AppPermissions.ServerProxyManage), context.Permissions.IsGranted(AppPermissions.ServerProxyTunManage));
         var window = context.ShowWindow(LocalizedText.Get("proxy.title"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
-        vm.RequestServerRuntimePackageAsync = async () =>
+        vm.SetServerRuntimePackageRequest(async () =>
         {
             if (files is null) return null;
             return await context.ShowDialogAsync<string?>(window, LocalizedText.Get("proxy.runtime.select_server_package"), dialog =>
@@ -45,7 +45,7 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
                 _ = picker.LoadRootAsync();
                 return new ExplorerMainView { DataContext = picker };
             }, new RemoteOS.Core.Primitives.Size(720, 520));
-        };
+        });
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
         context.WindowManager.WindowClosed += closed; _ = vm.StartAsync();

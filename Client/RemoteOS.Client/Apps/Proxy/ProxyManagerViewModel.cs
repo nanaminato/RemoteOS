@@ -27,6 +27,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
 
+    public void SetServerRuntimePackageRequest(Func<Task<string?>>? request)
+    {
+        RequestServerRuntimePackageAsync = request;
+        InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
+    }
+
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
     public string RuntimeState => Runtime?.State.ToString() ?? "—";
@@ -70,11 +76,11 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         finally { IsBusy = false; }
     }
 
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task StartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Start);
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task RestartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Restart);
+    [RelayCommand(CanExecute = nameof(CanStartProxy))] private Task StartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Start);
+    [RelayCommand(CanExecute = nameof(CanStopProxy))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
+    [RelayCommand(CanExecute = nameof(CanRestartProxy))] private Task RestartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Restart);
     [RelayCommand(CanExecute = nameof(CanManage))] private Task InstallRuntimeAsync() => QueueAsync(() => repository.InstallRuntimeAsync(Overview?.EngineId ?? "mihomo"));
-    [RelayCommand(CanExecute = nameof(CanManage))]
+    [RelayCommand(CanExecute = nameof(CanInstallRuntimeFromServerFile))]
     private async Task InstallRuntimeFromServerFileAsync()
     {
         if (RequestServerRuntimePackageAsync is not { } requestPackage) return;
@@ -173,13 +179,38 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private async Task LifecycleAsync(ProxyLifecycleAction action) => await QueueAsync(() => repository.LifecycleAsync(action));
     private async Task QueueAsync(Func<Task<ProxyOperationAcceptedDto>> operation)
     {
-        try { IsBusy = true; await operation(); StatusText = LocalizedText.Get("proxy.status.operation_queued"); }
+        try
+        {
+            IsBusy = true;
+            var accepted = await operation();
+            await TrackOperationAsync(accepted.OperationId);
+        }
         catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
         finally { IsBusy = false; }
     }
 
+    private async Task TrackOperationAsync(Guid operationId)
+    {
+        while (true)
+        {
+            var operation = await repository.GetOperationAsync(operationId);
+            if (operation is null) { StatusText = LocalizedText.Get("proxy.status.operation_unavailable"); return; }
+            StatusText = FormatOperation(operation);
+            if (operation.State is ProxyOperationState.Succeeded or ProxyOperationState.Failed or ProxyOperationState.Cancelled or ProxyOperationState.Interrupted)
+            {
+                if (operation.State == ProxyOperationState.Succeeded) await RefreshAsync();
+                return;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+    }
+
     private bool CanRefresh => !IsBusy;
     private bool CanManage => canManage && !IsBusy;
+    private bool CanStartProxy => CanManage && Runtime?.State == ProxyRuntimeState.Stopped;
+    private bool CanStopProxy => CanManage && Runtime?.State == ProxyRuntimeState.Running;
+    private bool CanRestartProxy => CanManage && Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
+    private bool CanInstallRuntimeFromServerFile => CanManage && RequestServerRuntimePackageAsync is not null;
     private bool CanTun => canManageTun && !IsBusy && IsTunAvailable;
     private bool CanEnableTun => CanTun && SelectedProfile is not null;
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
@@ -189,6 +220,10 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
+    partial void OnRuntimeChanged(ProxyRuntimeDto? value)
+    {
+        StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
+    }
     partial void OnSelectedGroupChanged(ProxyGroupDto? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
     partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
     partial void OnSelectedConnectionChanged(ProxyConnectionDto? value) => CloseConnectionCommand.NotifyCanExecuteChanged();
@@ -214,6 +249,14 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         // Controller-specific pages simply remain empty until a runtime is healthy.
         catch (ProxyRequestException) { }
         catch (HttpRequestException) { }
+    }
+    private static string FormatOperation(ProxyOperationDto operation)
+    {
+        if (operation.State is ProxyOperationState.Failed or ProxyOperationState.Interrupted)
+            return LocalizedText.Format("proxy.status.failed", operation.ProblemCode);
+        var key = "proxy.operation." + operation.Stage;
+        var stage = LocalizedText.Get(key);
+        return stage == key ? operation.Stage : stage;
     }
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }
 }

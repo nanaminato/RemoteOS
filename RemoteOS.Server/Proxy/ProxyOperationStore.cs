@@ -3,6 +3,8 @@ using RemoteOS.Protocol.Proxy;
 
 namespace Server.Proxy;
 
+public delegate Task ProxyOperationStageReporter(string stage);
+
 /// <summary>
 /// Durable, host-global operation ledger for typed Proxy mutations.  It queues delegates supplied
 /// by domain services only; it is deliberately not a generic command executor.
@@ -14,7 +16,7 @@ public sealed class ProxyOperationStore(IProxyPlatformPaths paths, ILogger<Proxy
     private readonly Dictionary<Guid, ProxyOperationDto> _byId = [];
     private bool _loaded;
 
-    public async Task<ProxyOperationDto> EnqueueAsync(string idempotencyKey, string kind, Func<CancellationToken, Task<string?>> operation, CancellationToken cancellationToken)
+    public async Task<ProxyOperationDto> EnqueueAsync(string idempotencyKey, string kind, Func<ProxyOperationStageReporter, CancellationToken, Task<string?>> operation, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 200)
             throw new ProxyOperationValidationException(ProxyProblemCodes.IdempotencyKeyRequired);
@@ -41,12 +43,12 @@ public sealed class ProxyOperationStore(IProxyPlatformPaths paths, ILogger<Proxy
         finally { _gate.Release(); }
     }
 
-    private async Task ExecuteAsync(Guid id, Func<CancellationToken, Task<string?>> operation)
+    private async Task ExecuteAsync(Guid id, Func<ProxyOperationStageReporter, CancellationToken, Task<string?>> operation)
     {
         try
         {
             await UpdateAsync(id, item => item with { State = ProxyOperationState.Running, Stage = "running", StartedAt = DateTimeOffset.UtcNow });
-            var problem = await operation(CancellationToken.None);
+            var problem = await operation(stage => UpdateAsync(id, item => item with { Stage = stage }), CancellationToken.None);
             await UpdateAsync(id, item => item with
             {
                 State = string.IsNullOrEmpty(problem) ? ProxyOperationState.Succeeded : ProxyOperationState.Failed,

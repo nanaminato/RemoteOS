@@ -7,6 +7,7 @@
     "proxy.status.ready": "Runtime: {0}; health: {1}",
     "proxy.status.recovery_required": "Network recovery is required before another TUN action.",
     "proxy.status.operation_queued": "The operation was queued on the Server.",
+    "proxy.status.operation_unavailable": "The Server operation status is unavailable.",
     "proxy.status.failed": "Proxy request failed: {0}",
     "proxy.start": "Start",
     "proxy.stop": "Stop",
@@ -72,6 +73,18 @@
     "proxy.status.profile_activated": "Profile {0} is now active.",
     "proxy.status.profile_deleted": "Profile {0} was deleted.",
     "proxy.status.node_selected": "Selected proxy: {0}",
-    "proxy.status.connection_closed": "The connection was closed."
+    "proxy.status.connection_closed": "The connection was closed.",
+    "proxy.operation.queued": "Operation is queued…",
+    "proxy.operation.running": "Starting operation…",
+    "proxy.operation.preparing": "Preparing installation…",
+    "proxy.operation.downloading": "Downloading the Mihomo package…",
+    "proxy.operation.copying": "Copying the Mihomo package from the Server…",
+    "proxy.operation.verifying": "Verifying the package…",
+    "proxy.operation.extracting": "Extracting Mihomo…",
+    "proxy.operation.checking": "Checking the Mihomo runtime…",
+    "proxy.operation.activating": "Activating the Mihomo runtime…",
+    "proxy.operation.installing_service": "Installing the Mihomo service…",
+    "proxy.operation.starting": "Starting the Mihomo service…",
+    "proxy.operation.completed": "Mihomo installation completed."
   }
 }

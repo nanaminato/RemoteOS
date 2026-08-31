@@ -49,16 +49,30 @@ public sealed class MihomoRuntimeManager(
     }
 
     public Task<ProxyRuntimeDto> InstallManagedAsync(string engineId, string? version, CancellationToken cancellationToken) =>
+        InstallManagedAsync(engineId, version, null, cancellationToken);
+
+    public Task<ProxyRuntimeDto> InstallManagedAsync(string engineId, string? version, Func<string, Task>? stageReporter, CancellationToken cancellationToken) =>
         engineId != MihomoEngine.Id
             ? Task.FromResult(Unsupported(engineId))
-            : InstallManagedCoreAsync(version, DownloadAndVerifyAsync, cancellationToken);
+            : InstallManagedCoreAsync(version, async (release, destination, token) =>
+            {
+                await ReportStageAsync(stageReporter, "downloading");
+                await DownloadAndVerifyAsync(release, destination, token);
+            }, stageReporter, cancellationToken);
 
     public Task<ProxyRuntimeDto> InstallManagedFromArchiveAsync(string engineId, string? version, string archivePath, CancellationToken cancellationToken) =>
+        InstallManagedFromArchiveAsync(engineId, version, archivePath, null, cancellationToken);
+
+    public Task<ProxyRuntimeDto> InstallManagedFromArchiveAsync(string engineId, string? version, string archivePath, Func<string, Task>? stageReporter, CancellationToken cancellationToken) =>
         engineId != MihomoEngine.Id
             ? Task.FromResult(Unsupported(engineId))
-            : InstallManagedCoreAsync(version, (release, destination, token) => CopyAndVerifyArchiveAsync(release, archivePath, destination, token), cancellationToken);
+            : InstallManagedCoreAsync(version, async (release, destination, token) =>
+            {
+                await ReportStageAsync(stageReporter, "copying");
+                await CopyAndVerifyArchiveAsync(release, archivePath, destination, token);
+            }, stageReporter, cancellationToken);
 
-    private async Task<ProxyRuntimeDto> InstallManagedCoreAsync(string? version, Func<MihomoRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, CancellationToken cancellationToken)
+    private async Task<ProxyRuntimeDto> InstallManagedCoreAsync(string? version, Func<MihomoRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, Func<string, Task>? stageReporter, CancellationToken cancellationToken)
     {
         var release = manifest.Find(version);
         if (release is null)
@@ -68,16 +82,19 @@ public sealed class MihomoRuntimeManager(
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            await ReportStageAsync(stageReporter, "preparing");
             var before = await ReadStateAsync(cancellationToken);
             var finalDirectory = VersionDirectory(release.Version);
             try
             {
                 if (!Directory.Exists(finalDirectory))
-                    await StageAndInstallReleaseAsync(release, finalDirectory, stageArchiveAsync, cancellationToken);
+                    await StageAndInstallReleaseAsync(release, finalDirectory, stageArchiveAsync, stageReporter, cancellationToken);
 
+                await ReportStageAsync(stageReporter, "checking");
                 if (await probe.GetVersionAsync(ExecutablePath(release.Version), cancellationToken) is null)
                     return Failure(before, ProxyProblemCodes.RuntimeHealthCheckFailed);
 
+                await ReportStageAsync(stageReporter, "activating");
                 var runtimeOperation = before?.ActiveVersion is { Length: > 0 }
                     ? await privileged.ReplaceRuntimeAsync(new ReplaceProxyRuntimeOperation(MihomoEngine.Id, release.Version, ReleaseDirectoryId(release.Version)), cancellationToken)
                     : await privileged.InstallRuntimeAsync(new InstallProxyRuntimeOperation(MihomoEngine.Id, release.Version, ReleaseDirectoryId(release.Version)), cancellationToken);
@@ -90,16 +107,19 @@ public sealed class MihomoRuntimeManager(
 
                 if (before?.ActiveVersion is null)
                 {
+                    await ReportStageAsync(stageReporter, "installing_service");
                     var installService = await privileged.InstallServiceAsync(new InstallProxyServiceOperation(MihomoEngine.Id, ServiceName, ServiceConfigurationId), cancellationToken);
                     if (!installService.Succeeded) return await RestorePreviousAsync(before, release.Version, installService.ProblemCode, cancellationToken);
                 }
 
+                await ReportStageAsync(stageReporter, "starting");
                 var start = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
                 if (!start.Succeeded) return await RestorePreviousAsync(before, release.Version, start.ProblemCode, cancellationToken);
                 if (!await controller.IsReachableAsync(cancellationToken))
                     return await RestorePreviousAsync(before, release.Version, ProxyProblemCodes.RuntimeHealthCheckFailed, cancellationToken);
 
                 await WriteStateAsync(new RuntimeState(release.Version, before?.ActiveVersion, DateTimeOffset.UtcNow), cancellationToken);
+                await ReportStageAsync(stageReporter, "completed");
                 return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, release.Version, before?.ActiveVersion, true, false);
             }
             catch (RuntimeInstallException exception) { return Failure(before, exception.ProblemCode); }
@@ -149,7 +169,7 @@ public sealed class MihomoRuntimeManager(
         finally { _gate.Release(); }
     }
 
-    private async Task StageAndInstallReleaseAsync(MihomoRuntimeRelease release, string finalDirectory, Func<MihomoRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, CancellationToken cancellationToken)
+    private async Task StageAndInstallReleaseAsync(MihomoRuntimeRelease release, string finalDirectory, Func<MihomoRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, Func<string, Task>? stageReporter, CancellationToken cancellationToken)
     {
         var stagingRoot = Path.Combine(Path.GetTempPath(), "remoteos-mihomo-" + Guid.NewGuid().ToString("N"));
         var archive = Path.Combine(stagingRoot, "runtime." + release.ArchiveFormat);
@@ -158,6 +178,8 @@ public sealed class MihomoRuntimeManager(
         {
             Directory.CreateDirectory(stagingRoot);
             await stageArchiveAsync(release, archive, cancellationToken);
+            await ReportStageAsync(stageReporter, "verifying");
+            await ReportStageAsync(stageReporter, "extracting");
             await ExtractExpectedBinaryAsync(release, archive, staging, cancellationToken);
             if (!HasExpectedArchitecture(Path.Combine(staging, BinaryName())) || await probe.GetVersionAsync(Path.Combine(staging, BinaryName()), cancellationToken) is null)
                 throw new RuntimeInstallException(ProxyProblemCodes.RuntimeHealthCheckFailed);
@@ -371,6 +393,12 @@ public sealed class MihomoRuntimeManager(
             total += read; if (total > MihomoRuntimeManifest.MaximumArchiveBytes) throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
             await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
+    }
+    private static async Task ReportStageAsync(Func<string, Task>? stageReporter, string stage)
+    {
+        if (stageReporter is null) return;
+        try { await stageReporter(stage); }
+        catch { /* Progress reporting must never interrupt a runtime installation. */ }
     }
     private static void MakePrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void MakePrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }

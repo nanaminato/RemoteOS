@@ -11,6 +11,7 @@ public interface IProxyRepository
     Task<IReadOnlyList<ProxyLogEntryDto>> ListLogsAsync(int limit = 200, CancellationToken cancellationToken = default);
     Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken = default);
     Task<ProxyRuntimeDto> GetRuntimeAsync(CancellationToken cancellationToken = default);
+    Task<ProxyOperationDto?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken = default);
     Task<ProxyOperationAcceptedDto> LifecycleAsync(ProxyLifecycleAction action, CancellationToken cancellationToken = default);
     Task<ProxyOperationAcceptedDto> InstallRuntimeAsync(string engineId, string? version = null, CancellationToken cancellationToken = default);
     Task<ProxyOperationAcceptedDto> InstallRuntimeFromServerFileAsync(string engineId, string archivePath, string? version = null, CancellationToken cancellationToken = default);

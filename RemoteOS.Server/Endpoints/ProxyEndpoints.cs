@@ -16,16 +16,16 @@ public static class ProxyEndpoints
             .RequireAuthorization("ProxyManage").WithTags("Proxy");
 
         app.MapPost(ProxyApiRoutes.RuntimeInstall, (ProxyRuntimeRequest request, HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "runtime.install", async (actor, token) =>
+            QueueAsync(context, operations, "runtime.install", async (actor, reportStage, token) =>
             {
-                var result = await runtime.InstallManagedAsync(request.EngineId, request.Version, token);
+                var result = await runtime.InstallManagedAsync(request.EngineId, request.Version, stage => reportStage(stage), token);
                 await audit.RecordAsync(actor, "runtime.install", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.RuntimeInstallFromFile, (InstallProxyRuntimeFromFileRequest request, HttpContext context, ProxyOperationStore operations, IProxyRuntimeManager runtime, ProxyAuditStore audit, CancellationToken ct) =>
-            QueueAsync(context, operations, "runtime.install_from_file", async (actor, token) =>
+            QueueAsync(context, operations, "runtime.install_from_file", async (actor, reportStage, token) =>
             {
-                var result = await runtime.InstallManagedFromArchiveAsync(request.EngineId, request.Version, request.ArchivePath, token);
+                var result = await runtime.InstallManagedFromArchiveAsync(request.EngineId, request.Version, request.ArchivePath, stage => reportStage(stage), token);
                 await audit.RecordAsync(actor, "runtime.install_from_file", string.IsNullOrEmpty(result.ProblemCode) ? "succeeded" : "failed", result.ProblemCode, token);
                 return result.ProblemCode;
             }, ct)).RequireAuthorization("ProxyDangerous").WithTags("Proxy");
@@ -121,10 +121,13 @@ public static class ProxyEndpoints
     }
 
     private static async Task<IResult> QueueAsync(HttpContext context, ProxyOperationStore store, string kind, Func<string, CancellationToken, Task<string?>> action, CancellationToken ct)
+        => await QueueAsync(context, store, kind, (actor, _, token) => action(actor, token), ct);
+
+    private static async Task<IResult> QueueAsync(HttpContext context, ProxyOperationStore store, string kind, Func<string, ProxyOperationStageReporter, CancellationToken, Task<string?>> action, CancellationToken ct)
     {
         var actor = Actor(context.User);
         var idempotencyKey = context.Request.Headers["Idempotency-Key"].ToString();
-        try { var item = await store.EnqueueAsync(idempotencyKey, kind, token => action(actor, token), ct); return Results.Accepted(ProxyApiRoutes.Proxy + "/operations/" + item.OperationId, new ProxyOperationAcceptedDto(item.OperationId)); }
+        try { var item = await store.EnqueueAsync(idempotencyKey, kind, (reportStage, token) => action(actor, reportStage, token), ct); return Results.Accepted(ProxyApiRoutes.Proxy + "/operations/" + item.OperationId, new ProxyOperationAcceptedDto(item.OperationId)); }
         catch (ProxyOperationValidationException error) { return Problem(error.ProblemCode, StatusCodes.Status400BadRequest); }
     }
     private static string Route(string pattern) => ProxyApiRoutes.Proxy + pattern;
