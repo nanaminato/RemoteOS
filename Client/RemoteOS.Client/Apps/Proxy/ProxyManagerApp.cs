@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
