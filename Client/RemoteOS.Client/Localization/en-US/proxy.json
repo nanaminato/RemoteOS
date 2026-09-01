@@ -61,6 +61,8 @@
     "proxy.message": "Message",
     "proxy.runtime_settings": "Runtime settings",
     "proxy.runtime_state": "Runtime state",
+    "proxy.runtime_install_success": "Installed successfully",
+    "proxy.runtime.available_version": "Available · {0}",
     "proxy.runtime_install": "Install managed runtime",
     "proxy.runtime_install_from_server_file": "Install from server file",
     "proxy.runtime_server_file_hint": "Choose a Mihomo archive already on the RemoteOS Server that matches the trusted current release.",

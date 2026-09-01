@@ -61,6 +61,8 @@
     "proxy.message": "消息",
     "proxy.runtime_settings": "运行时设置",
     "proxy.runtime_state": "运行时状态",
+    "proxy.runtime_install_success": "安装成功",
+    "proxy.runtime.available_version": "可用 · {0}",
     "proxy.runtime_install": "安装托管运行时",
     "proxy.runtime_install_from_server_file": "从服务器文件安装",
     "proxy.runtime_server_file_hint": "选择已经存放在 RemoteOS Server 上、且与当前受信任版本匹配的 Mihomo 压缩包。",

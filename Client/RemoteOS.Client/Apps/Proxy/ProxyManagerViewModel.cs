@@ -36,6 +36,10 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
     public string RuntimeState => Runtime?.State.ToString() ?? "—";
+    public bool RuntimeIsInstalled => Runtime is { Mode: ProxyRuntimeMode.Managed, IntegrityVerified: true };
+    public bool RuntimeIsNotInstalled => !RuntimeIsInstalled;
+    public string RuntimeInstalledVersion => Runtime?.Version ?? "—";
+    public string RuntimeAvailableVersion => LocalizedText.Format("proxy.runtime.available_version", RuntimeInstalledVersion);
     public string HealthState => Overview?.Health.State.ToString() ?? "—";
     public string TunState => Overview?.Health.TunState.ToString() ?? "—";
     public string DnsState => DnsStatus is { Enabled: true }
@@ -79,7 +83,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [RelayCommand(CanExecute = nameof(CanStartProxy))] private Task StartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Start);
     [RelayCommand(CanExecute = nameof(CanStopProxy))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
     [RelayCommand(CanExecute = nameof(CanRestartProxy))] private Task RestartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Restart);
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task InstallRuntimeAsync() => QueueAsync(() => repository.InstallRuntimeAsync(Overview?.EngineId ?? "mihomo"));
+    [RelayCommand(CanExecute = nameof(CanInstallRuntime))] private Task InstallRuntimeAsync() => QueueAsync(() => repository.InstallRuntimeAsync(Overview?.EngineId ?? "mihomo"));
     [RelayCommand(CanExecute = nameof(CanInstallRuntimeFromServerFile))]
     private async Task InstallRuntimeFromServerFileAsync()
     {
@@ -88,8 +92,8 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         if (!string.IsNullOrWhiteSpace(archivePath))
             await QueueAsync(() => repository.InstallRuntimeFromServerFileAsync(Overview?.EngineId ?? "mihomo", archivePath));
     }
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task RollbackRuntimeAsync() => QueueAsync(() => repository.RollbackRuntimeAsync());
-    [RelayCommand(CanExecute = nameof(CanManage))] private Task UninstallRuntimeAsync() => QueueAsync(() => repository.UninstallRuntimeAsync());
+    [RelayCommand(CanExecute = nameof(CanInstalledRuntime))] private Task RollbackRuntimeAsync() => QueueAsync(() => repository.RollbackRuntimeAsync());
+    [RelayCommand(CanExecute = nameof(CanInstalledRuntime))] private Task UninstallRuntimeAsync() => QueueAsync(() => repository.UninstallRuntimeAsync());
     [RelayCommand(CanExecute = nameof(CanEnableTun))] private Task EnableTunAsync() => QueueAsync(() => repository.EnableTunAsync(SelectedProfile!.Id));
     [RelayCommand(CanExecute = nameof(CanTun))] private Task DisableTunAsync() => QueueAsync(() => repository.DisableTunAsync());
     [RelayCommand(CanExecute = nameof(CanTun))] private Task EmergencyDisableAsync() => QueueAsync(() => repository.EmergencyDisableTunAsync());
@@ -208,10 +212,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     private bool CanRefresh => !IsBusy;
     private bool CanManage => canManage && !IsBusy;
+    private bool CanInstallRuntime => CanManage && RuntimeIsNotInstalled;
+    private bool CanInstalledRuntime => CanManage && RuntimeIsInstalled;
     private bool CanStartProxy => CanManage && Runtime?.State == ProxyRuntimeState.Stopped;
     private bool CanStopProxy => CanManage && Runtime?.State == ProxyRuntimeState.Running;
     private bool CanRestartProxy => CanManage && Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
-    private bool CanInstallRuntimeFromServerFile => CanManage && RequestServerRuntimePackageAsync is not null;
+    private bool CanInstallRuntimeFromServerFile => CanInstallRuntime && RequestServerRuntimePackageAsync is not null;
     private bool CanTun => canManageTun && !IsBusy && IsTunAvailable;
     private bool CanEnableTun => CanTun && SelectedProfile is not null;
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
@@ -223,7 +229,11 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
     partial void OnRuntimeChanged(ProxyRuntimeDto? value)
     {
+        OnPropertyChanged(nameof(RuntimeIsInstalled)); OnPropertyChanged(nameof(RuntimeIsNotInstalled));
+        OnPropertyChanged(nameof(RuntimeInstalledVersion)); OnPropertyChanged(nameof(RuntimeAvailableVersion));
         StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
+        InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
+        RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
     }
     partial void OnSelectedGroupChanged(ProxyGroupDto? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
     partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
@@ -240,7 +250,8 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     }
     private void RaiseSummaryProperties()
     {
-        OnPropertyChanged(nameof(RuntimeVersion)); OnPropertyChanged(nameof(RuntimeState)); OnPropertyChanged(nameof(HealthState)); OnPropertyChanged(nameof(TunState));
+        OnPropertyChanged(nameof(RuntimeVersion)); OnPropertyChanged(nameof(RuntimeState)); OnPropertyChanged(nameof(RuntimeInstalledVersion)); OnPropertyChanged(nameof(RuntimeAvailableVersion));
+        OnPropertyChanged(nameof(HealthState)); OnPropertyChanged(nameof(TunState));
         OnPropertyChanged(nameof(DnsState)); OnPropertyChanged(nameof(ActiveProfileName)); OnPropertyChanged(nameof(IsTunAvailable)); OnPropertyChanged(nameof(IsRecoveryRequired)); OnPropertyChanged(nameof(RunningConnectionCount));
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
     }
