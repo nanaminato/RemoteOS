@@ -13,6 +13,9 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public ObservableCollection<ProxyGroupDto> Groups { get; } = [];
     public ObservableCollection<ProxyConnectionDto> Connections { get; } = [];
     public ObservableCollection<ProxyLogEntryDto> Logs { get; } = [];
+    public IEnumerable<ProxyProfileDto> VisibleSubscriptions => ShowRuntimeSubscriptions
+        ? Profiles.Where(profile => profile.IsActive)
+        : Profiles;
 
     [ObservableProperty] private string _statusText = LocalizedText.Get("proxy.status.loading");
     [ObservableProperty] private bool _isBusy;
@@ -25,6 +28,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [ObservableProperty] private ProxyConnectionDto? _selectedConnection;
     [ObservableProperty] private string _profileName = string.Empty;
     [ObservableProperty] private string _selectedProxy = string.Empty;
+    [ObservableProperty] private bool _showRuntimeSubscriptions;
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
 
@@ -86,6 +90,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             Overview = await overviewTask;
             Runtime = Overview.Runtime;
             Replace(Profiles, await profilesTask);
+            OnPropertyChanged(nameof(VisibleSubscriptions));
             Settings = await settingsTask;
             // A stopped/not-yet-installed runtime cannot answer controller requests. The shell
             // must still show its install and profile pages rather than fail the entire refresh.
@@ -152,6 +157,28 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         }
         catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRefresh))]
+    private async Task UpdateAllSubscriptionsAsync()
+    {
+        ShowRuntimeSubscriptions = false;
+        await RefreshAsync();
+    }
+
+    [RelayCommand]
+    private void ViewRuntimeSubscriptions()
+    {
+        ShowRuntimeSubscriptions = true;
+        SelectedProfile = Profiles.FirstOrDefault(profile => profile.IsActive);
+        StatusText = LocalizedText.Get("proxy.status.runtime_subscriptions_shown");
+    }
+
+    [RelayCommand]
+    private async Task ReactivateSubscriptionAsync(ProxyProfileDto? profile)
+    {
+        SelectedProfile = profile ?? SelectedProfile ?? Profiles.FirstOrDefault(candidate => candidate.IsActive);
+        if (SelectedProfile is not null) await ActivateProfileAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanManageProfile))]
@@ -285,6 +312,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
+    partial void OnShowRuntimeSubscriptionsChanged(bool value) => OnPropertyChanged(nameof(VisibleSubscriptions));
     partial void OnRuntimeChanged(ProxyRuntimeDto? value)
     {
         OnPropertyChanged(nameof(ProxyIsRunning)); OnPropertyChanged(nameof(ProxyCanToggle));
@@ -313,6 +341,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
+        UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
         ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     private void RaiseSummaryProperties()
