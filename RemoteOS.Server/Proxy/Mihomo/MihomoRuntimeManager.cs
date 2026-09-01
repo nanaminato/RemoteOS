@@ -28,13 +28,31 @@ public sealed class MihomoRuntimeManager(
     public async Task<ProxyRuntimeDto> GetAsync(string engineId, CancellationToken cancellationToken)
     {
         if (engineId != MihomoEngine.Id) return Unsupported(engineId);
-        var state = await ReadStateAsync(cancellationToken);
-        if (state?.ActiveVersion is not { Length: > 0 } active)
-            return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, null, null, false, false, ProxyProblemCodes.RuntimeNotInstalled);
-        var executable = ExecutablePath(active);
-        return File.Exists(executable)
-            ? new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Stopped, active, state.PreviousVersion, true, false)
-            : new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, active, state.PreviousVersion, false, false, ProxyProblemCodes.RuntimeNotInstalled);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var state = await ReadStateAsync(cancellationToken);
+            if (state?.ActiveVersion is not { Length: > 0 } active)
+                return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, null, null, false, false, ProxyProblemCodes.RuntimeNotInstalled);
+            if (!File.Exists(ExecutablePath(active)))
+                return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, active, state.PreviousVersion, false, false, ProxyProblemCodes.RuntimeNotInstalled);
+
+            // Older builds allowed raw profile YAML to overwrite these fields. Reconcile before
+            // exposing the runtime so opening Proxy Manager repairs a stale Windows child process
+            // instead of permanently reporting the resulting controller 401.
+            var reconciliation = await ReconcileControllerConfigurationAsync(cancellationToken);
+            if (!reconciliation.Succeeded)
+                return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, reconciliation.ProblemCode);
+            if (reconciliation.Changed)
+            {
+                var restart = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
+                if (!restart.Succeeded)
+                    return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, restart.ProblemCode);
+                await WriteDiagnosticAsync("info", "Managed Mihomo controller settings were restored and the service was restarted.", cancellationToken);
+            }
+            return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Stopped, active, state.PreviousVersion, true, false);
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<ProxyRuntimeDto> DetectExternalAsync(string engineId, string executablePath, CancellationToken cancellationToken)
@@ -348,19 +366,47 @@ public sealed class MihomoRuntimeManager(
             var directory = paths.GetProtectedConfigurationDirectory();
             Directory.CreateDirectory(directory); MakePrivateDirectory(directory);
             var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
-            if (secret.Length is < 16 or > 512 || secret.Any(char.IsControl)) return new(false, ProxyProblemCodes.ConfigInvalid);
-            var endpoint = controllerOptions.Endpoint;
-            var host = endpoint.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ? "127.0.0.1" : endpoint.Host;
-            var controllerAddress = endpoint.Port == 80 ? host : host + ":" + endpoint.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var temporary = Path.Combine(directory, ".bootstrap-" + Guid.NewGuid().ToString("N"));
-            var content = "mixed-port: 7890\nmode: rule\nlog-level: warning\nexternal-controller: " + controllerAddress + "\nsecret: " + secret + "\n";
+            var content = MihomoManagedConfiguration.WithServerControllerSettings("mixed-port: 7890\nmode: rule\nlog-level: warning\n", controllerOptions, secret);
             await File.WriteAllTextAsync(temporary, content, cancellationToken);
             MakePrivateFile(temporary); File.Move(temporary, Path.Combine(directory, "active.yaml"), overwrite: true); MakePrivateFile(Path.Combine(directory, "active.yaml"));
             return new(true);
         }
         catch (ProxyControllerSecretException) { return new(false, ProxyProblemCodes.ConfigApplyFailed); }
+        catch (ArgumentException) { return new(false, ProxyProblemCodes.ConfigInvalid); }
         catch (IOException) { return new(false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
         catch (UnauthorizedAccessException) { return new(false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
+    }
+
+    private async Task<ControllerConfigurationReconciliation> ReconcileControllerConfigurationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var directory = paths.GetProtectedConfigurationDirectory();
+            var active = Path.Combine(directory, "active.yaml");
+            if (!File.Exists(active)) return new(true, false);
+            var current = await File.ReadAllTextAsync(active, cancellationToken);
+            var normalized = MihomoManagedConfiguration.WithServerControllerSettings(current, controllerOptions, await controllerSecrets.GetOrCreateAsync(cancellationToken));
+            if (string.Equals(current, normalized, StringComparison.Ordinal)) return new(true, false);
+
+            var temporary = Path.Combine(directory, ".controller-repair-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                await File.WriteAllTextAsync(temporary, normalized, cancellationToken);
+                MakePrivateFile(temporary);
+                File.Move(temporary, active, overwrite: true);
+                MakePrivateFile(active);
+                return new(true, true);
+            }
+            finally
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
+        }
+        catch (ProxyControllerSecretException) { return new(false, false, ProxyProblemCodes.ConfigApplyFailed); }
+        catch (ArgumentException) { return new(false, false, ProxyProblemCodes.ConfigInvalid); }
+        catch (IOException) { return new(false, false, ProxyProblemCodes.ConfigApplyFailed); }
+        catch (UnauthorizedAccessException) { return new(false, false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
     }
 
     private async Task<RuntimeState?> ReadStateAsync(CancellationToken cancellationToken)
@@ -470,6 +516,7 @@ public sealed class MihomoRuntimeManager(
     private static void MakePrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
     private static void MakePrivateExecutable(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private sealed record RuntimeState(string ActiveVersion, string? PreviousVersion, DateTimeOffset ActivatedAt);
+    private sealed record ControllerConfigurationReconciliation(bool Succeeded, bool Changed, string ProblemCode = "");
 }
 
 public sealed class RuntimeInstallException(string problemCode) : Exception(problemCode)

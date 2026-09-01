@@ -1,4 +1,5 @@
 using RemoteOS.Protocol.Proxy;
+using Server.Proxy.Mihomo;
 
 namespace Server.Proxy;
 
@@ -11,7 +12,9 @@ public interface IProxyConfigurationTransactionService
 public sealed class ProxyConfigurationTransactionService(
     IProxyPlatformPaths paths,
     IProxyEngineRegistry engines,
-    IProxyProfileRepository profiles) : IProxyConfigurationTransactionService
+    IProxyProfileRepository profiles,
+    IProxyControllerSecretStore controllerSecrets,
+    MihomoControllerOptions controllerOptions) : IProxyConfigurationTransactionService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     public async Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken)
@@ -24,12 +27,16 @@ public sealed class ProxyConfigurationTransactionService(
         try
         {
             var directory = paths.GetProtectedConfigurationDirectory(); Directory.CreateDirectory(directory); SetPrivateDirectory(directory);
+            var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
+            var managedYaml = engine.EngineId == MihomoEngine.Id
+                ? MihomoManagedConfiguration.WithServerControllerSettings(yaml, controllerOptions, secret)
+                : yaml;
             var active = Path.Combine(directory, "active.yaml");
             var temporary = Path.Combine(directory, ".apply-" + Guid.NewGuid().ToString("N"));
             var backup = Path.Combine(directory, "backup-" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture) + ".yaml");
             try
             {
-                await File.WriteAllTextAsync(temporary, yaml, cancellationToken); SetPrivateFile(temporary);
+                await File.WriteAllTextAsync(temporary, managedYaml, cancellationToken); SetPrivateFile(temporary);
                 var validation = await engine.ValidateConfigurationAsync(temporary, cancellationToken);
                 if (!string.IsNullOrEmpty(validation)) { File.Delete(temporary); return validation; }
                 if (File.Exists(active)) File.Copy(active, backup, overwrite: false);
@@ -48,6 +55,8 @@ public sealed class ProxyConfigurationTransactionService(
             }
             catch (IOException) { return ProxyProblemCodes.ConfigApplyFailed; }
             catch (UnauthorizedAccessException) { return ProxyProblemCodes.PrivilegedOperationUnavailable; }
+            catch (ProxyControllerSecretException) { return ProxyProblemCodes.ConfigApplyFailed; }
+            catch (ArgumentException) { return ProxyProblemCodes.ConfigInvalid; }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
         finally { _gate.Release(); }

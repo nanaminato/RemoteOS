@@ -659,13 +659,19 @@ static async Task VerifyProxyConfigurationTransactionAsync(string root)
     var profile = await profiles.UpsertAsync(null, "Transaction", MihomoEngine.Id, null, CancellationToken.None);
     var engine = new TransactionTestEngine();
     var paths = new TestProxyPaths(Path.Combine(root, "proxy-configuration-files"));
-    var service = new ProxyConfigurationTransactionService(paths, new ProxyEngineRegistry([engine]), profiles);
-    Assert(await service.ApplyAsync(profile.Id, "mode: rule\n", CancellationToken.None) is null, "Valid Proxy YAML was not applied.");
+    var service = new ProxyConfigurationTransactionService(paths, new ProxyEngineRegistry([engine]), profiles, new StaticProxySecretStore(), new MihomoControllerOptions());
+    Assert(await service.ApplyAsync(profile.Id, "mode: rule\n\"external-controller\": 192.0.2.4:9090\n\"secret\": stale-secret\n", CancellationToken.None) is null,
+        "Valid Proxy YAML was not applied.");
     engine.FailNextReload = true;
     Assert(await service.ApplyAsync(profile.Id, "mode: global\n", CancellationToken.None) == ProxyProblemCodes.ConfigApplyFailed,
         "Failed reload did not report a transactional apply failure.");
     var active = await File.ReadAllTextAsync(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"));
-    Assert(active == "mode: rule\n", "Failed Proxy configuration apply did not restore the last working YAML.");
+    Assert(active.Contains("mode: rule\n", StringComparison.Ordinal)
+        && active.Contains("external-controller: 127.0.0.1:9090\n", StringComparison.Ordinal)
+        && active.Contains("secret: \"controller-secret\"\n", StringComparison.Ordinal)
+        && !active.Contains("192.0.2.4", StringComparison.Ordinal)
+        && !active.Contains("stale-secret", StringComparison.Ordinal),
+        "Managed Proxy configuration did not preserve the server-owned controller settings.");
 }
 
 static async Task VerifyProxyTunSafetyAsync(string root)
