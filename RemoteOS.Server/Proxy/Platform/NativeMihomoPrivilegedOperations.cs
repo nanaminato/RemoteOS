@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using RemoteOS.Protocol.Proxy;
+using Server.Proxy.Mihomo;
 
 namespace Server.Proxy.Platform;
 
@@ -8,7 +9,10 @@ namespace Server.Proxy.Platform;
 /// every executable, service name, argument and target path is derived from fixed constants.
 /// Calling it without the required OS rights safely returns a stable unavailable result.
 /// </summary>
-public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, IProxyDiagnosticLogStore? diagnostics = null) : IProxyPrivilegedOperations
+public sealed class NativeMihomoPrivilegedOperations(
+    IProxyPlatformPaths paths,
+    IWindowsMihomoProcessHost? windowsProcessHost = null,
+    IProxyDiagnosticLogStore? diagnostics = null) : IProxyPrivilegedOperations
 {
     private const string Engine = Mihomo.MihomoEngine.Id;
     private const string Service = "remoteos-mihomo";
@@ -20,9 +24,7 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
     public async Task<ProxyPrivilegedResult> ReplaceRuntimeAsync(ReplaceProxyRuntimeOperation request, CancellationToken cancellationToken)
     {
         var activated = await ActivateRuntimeAsync(request.EngineId, request.Version, request.ReleaseDirectoryId, cancellationToken);
-        return !activated.Succeeded || !OperatingSystem.IsWindows()
-            ? activated
-            : await ConfigureWindowsServiceAsync(cancellationToken);
+        return activated;
     }
     public async Task<ProxyPrivilegedResult> RemoveRuntimeAsync(RemoveProxyRuntimeOperation request, CancellationToken cancellationToken)
     {
@@ -63,10 +65,9 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
         }
         if (OperatingSystem.IsWindows())
         {
-            var configured = await ConfigureWindowsServiceAsync(cancellationToken);
-            return configured.Succeeded
-                ? configured
-                : await ScAsync(["create", Service, "binPath=", WindowsServiceCommandLine(), "start=", "auto"], cancellationToken);
+            // Windows deliberately has no second SCM service: RemoteOS.Server owns the child
+            // process and its IHostedService shutdown path. The first start happens below.
+            return windowsProcessHost is null ? Unavailable() : Success();
         }
         return Unsupported();
     }
@@ -83,7 +84,7 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
             var reload = await SystemctlAsync(["daemon-reload"], cancellationToken);
             return disable.Succeeded || reload.Succeeded ? Success() : disable;
         }
-        if (OperatingSystem.IsWindows()) return await ScAsync(["delete", Service], cancellationToken);
+        if (OperatingSystem.IsWindows()) return windowsProcessHost is null ? Unavailable() : await windowsProcessHost.StopAsync(cancellationToken);
         return Unsupported();
     }
 
@@ -91,7 +92,7 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
     {
         if (!IsServiceRequest(request.EngineId, request.ServiceName)) return Task.FromResult(Invalid());
         if (OperatingSystem.IsLinux()) return SystemctlAsync([request.Enabled ? "enable" : "disable", Service], cancellationToken);
-        if (OperatingSystem.IsWindows()) return ScAsync(["config", Service, "start=", request.Enabled ? "auto" : "demand"], cancellationToken);
+        if (OperatingSystem.IsWindows()) return Task.FromResult(windowsProcessHost is null ? Unavailable() : Success());
         return Task.FromResult(Unsupported());
     }
     public Task<ProxyPrivilegedResult> StartServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => ServiceActionAsync(request, "start", cancellationToken);
@@ -134,7 +135,7 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
     {
         if (!IsServiceRequest(request.EngineId, request.ServiceName)) return Task.FromResult(Invalid());
         if (OperatingSystem.IsLinux()) return SystemctlAsync([action, Service], cancellationToken);
-        if (OperatingSystem.IsWindows()) return WindowsServiceActionAsync(action, cancellationToken);
+        if (OperatingSystem.IsWindows()) return WindowsProcessActionAsync(action, cancellationToken);
         return Task.FromResult(Unsupported());
     }
     private static bool IsServiceRequest(string engineId, string serviceName) => engineId == Engine && serviceName == Service;
@@ -153,24 +154,16 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
         catch (UnauthorizedAccessException) { }
         return Path.Combine(ActivePath(), BinaryName());
     }
-    private Task<ProxyPrivilegedResult> ConfigureWindowsServiceAsync(CancellationToken cancellationToken) =>
-        ScAsync(["config", Service, "binPath=", WindowsServiceCommandLine(), "start=", "auto"], cancellationToken);
-    private string WindowsServiceCommandLine() => QuoteWindows(ActiveBinaryPath()) + " -f " + QuoteWindows(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"));
-    private async Task<ProxyPrivilegedResult> WindowsServiceActionAsync(string action, CancellationToken cancellationToken)
+    private Task<ProxyPrivilegedResult> WindowsProcessActionAsync(string action, CancellationToken cancellationToken)
     {
-        if (action == "restart")
+        if (windowsProcessHost is null) return Task.FromResult(Unavailable());
+        return action switch
         {
-            // A first installation has no running process, so a failed stop is intentionally
-            // ignored before starting the newly created service.
-            var stop = await ScAsync(["stop", Service], cancellationToken);
-            if (stop.Succeeded) await WaitForWindowsServiceStoppedAsync(cancellationToken);
-            return await ScAsync(["start", Service], cancellationToken);
-        }
-
-        var command = action == "try-restart" ? "start" : action;
-        var result = await ScAsync([command, Service], cancellationToken);
-        if (command == "stop" && result.Succeeded) await WaitForWindowsServiceStoppedAsync(cancellationToken);
-        return result;
+            "start" => windowsProcessHost.StartAsync(cancellationToken),
+            "stop" => windowsProcessHost.StopAsync(cancellationToken),
+            "restart" or "try-restart" => windowsProcessHost.RestartAsync(cancellationToken),
+            _ => Task.FromResult(Invalid()),
+        };
     }
     private string SystemdUnitPath => "/etc/systemd/system/remoteos-mihomo.service";
     private string SystemdUnit() => string.Join('\n',
@@ -191,9 +184,7 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
         "WantedBy=multi-user.target",
         "");
     private static string BinaryName() => OperatingSystem.IsWindows() ? "mihomo.exe" : "mihomo";
-    private static string QuoteWindows(string value) => "\"" + value.Replace("\"", "", StringComparison.Ordinal) + "\"";
     private Task<ProxyPrivilegedResult> SystemctlAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("/usr/bin/systemctl", arguments, cancellationToken);
-    private Task<ProxyPrivilegedResult> ScAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("sc.exe", arguments, cancellationToken);
     private async Task<ProxyPrivilegedResult> RunFixedAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
         var result = await RunFixedCommandAsync(executable, arguments, cancellationToken);
@@ -221,17 +212,6 @@ public sealed class NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths, 
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, null, "The command timed out after 15 seconds."); }
         catch (Exception exception) { return new(false, null, exception.GetType().Name); }
-    }
-    private async Task WaitForWindowsServiceStoppedAsync(CancellationToken cancellationToken)
-    {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            var status = await RunFixedCommandAsync("sc.exe", ["query", Service], cancellationToken);
-            if (!status.Succeeded || status.Output.Contains("STOPPED", StringComparison.OrdinalIgnoreCase)) return;
-            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
-        }
-        await WriteDiagnosticAsync("warning", "Managed Mihomo service did not report a stopped state before runtime cleanup.", cancellationToken);
     }
     private async Task WriteDiagnosticAsync(string level, string message, CancellationToken cancellationToken)
     {

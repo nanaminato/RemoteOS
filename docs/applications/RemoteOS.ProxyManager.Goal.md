@@ -137,9 +137,9 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 
 ### Goal 3：Runtime、原生服务与受限特权操作
 
-**状态**：已完成。`MihomoRuntimeManager` 仅接受源代码固定的 Mihomo 发布清单，以有界下载、SHA-256、归档条目限制、架构/版本探测与 immutable 版本目录处理 Managed Runtime；激活只有在 TUN 关闭的 bootstrap 配置、受限原生服务操作和本机 Controller health 均通过后才写 active/previous state。`NativeMihomoPrivilegedOperations` 只识别 `remoteos-mihomo`、固定 systemd/SCM 动作和受控路径；无主机权限时安全返回 `proxy.privileged_operation_unavailable`，不请求密码或退化为 shell。平台真实安装/回滚验证留给 Goal 9。
+**状态**：已完成。`MihomoRuntimeManager` 仅接受源代码固定的 Mihomo 发布清单，以有界下载、SHA-256、归档条目限制、架构/版本探测与 immutable 版本目录处理 Managed Runtime；激活只有在 TUN 关闭的 bootstrap 配置、受限生命周期操作和本机 Controller health 均通过后才写 active/previous state。Linux 只使用固定 systemd 操作；Windows 使用 `WindowsMihomoProcessHost` 让 `RemoteOS.Server` 持有 Mihomo 子进程及其完整进程树、异常重启和宿主停止清理。无主机权限时安全返回 `proxy.privileged_operation_unavailable`，不请求密码或退化为 shell。平台真实安装/回滚验证留给 Goal 9。
 
-**工作**：实现 External 只读检测与 Managed Mihomo Runtime 的固定清单、暂存、归档检查、SHA-256 验证、版本目录、active/previous、健康检查、升级、回滚和卸载。建立 Windows/Linux `IProxyPlatformService` 及强类型 Proxy 特权操作边界，安装/删除并控制原生服务。服务控制可提取 `INativeServiceAdapter` 的安全公共部分，但不创建平行服务管理器。首次安装成功标准为 TUN 关闭状态下的 Controller health check。
+**工作**：实现 External 只读检测与 Managed Mihomo Runtime 的固定清单、暂存、归档检查、SHA-256 验证、版本目录、active/previous、健康检查、升级、回滚和卸载。建立 Windows/Linux `IProxyPlatformService` 及强类型 Proxy 生命周期边界：Linux 安装/删除并控制 systemd 服务，Windows 由 Server 内的受控子进程宿主控制。首次安装成功标准为 TUN 关闭状态下的 Controller health check。
 
 **验收**：不存在/非文件/不可执行/不匹配架构的 External 路径不会被接管；校验失败、归档穿越、超限、缺少二进制、锁定文件、启动超时和健康失败都不能激活新版本；升级失败保留 active/previous 工作版本；没有 shell 拼接、OS 密码收集或通用执行 API；Windows Defender 与防火墙未被修改。
 

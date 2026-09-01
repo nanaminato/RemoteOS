@@ -323,53 +323,33 @@ if (OperatingSystem.IsLinux())
 
 ---
 
-# 7. Mihomo 不作为 RemoteOS.Server 子进程长期运行
+# 7. Mihomo 运行时生命周期
 
-TUN 场景下推荐：
+Windows 由长期运行的 `RemoteOS.Server` 直接托管 Mihomo；不再额外注册
+`remoteos-mihomo` SCM 服务：
 
 ```text
-Mihomo
+Windows SCM（如 RemoteOS.Server 作为 Windows Service）
     ↓
-Native OS Service
-```
-
-而不是：
-
-```text
-RemoteOS.Server
+RemoteOS.Server / WindowsMihomoProcessHost
     ↓
-Process.Start("mihomo")
+mihomo.exe
 ```
 
-最终：
+进程宿主只从受保护的活动版本和配置启动 Mihomo，持有唯一 `Process`，捕获标准
+输出/错误、异常退出后延迟重启，并在 Server 停止、卸载或更新时以完整进程树终止。
+因此 Mihomo 的 Windows 生命周期与 Server 绑定；系统重启后由 Server 的既有启动
+策略恢复。
 
-## Windows
-
-```text
-Windows Service
-
-RemoteOS Mihomo Service
-        │
-        └── mihomo.exe
-```
-
-## Linux
+Linux 保持独立 systemd 服务：
 
 ```text
 systemd
-
+    ↓
 mihomo.service
 ```
 
-原因：
-
-1. TUN 本身属于系统级网络能力。
-2. 不应要求 RemoteOS.Server 为管理 Mihomo 而永久拥有不必要的网络权限。
-3. Mihomo 崩溃应由 OS Service Manager 辅助处理。
-4. RemoteOS.Server 重启不应必然导致代理退出。
-5. 服务自动启动更加符合服务器代理场景。
-6. 更容易实现 crash restart。
-7. 更容易独立审计代理核心生命周期。
+平台不强行共享相同的服务语义；两者都必须在 TUN 操作前后保留网络恢复机制。
 
 ---
 
@@ -498,7 +478,8 @@ Enable TUN
 UAC / sudo password
 ```
 
-系统安装阶段完成之后，应利用系统 Service 实现持续运行。
+运行时安装完成后，Linux 由 systemd 持续运行；Windows 由长期运行的
+`RemoteOS.Server` 进程宿主持续管理。
 
 ---
 
@@ -512,7 +493,7 @@ RemoteOS authorization
 OS privilege/elevation
 ```
 
-即使 Mihomo Service 已经以：
+即使 Mihomo 已经以：
 
 ```text
 root
@@ -1420,7 +1401,7 @@ proxy.recovery.execute
 RemoteOS.Server 启动时检查：
 
 ```text
-Mihomo service running?
+Mihomo runtime running?
 Controller reachable?
 TUN expected?
 TUN exists?
@@ -2876,7 +2857,7 @@ Stop Proxy
 代表：
 
 ```text
-stop Mihomo service
+stop the managed Mihomo runtime
 ```
 
 UI 不要混为同一个 toggle。
@@ -2887,7 +2868,8 @@ UI 不要混为同一个 toggle。
 
 服务器重启后：
 
-OS Service Manager 负责 Mihomo 启动。
+Linux 由 systemd 负责 Mihomo 启动；Windows 由 Server 的既有启动策略启动
+`RemoteOS.Server`，再由其进程宿主恢复 Mihomo。
 
 RemoteOS Server 启动之后：
 

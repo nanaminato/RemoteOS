@@ -83,8 +83,8 @@
     "proxy.operation.extracting": "正在解压 Mihomo…",
     "proxy.operation.checking": "正在检查 Mihomo 运行时…",
     "proxy.operation.activating": "正在激活 Mihomo 运行时…",
-    "proxy.operation.installing_service": "正在安装 Mihomo 服务…",
-    "proxy.operation.starting": "正在启动 Mihomo 服务…",
+    "proxy.operation.installing_service": "正在准备受管 Mihomo 运行时…",
+    "proxy.operation.starting": "正在启动受管 Mihomo 运行时…",
     "proxy.operation.completed": "Mihomo 安装完成。"
   }
 }

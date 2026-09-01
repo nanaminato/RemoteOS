@@ -83,8 +83,8 @@
     "proxy.operation.extracting": "Extracting Mihomo…",
     "proxy.operation.checking": "Checking the Mihomo runtime…",
     "proxy.operation.activating": "Activating the Mihomo runtime…",
-    "proxy.operation.installing_service": "Installing the Mihomo service…",
-    "proxy.operation.starting": "Starting the Mihomo service…",
+    "proxy.operation.installing_service": "Preparing the managed Mihomo runtime…",
+    "proxy.operation.starting": "Starting the managed Mihomo runtime…",
     "proxy.operation.completed": "Mihomo installation completed."
   }
 }

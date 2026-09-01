@@ -39,6 +39,9 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator,
 builder.Services.AddHttpClient<Server.Proxy.Mihomo.IMihomoControllerClient, Server.Proxy.Mihomo.MihomoControllerClient>();
 builder.Services.AddSingleton<Server.Proxy.IProxyEngine, Server.Proxy.Mihomo.MihomoEngine>();
 builder.Services.AddSingleton<Server.Proxy.IProxyEngineRegistry, Server.Proxy.ProxyEngineRegistry>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.WindowsMihomoProcessHost>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IWindowsMihomoProcessHost>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.WindowsMihomoProcessHost>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.Proxy.Mihomo.WindowsMihomoProcessHost>());
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyPrivilegedOperations, Server.Proxy.Platform.NativeMihomoPrivilegedOperations>();
 builder.Services.AddSingleton<Server.Proxy.IProxyPlatformPaths, Server.Proxy.Platform.ProxyPlatformPaths>();
 builder.Services.AddSingleton<Server.Proxy.IProxyPlatformService, Server.Proxy.Platform.ProxyPlatformService>();
