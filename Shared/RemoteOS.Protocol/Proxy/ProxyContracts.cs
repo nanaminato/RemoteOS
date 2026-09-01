@@ -16,6 +16,7 @@ public static class ProxyProblemCodes
     public const string RuntimeNotInstalled = "proxy.runtime_not_installed";
     public const string RuntimeUnsupportedPlatform = "proxy.runtime_unsupported_platform";
     public const string RuntimeVersionUnsupported = "proxy.runtime_version_unsupported";
+    public const string RuntimeArchiveUnavailable = "proxy.runtime_archive_unavailable";
     public const string RuntimeIntegrityFailed = "proxy.runtime_integrity_failed";
     public const string RuntimeHealthCheckFailed = "proxy.runtime_health_check_failed";
     public const string ExternalRuntimeInvalid = "proxy.external_runtime_invalid";

@@ -361,7 +361,7 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     Assert(installedFromServerFile.State == ProxyRuntimeState.Running && installedFromServerFile.IntegrityVerified && serverFilePrivileged.InstalledService,
         "A verified Mihomo archive already on the Server did not activate.");
     var invalidServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, Path.Combine(root, "missing-mihomo-package.gz"), CancellationToken.None);
-    Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeIntegrityFailed, "A missing Server-side Mihomo archive was accepted.");
+    Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeArchiveUnavailable, "A missing Server-side Mihomo archive was not reported as unavailable.");
 
     var firstInstallPrivileged = new TestProxyPrivilegedOperations { FailServiceInstallation = true, FailUninstalledServiceRemoval = true };
     var firstInstallManager = new MihomoRuntimeManager(new TestProxyPaths(Path.Combine(root, "mihomo-first-install-failure")), new FixtureHttpClientFactory(archive),

@@ -266,12 +266,27 @@ public sealed class MihomoRuntimeManager(
     private async Task CopyAndVerifyArchiveAsync(MihomoRuntimeRelease release, string archivePath, string destination, CancellationToken cancellationToken)
     {
         if (!TrySafeArchivePath(archivePath, out var path))
-            throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
-        var source = new FileInfo(path);
-        if (source.Length > MihomoRuntimeManifest.MaximumArchiveBytes)
-            throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
-        await using var input = new FileStream(source.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        await CopyAndVerifyArchiveAsync(release, input, destination, cancellationToken);
+            throw new RuntimeInstallException(ProxyProblemCodes.RuntimeArchiveUnavailable);
+
+        FileInfo source;
+        FileStream input;
+        try
+        {
+            source = new FileInfo(path);
+            if (source.Length > MihomoRuntimeManifest.MaximumArchiveBytes)
+                throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
+            input = new FileStream(source.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new RuntimeInstallException(ProxyProblemCodes.RuntimeArchiveUnavailable);
+        }
+        catch (IOException)
+        {
+            throw new RuntimeInstallException(ProxyProblemCodes.RuntimeArchiveUnavailable);
+        }
+        await using (input)
+            await CopyAndVerifyArchiveAsync(release, input, destination, cancellationToken);
     }
 
     private static async Task CopyAndVerifyArchiveAsync(MihomoRuntimeRelease release, Stream input, string destination, CancellationToken cancellationToken)

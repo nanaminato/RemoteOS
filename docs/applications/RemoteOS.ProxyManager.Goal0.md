@@ -81,7 +81,8 @@ and is audited.
 Public codes are lowercase dotted ASCII and are declared once by the Protocol.
 The initial closed set is: `proxy.runtime_not_installed`,
 `proxy.runtime_unsupported_platform`, `proxy.runtime_version_unsupported`,
-`proxy.runtime_integrity_failed`, `proxy.runtime_health_check_failed`,
+`proxy.runtime_archive_unavailable`, `proxy.runtime_integrity_failed`,
+`proxy.runtime_health_check_failed`,
 `proxy.external_runtime_invalid`, `proxy.service_unavailable`,
 `proxy.privileged_operation_unavailable`, `proxy.config_invalid`,
 `proxy.config_apply_failed`, `proxy.controller_unavailable`,
