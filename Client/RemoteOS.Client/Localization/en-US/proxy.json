@@ -100,6 +100,8 @@
     "proxy.unified_delay": "Unified delay",
     "proxy.log_level": "Log level",
     "proxy.port": "Port",
+    "proxy.subscription_insecure_sources": "Allow insecure subscription sources",
+    "proxy.subscription_insecure_sources_hint": "When off, only public HTTPS links with valid certificates are allowed. When on, HTTP and invalid or self-signed HTTPS certificates are also allowed; private, loopback, and link-local addresses remain blocked.",
     "proxy.status.settings_saved": "Proxy settings were applied.",
     "proxy.status.profile_created": "Profile {0} was created.",
     "proxy.status.profile_activated": "Profile {0} is now active.",

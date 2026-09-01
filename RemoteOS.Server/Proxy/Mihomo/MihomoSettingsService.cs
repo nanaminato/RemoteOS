@@ -22,13 +22,21 @@ public sealed class MihomoSettingsService(
         if (request.MixedPort is < 1 or > 65535 || !LogLevels.Contains(request.LogLevel)) return ProxyProblemCodes.ConfigInvalid;
         if (request.SystemProxyEnabled && !OperatingSystem.IsWindows()) return ProxyProblemCodes.NotSupported;
         var settings = new ProxySettingsDto(request.SystemProxyEnabled, request.AllowLan, request.DnsEnabled, request.Ipv6Enabled,
-            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort);
+            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources);
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            var previous = await ReadAsync(cancellationToken) ?? Defaults;
             var directory = paths.GetProtectedConfigurationDirectory();
             var active = Path.Combine(directory, "active.yaml");
-            if (!File.Exists(active)) return ProxyProblemCodes.RuntimeNotInstalled;
+            if (!File.Exists(active))
+            {
+                // Subscription trust is host-level rather than a Mihomo YAML option. Let an
+                // operator change it before importing a subscription or installing the runtime.
+                if (!HasOnlySubscriptionSecurityChanged(previous, settings)) return ProxyProblemCodes.RuntimeNotInstalled;
+                await WriteAsync(settings, cancellationToken);
+                return null;
+            }
             var original = await File.ReadAllTextAsync(active, cancellationToken);
             string updated;
             try
@@ -105,5 +113,8 @@ public sealed class MihomoSettingsService(
         catch (System.Security.SecurityException) { return false; }
     }
 
-    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890);
+    private static bool HasOnlySubscriptionSecurityChanged(ProxySettingsDto previous, ProxySettingsDto updated) =>
+        previous with { AllowInsecureSubscriptionSources = updated.AllowInsecureSubscriptionSources } == updated;
+
+    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false);
 }

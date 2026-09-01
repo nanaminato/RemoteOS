@@ -100,6 +100,8 @@
     "proxy.unified_delay": "统一延迟",
     "proxy.log_level": "日志等级",
     "proxy.port": "端口设置",
+    "proxy.subscription_insecure_sources": "允许不安全的订阅源",
+    "proxy.subscription_insecure_sources_hint": "关闭时仅允许具有有效证书的 HTTPS 公网链接。开启后也允许 HTTP 和无效或自签名 HTTPS 证书；内网、回环和链路本地地址仍会被拒绝。",
     "proxy.status.settings_saved": "代理设置已应用。",
     "proxy.status.profile_created": "已创建配置档案 {0}。",
     "proxy.status.profile_activated": "配置档案 {0} 已激活。",

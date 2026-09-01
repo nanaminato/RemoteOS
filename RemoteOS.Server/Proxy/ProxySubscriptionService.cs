@@ -104,25 +104,32 @@ public interface IProxySubscriptionDownloader
 
 public sealed record ProxySubscriptionDownload(Uri Uri, string Content);
 
-/// <summary>Bounded HTTPS downloader that rejects loopback, private and link-local targets.</summary>
-public sealed class ProxySubscriptionDownloader(HttpClient http) : IProxySubscriptionDownloader
+/// <summary>Bounded subscription downloader that always rejects loopback, private and link-local targets.</summary>
+public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFactory, IProxySettingsService settingsService) : IProxySubscriptionDownloader
 {
     private const int MaximumBytes = 1_048_576;
 
     public async Task<ProxySubscriptionDownload> DownloadAsync(string url, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
-            uri.UserInfo.Length != 0 || uri.IsLoopback || IPAddress.TryParse(uri.Host, out _))
+        var allowInsecureSources = (await settingsService.GetAsync(cancellationToken)).AllowInsecureSubscriptionSources;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (allowInsecureSources ? uri.Scheme is not ("http" or "https") : uri.Scheme != Uri.UriSchemeHttps) ||
+            uri.UserInfo.Length != 0 || uri.IsLoopback)
             throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
 
         IPAddress[] addresses;
-        try { addresses = await Dns.GetHostAddressesAsync(uri.DnsSafeHost, cancellationToken); }
-        catch (SocketException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
+        if (IPAddress.TryParse(uri.Host, out var literalAddress)) addresses = [literalAddress];
+        else
+        {
+            try { addresses = await Dns.GetHostAddressesAsync(uri.DnsSafeHost, cancellationToken); }
+            catch (SocketException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
+        }
         if (addresses.Length == 0 || addresses.Any(ProxySubscriptionNetworkPolicy.IsPrivateAddress))
             throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         HttpResponseMessage response;
+        var http = httpClientFactory.CreateClient(allowInsecureSources ? "ProxySubscriptionInsecureTls" : "ProxySubscription");
         try { response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken); }
         catch (HttpRequestException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }

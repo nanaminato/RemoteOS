@@ -69,12 +69,23 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Pr
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
-builder.Services.AddHttpClient<Server.Proxy.IProxySubscriptionDownloader, Server.Proxy.ProxySubscriptionDownloader>(client => client.Timeout = TimeSpan.FromSeconds(30))
+builder.Services.AddHttpClient("ProxySubscription", client => client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
     {
         AllowAutoRedirect = false,
         ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
     });
+builder.Services.AddHttpClient("ProxySubscriptionInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+        },
+    });
+builder.Services.AddSingleton<Server.Proxy.IProxySubscriptionDownloader, Server.Proxy.ProxySubscriptionDownloader>();
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
 builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());

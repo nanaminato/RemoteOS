@@ -74,6 +74,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public bool UnifiedDelay { get => Settings?.UnifiedDelay == true; set => SetSettings(unifiedDelay: value); }
     public string LogLevel { get => Settings?.LogLevel ?? "warning"; set => SetSettings(logLevel: value); }
     public int MixedPort { get => Settings?.MixedPort ?? 7890; set => SetSettings(mixedPort: value); }
+    public bool AllowInsecureSubscriptionSources { get => Settings?.AllowInsecureSubscriptionSources == true; set => SetSettings(allowInsecureSubscriptionSources: value); }
     public IReadOnlyList<string> LogLevels { get; } = ["silent", "error", "warning", "info", "debug"];
 
     public async Task StartAsync() => await RefreshAsync();
@@ -139,7 +140,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         try
         {
             IsBusy = true;
-            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort));
+            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources));
             StatusText = LocalizedText.Get("proxy.status.settings_saved");
             await RefreshAsync();
         }
@@ -325,7 +326,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
-        bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null)
+        bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null)
     {
         var current = Settings ?? new ProxySettingsDto(false, false, true, true, false, "warning", 7890);
         Settings = current with
@@ -337,6 +338,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             UnifiedDelay = unifiedDelay ?? current.UnifiedDelay,
             LogLevel = logLevel ?? current.LogLevel,
             MixedPort = mixedPort ?? current.MixedPort,
+            AllowInsecureSubscriptionSources = allowInsecureSubscriptionSources ?? current.AllowInsecureSubscriptionSources,
         };
     }
 
@@ -359,6 +361,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     {
         OnPropertyChanged(nameof(SystemProxyEnabled)); OnPropertyChanged(nameof(AllowLan)); OnPropertyChanged(nameof(DnsEnabled));
         OnPropertyChanged(nameof(Ipv6Enabled)); OnPropertyChanged(nameof(UnifiedDelay)); OnPropertyChanged(nameof(LogLevel)); OnPropertyChanged(nameof(MixedPort));
+        OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     partial void OnSelectedGroupChanged(ProxyGroupDto? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
