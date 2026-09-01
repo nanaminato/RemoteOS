@@ -372,8 +372,9 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     privileged.FailReplacement = true;
     var failedUpdate = await manager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
     var afterFailedUpdate = await manager.GetAsync(MihomoEngine.Id, CancellationToken.None);
-    Assert(failedUpdate.ProblemCode == ProxyProblemCodes.PrivilegedOperationUnavailable && afterFailedUpdate.Version == MihomoRuntimeManifest.SupportedVersion,
-        "A failed runtime replacement changed the active version.");
+    Assert(failedUpdate.ProblemCode == ProxyProblemCodes.PrivilegedOperationUnavailable && afterFailedUpdate.Version == MihomoRuntimeManifest.SupportedVersion
+        && afterFailedUpdate.State == ProxyRuntimeState.Running,
+        "A healthy managed Mihomo runtime was not reported as running after status refresh.");
 
     var traversalArchive = CreateMihomoTraversalArchive();
     var traversalDigest = Convert.ToHexString(SHA256.HashData(traversalArchive)).ToLowerInvariant();

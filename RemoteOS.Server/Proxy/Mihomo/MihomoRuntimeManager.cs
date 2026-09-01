@@ -50,7 +50,14 @@ public sealed class MihomoRuntimeManager(
                     return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, restart.ProblemCode);
                 await WriteDiagnosticAsync("info", "Managed Mihomo controller settings were restored and the service was restarted.", cancellationToken);
             }
-            return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Stopped, active, state.PreviousVersion, true, false);
+            var controllerHealth = await controller.IsReachableAsync(cancellationToken);
+            // An HTTP 401 proves Mihomo is listening even though its credential is wrong; the
+            // health projection reports that mismatch separately. Other failures mean the
+            // installed runtime is not currently reachable as a running service.
+            var runtimeState = controllerHealth.Succeeded || controllerHealth.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed
+                ? ProxyRuntimeState.Running
+                : ProxyRuntimeState.Stopped;
+            return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, runtimeState, active, state.PreviousVersion, true, false);
         }
         finally { _gate.Release(); }
     }
