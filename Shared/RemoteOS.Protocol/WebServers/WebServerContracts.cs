@@ -62,6 +62,11 @@ public sealed record WebServerInstallCatalogDto(
     [property: JsonPropertyName("versions")] IReadOnlyList<string> Versions,
     [property: JsonPropertyName("problemCode")] string ProblemCode = "");
 
+/// <summary>Official direct-download location for a validated managed installation package.</summary>
+public sealed record WebServerInstallDownloadDto(
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("url")] string Url);
+
 /// <summary>Explicit acknowledgement for deleting a RemoteOS-owned web-server installation.</summary>
 public sealed record UninstallManagedWebServerRequest(
     [property: JsonPropertyName("confirmed")] bool Confirmed);

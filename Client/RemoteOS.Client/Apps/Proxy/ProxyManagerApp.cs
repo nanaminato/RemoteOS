@@ -6,6 +6,7 @@ using Client.Apps.Explorer.Views;
 using Client.Apps.Proxy.Views;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -46,8 +47,22 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
                 return new ExplorerMainView { DataContext = picker };
             }, new RemoteOS.Core.Primitives.Size(720, 520));
         });
+        vm.ShowRuntimeDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("proxy.runtime_download_title"), url);
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
         context.WindowManager.WindowClosed += closed; _ = vm.StartAsync();
+
+        Task ShowDownloadUrlAsync(string title, string url) => context.ShowDialogAsync<bool?>(window, title, dialog => new DownloadUrlDialogView
+        {
+            DataContext = new DownloadUrlDialogViewModel(url, CopyToClipboardAsync, () => dialog.Close(true)),
+        }, new RemoteOS.Core.Primitives.Size(660, 210));
+
+        async Task CopyToClipboardAsync(string value)
+        {
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            if (topLevel?.Clipboard is not null) await topLevel.Clipboard.SetTextAsync(value);
+        }
     }
 }

@@ -55,6 +55,8 @@
         "activation.no_handler.title": "リンクを開けません",
         "activation.no_handler.message": "{0} リンクを開けるインストール済みアプリはありません。",
         "activation.no_handler.help_message": "help リンクを開けるアプリはありません。Help Center をインストールし、help リンクのハンドラーとして設定してください。",
-        "common.character_count_format": "{0} 文字"
+        "common.character_count_format": "{0} 文字",
+        "download_url.message": "このパッケージを手動でダウンロードしてから、既存のサーバーファイルまたはローカルファイルのインストールを続行してください。",
+        "download_url.copied": "ダウンロード リンクをクリップボードにコピーしました。"
     }
 }

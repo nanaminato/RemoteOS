@@ -61,6 +61,8 @@ public static class TunnelEndpoints
         // and make the advertised runtime API return 404.
         group.MapGet(TunnelApiRoutes.RuntimePattern, (IRuntimeManager runtime, CancellationToken ct) => runtime.GetManagedFrpcStatusAsync(ct)).RequireAuthorization("TunnelsRead");
         group.MapGet(TunnelApiRoutes.RuntimeInstallationStatusPattern, (IRuntimeManager runtime) => runtime.GetManagedFrpcInstallationStatus()).RequireAuthorization("TunnelsRead");
+        group.MapGet(TunnelApiRoutes.RuntimeDownloadPattern, async (string version, IRuntimeManager runtime, CancellationToken ct) =>
+            await runtime.GetManagedFrpcDownloadAsync(version, ct) is { } download ? Results.Ok(download) : Results.NotFound()).RequireAuthorization("TunnelsRead");
         group.MapPost(TunnelApiRoutes.RuntimeDetectExternalPattern, (DetectExternalTunnelRuntimeRequest request, IRuntimeManager runtime, CancellationToken ct) => runtime.DetectExternalFrpcAsync(request.ExecutablePath, ct)).RequireAuthorization("TunnelsManage");
         group.MapPost(TunnelApiRoutes.RuntimeInstallPattern, async (InstallManagedTunnelRuntimeRequest request, ClaimsPrincipal user, IRuntimeManager runtime, ITunnelAudit audit, CancellationToken ct) =>
         {

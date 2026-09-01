@@ -48,6 +48,7 @@
                             <ComboBox ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" IsEditable="True" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
+                                <Button Content="{loc:Loc webservers.managed.download}" Command="{Binding ShowManagedDownloadCommand}" />
                                 <Button Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
                             </StackPanel>
                             <TextBlock Text="{Binding LocalPackageName}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />

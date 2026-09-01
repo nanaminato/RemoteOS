@@ -5,6 +5,7 @@ using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -52,11 +53,7 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
                 return new ExplorerMainView { DataContext = picker };
             }, new Size(720, 520));
         };
-        vm.ShowOfficialRuntimeDownloadPageAsync = () =>
-        {
-            context.Activations.Activate(new Uri("https://github.com/fatedier/frp/releases"));
-            return Task.CompletedTask;
-        };
+        vm.ShowRuntimeDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("tunnels.runtime_download_title"), url);
         vm.ShowManagedFrpsConfigurationAsync = async () =>
         {
             await vm.LoadManagedFrpsForEditingAsync();
@@ -117,5 +114,18 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, item) => { if (!ReferenceEquals(item, window)) return; context.WindowManager.WindowClosed -= closed; vm.Dispose(); };
         context.WindowManager.WindowClosed += closed; _ = vm.StartAsync();
+
+        Task ShowDownloadUrlAsync(string title, string url) => context.ShowDialogAsync<bool?>(window, title, dialog => new DownloadUrlDialogView
+        {
+            DataContext = new DownloadUrlDialogViewModel(url, CopyToClipboardAsync, () => dialog.Close(true)),
+        }, new Size(660, 210));
+
+        async Task CopyToClipboardAsync(string value)
+        {
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            if (topLevel?.Clipboard is not null) await topLevel.Clipboard.SetTextAsync(value);
+        }
     }
 }

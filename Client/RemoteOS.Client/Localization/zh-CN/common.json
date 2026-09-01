@@ -55,6 +55,8 @@
         "activation.no_handler.title": "无法打开链接",
         "activation.no_handler.message": "没有已安装的应用可以打开 {0} 链接。",
         "activation.no_handler.help_message": "没有应用可以打开 help 链接。请安装 Help Center，并将其设为 help 链接的处理程序。",
-        "common.character_count_format": "{0} 个字符"
+        "common.character_count_format": "{0} 个字符",
+        "download_url.message": "请自行下载该安装包。下载完成后，可通过现有的“从服务器文件安装”或“从此计算机选择”继续安装。",
+        "download_url.copied": "下载链接已复制到剪贴板。"
     }
 }

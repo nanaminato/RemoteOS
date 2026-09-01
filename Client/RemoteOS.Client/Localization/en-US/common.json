@@ -55,6 +55,8 @@
         "activation.no_handler.title": "Cannot open link",
         "activation.no_handler.message": "No installed app can open {0} links.",
         "activation.no_handler.help_message": "No app can open help links. Install Help Center and set it as the handler for help links.",
-        "common.character_count_format": "{0} characters"
+        "common.character_count_format": "{0} characters",
+        "download_url.message": "Download this package yourself, then use the existing server-file or local-file installation option to continue.",
+        "download_url.copied": "Download link copied to the clipboard."
     }
 }

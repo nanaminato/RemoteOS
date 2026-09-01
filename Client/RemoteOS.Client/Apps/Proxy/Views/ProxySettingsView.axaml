@@ -30,6 +30,7 @@
           </Grid>
           <WrapPanel Margin="0,6,0,0">
             <Button Classes="primary" Content="{loc:Loc proxy.runtime_install}" Command="{Binding InstallRuntimeCommand}" Margin="0,0,8,8" />
+            <Button Content="{loc:Loc proxy.runtime_download}" Command="{Binding ShowRuntimeDownloadCommand}" Margin="0,0,8,8" />
             <Button Content="{loc:Loc proxy.runtime_install_from_server_file}" Command="{Binding InstallRuntimeFromServerFileCommand}" Margin="0,0,8,8" />
           </WrapPanel>
           <TextBlock Text="{loc:Loc proxy.runtime_server_file_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
