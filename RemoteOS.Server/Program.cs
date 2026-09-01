@@ -17,7 +17,21 @@ using Server.Identity;
 using Server.Storage;
 using Server.Storage.Sqlite;
 
-var builder = WebApplication.CreateBuilder(args);
+// `dotnet run` normally treats the project directory as ContentRoot, which would put every
+// ContentRoot-relative runtime artifact under the checkout's data directory. Keep development
+// data beside the compiled executable instead, while installed hosts retain their configured
+// content root and storage locations.
+var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+    ?? Environments.Production;
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    EnvironmentName = environmentName,
+    ContentRootPath = environmentName.Equals(Environments.Development, StringComparison.OrdinalIgnoreCase)
+        ? AppContext.BaseDirectory
+        : null,
+});
 var kestrelCertificates = new Server.Certificate.KestrelCertificateRegistry();
 builder.WebHost.ConfigureKestrel(options => options.ConfigureHttpsDefaults(https =>
     https.ServerCertificateSelector = (_, hostName) => kestrelCertificates.Select(hostName)));
