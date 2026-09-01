@@ -310,6 +310,12 @@ static async Task VerifyMihomoControllerSafetyAsync()
     Assert(logs.Succeeded && log is not null && !log.Message.Contains("controller-secret", StringComparison.Ordinal)
         && !log.Message.Contains("private-value", StringComparison.Ordinal), "Mihomo controller logs were not sanitized.");
     Assert(authorization == "Bearer controller-secret", "Controller secret was not kept in the Server-only authorization header.");
+
+    var unauthorizedHandler = new DelegateHandler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized)));
+    var unauthorizedClient = new MihomoControllerClient(new HttpClient(unauthorizedHandler), new StaticProxySecretStore(), new MihomoControllerOptions { Endpoint = new Uri("http://127.0.0.1:9090/") });
+    var unauthorized = await unauthorizedClient.IsReachableAsync(CancellationToken.None);
+    Assert(!unauthorized.Succeeded && unauthorized.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed,
+        "A controller 401 was not exposed as an authentication failure.");
 }
 
 static async Task VerifyProxyDiagnosticLogsAsync(string root)
@@ -972,7 +978,7 @@ sealed class TestMihomoRuntimeProbe : IMihomoRuntimeProbe
 
 sealed class HealthyMihomoController : IMihomoControllerClient
 {
-    public Task<bool> IsReachableAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<bool>.Success(true));
     public Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyGroupDto>>.Success([]));
     public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyConnectionDto>>.Success([]));

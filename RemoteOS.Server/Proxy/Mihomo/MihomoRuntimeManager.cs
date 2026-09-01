@@ -145,10 +145,11 @@ public sealed class MihomoRuntimeManager(
                     await WriteDiagnosticAsync("warning", "Managed Mihomo service start failed: " + start.ProblemCode, cancellationToken);
                     return await RestorePreviousAsync(before, release.Version, start.ProblemCode, serviceInstalled, cancellationToken);
                 }
-                if (!await controller.IsReachableAsync(cancellationToken))
+                var health = await controller.IsReachableAsync(cancellationToken);
+                if (!health.Succeeded)
                 {
                     await WriteDiagnosticAsync("warning", "Managed Mihomo service started but its loopback controller health check failed.", cancellationToken);
-                    return await RestorePreviousAsync(before, release.Version, ProxyProblemCodes.RuntimeHealthCheckFailed, serviceInstalled, cancellationToken);
+                    return await RestorePreviousAsync(before, release.Version, string.IsNullOrEmpty(health.ProblemCode) ? ProxyProblemCodes.RuntimeHealthCheckFailed : health.ProblemCode, serviceInstalled, cancellationToken);
                 }
 
                 await WriteStateAsync(new RuntimeState(release.Version, before?.ActiveVersion, DateTimeOffset.UtcNow), cancellationToken);
@@ -176,7 +177,8 @@ public sealed class MihomoRuntimeManager(
             var result = await privileged.ReplaceRuntimeAsync(new ReplaceProxyRuntimeOperation(MihomoEngine.Id, previous, ReleaseDirectoryId(previous)), cancellationToken);
             if (!result.Succeeded) return Failure(before, result.ProblemCode);
             result = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-            if (!result.Succeeded || !await controller.IsReachableAsync(cancellationToken)) return Failure(before, result.Succeeded ? ProxyProblemCodes.RuntimeHealthCheckFailed : result.ProblemCode);
+            var health = await controller.IsReachableAsync(cancellationToken);
+            if (!result.Succeeded || !health.Succeeded) return Failure(before, result.Succeeded ? (string.IsNullOrEmpty(health.ProblemCode) ? ProxyProblemCodes.RuntimeHealthCheckFailed : health.ProblemCode) : result.ProblemCode);
             await WriteStateAsync(new RuntimeState(previous, before.ActiveVersion, DateTimeOffset.UtcNow), cancellationToken);
             return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, previous, before.ActiveVersion, true, false);
         }
@@ -307,7 +309,8 @@ public sealed class MihomoRuntimeManager(
                 return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
             }
             var restart = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-            if (!restart.Succeeded || !await controller.IsReachableAsync(cancellationToken))
+            var health = await controller.IsReachableAsync(cancellationToken);
+            if (!restart.Succeeded || !health.Succeeded)
             {
                 await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not restore a healthy service and controller.", cancellationToken);
                 return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);

@@ -8,7 +8,7 @@ namespace Server.Proxy.Mihomo;
 
 public interface IMihomoControllerClient
 {
-    Task<bool> IsReachableAsync(CancellationToken cancellationToken);
+    Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken);
     Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken);
@@ -42,8 +42,13 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         _options = options;
     }
 
-    public async Task<bool> IsReachableAsync(CancellationToken cancellationToken) =>
-        (await SendAsync(HttpMethod.Get, "version", null, cancellationToken)).Succeeded;
+    public async Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken)
+    {
+        var response = await SendAsync(HttpMethod.Get, "version", null, cancellationToken);
+        return response.Succeeded
+            ? ControllerResult<bool>.Success(true)
+            : ControllerResult<bool>.Failure(response.ProblemCode);
+    }
 
     public async Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken)
     {
@@ -149,7 +154,10 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
             using var request = new HttpRequestMessage(method, path) { Content = content };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await _secrets.GetOrCreateAsync(cancellationToken));
             using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken);
-            if (!response.IsSuccessStatusCode) return new(null, ProxyProblemCodes.ControllerUnavailable);
+            if (!response.IsSuccessStatusCode)
+                return new(null, response.StatusCode == HttpStatusCode.Unauthorized
+                    ? ProxyProblemCodes.ControllerAuthenticationFailed
+                    : ProxyProblemCodes.ControllerUnavailable);
             return new(await response.Content.ReadAsStringAsync(cancellationToken), "");
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(null, ProxyProblemCodes.ControllerTimeout); }

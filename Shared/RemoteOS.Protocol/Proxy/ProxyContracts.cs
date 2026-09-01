@@ -24,6 +24,7 @@ public static class ProxyProblemCodes
     public const string ConfigInvalid = "proxy.config_invalid";
     public const string ConfigApplyFailed = "proxy.config_apply_failed";
     public const string ControllerUnavailable = "proxy.controller_unavailable";
+    public const string ControllerAuthenticationFailed = "proxy.controller_authentication_failed";
     public const string ControllerResponseInvalid = "proxy.controller_response_invalid";
     public const string ControllerTimeout = "proxy.controller_timeout";
     public const string ManagementRouteUnsafe = "proxy.management_route_unsafe";

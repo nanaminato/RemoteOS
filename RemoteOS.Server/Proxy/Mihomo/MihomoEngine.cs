@@ -14,9 +14,9 @@ public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConf
     public async Task<ProxyHealthDto> GetHealthAsync(CancellationToken cancellationToken)
     {
         var reachable = await controller.IsReachableAsync(cancellationToken);
-        return reachable
+        return reachable.Succeeded
             ? new(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true)
-            : new(ProxyRuntimeState.Degraded, ProxyTunState.Disabled, ProxyHealthState.Degraded, false, false, false, ProxyProblemCodes.ControllerUnavailable);
+            : new(ProxyRuntimeState.Degraded, ProxyTunState.Disabled, ProxyHealthState.Degraded, false, false, false, reachable.ProblemCode);
     }
 
     public Task<string?> ValidateConfigurationAsync(string configurationPath, CancellationToken cancellationToken) => validator.ValidateAsync(configurationPath, cancellationToken);

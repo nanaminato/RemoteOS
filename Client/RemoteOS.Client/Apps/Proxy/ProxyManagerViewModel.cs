@@ -35,7 +35,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
-    public string RuntimeState => Runtime?.State.ToString() ?? "—";
+    public string RuntimeState => Runtime is null ? "—" : LocalizeEnum("proxy.runtime_state", Runtime.State);
     public bool ProxyIsRunning => Runtime?.State == ProxyRuntimeState.Running;
     public bool ProxyCanToggle => Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
     public string ProxyActionText => LocalizedText.Get(ProxyIsRunning ? "proxy.stop" : "proxy.start");
@@ -49,14 +49,17 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public bool RuntimeIsNotInstalled => !RuntimeIsInstalled;
     public string RuntimeInstalledVersion => Runtime?.Version ?? "—";
     public string RuntimeAvailableVersion => LocalizedText.Format("proxy.runtime.available_version", RuntimeInstalledVersion);
-    public string HealthState => Overview?.Health.State.ToString() ?? "—";
-    public string TunState => Overview?.Health.TunState.ToString() ?? "—";
+    public string HealthState => Overview is null ? "—" : LocalizeEnum("proxy.health_state", Overview.Health.State);
+    public string TunState => Overview is null ? "—" : LocalizeEnum("proxy.tun_state", Overview.Health.TunState);
     public string DnsState => DnsStatus is { Enabled: true }
         ? (DnsStatus.HijackEnabled ? LocalizedText.Get("proxy.dns.hijack_enabled") : LocalizedText.Get("proxy.dns.enabled"))
         : LocalizedText.Get("proxy.dns.disabled");
     public string ActiveProfileName => Overview?.ActiveProfile?.Name ?? LocalizedText.Get("proxy.none");
     public bool IsTunAvailable => Overview?.PlatformCapabilities.SupportsTun == true;
     public bool IsRecoveryRequired => Overview?.Recovery.RecoveryRequired == true;
+    public bool HasControllerAuthenticationFailure => Overview?.Health.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed;
+    public string ControllerAuthenticationTitle => LocalizedText.Get("proxy.controller_authentication.title");
+    public string ControllerAuthenticationHint => LocalizedText.Get("proxy.controller_authentication.hint");
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -82,10 +85,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
                 LoadOptionalAsync(() => repository.GetDnsStatusAsync(), value => DnsStatus = value));
             StatusText = Overview.Recovery.RecoveryRequired
                 ? LocalizedText.Get("proxy.status.recovery_required")
-                : LocalizedText.Format("proxy.status.ready", Overview.Runtime.State, Overview.Health.State);
+                : HasControllerAuthenticationFailure
+                    ? LocalizedText.Get("proxy.status.controller_authentication_failed")
+                    : LocalizedText.Format("proxy.status.ready", RuntimeState, HealthState);
             RaiseSummaryProperties();
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -121,7 +126,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             ProfileName = string.Empty;
             StatusText = LocalizedText.Format("proxy.status.profile_created", profile.Name);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -139,7 +144,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             StatusText = LocalizedText.Format("proxy.status.profile_activated", activated.Name);
             RaiseSummaryProperties();
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -155,7 +160,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             SelectedProfile = null;
             StatusText = LocalizedText.Format("proxy.status.profile_deleted", profile.Name);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -170,7 +175,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             if (index >= 0) Groups[index] = SelectedGroup with { Selected = SelectedProxy };
             StatusText = LocalizedText.Format("proxy.status.node_selected", SelectedProxy);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -187,7 +192,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
             OnPropertyChanged(nameof(RunningConnectionCount));
             StatusText = LocalizedText.Get("proxy.status.connection_closed");
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -198,9 +203,10 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         {
             IsBusy = true;
             var accepted = await operation();
+            StatusText = LocalizedText.Get("proxy.status.operation_queued");
             await TrackOperationAsync(accepted.OperationId);
         }
-        catch (Exception exception) { StatusText = LocalizedText.Format("proxy.status.failed", exception.Message); }
+        catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
@@ -268,6 +274,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         OnPropertyChanged(nameof(RuntimeVersion)); OnPropertyChanged(nameof(RuntimeState)); OnPropertyChanged(nameof(RuntimeInstalledVersion)); OnPropertyChanged(nameof(RuntimeAvailableVersion));
         OnPropertyChanged(nameof(HealthState)); OnPropertyChanged(nameof(TunState));
         OnPropertyChanged(nameof(DnsState)); OnPropertyChanged(nameof(ActiveProfileName)); OnPropertyChanged(nameof(IsTunAvailable)); OnPropertyChanged(nameof(IsRecoveryRequired)); OnPropertyChanged(nameof(RunningConnectionCount));
+        OnPropertyChanged(nameof(HasControllerAuthenticationFailure)); OnPropertyChanged(nameof(ControllerAuthenticationTitle)); OnPropertyChanged(nameof(ControllerAuthenticationHint));
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
     }
     private static async Task LoadOptionalAsync<T>(Func<Task<T>> load, Action<T> apply)
@@ -286,10 +293,29 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private static string FormatOperation(ProxyOperationDto operation)
     {
         if (operation.State is ProxyOperationState.Failed or ProxyOperationState.Interrupted)
-            return LocalizedText.Format("proxy.status.failed", operation.ProblemCode);
+            return LocalizedText.Format("proxy.status.failed", FormatProblemCode(operation.ProblemCode));
         var key = "proxy.operation." + operation.Stage;
         var stage = LocalizedText.Get(key);
         return stage == key ? operation.Stage : stage;
+    }
+    private void SetFailureStatus(Exception exception) =>
+        StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));
+    private static string FormatProblemCode(string? problemCode)
+    {
+        if (string.IsNullOrWhiteSpace(problemCode)) return LocalizedText.Get("proxy.problem.unknown");
+        var key = "proxy.problem." + problemCode.Replace("proxy.", string.Empty, StringComparison.Ordinal).Replace('.', '_');
+        var localized = LocalizedText.Get(key);
+        return localized == key ? problemCode : localized;
+    }
+    private static string LocalizeEnum(string prefix, Enum value)
+    {
+        var name = value.ToString();
+        var suffix = string.Concat(name.Select((character, index) => index > 0 && char.IsUpper(character)
+            ? "_" + character.ToString().ToLowerInvariant()
+            : character.ToString().ToLowerInvariant()));
+        var key = prefix + "." + suffix;
+        var localized = LocalizedText.Get(key);
+        return localized == key ? name : localized;
     }
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }
 }

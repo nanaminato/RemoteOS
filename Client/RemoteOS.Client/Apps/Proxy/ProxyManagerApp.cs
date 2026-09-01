@@ -26,11 +26,11 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         var repository = context.Services.GetService(typeof(IProxyRepository)) as IProxyRepository;
         if (session is null || repository is null || session.State != AuthSessionState.Authenticated)
         {
-            context.ShowWindow(LocalizedText.Get("proxy.title"), new TextBlock { Text = LocalizedText.Get("proxy.login_required"), Margin = new Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false); return;
+            context.ShowWindow(LocalizedText.Get("application.remoteos.proxy.display_name"), new TextBlock { Text = LocalizedText.Get("proxy.login_required"), Margin = new Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false); return;
         }
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
         var vm = new ProxyManagerViewModel(repository, context.Permissions.IsGranted(AppPermissions.ServerProxyManage), context.Permissions.IsGranted(AppPermissions.ServerProxyTunManage));
-        var window = context.ShowWindow(LocalizedText.Get("proxy.title"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
+        var window = context.ShowWindow(LocalizedText.Get("application.remoteos.proxy.display_name"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
         vm.SetServerRuntimePackageRequest(async () =>
         {
             if (files is null) return null;

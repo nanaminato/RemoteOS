@@ -38,6 +38,8 @@
         "application.remoteos.tunnels.display_name": "内网穿透",
         "application.remoteos.tunnels.description": "管理 RemoteOS Server 上的 FRP 隧道和运行时状态",
         "application.remoteos.registry.display_name": "注册表",
-        "application.remoteos.registry.description": "浏览受支持的 RemoteOS 配置值"
+        "application.remoteos.registry.description": "浏览受支持的 RemoteOS 配置值",
+        "application.remoteos.proxy.display_name": "代理管理器",
+        "application.remoteos.proxy.description": "管理主机代理运行时、流量与网络恢复状态"
     }
 }
