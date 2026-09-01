@@ -355,11 +355,17 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     var serverArchivePath = Path.Combine(root, "mihomo-server-package.gz");
     await File.WriteAllBytesAsync(serverArchivePath, archive);
     var serverFilePrivileged = new TestProxyPrivilegedOperations();
-    var serverFileManager = new MihomoRuntimeManager(new TestProxyPaths(Path.Combine(root, "mihomo-server-file")), new FixtureHttpClientFactory([]),
-        serverFilePrivileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] });
+    var serverFilePaths = new TestProxyPaths(Path.Combine(root, "mihomo-server-file"));
+    var serverFileDiagnostics = new ProxyDiagnosticLogStore(serverFilePaths);
+    var serverFileManager = new MihomoRuntimeManager(serverFilePaths, new FixtureHttpClientFactory([]),
+        serverFilePrivileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] }, serverFileDiagnostics);
     var installedFromServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, serverArchivePath, CancellationToken.None);
     Assert(installedFromServerFile.State == ProxyRuntimeState.Running && installedFromServerFile.IntegrityVerified && serverFilePrivileged.InstalledService,
         "A verified Mihomo archive already on the Server did not activate.");
+    var checksumDiagnostic = (await serverFileDiagnostics.ReadAsync(10, CancellationToken.None)).FirstOrDefault(entry => entry.Message.Contains("SHA-256 verification", StringComparison.Ordinal));
+    Assert(checksumDiagnostic is not null && checksumDiagnostic.Message.Contains($"expected={digest}", StringComparison.Ordinal)
+        && checksumDiagnostic.Message.Contains($"actual={digest}", StringComparison.Ordinal),
+        "Mihomo archive checksum diagnostics did not record the expected and actual values.");
     var invalidServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, Path.Combine(root, "missing-mihomo-package.gz"), CancellationToken.None);
     Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeArchiveUnavailable, "A missing Server-side Mihomo archive was not reported as unavailable.");
 

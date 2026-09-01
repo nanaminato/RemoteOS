@@ -289,7 +289,7 @@ public sealed class MihomoRuntimeManager(
             await CopyAndVerifyArchiveAsync(release, input, destination, cancellationToken);
     }
 
-    private static async Task CopyAndVerifyArchiveAsync(MihomoRuntimeRelease release, Stream input, string destination, CancellationToken cancellationToken)
+    private async Task CopyAndVerifyArchiveAsync(MihomoRuntimeRelease release, Stream input, string destination, CancellationToken cancellationToken)
     {
         await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -300,8 +300,11 @@ public sealed class MihomoRuntimeManager(
             total += read; if (total > MihomoRuntimeManifest.MaximumArchiveBytes) throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
             hash.AppendData(buffer, 0, read); await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }
-        var actual = Convert.ToHexString(hash.GetHashAndReset());
-        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actual), Convert.FromHexString(release.Sha256)))
+        var actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        var matched = CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actual), Convert.FromHexString(release.Sha256));
+        await WriteDiagnosticAsync(matched ? "info" : "warning",
+            $"Mihomo package SHA-256 verification {(matched ? "succeeded" : "failed")}: expected={release.Sha256.ToLowerInvariant()}; actual={actual}.", cancellationToken);
+        if (!matched)
             throw new RuntimeInstallException(ProxyProblemCodes.RuntimeIntegrityFailed);
     }
 
