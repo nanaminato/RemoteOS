@@ -353,6 +353,16 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
         "A verified Mihomo fixture did not activate only after controller health.");
     Assert(privileged.InstalledService && privileged.RestartCount == 1, "Managed Mihomo did not use the constrained native-service operations.");
 
+    var delayedPaths = new TestProxyPaths(Path.Combine(root, "mihomo-delayed-controller"));
+    var delayedPrivileged = new TestProxyPrivilegedOperations();
+    var delayedController = new DelayedHealthyMihomoController(unavailableResponses: 2);
+    var delayedManager = new MihomoRuntimeManager(delayedPaths, new FixtureHttpClientFactory(archive), delayedPrivileged,
+        new TestMihomoRuntimeProbe(), delayedController, new StaticProxySecretStore(),
+        new MihomoControllerOptions { StartupReadinessSeconds = 1 }, new MihomoRuntimeManifest { Releases = [release] });
+    var delayedInstall = await delayedManager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+    Assert(delayedInstall.State == ProxyRuntimeState.Running && delayedController.HealthChecks == 3,
+        "Managed Mihomo was rolled back before its loopback controller had time to bind.");
+
     var serverArchivePath = Path.Combine(root, "mihomo-server-package.gz");
     await File.WriteAllBytesAsync(serverArchivePath, archive);
     var serverFilePrivileged = new TestProxyPrivilegedOperations();
@@ -1068,6 +1078,28 @@ sealed class HealthyMihomoController : IMihomoControllerClient
     public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyLogEntryDto>>.Success([]));
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
     public Task<string?> ReloadAsync(CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+}
+
+sealed class DelayedHealthyMihomoController(int unavailableResponses) : IMihomoControllerClient
+{
+    private readonly HealthyMihomoController _healthy = new();
+    private int _remainingUnavailableResponses = unavailableResponses;
+    public int HealthChecks { get; private set; }
+
+    public Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken)
+    {
+        HealthChecks++;
+        return Task.FromResult(_remainingUnavailableResponses-- > 0
+            ? ControllerResult<bool>.Failure(ProxyProblemCodes.ControllerUnavailable)
+            : ControllerResult<bool>.Success(true));
+    }
+    public Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken) => _healthy.GetGroupsAsync(cancellationToken);
+    public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => _healthy.SelectGroupAsync(groupName, proxyName, cancellationToken);
+    public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => _healthy.GetConnectionsAsync(cancellationToken);
+    public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => _healthy.CloseConnectionAsync(connectionId, cancellationToken);
+    public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => _healthy.GetLogsAsync(limit, cancellationToken);
+    public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => _healthy.GetDnsStatusAsync(cancellationToken);
+    public Task<string?> ReloadAsync(CancellationToken cancellationToken) => _healthy.ReloadAsync(cancellationToken);
 }
 
 sealed class TestProxyPrivilegedOperations : IProxyPrivilegedOperations

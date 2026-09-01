@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Diagnostics;
 using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Platform;
 
@@ -170,10 +171,10 @@ public sealed class MihomoRuntimeManager(
                     await WriteDiagnosticAsync("warning", "Managed Mihomo service start failed: " + start.ProblemCode, cancellationToken);
                     return await RestorePreviousAsync(before, release.Version, start.ProblemCode, serviceInstalled, cancellationToken);
                 }
-                var health = await controller.IsReachableAsync(cancellationToken);
+                var health = await WaitForControllerReadinessAsync(cancellationToken);
                 if (!health.Succeeded)
                 {
-                    await WriteDiagnosticAsync("warning", "Managed Mihomo service started but its loopback controller health check failed.", cancellationToken);
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo service started but its loopback controller did not become ready: " + health.ProblemCode, cancellationToken);
                     return await RestorePreviousAsync(before, release.Version, string.IsNullOrEmpty(health.ProblemCode) ? ProxyProblemCodes.RuntimeHealthCheckFailed : health.ProblemCode, serviceInstalled, cancellationToken);
                 }
 
@@ -202,7 +203,7 @@ public sealed class MihomoRuntimeManager(
             var result = await privileged.ReplaceRuntimeAsync(new ReplaceProxyRuntimeOperation(MihomoEngine.Id, previous, ReleaseDirectoryId(previous)), cancellationToken);
             if (!result.Succeeded) return Failure(before, result.ProblemCode);
             result = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-            var health = await controller.IsReachableAsync(cancellationToken);
+            var health = await WaitForControllerReadinessAsync(cancellationToken);
             if (!result.Succeeded || !health.Succeeded) return Failure(before, result.Succeeded ? (string.IsNullOrEmpty(health.ProblemCode) ? ProxyProblemCodes.RuntimeHealthCheckFailed : health.ProblemCode) : result.ProblemCode);
             await WriteStateAsync(new RuntimeState(previous, before.ActiveVersion, DateTimeOffset.UtcNow), cancellationToken);
             return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, previous, before.ActiveVersion, true, false);
@@ -356,7 +357,7 @@ public sealed class MihomoRuntimeManager(
                 return Failure(before, ProxyProblemCodes.RecoveryRequired, attemptedVersion);
             }
             var restart = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-            var health = await controller.IsReachableAsync(cancellationToken);
+            var health = await WaitForControllerReadinessAsync(cancellationToken);
             if (!restart.Succeeded || !health.Succeeded)
             {
                 await WriteDiagnosticAsync("error", "Managed Mihomo rollback could not restore a healthy service and controller.", cancellationToken);
@@ -405,6 +406,30 @@ public sealed class MihomoRuntimeManager(
         catch (ArgumentException) { return new(false, ProxyProblemCodes.ConfigInvalid); }
         catch (IOException) { return new(false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
         catch (UnauthorizedAccessException) { return new(false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
+    }
+
+    /// <summary>
+    /// Starting a process or asking systemd to restart a service only means that its launch was
+    /// accepted. Mihomo still needs a short interval to parse the bootstrap file and bind the
+    /// loopback controller. Retrying transient connection failures avoids rolling a valid first
+    /// install back merely because the very first probe won that race.
+    /// </summary>
+    private async Task<ControllerResult<bool>> WaitForControllerReadinessAsync(CancellationToken cancellationToken)
+    {
+        var deadline = Stopwatch.GetTimestamp() + (long)(Stopwatch.Frequency * controllerOptions.StartupReadinessSeconds);
+        ControllerResult<bool> result;
+        do
+        {
+            result = await controller.IsReachableAsync(cancellationToken);
+            if (result.Succeeded || result.ProblemCode is not (ProxyProblemCodes.ControllerUnavailable or ProxyProblemCodes.ControllerTimeout))
+                return result;
+
+            if (Stopwatch.GetTimestamp() >= deadline) return result;
+            await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+        }
+        while (Stopwatch.GetTimestamp() < deadline);
+
+        return result;
     }
 
     private async Task<ControllerConfigurationReconciliation> ReconcileControllerConfigurationAsync(CancellationToken cancellationToken)
