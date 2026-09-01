@@ -19,6 +19,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [ObservableProperty] private ProxyOverviewDto? _overview;
     [ObservableProperty] private ProxyRuntimeDto? _runtime;
     [ObservableProperty] private ProxyDnsStatusDto? _dnsStatus;
+    [ObservableProperty] private ProxySettingsDto? _settings;
     [ObservableProperty] private ProxyProfileDto? _selectedProfile;
     [ObservableProperty] private ProxyGroupDto? _selectedGroup;
     [ObservableProperty] private ProxyConnectionDto? _selectedConnection;
@@ -60,6 +61,14 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public bool HasControllerAuthenticationFailure => Overview?.Health.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed;
     public string ControllerAuthenticationTitle => LocalizedText.Get("proxy.controller_authentication.title");
     public string ControllerAuthenticationHint => LocalizedText.Get("proxy.controller_authentication.hint");
+    public bool SystemProxyEnabled { get => Settings?.SystemProxyEnabled == true; set => SetSettings(systemProxyEnabled: value); }
+    public bool AllowLan { get => Settings?.AllowLan == true; set => SetSettings(allowLan: value); }
+    public bool DnsEnabled { get => Settings?.DnsEnabled != false; set => SetSettings(dnsEnabled: value); }
+    public bool Ipv6Enabled { get => Settings?.Ipv6Enabled != false; set => SetSettings(ipv6Enabled: value); }
+    public bool UnifiedDelay { get => Settings?.UnifiedDelay == true; set => SetSettings(unifiedDelay: value); }
+    public string LogLevel { get => Settings?.LogLevel ?? "warning"; set => SetSettings(logLevel: value); }
+    public int MixedPort { get => Settings?.MixedPort ?? 7890; set => SetSettings(mixedPort: value); }
+    public IReadOnlyList<string> LogLevels { get; } = ["silent", "error", "warning", "info", "debug"];
 
     public async Task StartAsync() => await RefreshAsync();
 
@@ -71,11 +80,13 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         {
             var overviewTask = repository.GetOverviewAsync();
             var profilesTask = repository.ListProfilesAsync();
-            await Task.WhenAll(overviewTask, profilesTask);
+            var settingsTask = repository.GetSettingsAsync();
+            await Task.WhenAll(overviewTask, profilesTask, settingsTask);
 
             Overview = await overviewTask;
             Runtime = Overview.Runtime;
             Replace(Profiles, await profilesTask);
+            Settings = await settingsTask;
             // A stopped/not-yet-installed runtime cannot answer controller requests. The shell
             // must still show its install and profile pages rather than fail the entire refresh.
             await Task.WhenAll(
@@ -113,6 +124,19 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [RelayCommand(CanExecute = nameof(CanEnableTun))] private Task EnableTunAsync() => QueueAsync(() => repository.EnableTunAsync(SelectedProfile!.Id));
     [RelayCommand(CanExecute = nameof(CanTun))] private Task DisableTunAsync() => QueueAsync(() => repository.DisableTunAsync());
     [RelayCommand(CanExecute = nameof(CanTun))] private Task EmergencyDisableAsync() => QueueAsync(() => repository.EmergencyDisableTunAsync());
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            IsBusy = true;
+            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort));
+            StatusText = LocalizedText.Get("proxy.status.settings_saved");
+            await RefreshAsync();
+        }
+        catch (Exception exception) { SetFailureStatus(exception); }
+        finally { IsBusy = false; }
+    }
 
     [RelayCommand(CanExecute = nameof(CanCreateProfile))]
     private async Task CreateProfileAsync()
@@ -243,6 +267,22 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private bool CanSelectGroup => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy);
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
 
+    private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
+        bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null)
+    {
+        var current = Settings ?? new ProxySettingsDto(false, false, true, true, false, "warning", 7890);
+        Settings = current with
+        {
+            SystemProxyEnabled = systemProxyEnabled ?? current.SystemProxyEnabled,
+            AllowLan = allowLan ?? current.AllowLan,
+            DnsEnabled = dnsEnabled ?? current.DnsEnabled,
+            Ipv6Enabled = ipv6Enabled ?? current.Ipv6Enabled,
+            UnifiedDelay = unifiedDelay ?? current.UnifiedDelay,
+            LogLevel = logLevel ?? current.LogLevel,
+            MixedPort = mixedPort ?? current.MixedPort,
+        };
+    }
+
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
     partial void OnRuntimeChanged(ProxyRuntimeDto? value)
@@ -256,6 +296,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
         RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
     }
+    partial void OnSettingsChanged(ProxySettingsDto? value)
+    {
+        OnPropertyChanged(nameof(SystemProxyEnabled)); OnPropertyChanged(nameof(AllowLan)); OnPropertyChanged(nameof(DnsEnabled));
+        OnPropertyChanged(nameof(Ipv6Enabled)); OnPropertyChanged(nameof(UnifiedDelay)); OnPropertyChanged(nameof(LogLevel)); OnPropertyChanged(nameof(MixedPort));
+        SaveSettingsCommand.NotifyCanExecuteChanged();
+    }
     partial void OnSelectedGroupChanged(ProxyGroupDto? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
     partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
     partial void OnSelectedConnectionChanged(ProxyConnectionDto? value) => CloseConnectionCommand.NotifyCanExecuteChanged();
@@ -267,7 +313,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
         InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
-        ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged();
+        ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     private void RaiseSummaryProperties()
     {

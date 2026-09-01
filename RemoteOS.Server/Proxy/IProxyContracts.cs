@@ -47,6 +47,12 @@ public interface IProxyConfigurationService
     Task<string?> ValidateAsync(Guid profileId, CancellationToken cancellationToken);
 }
 
+public interface IProxySettingsService
+{
+    Task<ProxySettingsDto> GetAsync(CancellationToken cancellationToken);
+    Task<string?> UpdateAsync(UpdateProxySettingsRequest request, CancellationToken cancellationToken);
+}
+
 public interface IProxyRecoveryService
 {
     Task<ProxyRecoveryStatusDto> GetStatusAsync(CancellationToken cancellationToken);

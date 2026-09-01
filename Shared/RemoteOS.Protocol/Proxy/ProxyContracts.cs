@@ -55,6 +55,7 @@ public static class ProxyApiRoutes
     public const string ConnectionPattern = "/connections/{connectionId}";
     public const string Logs = Proxy + "/logs";
     public const string Dns = Proxy + "/dns";
+    public const string Settings = Proxy + "/settings";
     public const string Recovery = Proxy + "/recovery";
     public const string OperationsPattern = "/operations/{operationId:guid}";
     public const string RuntimeInstall = Runtime + "/install";
@@ -119,6 +120,8 @@ public sealed record ProxyGroupDto(string Name, string Type, string? Selected, I
 public sealed record ProxyConnectionDto(string Id, string Network, string Source, string Destination, string Rule, string Chains, DateTimeOffset StartedAt);
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
+public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
+    string LogLevel, int MixedPort);
 public sealed record ProxyRecoveryStatusDto(bool RecoveryRequired, bool HasRecoveryMarker, DateTimeOffset? MarkerCreatedAt, string ProblemCode = "");
 public sealed record ProxyOperationDto(Guid OperationId, string Kind, ProxyOperationState State, string Stage, string ProblemCode, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt);
 
@@ -134,4 +137,6 @@ public sealed record ProxyRuntimeRequest(string EngineId, string? Version = null
 public sealed record InstallProxyRuntimeFromFileRequest(string EngineId, string? Version, string ArchivePath);
 public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
+public sealed record UpdateProxySettingsRequest(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
+    string LogLevel, int MixedPort);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

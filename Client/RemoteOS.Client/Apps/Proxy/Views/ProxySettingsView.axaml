@@ -35,6 +35,22 @@
         </StackPanel>
       </StackPanel>
     </Border>
-    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="12"><TextBlock Text="{loc:Loc proxy.network_settings}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{loc:Loc proxy.network_settings_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /><Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="22" RowSpacing="10"><TextBlock Text="TUN" Foreground="{DynamicResource TextSecondaryBrush}" /><TextBlock Grid.Column="1" Text="{Binding TunState}" /><TextBlock Grid.Row="1" Text="DNS" Foreground="{DynamicResource TextSecondaryBrush}" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DnsState}" /></Grid><WrapPanel Margin="0,6,0,0"><Button Content="{loc:Loc proxy.tun_disable}" Command="{Binding DisableTunCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.emergency_disable}" Command="{Binding EmergencyDisableCommand}" Foreground="{DynamicResource DangerBrush}" Margin="0,0,8,8" /></WrapPanel></StackPanel></Border>
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <StackPanel Spacing="12">
+        <TextBlock Text="{loc:Loc proxy.network_settings}" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="{loc:Loc proxy.network_settings_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+          <TextBlock Text="{loc:Loc proxy.tun_mode}" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding TunState}" VerticalAlignment="Center" />
+          <TextBlock Grid.Row="1" Text="{loc:Loc proxy.system_proxy}" VerticalAlignment="Center" /><ToggleSwitch Grid.Row="1" Grid.Column="1" IsChecked="{Binding SystemProxyEnabled, Mode=TwoWay}" />
+          <TextBlock Grid.Row="2" Text="{loc:Loc proxy.allow_lan}" VerticalAlignment="Center" /><ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding AllowLan, Mode=TwoWay}" />
+          <TextBlock Grid.Row="3" Text="{loc:Loc proxy.dns_override}" VerticalAlignment="Center" /><ToggleSwitch Grid.Row="3" Grid.Column="1" IsChecked="{Binding DnsEnabled, Mode=TwoWay}" />
+          <TextBlock Grid.Row="4" Text="{loc:Loc proxy.ipv6}" VerticalAlignment="Center" /><ToggleSwitch Grid.Row="4" Grid.Column="1" IsChecked="{Binding Ipv6Enabled, Mode=TwoWay}" />
+          <TextBlock Grid.Row="5" Text="{loc:Loc proxy.unified_delay}" VerticalAlignment="Center" /><ToggleSwitch Grid.Row="5" Grid.Column="1" IsChecked="{Binding UnifiedDelay, Mode=TwoWay}" />
+          <TextBlock Grid.Row="6" Text="{loc:Loc proxy.log_level}" VerticalAlignment="Center" /><ComboBox Grid.Row="6" Grid.Column="1" Width="130" ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel, Mode=TwoWay}" />
+          <TextBlock Grid.Row="7" Text="{loc:Loc proxy.port}" VerticalAlignment="Center" /><NumericUpDown Grid.Row="7" Grid.Column="1" Width="130" Minimum="1" Maximum="65535" Value="{Binding MixedPort, Mode=TwoWay}" />
+        </Grid>
+        <WrapPanel Margin="0,6,0,0"><Button Classes="primary" Content="{loc:Loc common.save}" Command="{Binding SaveSettingsCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.tun_enable}" Command="{Binding EnableTunCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.tun_disable}" Command="{Binding DisableTunCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.emergency_disable}" Command="{Binding EmergencyDisableCommand}" Foreground="{DynamicResource DangerBrush}" Margin="0,0,8,8" /></WrapPanel>
+      </StackPanel>
+    </Border>
   </StackPanel>
 </UserControl>

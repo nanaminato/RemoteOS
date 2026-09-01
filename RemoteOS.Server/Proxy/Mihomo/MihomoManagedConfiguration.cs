@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using RemoteOS.Protocol.Proxy;
 
 namespace Server.Proxy.Mihomo;
 
@@ -14,6 +15,10 @@ internal static class MihomoManagedConfiguration
     {
         "external-controller",
         "secret",
+    };
+    private static readonly HashSet<string> SettingsKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mixed-port", "allow-lan", "bind-address", "ipv6", "unified-delay", "log-level"
     };
 
     public static string WithServerControllerSettings(string yaml, MihomoControllerOptions options, string secret)
@@ -31,6 +36,21 @@ internal static class MihomoManagedConfiguration
         return builder.ToString();
     }
 
+    public static string WithRuntimeSettings(string yaml, ProxySettingsDto settings)
+    {
+        var content = RemoveTopLevelSettings(yaml);
+        content = ReplaceDnsEnabled(content, settings.DnsEnabled);
+        var builder = new StringBuilder(content.TrimEnd('\r', '\n'));
+        if (builder.Length > 0) builder.Append('\n');
+        builder.Append("mixed-port: ").Append(settings.MixedPort.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+        builder.Append("allow-lan: ").Append(settings.AllowLan ? "true" : "false").Append('\n');
+        builder.Append("bind-address: ").Append(settings.AllowLan ? "\"*\"" : "\"127.0.0.1\"").Append('\n');
+        builder.Append("ipv6: ").Append(settings.Ipv6Enabled ? "true" : "false").Append('\n');
+        builder.Append("unified-delay: ").Append(settings.UnifiedDelay ? "true" : "false").Append('\n');
+        builder.Append("log-level: ").Append(settings.LogLevel).Append('\n');
+        return builder.ToString();
+    }
+
     private static string RemoveTopLevelControllerSettings(string yaml)
     {
         using var reader = new StringReader(yaml);
@@ -44,6 +64,43 @@ internal static class MihomoManagedConfiguration
             if (!skipping) retained.AppendLine(line);
         }
         return retained.ToString();
+    }
+
+    private static string RemoveTopLevelSettings(string yaml)
+    {
+        using var reader = new StringReader(yaml);
+        var retained = new StringBuilder(yaml.Length);
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            if (!TryGetTopLevelKey(line, out var key) || !SettingsKeys.Contains(key)) retained.AppendLine(line);
+        }
+        return retained.ToString();
+    }
+
+    private static string ReplaceDnsEnabled(string yaml, bool enabled)
+    {
+        var lines = yaml.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n').ToList();
+        var dnsIndex = lines.FindIndex(line => TryGetTopLevelKey(line, out var key) && key.Equals("dns", StringComparison.OrdinalIgnoreCase));
+        if (dnsIndex < 0)
+        {
+            lines.Add("dns:"); lines.Add("  enable: " + (enabled ? "true" : "false"));
+            return string.Join('\n', lines);
+        }
+        var end = dnsIndex + 1;
+        while (end < lines.Count && (lines[end].Length == 0 || char.IsWhiteSpace(lines[end][0]) || lines[end].StartsWith('#'))) end++;
+        for (var index = dnsIndex + 1; index < end; index++)
+        {
+            var trimmed = lines[index].TrimStart();
+            if (trimmed.StartsWith("enable:", StringComparison.OrdinalIgnoreCase))
+            {
+                var indent = lines[index][..(lines[index].Length - trimmed.Length)];
+                lines[index] = indent + "enable: " + (enabled ? "true" : "false");
+                return string.Join('\n', lines);
+            }
+        }
+        lines.Insert(dnsIndex + 1, "  enable: " + (enabled ? "true" : "false"));
+        return string.Join('\n', lines);
     }
 
     private static bool TryGetTopLevelKey(string line, out string key)
