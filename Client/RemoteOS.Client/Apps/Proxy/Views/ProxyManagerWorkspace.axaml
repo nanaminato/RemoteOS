@@ -33,9 +33,8 @@
           <Button Classes="workspace-nav" Tag="settings" Click="NavigationButton_Click" Content="{loc:Loc proxy.settings}" HorizontalContentAlignment="Left" Padding="10,8" />
         </StackPanel>
       </Border>
-      <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <ContentControl x:Name="ContentHost" Margin="30,24" HorizontalAlignment="Stretch" />
-      </ScrollViewer>
+      <ContentControl x:Name="ContentHost" Grid.Column="1" Margin="30,24"
+                      HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
     </Grid>
   </Grid>
 </UserControl>

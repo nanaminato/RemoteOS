@@ -1,6 +1,28 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="clr-namespace:Client.Localization" xmlns:proxy="clr-namespace:Client.Apps.Proxy" x:Class="Client.Apps.Proxy.Views.ProxyProfilesView" x:DataType="proxy:ProxyManagerViewModel">
-  <StackPanel Spacing="18">
-    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="12"><TextBlock Text="{loc:Loc proxy.profiles}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{loc:Loc proxy.profiles_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /><Grid ColumnDefinitions="*,Auto" ColumnSpacing="10"><TextBox Text="{Binding ProfileName}" PlaceholderText="{loc:Loc proxy.profile_name}" /><Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.profile_create}" Command="{Binding CreateProfileCommand}" /></Grid></StackPanel></Border>
-    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="12"><DataGrid ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" Height="280" GridLinesVisibility="Horizontal"><DataGrid.Columns><DataGridTextColumn Header="{loc:Loc proxy.profile_name}" Binding="{ReflectionBinding Name}" Width="*" /><DataGridTextColumn Header="{loc:Loc proxy.engine}" Binding="{ReflectionBinding EngineId}" Width="140" /><DataGridCheckBoxColumn Header="{loc:Loc proxy.active}" Binding="{ReflectionBinding IsActive}" Width="100" /><DataGridTextColumn Header="{loc:Loc proxy.updated}" Binding="{ReflectionBinding UpdatedAt}" Width="190" /></DataGrid.Columns></DataGrid><WrapPanel><Button Classes="primary" Content="{loc:Loc proxy.profile_activate}" Command="{Binding ActivateProfileCommand}" Margin="0,0,8,0" /><Button Content="{loc:Loc proxy.tun_enable}" Command="{Binding EnableTunCommand}" Margin="0,0,8,0" /><Button Content="{loc:Loc common.delete}" Command="{Binding DeleteProfileCommand}" Foreground="{DynamicResource DangerBrush}" /></WrapPanel></StackPanel></Border>
-  </StackPanel>
+  <Grid RowDefinitions="Auto,*" RowSpacing="18">
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <StackPanel Spacing="12">
+        <TextBlock Text="{loc:Loc proxy.profiles}" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="{loc:Loc proxy.profiles_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10"><TextBox Text="{Binding ProfileName}" PlaceholderText="{loc:Loc proxy.profile_name}" /><Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.profile_create}" Command="{Binding CreateProfileCommand}" /></Grid>
+      </StackPanel>
+    </Border>
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <Grid RowDefinitions="Auto,*" RowSpacing="12">
+        <WrapPanel>
+          <Button Classes="primary" Content="{loc:Loc proxy.profile_activate}" Command="{Binding ActivateProfileCommand}" Margin="0,0,8,0" />
+          <Button Content="{loc:Loc proxy.tun_enable}" Command="{Binding EnableTunCommand}" Margin="0,0,8,0" />
+          <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteProfileCommand}" Foreground="{DynamicResource DangerBrush}" />
+        </WrapPanel>
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" GridLinesVisibility="Horizontal" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MinHeight="160">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="{loc:Loc proxy.profile_name}" Binding="{ReflectionBinding Name}" Width="*" CanUserResize="True" />
+            <DataGridTextColumn Header="{loc:Loc proxy.engine}" Binding="{ReflectionBinding EngineId}" Width="140" CanUserResize="True" />
+            <DataGridCheckBoxColumn Header="{loc:Loc proxy.active}" Binding="{ReflectionBinding IsActive}" Width="100" CanUserResize="True" />
+            <DataGridTextColumn Header="{loc:Loc proxy.updated}" Binding="{ReflectionBinding UpdatedAt}" Width="190" CanUserResize="True" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Border>
+  </Grid>
 </UserControl>

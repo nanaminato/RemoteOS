@@ -1,6 +1,22 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="clr-namespace:Client.Localization" xmlns:proxy="clr-namespace:Client.Apps.Proxy" x:Class="Client.Apps.Proxy.Views.ProxyGroupsView" x:DataType="proxy:ProxyManagerViewModel">
-  <StackPanel Spacing="18">
-    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="8"><TextBlock Text="{loc:Loc proxy.proxies}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /></StackPanel></Border>
-    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="12"><DataGrid ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" Height="250" GridLinesVisibility="Horizontal"><DataGrid.Columns><DataGridTextColumn Header="{loc:Loc proxy.group}" Binding="{ReflectionBinding Name}" Width="*" /><DataGridTextColumn Header="{loc:Loc proxy.type}" Binding="{ReflectionBinding Type}" Width="160" /><DataGridTextColumn Header="{loc:Loc proxy.selected}" Binding="{ReflectionBinding Selected}" Width="260" /></DataGrid.Columns></DataGrid><Grid ColumnDefinitions="*,Auto" ColumnSpacing="10"><ComboBox ItemsSource="{Binding SelectedGroup.Proxies}" SelectedItem="{Binding SelectedProxy, Mode=TwoWay}" PlaceholderText="{loc:Loc proxy.select_node}" /><Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.apply_selection}" Command="{Binding ApplyGroupSelectionCommand}" /></Grid></StackPanel></Border>
-  </StackPanel>
+  <Grid RowDefinitions="Auto,*" RowSpacing="18">
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <StackPanel Spacing="8"><TextBlock Text="{loc:Loc proxy.proxies}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /></StackPanel>
+    </Border>
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <Grid RowDefinitions="Auto,*" RowSpacing="12">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+          <ComboBox ItemsSource="{Binding SelectedGroup.Proxies}" SelectedItem="{Binding SelectedProxy, Mode=TwoWay}" PlaceholderText="{loc:Loc proxy.select_node}" />
+          <Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.apply_selection}" Command="{Binding ApplyGroupSelectionCommand}" />
+        </Grid>
+        <DataGrid Grid.Row="1" ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserResizeColumns="True" GridLinesVisibility="Horizontal" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MinHeight="160">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="{loc:Loc proxy.group}" Binding="{ReflectionBinding Name}" Width="*" CanUserResize="True" />
+            <DataGridTextColumn Header="{loc:Loc proxy.type}" Binding="{ReflectionBinding Type}" Width="160" CanUserResize="True" />
+            <DataGridTextColumn Header="{loc:Loc proxy.selected}" Binding="{ReflectionBinding Selected}" Width="260" CanUserResize="True" />
+          </DataGrid.Columns>
+        </DataGrid>
+      </Grid>
+    </Border>
+  </Grid>
 </UserControl>
