@@ -232,11 +232,16 @@ public sealed class MihomoRuntimeManager(
 
     private async Task StageAndInstallReleaseAsync(MihomoRuntimeRelease release, string finalDirectory, Func<MihomoRuntimeRelease, string, CancellationToken, Task> stageArchiveAsync, Func<string, Task>? stageReporter, CancellationToken cancellationToken)
     {
-        var stagingRoot = Path.Combine(Path.GetTempPath(), "remoteos-mihomo-" + Guid.NewGuid().ToString("N"));
+        // Directory.Move is atomic only within one filesystem. On Linux /tmp is commonly tmpfs
+        // while the protected runtime location is under /var/lib, so staging under /tmp makes a
+        // verified archive fail with EXDEV after extraction.
+        var versionsDirectory = Path.GetDirectoryName(finalDirectory)!;
+        var stagingRoot = Path.Combine(versionsDirectory, ".staging-" + Guid.NewGuid().ToString("N"));
         var archive = Path.Combine(stagingRoot, "runtime." + release.ArchiveFormat);
         var staging = Path.Combine(stagingRoot, "release");
         try
         {
+            Directory.CreateDirectory(versionsDirectory); MakePrivateDirectory(versionsDirectory);
             Directory.CreateDirectory(stagingRoot);
             await stageArchiveAsync(release, archive, cancellationToken);
             await ReportStageAsync(stageReporter, "verifying");
@@ -244,7 +249,6 @@ public sealed class MihomoRuntimeManager(
             await ExtractExpectedBinaryAsync(release, archive, staging, cancellationToken);
             if (!HasExpectedArchitecture(Path.Combine(staging, BinaryName())) || await probe.GetVersionAsync(Path.Combine(staging, BinaryName()), cancellationToken) is null)
                 throw new RuntimeInstallException(ProxyProblemCodes.RuntimeHealthCheckFailed);
-            Directory.CreateDirectory(Path.GetDirectoryName(finalDirectory)!);
             Directory.Move(staging, finalDirectory);
             MakePrivateDirectory(finalDirectory);
         }

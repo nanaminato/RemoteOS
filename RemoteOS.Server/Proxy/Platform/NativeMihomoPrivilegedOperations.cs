@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Mihomo;
 
@@ -116,9 +117,25 @@ public sealed class NativeMihomoPrivilegedOperations(
             if (OperatingSystem.IsLinux())
             {
                 var temporary = active + ".new";
-                if (Directory.Exists(temporary) || File.Exists(temporary)) Directory.Delete(temporary, recursive: true);
-                Directory.CreateSymbolicLink(temporary, release);
-                File.Move(temporary, active, overwrite: true);
+                try
+                {
+                    // A stale temporary link may be left behind by an interrupted activation.
+                    // unlink(2) removes the link itself and never follows its directory target.
+                    DeleteLinuxLinkIfPresent(temporary);
+                    Directory.CreateSymbolicLink(temporary, release);
+
+                    // Use rename(2) directly instead of File.Move. The source is a symbolic
+                    // link to a directory, which File.Move has reported as unavailable on some
+                    // Linux hosts. rename atomically replaces an existing current link without
+                    // stopping a running service in an intermediate no-runtime state.
+                    RenameLinuxLink(temporary, active);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    DeleteLinuxLinkIfPresentIgnoringFailure(temporary);
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo runtime link activation failed: " + DescribeLinkActivationFailure(exception), cancellationToken);
+                    return Unavailable();
+                }
             }
             else if (OperatingSystem.IsWindows())
             {
@@ -140,6 +157,44 @@ public sealed class NativeMihomoPrivilegedOperations(
     }
     private static bool IsServiceRequest(string engineId, string serviceName) => engineId == Engine && serviceName == Service;
     private static bool IsRelease(string version, string releaseId) => version == Mihomo.MihomoRuntimeManifest.SupportedVersion && releaseId == version + "-" + Mihomo.MihomoRuntimeManifest.CurrentRid();
+
+    private static void RenameLinuxLink(string source, string destination)
+    {
+        if (Rename(source, destination) == 0) return;
+        throw new LinuxLinkOperationException("rename", Marshal.GetLastPInvokeError());
+    }
+
+    private static void DeleteLinuxLinkIfPresent(string path)
+    {
+        if (Unlink(path) == 0) return;
+        var error = Marshal.GetLastPInvokeError();
+        if (error == 2) return; // ENOENT
+        throw new LinuxLinkOperationException("unlink", error);
+    }
+
+    private static void DeleteLinuxLinkIfPresentIgnoringFailure(string path)
+    {
+        try { DeleteLinuxLinkIfPresent(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static string DescribeLinkActivationFailure(Exception exception) => exception is LinuxLinkOperationException linux
+        ? linux.Operation + " failed with errno=" + linux.ErrorNumber
+        : exception.GetType().Name;
+
+    [DllImport("libc", EntryPoint = "rename", SetLastError = true)]
+    private static extern int Rename(string source, string destination);
+
+    [DllImport("libc", EntryPoint = "unlink", SetLastError = true)]
+    private static extern int Unlink(string path);
+
+    private sealed class LinuxLinkOperationException(string operation, int errorNumber) : IOException
+    {
+        public string Operation { get; } = operation;
+        public int ErrorNumber { get; } = errorNumber;
+    }
+
     private string ActivePath() => Path.Combine(paths.GetEngineVersionsDirectory(Engine), ActiveLink);
     private string ActiveBinaryPath()
     {

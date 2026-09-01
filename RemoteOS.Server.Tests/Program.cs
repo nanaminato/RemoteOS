@@ -57,6 +57,7 @@ try
     VerifyProxyProtocolContract();
     await VerifyMihomoControllerSafetyAsync();
     await VerifyProxyDiagnosticLogsAsync(root);
+    await VerifyLinuxMihomoRuntimeLinkActivationAsync(root);
     await VerifyMihomoRuntimeSafetyAsync(root);
     VerifyFrpTomlSafety();
     await VerifyFrpRuntimeInstallAndRollbackAsync(root);
@@ -366,6 +367,22 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     Assert(checksumDiagnostic is not null && checksumDiagnostic.Message.Contains($"expected={digest}", StringComparison.Ordinal)
         && checksumDiagnostic.Message.Contains($"actual={digest}", StringComparison.Ordinal),
         "Mihomo archive checksum diagnostics did not record the expected and actual values.");
+
+    var crossFilesystemRoot = Path.Combine("/var/tmp", "remoteos-mihomo-runtime-tests-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var crossFilesystemPrivileged = new TestProxyPrivilegedOperations();
+        var crossFilesystemManager = new MihomoRuntimeManager(new TestProxyPaths(crossFilesystemRoot), new FixtureHttpClientFactory(archive),
+            crossFilesystemPrivileged, new TestMihomoRuntimeProbe(), new HealthyMihomoController(), new StaticProxySecretStore(), new MihomoControllerOptions(), new MihomoRuntimeManifest { Releases = [release] });
+        var crossFilesystemInstall = await crossFilesystemManager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
+        Assert(crossFilesystemInstall.State == ProxyRuntimeState.Running && crossFilesystemInstall.IntegrityVerified,
+            "A verified Mihomo archive could not be atomically installed when the runtime directory was on another filesystem from /tmp.");
+    }
+    finally
+    {
+        if (Directory.Exists(crossFilesystemRoot)) Directory.Delete(crossFilesystemRoot, recursive: true);
+    }
+
     var invalidServerFile = await serverFileManager.InstallManagedFromArchiveAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, Path.Combine(root, "missing-mihomo-package.gz"), CancellationToken.None);
     Assert(invalidServerFile.ProblemCode == ProxyProblemCodes.RuntimeArchiveUnavailable, "A missing Server-side Mihomo archive was not reported as unavailable.");
 
@@ -390,6 +407,32 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
         new MihomoRuntimeManifest { Releases = [release with { ArchiveFormat = "zip", AssetName = "mihomo-windows-amd64-v1.19.30.zip", Sha256 = traversalDigest, Rid = "linux-x64" }] });
     var traversal = await traversalManager.InstallManagedAsync(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, CancellationToken.None);
     Assert(traversal.ProblemCode == ProxyProblemCodes.RuntimeIntegrityFailed, "A path-traversal runtime archive was accepted.");
+}
+
+static async Task VerifyLinuxMihomoRuntimeLinkActivationAsync(string root)
+{
+    if (!OperatingSystem.IsLinux() || MihomoRuntimeManifest.CurrentRid() != "linux-x64") return;
+
+    var paths = new TestProxyPaths(Path.Combine(root, "mihomo-link-activation"));
+    var versions = paths.GetEngineVersionsDirectory(MihomoEngine.Id);
+    var releaseId = MihomoRuntimeManifest.SupportedVersion + "-linux-x64";
+    var release = Path.Combine(versions, releaseId);
+    var previous = Path.Combine(versions, "previous-release");
+    var active = Path.Combine(versions, "current");
+    var temporary = active + ".new";
+    Directory.CreateDirectory(release);
+    Directory.CreateDirectory(previous);
+    await File.WriteAllTextAsync(Path.Combine(release, "mihomo"), "fixture");
+    Directory.CreateSymbolicLink(active, previous);
+    Directory.CreateSymbolicLink(temporary, previous);
+
+    var operations = new NativeMihomoPrivilegedOperations(paths);
+    var result = await operations.InstallRuntimeAsync(new InstallProxyRuntimeOperation(MihomoEngine.Id, MihomoRuntimeManifest.SupportedVersion, releaseId), CancellationToken.None);
+
+    Assert(result.Succeeded, "Managed Mihomo could not atomically activate a directory symbolic link on Linux.");
+    Assert(!File.Exists(temporary) && !Directory.Exists(temporary), "Managed Mihomo activation left its temporary symbolic link behind.");
+    Assert(Path.GetFullPath(Path.Combine(versions, new DirectoryInfo(active).LinkTarget!)) == Path.GetFullPath(release),
+        "Managed Mihomo activation did not atomically replace the active runtime link.");
 }
 
 static byte[] CreateMihomoFixtureArchive()
