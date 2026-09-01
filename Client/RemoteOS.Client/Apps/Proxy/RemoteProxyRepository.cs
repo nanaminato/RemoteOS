@@ -11,6 +11,11 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
 {
     public Task<ProxyOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyOverviewDto>(HttpMethod.Get, ProxyApiRoutes.Overview, null, cancellationToken);
     public Task<IReadOnlyList<ProxyProfileDto>> ListProfilesAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxyProfileDto>>(HttpMethod.Get, ProxyApiRoutes.Profiles, null, cancellationToken);
+    public Task<IReadOnlyList<ProxySubscriptionDto>> ListSubscriptionsAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxySubscriptionDto>>(HttpMethod.Get, ProxyApiRoutes.Subscriptions, null, cancellationToken);
+    public Task<ProxySubscriptionDto> ImportSubscriptionAsync(ImportProxySubscriptionRequest request, CancellationToken cancellationToken = default) => SendAsync<ProxySubscriptionDto>(HttpMethod.Post, ProxyApiRoutes.Subscriptions, request, cancellationToken);
+    public Task<ProxySubscriptionContentDto> GetSubscriptionContentAsync(Guid subscriptionId, CancellationToken cancellationToken = default) => SendAsync<ProxySubscriptionContentDto>(HttpMethod.Get, SubscriptionRoute(subscriptionId) + "/content", null, cancellationToken);
+    public Task<ProxyOperationAcceptedDto> RefreshAllSubscriptionsAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyOperationAcceptedDto>(HttpMethod.Post, ProxyApiRoutes.SubscriptionsRefresh, null, cancellationToken, idempotent: true);
+    public Task<ProxyOperationAcceptedDto> ActivateSubscriptionAsync(Guid subscriptionId, CancellationToken cancellationToken = default) => SendAsync<ProxyOperationAcceptedDto>(HttpMethod.Post, SubscriptionRoute(subscriptionId) + "/activate", null, cancellationToken, idempotent: true);
     public Task<IReadOnlyList<ProxyGroupDto>> ListGroupsAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxyGroupDto>>(HttpMethod.Get, ProxyApiRoutes.Groups, null, cancellationToken);
     public Task<IReadOnlyList<ProxyConnectionDto>> ListConnectionsAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxyConnectionDto>>(HttpMethod.Get, ProxyApiRoutes.Connections, null, cancellationToken);
     public Task<IReadOnlyList<ProxyLogEntryDto>> ListLogsAsync(int limit = 200, CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxyLogEntryDto>>(HttpMethod.Get, ProxyApiRoutes.Logs + "?limit=" + Math.Clamp(limit, 1, 500), null, cancellationToken);
@@ -60,5 +65,6 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
     }
 
     private static string ProfileRoute(Guid profileId) => ProxyApiRoutes.Proxy + "/profiles/" + profileId;
+    private static string SubscriptionRoute(Guid subscriptionId) => ProxyApiRoutes.Proxy + "/subscriptions/" + subscriptionId;
 }
 public sealed class ProxyRequestException(string problemCode) : Exception(problemCode) { public string ProblemCode { get; } = problemCode; }

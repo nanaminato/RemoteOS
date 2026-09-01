@@ -46,6 +46,7 @@ try
     await VerifyRenewalRetryAsync(root);
     await VerifyHostGlobalMigrationAsync(root);
     await VerifyProxyHostProfileRepositoryAsync(root);
+    await VerifyProxySubscriptionRepositoryAsync(root);
     await VerifyProxyConfigurationTransactionAsync(root);
     await VerifyProxyTunSafetyAsync(root);
     await VerifyHostNetworkSafetyDiscoveryAsync();
@@ -633,9 +634,11 @@ static async Task VerifyHostGlobalMigrationAsync(string root)
     await connection.OpenAsync();
     await using var command = connection.CreateCommand();
     command.CommandText = "SELECT MAX(version) FROM remoteos_host_schema_migrations;";
-    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 8, "HostGlobal migrations did not reach the expected version.");
+    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 9, "HostGlobal migrations did not reach the expected version.");
     command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_profiles');";
     Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy profile metadata table was not migrated.");
+    command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_subscriptions');";
+    Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy subscription metadata table was not migrated.");
 }
 
 static async Task VerifyProxyHostProfileRepositoryAsync(string root)
@@ -650,6 +653,29 @@ static async Task VerifyProxyHostProfileRepositoryAsync(string root)
     Assert(!await repository.DeleteAsync(first.Id, CancellationToken.None), "The active Proxy profile was deleted without an explicit switch.");
     Assert(await repository.SetActiveAsync(second.Id, CancellationToken.None) is { IsActive: true } && await repository.DeleteAsync(first.Id, CancellationToken.None),
         "Switching the active Proxy profile did not allow the previous profile to be deleted.");
+}
+
+static async Task VerifyProxySubscriptionRepositoryAsync(string root)
+{
+    var databasePath = Path.Combine(root, "proxy-subscriptions.db");
+    await HostGlobalMigrationRunner.MigrateAsync($"Data Source={databasePath}", CancellationToken.None);
+    var environment = new TestHostEnvironment(root);
+    var options = Options.Create(new StorageOptions { DatabasePath = databasePath });
+    var profiles = new SqliteProxyProfileRepository(environment, options);
+    var profile = await profiles.UpsertAsync(null, "Subscription profile", MihomoEngine.Id, null, CancellationToken.None);
+    var keys = Path.Combine(root, "proxy-subscription-keys");
+    var repository = new SqliteProxySubscriptionRepository(environment, options, DataProtectionProvider.Create(keys));
+    var url = "https://example.com/secret-token";
+    var created = await repository.CreateAsync("Example", profile.Id, url, CancellationToken.None);
+    var stored = await repository.GetAsync(created.Id, CancellationToken.None);
+    Assert(stored?.Url == url && (await repository.ListAsync(CancellationToken.None)).Single().Name == "Example",
+        "Proxy subscription metadata was not persisted or protected URL could not be recovered.");
+    await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath}");
+    await connection.OpenAsync(); await using var command = connection.CreateCommand();
+    command.CommandText = "SELECT protected_url FROM proxy_subscriptions WHERE subscription_id=$id;";
+    command.Parameters.AddWithValue("$id", created.Id.ToString("D"));
+    Assert(!string.Equals((string?)await command.ExecuteScalarAsync(), url, StringComparison.Ordinal),
+        "Proxy subscription URL was stored in plaintext.");
 }
 
 static async Task VerifyProxyConfigurationTransactionAsync(string root)

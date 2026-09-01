@@ -6,6 +6,8 @@ namespace Server.Proxy;
 /// <summary>Serializes raw-YAML application. Raw configuration is never returned through public contracts.</summary>
 public interface IProxyConfigurationTransactionService
 {
+    Task<string?> StoreAsync(Guid profileId, string yaml, CancellationToken cancellationToken);
+    Task<string?> ActivateStoredAsync(Guid profileId, CancellationToken cancellationToken);
     Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken);
 }
 
@@ -19,6 +21,12 @@ public sealed class ProxyConfigurationTransactionService(
     private readonly SemaphoreSlim _gate = new(1, 1);
     public async Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken)
     {
+        var stored = await StoreAsync(profileId, yaml, cancellationToken);
+        return string.IsNullOrEmpty(stored) ? await ActivateStoredAsync(profileId, cancellationToken) : stored;
+    }
+
+    public async Task<string?> StoreAsync(Guid profileId, string yaml, CancellationToken cancellationToken)
+    {
         if (yaml.Length is 0 or > 1_048_576 || yaml.IndexOf('\0') >= 0) return ProxyProblemCodes.ConfigInvalid;
         var profile = await profiles.GetAsync(profileId, cancellationToken);
         var engine = profile is null ? null : engines.Find(profile.EngineId);
@@ -26,6 +34,34 @@ public sealed class ProxyConfigurationTransactionService(
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            var directory = GetProfilesDirectory();
+            var temporary = Path.Combine(directory, ".validate-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                await File.WriteAllTextAsync(temporary, yaml, cancellationToken); SetPrivateFile(temporary);
+                var validation = await engine.ValidateConfigurationAsync(temporary, cancellationToken);
+                if (!string.IsNullOrEmpty(validation)) { File.Delete(temporary); return validation; }
+                File.Move(temporary, ProfilePath(profileId), overwrite: true); SetPrivateFile(ProfilePath(profileId));
+                return null;
+            }
+            catch (IOException) { return ProxyProblemCodes.ConfigApplyFailed; }
+            catch (UnauthorizedAccessException) { return ProxyProblemCodes.PrivilegedOperationUnavailable; }
+            catch (ArgumentException) { return ProxyProblemCodes.ConfigInvalid; }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task<string?> ActivateStoredAsync(Guid profileId, CancellationToken cancellationToken)
+    {
+        var profile = await profiles.GetAsync(profileId, cancellationToken);
+        var engine = profile is null ? null : engines.Find(profile.EngineId);
+        var storedPath = ProfilePath(profileId);
+        if (engine is null || !File.Exists(storedPath)) return ProxyProblemCodes.ConfigInvalid;
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var yaml = await File.ReadAllTextAsync(storedPath, cancellationToken);
             var directory = paths.GetProtectedConfigurationDirectory(); Directory.CreateDirectory(directory); SetPrivateDirectory(directory);
             var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
             var managedYaml = engine.EngineId == MihomoEngine.Id
@@ -38,7 +74,7 @@ public sealed class ProxyConfigurationTransactionService(
             {
                 await File.WriteAllTextAsync(temporary, managedYaml, cancellationToken); SetPrivateFile(temporary);
                 var validation = await engine.ValidateConfigurationAsync(temporary, cancellationToken);
-                if (!string.IsNullOrEmpty(validation)) { File.Delete(temporary); return validation; }
+                if (!string.IsNullOrEmpty(validation)) return validation;
                 if (File.Exists(active)) File.Copy(active, backup, overwrite: false);
                 File.Move(temporary, active, overwrite: true); SetPrivateFile(active);
                 var reload = await engine.ReloadAsync(cancellationToken);
@@ -61,6 +97,14 @@ public sealed class ProxyConfigurationTransactionService(
         }
         finally { _gate.Release(); }
     }
+
+    private string GetProfilesDirectory()
+    {
+        var directory = Path.Combine(paths.GetProtectedConfigurationDirectory(), "profiles");
+        Directory.CreateDirectory(directory); SetPrivateDirectory(directory);
+        return directory;
+    }
+    private string ProfilePath(Guid profileId) => Path.Combine(GetProfilesDirectory(), profileId.ToString("N") + ".yaml");
     private static void SetPrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void SetPrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
 }

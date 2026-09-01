@@ -37,6 +37,8 @@ public static class ProxyProblemCodes
     public const string IdempotencyKeyRequired = "proxy.idempotency_key_required";
     public const string PermissionDenied = "proxy.permission_denied";
     public const string NotSupported = "proxy.not_supported";
+    public const string SubscriptionInvalid = "proxy.subscription_invalid";
+    public const string SubscriptionFetchFailed = "proxy.subscription_fetch_failed";
 }
 
 public static class ProxyApiRoutes
@@ -47,6 +49,11 @@ public static class ProxyApiRoutes
     public const string LifecyclePattern = "/lifecycle/{action}";
     public const string Tun = Proxy + "/tun";
     public const string Profiles = Proxy + "/profiles";
+    public const string Subscriptions = Proxy + "/subscriptions";
+    public const string SubscriptionPattern = "/subscriptions/{subscriptionId:guid}";
+    public const string SubscriptionRefreshPattern = "/subscriptions/{subscriptionId:guid}/refresh";
+    public const string SubscriptionContentPattern = "/subscriptions/{subscriptionId:guid}/content";
+    public const string SubscriptionActivatePattern = "/subscriptions/{subscriptionId:guid}/activate";
     public const string ProfilePattern = "/profiles/{profileId:guid}";
     public const string ProfileConfigurationPattern = "/profiles/{profileId:guid}/configuration";
     public const string Groups = Proxy + "/groups";
@@ -69,6 +76,7 @@ public static class ProxyApiRoutes
     public const string TunEmergencyDisable = Tun + "/emergency-disable";
     public const string ProfileActivatePattern = "/profiles/{profileId:guid}/activate";
     public const string ProfileConfigurationApplyPattern = "/profiles/{profileId:guid}/configuration/apply";
+    public const string SubscriptionsRefresh = Subscriptions + "/refresh";
 }
 
 public sealed record ProxyEngineCapabilities(
@@ -116,6 +124,19 @@ public sealed record ProxyProfileDto(
     [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
     [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt);
 
+/// <summary>Safe subscription metadata. The source URL is encrypted server-side and is never returned.</summary>
+public sealed record ProxySubscriptionDto(
+    [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("profileId")] Guid ProfileId,
+    [property: JsonPropertyName("isActive")] bool IsActive,
+    [property: JsonPropertyName("lastUpdatedAt")] DateTimeOffset? LastUpdatedAt,
+    [property: JsonPropertyName("createdAt")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("updatedAt")] DateTimeOffset UpdatedAt);
+
+/// <summary>Read-only source content requested by a privileged user. The source URL is never included.</summary>
+public sealed record ProxySubscriptionContentDto(Guid SubscriptionId, string Content, DateTimeOffset RetrievedAt);
+
 public sealed record ProxyGroupDto(string Name, string Type, string? Selected, IReadOnlyList<string> Proxies);
 public sealed record ProxyConnectionDto(string Id, string Network, string Source, string Destination, string Rule, string Chains, DateTimeOffset StartedAt);
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
@@ -130,6 +151,7 @@ public sealed record ProxyOverviewDto(string EngineId, ProxyEngineCapabilities E
     int ActiveConnections, ProxyRecoveryStatusDto Recovery);
 
 public sealed record UpsertProxyProfileRequest(string Name, string EngineId, long? ExpectedRevision = null);
+public sealed record ImportProxySubscriptionRequest(string Url, string? Name = null);
 public sealed record SelectProxyGroupRequest(string Proxy);
 public sealed record ProxyTunRequest(Guid ProfileId);
 public sealed record ProxyRuntimeRequest(string EngineId, string? Version = null, string? ExternalPath = null);

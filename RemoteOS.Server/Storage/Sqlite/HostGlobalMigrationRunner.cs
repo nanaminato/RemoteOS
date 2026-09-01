@@ -221,6 +221,22 @@ internal static class HostGlobalMigrationRunner
                 INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (8, CURRENT_TIMESTAMP);
                 """, cancellationToken);
         }
+        if (!await IsAppliedAsync(connection, transaction, 9, cancellationToken))
+        {
+            await ExecuteAsync(connection, transaction, """
+                CREATE TABLE proxy_subscriptions (
+                    subscription_id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    profile_id TEXT NOT NULL UNIQUE,
+                    protected_url TEXT NOT NULL,
+                    last_updated_at TEXT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX ix_proxy_subscriptions_profile_id ON proxy_subscriptions(profile_id);
+                INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (9, CURRENT_TIMESTAMP);
+                """, cancellationToken);
+        }
         transaction.Commit();
     }
 

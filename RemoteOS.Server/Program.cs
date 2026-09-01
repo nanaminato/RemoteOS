@@ -65,6 +65,12 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Pr
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient<Server.Proxy.IProxySubscriptionDownloader, Server.Proxy.ProxySubscriptionDownloader>(client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+    });
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
 builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());
@@ -383,6 +389,8 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<Server.Tunnels.ITunnelAudit, Server.Tunnels.TunnelAudit>();
     builder.Services.AddSingleton<Server.Proxy.IProxyProfileRepository, Server.Proxy.SqliteProxyProfileRepository>();
     builder.Services.AddSingleton<Server.Proxy.IProxyProfileService, Server.Proxy.ProxyProfileService>();
+    builder.Services.AddSingleton<Server.Proxy.IProxySubscriptionRepository, Server.Proxy.SqliteProxySubscriptionRepository>();
+    builder.Services.AddScoped<Server.Proxy.IProxySubscriptionService, Server.Proxy.ProxySubscriptionService>();
     builder.Services.AddScoped<Server.Proxy.IProxyConfigurationTransactionService, Server.Proxy.ProxyConfigurationTransactionService>();
     builder.Services.AddScoped<Server.Proxy.IProxyConfigurationService, Server.Proxy.ProxyConfigurationService>();
 }
