@@ -1,4 +1,15 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="clr-namespace:Client.Localization" xmlns:proxy="clr-namespace:Client.Apps.Proxy" x:Class="Client.Apps.Proxy.Views.ProxyOverviewView" x:DataType="proxy:ProxyManagerViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.proxy-running-pulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.8" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.18"/></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.7"/></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.18"/></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
   <StackPanel Spacing="18">
     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="14">
       <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18"><StackPanel Spacing="5"><TextBlock Text="{loc:Loc proxy.runtime}" Foreground="{DynamicResource TextSecondaryBrush}" /><TextBlock Text="{Binding RuntimeVersion}" FontSize="22" FontWeight="SemiBold" /><TextBlock Text="{Binding RuntimeState}" Foreground="{DynamicResource TextTertiaryBrush}" /></StackPanel></Border>
@@ -6,7 +17,37 @@
       <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18"><StackPanel Spacing="5"><TextBlock Text="{loc:Loc proxy.active_profile}" Foreground="{DynamicResource TextSecondaryBrush}" /><TextBlock Text="{Binding ActiveProfileName}" FontSize="22" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding TunState}" Foreground="{DynamicResource TextTertiaryBrush}" /></StackPanel></Border>
     </Grid>
     <Grid ColumnDefinitions="*,*" ColumnSpacing="18">
-      <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="12"><TextBlock Text="{loc:Loc proxy.quick_actions}" FontSize="19" FontWeight="SemiBold" /><TextBlock Text="{loc:Loc proxy.quick_actions_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /><WrapPanel><Button Classes="primary" Content="{loc:Loc proxy.start}" Command="{Binding StartProxyCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.restart}" Command="{Binding RestartProxyCommand}" Margin="0,0,8,8" /><Button Content="{loc:Loc proxy.stop}" Command="{Binding StopProxyCommand}" Margin="0,0,8,8" /></WrapPanel></StackPanel></Border>
+      <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+        <StackPanel Spacing="12">
+          <TextBlock Text="{loc:Loc proxy.runtime_control}" FontSize="19" FontWeight="SemiBold" />
+          <TextBlock Text="{loc:Loc proxy.runtime_control_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="132,*" ColumnSpacing="18">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+              <Button Classes="proxy-power" Command="{Binding ToggleProxyCommand}" ToolTip.Tip="{Binding ProxyActionText}">
+                <Grid Width="112" Height="112">
+                  <Border Classes="proxy-running-pulse" Background="{DynamicResource SuccessMutedBrush}" CornerRadius="56" IsVisible="{Binding ProxyIsRunning}"/>
+                  <Border Background="{DynamicResource WarningMutedBrush}" CornerRadius="56" IsVisible="{Binding !ProxyIsRunning}" Opacity="0.55"/>
+                  <Border Background="{DynamicResource SuccessBrush}" CornerRadius="46" Margin="10" IsVisible="{Binding ProxyIsRunning}"/>
+                  <Border Background="{DynamicResource WarningBrush}" CornerRadius="46" Margin="10" IsVisible="{Binding !ProxyIsRunning}"/>
+                  <Path Data="M13,3 H11 V13 H13 Z M17.83,5.17 L16.41,6.59 A7,7 0 1,1 7.59,6.59 L6.17,5.17 A9,9 0 1,0 17.83,5.17 Z"
+                        Width="42" Height="42" Stretch="Uniform" Fill="{DynamicResource TextOnAccentBrush}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+              </Button>
+              <TextBlock Text="{Binding ProxyActionText}" HorizontalAlignment="Center" FontWeight="SemiBold"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border Width="10" Height="10" CornerRadius="5" Background="{DynamicResource SuccessBrush}" IsVisible="{Binding ProxyIsRunning}" VerticalAlignment="Center"/>
+                <Border Width="10" Height="10" CornerRadius="5" Background="{DynamicResource WarningBrush}" IsVisible="{Binding !ProxyIsRunning}" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding ProxyStateLabel}" FontSize="20" FontWeight="SemiBold"/>
+              </StackPanel>
+              <TextBlock Text="{Binding RuntimeVersion}" Foreground="{DynamicResource TextSecondaryBrush}"/>
+              <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
       <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20"><StackPanel Spacing="10"><Grid ColumnDefinitions="*,Auto"><TextBlock Text="{loc:Loc proxy.network_protection}" FontSize="19" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding RunningConnectionCount}" FontSize="20" FontWeight="SemiBold" /></Grid><TextBlock Text="{loc:Loc proxy.network_protection_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" /><TextBlock Text="{loc:Loc proxy.recovery_required}" IsVisible="{Binding IsRecoveryRequired}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" /></StackPanel></Border>
     </Grid>
     <Border Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" CornerRadius="14" Padding="18"><TextBlock Text="{loc:Loc proxy.safety_hint}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" /></Border>

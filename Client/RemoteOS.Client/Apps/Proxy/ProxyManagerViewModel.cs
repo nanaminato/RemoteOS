@@ -36,6 +36,15 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
     public string RuntimeState => Runtime?.State.ToString() ?? "—";
+    public bool ProxyIsRunning => Runtime?.State == ProxyRuntimeState.Running;
+    public bool ProxyCanToggle => Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
+    public string ProxyActionText => LocalizedText.Get(ProxyIsRunning ? "proxy.stop" : "proxy.start");
+    public string ProxyStateLabel => Runtime?.State switch
+    {
+        ProxyRuntimeState.Running => LocalizedText.Get("proxy.runtime_running"),
+        ProxyRuntimeState.Stopped => LocalizedText.Get("proxy.runtime_stopped"),
+        _ => LocalizedText.Get("proxy.runtime_unavailable"),
+    };
     public bool RuntimeIsInstalled => Runtime is { Mode: ProxyRuntimeMode.Managed, IntegrityVerified: true };
     public bool RuntimeIsNotInstalled => !RuntimeIsInstalled;
     public string RuntimeInstalledVersion => Runtime?.Version ?? "—";
@@ -83,6 +92,8 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     [RelayCommand(CanExecute = nameof(CanStartProxy))] private Task StartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Start);
     [RelayCommand(CanExecute = nameof(CanStopProxy))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
     [RelayCommand(CanExecute = nameof(CanRestartProxy))] private Task RestartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Restart);
+    [RelayCommand(CanExecute = nameof(CanToggleProxy))]
+    private Task ToggleProxyAsync() => LifecycleAsync(ProxyIsRunning ? ProxyLifecycleAction.Stop : ProxyLifecycleAction.Start);
     [RelayCommand(CanExecute = nameof(CanInstallRuntime))] private Task InstallRuntimeAsync() => QueueAsync(() => repository.InstallRuntimeAsync(Overview?.EngineId ?? "mihomo"));
     [RelayCommand(CanExecute = nameof(CanInstallRuntimeFromServerFile))]
     private async Task InstallRuntimeFromServerFileAsync()
@@ -217,6 +228,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private bool CanStartProxy => CanManage && Runtime?.State == ProxyRuntimeState.Stopped;
     private bool CanStopProxy => CanManage && Runtime?.State == ProxyRuntimeState.Running;
     private bool CanRestartProxy => CanManage && Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
+    private bool CanToggleProxy => CanManage && ProxyCanToggle;
     private bool CanInstallRuntimeFromServerFile => CanInstallRuntime && RequestServerRuntimePackageAsync is not null;
     private bool CanTun => canManageTun && !IsBusy && IsTunAvailable;
     private bool CanEnableTun => CanTun && SelectedProfile is not null;
@@ -229,9 +241,12 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
     partial void OnRuntimeChanged(ProxyRuntimeDto? value)
     {
+        OnPropertyChanged(nameof(ProxyIsRunning)); OnPropertyChanged(nameof(ProxyCanToggle));
+        OnPropertyChanged(nameof(ProxyActionText)); OnPropertyChanged(nameof(ProxyStateLabel));
         OnPropertyChanged(nameof(RuntimeIsInstalled)); OnPropertyChanged(nameof(RuntimeIsNotInstalled));
         OnPropertyChanged(nameof(RuntimeInstalledVersion)); OnPropertyChanged(nameof(RuntimeAvailableVersion));
         StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
+        ToggleProxyCommand.NotifyCanExecuteChanged();
         InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
         RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
     }
@@ -242,7 +257,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
 
     private void NotifyCommands()
     {
-        RefreshCommand.NotifyCanExecuteChanged(); StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
+        RefreshCommand.NotifyCanExecuteChanged(); StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged(); ToggleProxyCommand.NotifyCanExecuteChanged();
         InstallRuntimeCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
