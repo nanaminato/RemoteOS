@@ -50,7 +50,11 @@ mihomoController.Validate();
 builder.Services.AddSingleton(mihomoController);
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IProxyControllerSecretStore, Server.Proxy.Mihomo.DataProtectionProxyControllerSecretStore>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator, Server.Proxy.Mihomo.UnavailableMihomoConfigurationValidator>();
-builder.Services.AddHttpClient<Server.Proxy.Mihomo.IMihomoControllerClient, Server.Proxy.Mihomo.MihomoControllerClient>();
+// The controller is an optional local process. Its expected "not started" condition is
+// reported by MihomoControllerClient as one actionable warning, instead of HttpClient's
+// full connection exception stack on every status poll.
+builder.Services.AddHttpClient<Server.Proxy.Mihomo.IMihomoControllerClient, Server.Proxy.Mihomo.MihomoControllerClient>()
+    .RemoveAllLoggers();
 builder.Services.AddSingleton<Server.Proxy.IProxyEngine, Server.Proxy.Mihomo.MihomoEngine>();
 builder.Services.AddSingleton<Server.Proxy.IProxyEngineRegistry, Server.Proxy.ProxyEngineRegistry>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.WindowsMihomoProcessHost>();

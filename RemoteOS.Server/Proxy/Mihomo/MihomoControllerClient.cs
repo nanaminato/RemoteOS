@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.Proxy;
 
 namespace Server.Proxy.Mihomo;
@@ -31,8 +33,13 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
     private readonly HttpClient _httpClient;
     private readonly IProxyControllerSecretStore _secrets;
     private readonly MihomoControllerOptions _options;
+    private readonly ILogger<MihomoControllerClient>? _logger;
 
-    public MihomoControllerClient(HttpClient httpClient, IProxyControllerSecretStore secrets, MihomoControllerOptions options)
+    public MihomoControllerClient(
+        HttpClient httpClient,
+        IProxyControllerSecretStore secrets,
+        MihomoControllerOptions options,
+        ILogger<MihomoControllerClient>? logger = null)
     {
         options.Validate();
         _httpClient = httpClient;
@@ -40,6 +47,7 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         _httpClient.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         _secrets = secrets;
         _options = options;
+        _logger = logger;
     }
 
     public async Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken)
@@ -163,7 +171,19 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(null, ProxyProblemCodes.ControllerTimeout); }
         catch (OperationCanceledException) { throw; }
         catch (ProxyControllerSecretException) { return new(null, ProxyProblemCodes.ControllerUnavailable); }
-        catch (HttpRequestException) { return new(null, ProxyProblemCodes.ControllerUnavailable); }
+        catch (HttpRequestException exception)
+        {
+            if (exception.InnerException is SocketException { SocketErrorCode: SocketError.ConnectionRefused })
+            {
+                _logger?.LogWarning("Mihomo controller at {Endpoint} refused the connection; Mihomo may not be running.",
+                    _options.Endpoint.Authority);
+            }
+            else
+            {
+                _logger?.LogWarning("Mihomo controller at {Endpoint} is unavailable.", _options.Endpoint.Authority);
+            }
+            return new(null, ProxyProblemCodes.ControllerUnavailable);
+        }
     }
 
     private static bool IsName(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 512 && value.All(character => !char.IsControl(character));
