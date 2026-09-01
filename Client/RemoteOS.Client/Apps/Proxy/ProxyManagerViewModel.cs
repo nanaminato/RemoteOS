@@ -7,8 +7,19 @@ using RemoteOS.Protocol.Proxy;
 namespace Client.Apps.Proxy;
 
 /// <summary>Presentation state for the host-global proxy workspace. Controller details stay on the Server.</summary>
-public sealed partial class ProxyManagerViewModel(IProxyRepository repository, bool canManage, bool canManageTun) : ObservableObject
+public sealed partial class ProxyManagerViewModel : ObservableObject
 {
+    private readonly IProxyRepository repository;
+    [ObservableProperty] private bool _hasManagePermission;
+    [ObservableProperty] private bool _hasTunManagePermission;
+
+    public ProxyManagerViewModel(IProxyRepository repository, bool canManage, bool canManageTun)
+    {
+        this.repository = repository;
+        _hasManagePermission = canManage;
+        _hasTunManagePermission = canManageTun;
+    }
+
     public ObservableCollection<ProxyProfileDto> Profiles { get; } = [];
     public ObservableCollection<ProxySubscriptionDto> Subscriptions { get; } = [];
     public ObservableCollection<ProxyGroupDto> Groups { get; } = [];
@@ -39,6 +50,14 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     {
         RequestServerRuntimePackageAsync = request;
         InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Updates the capability snapshot only after the owning application has completed its permission prompt.</summary>
+    public void SetPermissions(bool canManage, bool canManageTun)
+    {
+        HasManagePermission = canManage;
+        HasTunManagePermission = canManageTun;
+        NotifyCommands();
     }
 
     public int RunningConnectionCount => Connections.Count;
@@ -324,7 +343,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     }
 
     private bool CanRefresh => !IsBusy;
-    private bool CanManage => canManage && !IsBusy;
+    private bool CanManage => HasManagePermission && !IsBusy;
     private bool CanInstallRuntime => CanManage && RuntimeIsNotInstalled;
     private bool CanInstalledRuntime => CanManage && RuntimeIsInstalled;
     private bool CanStartProxy => CanManage && Runtime?.State == ProxyRuntimeState.Stopped;
@@ -332,7 +351,7 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     private bool CanRestartProxy => CanManage && Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
     private bool CanToggleProxy => CanManage && ProxyCanToggle;
     private bool CanInstallRuntimeFromServerFile => CanInstallRuntime && RequestServerRuntimePackageAsync is not null;
-    private bool CanTun => canManageTun && !IsBusy && IsTunAvailable;
+    private bool CanTun => HasTunManagePermission && !IsBusy && IsTunAvailable;
     private bool CanEnableTun => CanTun && SelectedProfile is not null;
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
     private bool CanManageProfile => CanManage && SelectedProfile is not null;
@@ -359,6 +378,8 @@ public sealed partial class ProxyManagerViewModel(IProxyRepository repository, b
     }
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
+    partial void OnHasManagePermissionChanged(bool value) => NotifyCommands();
+    partial void OnHasTunManagePermissionChanged(bool value) => NotifyCommands();
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
     partial void OnSelectedSubscriptionChanged(ProxySubscriptionDto? value) => ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged();
     partial void OnSubscriptionLinkChanged(string value) => ImportSubscriptionCommand.NotifyCanExecuteChanged();
