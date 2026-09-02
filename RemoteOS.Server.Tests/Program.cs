@@ -802,6 +802,11 @@ static async Task VerifyProxyConfigurationTransactionAsync(string root)
     var service = new ProxyConfigurationTransactionService(paths, new ProxyEngineRegistry([engine]), profiles, new StaticProxySecretStore(), new MihomoControllerOptions());
     Assert(await service.ApplyAsync(profile.Id, "mode: rule\ngeodata-mode: true\ngeo-auto-update: true\ngeox-url:\n  geoip: https://untrusted.example/geoip.dat\n\"external-controller\": 192.0.2.4:9090\n\"secret\": stale-secret\n", CancellationToken.None) is null,
         "Valid Proxy YAML was not applied.");
+    Assert(engine.LastValidatedConfiguration is { } validated
+        && validated.Contains("geodata-mode: false\n", StringComparison.Ordinal)
+        && validated.Contains("geo-auto-update: false\n", StringComparison.Ordinal)
+        && !validated.Contains("untrusted.example", StringComparison.Ordinal),
+        "Subscription validation did not use the managed offline GEO configuration.");
     engine.FailNextReload = true;
     Assert(await service.ApplyAsync(profile.Id, "mode: global\n", CancellationToken.None) == ProxyProblemCodes.ConfigApplyFailed,
         "Failed reload did not report a transactional apply failure.");
@@ -1214,9 +1219,14 @@ sealed class TransactionTestEngine : IProxyEngine
 {
     public string EngineId => MihomoEngine.Id;
     public bool FailNextReload { get; set; }
+    public string? LastValidatedConfiguration { get; private set; }
     public Task<ProxyEngineCapabilities> GetCapabilitiesAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyEngineCapabilities(true, true, false, false, false, false));
     public Task<ProxyHealthDto> GetHealthAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyHealthDto(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true));
-    public Task<string?> ValidateConfigurationAsync(string configurationPath, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public async Task<string?> ValidateConfigurationAsync(string configurationPath, CancellationToken cancellationToken)
+    {
+        LastValidatedConfiguration = await File.ReadAllTextAsync(configurationPath, cancellationToken);
+        return null;
+    }
     public Task<string?> ReloadAsync(CancellationToken cancellationToken)
     {
         var failed = FailNextReload; FailNextReload = false;

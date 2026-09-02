@@ -44,7 +44,15 @@ public sealed class ProxyConfigurationTransactionService(
             var temporary = Path.Combine(directory, ".validate-" + Guid.NewGuid().ToString("N"));
             try
             {
-                await File.WriteAllTextAsync(temporary, yaml, cancellationToken); SetPrivateFile(temporary);
+                // Validate the same GEO policy that will be activated.  Validating the raw
+                // subscription first lets a profile's geo-auto-update/geox-url make Mihomo
+                // download data even though the managed -d directory has already been staged.
+                // Keep the original profile for later activation, but never let its download
+                // settings influence the validation process.
+                var validationYaml = engine.EngineId == MihomoEngine.Id
+                    ? MihomoManagedConfiguration.WithServerGeoDataSettings(yaml)
+                    : yaml;
+                await File.WriteAllTextAsync(temporary, validationYaml, cancellationToken); SetPrivateFile(temporary);
                 var validation = await engine.ValidateConfigurationAsync(temporary, cancellationToken);
                 if (!string.IsNullOrEmpty(validation)) { File.Delete(temporary); return validation; }
                 File.Move(temporary, ProfilePath(profileId), overwrite: true); SetPrivateFile(ProfilePath(profileId));

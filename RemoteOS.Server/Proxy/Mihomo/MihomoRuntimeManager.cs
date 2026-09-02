@@ -39,9 +39,9 @@ public sealed class MihomoRuntimeManager(
             if (!File.Exists(ExecutablePath(active)))
                 return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, active, state.PreviousVersion, false, false, ProxyProblemCodes.RuntimeNotInstalled);
 
-            // Older builds allowed raw profile YAML to overwrite these fields. Reconcile before
-            // exposing the runtime so opening Proxy Manager repairs a stale Windows child process
-            // instead of permanently reporting the resulting controller 401.
+            // Older builds allowed raw profile YAML to overwrite managed controller and GEO
+            // fields. Reconcile before exposing the runtime so opening Proxy Manager repairs a
+            // stale process instead of retaining a subscription-controlled GEO downloader.
             var reconciliation = await ReconcileControllerConfigurationAsync(cancellationToken);
             if (!reconciliation.Succeeded)
                 return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, reconciliation.ProblemCode);
@@ -532,7 +532,9 @@ public sealed class MihomoRuntimeManager(
             var active = Path.Combine(directory, "active.yaml");
             if (!File.Exists(active)) return new(true, false);
             var current = await File.ReadAllTextAsync(active, cancellationToken);
-            var normalized = MihomoManagedConfiguration.WithServerControllerSettings(current, controllerOptions, await controllerSecrets.GetOrCreateAsync(cancellationToken));
+            var normalized = MihomoManagedConfiguration.WithServerControllerSettings(
+                MihomoManagedConfiguration.WithServerGeoDataSettings(current), controllerOptions,
+                await controllerSecrets.GetOrCreateAsync(cancellationToken));
             if (string.Equals(current, normalized, StringComparison.Ordinal)) return new(true, false);
 
             var temporary = Path.Combine(directory, ".controller-repair-" + Guid.NewGuid().ToString("N"));
