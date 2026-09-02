@@ -75,13 +75,24 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
         try
         {
             var problem = await response.Content.ReadFromJsonAsync<ProxyProblemResponse>(RemoteOsJsonOptions.Default, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(problem?.Detail) && problem.Detail.StartsWith("proxy.", StringComparison.Ordinal))
-                return new ProxyRequestException(problem.Detail);
+            var problemCode = ExtractProblemCode(problem);
+            if (problemCode is not null) return new ProxyRequestException(problemCode);
         }
         catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or NotSupportedException) { }
         return new ProxyRequestException("proxy.http_" + (int)response.StatusCode);
     }
 
-    private sealed record ProxyProblemResponse(string? Detail);
+    private static string? ExtractProblemCode(ProxyProblemResponse? problem)
+    {
+        foreach (var candidate in new[] { problem?.ProblemCode, problem?.Detail, problem?.Title })
+            if (!string.IsNullOrWhiteSpace(candidate) && candidate.StartsWith("proxy.", StringComparison.Ordinal)) return candidate;
+
+        const string prefix = "https://remoteos.app/problems/proxy.";
+        return problem?.Type is { } type && type.StartsWith(prefix, StringComparison.Ordinal)
+            ? type["https://remoteos.app/problems/".Length..]
+            : null;
+    }
+
+    private sealed record ProxyProblemResponse(string? Detail, string? Title, string? Type, string? ProblemCode);
 }
 public sealed class ProxyRequestException(string problemCode) : Exception(problemCode) { public string ProblemCode { get; } = problemCode; }

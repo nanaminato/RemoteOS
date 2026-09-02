@@ -191,39 +191,30 @@ internal static class ProxySubscriptionNetworkPolicy
         HasSystemProxy(new Uri("https://remoteos.invalid/")) || HasSystemProxy(new Uri("http://remoteos.invalid/"));
 
     public static bool HasSystemProxy(Uri destination)
-    {
-        try
-        {
-            var systemProxy = WebRequest.DefaultWebProxy;
-            if (systemProxy is null) return false;
-            var proxy = systemProxy.GetProxy(destination);
-            return proxy is not null && proxy != destination &&
-                   (proxy.Scheme == Uri.UriSchemeHttp || proxy.Scheme == Uri.UriSchemeHttps);
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or UriFormatException) { return false; }
-    }
+        => TryGetSystemProxy(HttpClient.DefaultProxy, destination) is not null;
 
     public static async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
         => await ConnectCoreAsync(context.DnsEndPoint, cancellationToken, allowPrivateEndpoint: false);
 
     /// <summary>Allows only the exact endpoint selected by the Server's system proxy configuration.</summary>
-    public static async ValueTask<Stream> ConnectUsingSystemProxyAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    public static async ValueTask<Stream> ConnectUsingSystemProxyAsync(IWebProxy systemProxy, SocketsHttpConnectionContext context, CancellationToken cancellationToken)
     {
         var destination = context.InitialRequestMessage.RequestUri;
-        var proxy = destination is null ? null : TryGetSystemProxy(destination);
+        var proxy = destination is null ? null : TryGetSystemProxy(systemProxy, destination);
         var isConfiguredProxy = proxy is not null && EndpointMatches(context.DnsEndPoint, proxy);
         return await ConnectCoreAsync(context.DnsEndPoint, cancellationToken, allowPrivateEndpoint: isConfiguredProxy);
     }
 
-    private static Uri? TryGetSystemProxy(Uri destination)
+    private static Uri? TryGetSystemProxy(IWebProxy? systemProxy, Uri destination)
     {
         try
         {
-            var systemProxy = WebRequest.DefaultWebProxy;
             if (systemProxy is null) return null;
             var proxy = systemProxy.GetProxy(destination);
-            return proxy is not null && proxy != destination &&
-                   (proxy.Scheme == Uri.UriSchemeHttp || proxy.Scheme == Uri.UriSchemeHttps) ? proxy : null;
+            return proxy is not null && !Uri.Compare(proxy, destination, UriComponents.HttpRequestUrl,
+                       UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase).Equals(0)
+                ? proxy
+                : null;
         }
         catch (Exception exception) when (exception is InvalidOperationException or UriFormatException) { return null; }
     }

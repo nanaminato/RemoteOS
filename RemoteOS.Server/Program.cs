@@ -88,20 +88,37 @@ builder.Services.AddHttpClient("ProxySubscriptionDirectInsecureTls", client => c
         },
     });
 builder.Services.AddHttpClient("ProxySubscriptionSystemProxy", client => client.Timeout = TimeSpan.FromSeconds(30))
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    .ConfigurePrimaryHttpMessageHandler(() =>
     {
-        AllowAutoRedirect = false,
-        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync,
+        // Keep the handler and the connection policy on the exact same IWebProxy instance.
+        // HttpClient's proxy source is deliberately used here; WebRequest.DefaultWebProxy is
+        // a different (and obsolete) proxy pipeline which can choose a different endpoint.
+        var systemProxy = HttpClient.DefaultProxy;
+        return new SocketsHttpHandler
+        {
+            UseProxy = true,
+            Proxy = systemProxy,
+            AllowAutoRedirect = false,
+            ConnectCallback = (context, cancellationToken) =>
+                Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync(systemProxy, context, cancellationToken),
+        };
     });
 builder.Services.AddHttpClient("ProxySubscriptionSystemProxyInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    .ConfigurePrimaryHttpMessageHandler(() =>
     {
-        AllowAutoRedirect = false,
-        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync,
-        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        var systemProxy = HttpClient.DefaultProxy;
+        return new SocketsHttpHandler
         {
-            RemoteCertificateValidationCallback = static (_, _, _, _) => true,
-        },
+            UseProxy = true,
+            Proxy = systemProxy,
+            AllowAutoRedirect = false,
+            ConnectCallback = (context, cancellationToken) =>
+                Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync(systemProxy, context, cancellationToken),
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+            },
+        };
     });
 builder.Services.AddSingleton<Server.Proxy.IProxySubscriptionDownloader, Server.Proxy.ProxySubscriptionDownloader>();
 builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
