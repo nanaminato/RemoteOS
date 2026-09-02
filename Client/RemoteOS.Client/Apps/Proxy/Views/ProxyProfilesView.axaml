@@ -67,6 +67,11 @@
                       BorderBrush="{DynamicResource BorderDefaultBrush}"
                       BorderThickness="1"
                       CornerRadius="10" />
+              <Border Background="{DynamicResource SurfaceBrush}"
+                      BorderBrush="{DynamicResource AccentBrush}"
+                      BorderThickness="2"
+                      CornerRadius="10"
+                      IsVisible="{Binding IsActive}" />
               <Border Width="4" Background="{DynamicResource AccentBrush}" CornerRadius="10,0,0,10" HorizontalAlignment="Left" IsVisible="{Binding IsActive}" />
               <Grid Margin="14,11,12,10" RowDefinitions="Auto,*,Auto" RowSpacing="4">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">

@@ -24,8 +24,12 @@
       <Setter Property="Padding" Value="0" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.proxy-routing-button">
+      <Setter Property="Padding" Value="14,6" />
     </Style>
   </UserControl.Styles>
 
@@ -34,28 +38,35 @@
       <TextBlock Text="{loc:Loc proxy.proxies}" FontSize="21" FontWeight="SemiBold" />
       <TextBlock Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
     </StackPanel>
-    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="3">
-      <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
-        <Button Grid.Column="0" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding !IsRuleRouting}" />
-        <Button Grid.Column="0" Classes="primary" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding IsRuleRouting}" />
-        <Button Grid.Column="1" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding !IsGlobalRouting}" />
-        <Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding IsGlobalRouting}" />
-        <Button Grid.Column="2" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding !IsDirectRouting}" />
-        <Button Grid.Column="2" Classes="primary" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding IsDirectRouting}" />
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="3" HorizontalAlignment="Right">
+      <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="2">
+        <Button Grid.Column="0" Classes="proxy-routing-button" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding !IsRuleRouting}" />
+        <Button Grid.Column="0" Classes="proxy-routing-button primary" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding IsRuleRouting}" />
+        <Button Grid.Column="1" Classes="proxy-routing-button" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding !IsGlobalRouting}" />
+        <Button Grid.Column="1" Classes="proxy-routing-button primary" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding IsGlobalRouting}" />
+        <Button Grid.Column="2" Classes="proxy-routing-button" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding !IsDirectRouting}" />
+        <Button Grid.Column="2" Classes="proxy-routing-button primary" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding IsDirectRouting}" />
       </Grid>
     </Border>
 
     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="10">
         <ItemsControl ItemsSource="{Binding Groups}">
+        <ItemsControl.Styles>
+          <!-- Keep every group header aligned with its expanded node area. -->
+          <Style Selector="ContentPresenter">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+          </Style>
+        </ItemsControl.Styles>
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="proxy:ProxyGroupItem">
-            <StackPanel Spacing="8">
+            <StackPanel Spacing="8" HorizontalAlignment="Stretch">
               <Button Classes="proxy-group-header" Command="{Binding DataContext.ToggleProxyGroupCommand, ElementName=Root}" CommandParameter="{Binding}">
-                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="14,11">
+                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="14,11" HorizontalAlignment="Stretch">
                   <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9">
                     <TextBlock Text="⌄" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" IsVisible="{Binding IsExpanded}" />
                     <TextBlock Text="›" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" IsVisible="{Binding !IsExpanded}" />
@@ -71,7 +82,7 @@
                 </Border>
               </Button>
 
-              <Border IsVisible="{Binding IsExpanded}" Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="10">
+              <Border IsVisible="{Binding IsExpanded}" Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="10" HorizontalAlignment="Stretch">
                 <StackPanel Spacing="8">
                   <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="6,4">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
@@ -100,8 +111,8 @@
                                 CommandParameter="{Binding}">
                           <Grid>
                             <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="8" />
-                            <Border Background="{DynamicResource AccentMutedBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding IsSelected}" />
-                            <Border Width="3" Background="{DynamicResource AccentBrush}" CornerRadius="8,0,0,8" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
+                            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" CornerRadius="8" IsVisible="{Binding IsSelected}" />
+                            <Border Width="4" Background="{DynamicResource AccentBrush}" CornerRadius="8,0,0,8" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
                             <Grid Margin="11,8" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="5">
                               <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                               <TextBlock Grid.Column="1" Text="{Binding DelayText}" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding HasFastDelay}" FontWeight="SemiBold" />
