@@ -13,6 +13,9 @@ public interface IMihomoControllerClient
     Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken);
     Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken);
+    Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken);
+    Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken);
+    Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken);
     Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken);
@@ -87,6 +90,42 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         return (await SendAsync(HttpMethod.Put, path, new StringContent(body, Encoding.UTF8, "application/json"), cancellationToken)).ProblemCode;
     }
 
+    public async Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken)
+    {
+        var result = await GetJsonAsync("configs", cancellationToken);
+        if (!result.Succeeded) return new(ProxyRoutingMode.Rule, result.ProblemCode);
+        try
+        {
+            return ParseRoutingMode(GetString(result.Value!.RootElement, "mode")) is { } mode
+                ? new(mode)
+                : new(ProxyRoutingMode.Rule, ProxyProblemCodes.ControllerResponseInvalid);
+        }
+        finally { result.Value?.Dispose(); }
+    }
+
+    public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(mode)) return Task.FromResult<string?>(ProxyProblemCodes.ConfigInvalid);
+        var body = JsonSerializer.Serialize(new { mode = RoutingModeName(mode) });
+        return SetRoutingModeCoreAsync(body, cancellationToken);
+    }
+
+    public async Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken)
+    {
+        if (!IsName(proxyName) || !IsProbeUrl(url)) return new(proxyName, null, false, ProxyProblemCodes.ConfigInvalid);
+        var timeout = Math.Clamp(timeoutMilliseconds, 1_000, 15_000);
+        var path = "proxies/" + Uri.EscapeDataString(proxyName) + "/delay?url=" + Uri.EscapeDataString(url) + "&timeout=" + timeout;
+        var result = await GetJsonAsync(path, cancellationToken);
+        if (!result.Succeeded) return new(proxyName, null, false, result.ProblemCode);
+        try
+        {
+            if (!result.Value!.RootElement.TryGetProperty("delay", out var delay) || !delay.TryGetInt32(out var milliseconds))
+                return new(proxyName, null, false, ProxyProblemCodes.ControllerResponseInvalid);
+            return milliseconds > 0 ? new(proxyName, milliseconds, false) : new(proxyName, null, true);
+        }
+        finally { result.Value?.Dispose(); }
+    }
+
     public async Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken)
     {
         var result = await GetJsonAsync("connections", cancellationToken);
@@ -147,6 +186,9 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
     public async Task<string?> ReloadAsync(CancellationToken cancellationToken) =>
         (await SendAsync(HttpMethod.Put, "configs?force=true", new StringContent("{}", Encoding.UTF8, "application/json"), cancellationToken)).ProblemCode;
 
+    private async Task<string?> SetRoutingModeCoreAsync(string body, CancellationToken cancellationToken) =>
+        (await SendAsync(HttpMethod.Put, "configs", new StringContent(body, Encoding.UTF8, "application/json"), cancellationToken)).ProblemCode;
+
     private async Task<ControllerResult<JsonDocument>> GetJsonAsync(string path, CancellationToken cancellationToken)
     {
         var result = await SendAsync(HttpMethod.Get, path, null, cancellationToken);
@@ -187,6 +229,23 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
     }
 
     private static bool IsName(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 512 && value.All(character => !char.IsControl(character));
+    private static bool IsProbeUrl(string value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && uri.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps
+        && !uri.IsLoopback && !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+    private static ProxyRoutingMode? ParseRoutingMode(string? value) => value?.ToLowerInvariant() switch
+    {
+        "rule" => ProxyRoutingMode.Rule,
+        "global" => ProxyRoutingMode.Global,
+        "direct" => ProxyRoutingMode.Direct,
+        _ => null,
+    };
+    private static string RoutingModeName(ProxyRoutingMode mode) => mode switch
+    {
+        ProxyRoutingMode.Rule => "rule",
+        ProxyRoutingMode.Global => "global",
+        ProxyRoutingMode.Direct => "direct",
+        _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+    };
     private static string? GetString(JsonElement item, params string[] path)
     {
         foreach (var segment in path) if (!item.TryGetProperty(segment, out item)) return null;

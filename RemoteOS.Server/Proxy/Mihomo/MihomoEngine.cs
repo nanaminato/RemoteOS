@@ -27,6 +27,10 @@ public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConf
         return result.Succeeded ? result.Value! : [];
     }
     public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => controller.SelectGroupAsync(groupName, proxyName, cancellationToken);
+    public Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken) => controller.GetRoutingModeAsync(cancellationToken);
+    public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => controller.SetRoutingModeAsync(mode, cancellationToken);
+    public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) =>
+        controller.TestProxyDelayAsync(proxyName, url, timeoutMilliseconds, cancellationToken);
     public async Task<IReadOnlyList<ProxyConnectionDto>> GetConnectionsAsync(CancellationToken cancellationToken)
     {
         var result = await controller.GetConnectionsAsync(cancellationToken);

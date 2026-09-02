@@ -22,7 +22,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
 
     public ObservableCollection<ProxyProfileDto> Profiles { get; } = [];
     public ObservableCollection<ProxySubscriptionDto> Subscriptions { get; } = [];
-    public ObservableCollection<ProxyGroupDto> Groups { get; } = [];
+    public ObservableCollection<ProxyGroupItem> Groups { get; } = [];
     public ObservableCollection<ProxyConnectionDto> Connections { get; } = [];
     public ObservableCollection<ProxyLogEntryDto> Logs { get; } = [];
     public IEnumerable<ProxySubscriptionDto> VisibleSubscriptions => Subscriptions;
@@ -36,10 +36,14 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private ProxyGeoDataDto? _geoData;
     [ObservableProperty] private ProxyProfileDto? _selectedProfile;
     [ObservableProperty] private ProxySubscriptionDto? _selectedSubscription;
-    [ObservableProperty] private ProxyGroupDto? _selectedGroup;
+    [ObservableProperty] private ProxyGroupItem? _selectedGroup;
     [ObservableProperty] private ProxyConnectionDto? _selectedConnection;
     [ObservableProperty] private string _profileName = string.Empty;
     [ObservableProperty] private string _selectedProxy = string.Empty;
+    [ObservableProperty] private ProxyRoutingMode _routingMode = ProxyRoutingMode.Rule;
+    [ObservableProperty] private ProxyNodeSortMode _proxyNodeSortMode = ProxyNodeSortMode.Default;
+    [ObservableProperty] private bool _isLatencyTestTargetVisible;
+    [ObservableProperty] private string _latencyTestTarget = "https://www.gstatic.com/generate_204";
     [ObservableProperty] private string _subscriptionLink = string.Empty;
     [ObservableProperty] private string _runtimeSubscriptionText = string.Empty;
 
@@ -104,6 +108,15 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string LogLevel { get => Settings?.LogLevel ?? "warning"; set => SetSettings(logLevel: value); }
     public int MixedPort { get => Settings?.MixedPort ?? 7890; set => SetSettings(mixedPort: value); }
     public bool AllowInsecureSubscriptionSources { get => Settings?.AllowInsecureSubscriptionSources == true; set => SetSettings(allowInsecureSubscriptionSources: value); }
+    public bool IsRuleRouting => RoutingMode == ProxyRoutingMode.Rule;
+    public bool IsGlobalRouting => RoutingMode == ProxyRoutingMode.Global;
+    public bool IsDirectRouting => RoutingMode == ProxyRoutingMode.Direct;
+    public string ProxyNodeSortLabel => LocalizedText.Get(ProxyNodeSortMode switch
+    {
+        ProxyNodeSortMode.Name => "proxy.latency_sort_name",
+        ProxyNodeSortMode.Delay => "proxy.latency_sort_delay",
+        _ => "proxy.latency_sort_default",
+    });
     public bool GeoDataIsConfigured => GeoData?.IsConfigured == true;
     public string GeoDataState => LocalizedText.Get(GeoDataIsConfigured ? "proxy.geodata.configured" : "proxy.geodata.not_configured");
     public IReadOnlyList<string> LogLevels { get; } = ["silent", "error", "warning", "info", "debug"];
@@ -133,7 +146,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             // A stopped/not-yet-installed runtime cannot answer controller requests. The shell
             // must still show its install and profile pages rather than fail the entire refresh.
             await Task.WhenAll(
-                LoadOptionalAsync(() => repository.ListGroupsAsync(), values => Replace(Groups, values)),
+                LoadOptionalAsync(() => repository.ListGroupsAsync(), ReplaceGroups),
+                LoadOptionalAsync(() => repository.GetRoutingModeAsync(), value => RoutingMode = value.Mode),
                 LoadOptionalAsync(() => repository.ListConnectionsAsync(), values => Replace(Connections, values)),
                 LoadOptionalAsync(() => repository.ListLogsAsync(), values => Replace(Logs, values)),
                 LoadOptionalAsync(() => repository.GetDnsStatusAsync(), value => DnsStatus = value));
@@ -322,13 +336,70 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         {
             IsBusy = true;
             await repository.SelectGroupAsync(SelectedGroup!.Name, SelectedProxy);
-            var index = Groups.IndexOf(SelectedGroup);
-            if (index >= 0) Groups[index] = SelectedGroup with { Selected = SelectedProxy };
+            SelectedGroup.SetSelected(SelectedProxy);
             StatusText = LocalizedText.Format("proxy.status.node_selected", SelectedProxy);
         }
         catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
+
+    [RelayCommand]
+    private void ToggleProxyGroup(ProxyGroupItem? group)
+    {
+        if (group is not null) group.IsExpanded = !group.IsExpanded;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectProxyNode))]
+    private async Task SelectProxyNodeAsync(ProxyNodeItem? node)
+    {
+        if (node is null) return;
+        var group = Groups.FirstOrDefault(candidate => string.Equals(candidate.Name, node.GroupName, StringComparison.Ordinal));
+        if (group is null || node.IsSelected) return;
+        SelectedGroup = group;
+        SelectedProxy = node.Name;
+        await ApplyGroupSelectionAsync();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task SetRoutingModeAsync(ProxyRoutingMode mode)
+    {
+        if (!Enum.IsDefined(mode) || RoutingMode == mode) return;
+        try
+        {
+            IsBusy = true;
+            await repository.SetRoutingModeAsync(mode);
+            RoutingMode = mode;
+            StatusText = LocalizedText.Get("proxy.status.routing_updated");
+        }
+        catch (Exception exception) { SetFailureStatus(exception); }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private void CycleProxyNodeSort()
+    {
+        ProxyNodeSortMode = ProxyNodeSortMode switch
+        {
+            ProxyNodeSortMode.Default => ProxyNodeSortMode.Name,
+            ProxyNodeSortMode.Name => ProxyNodeSortMode.Delay,
+            _ => ProxyNodeSortMode.Default,
+        };
+        foreach (var group in Groups) group.SortNodes(ProxyNodeSortMode);
+    }
+
+    [RelayCommand]
+    private void ToggleLatencyTestTarget() => IsLatencyTestTargetVisible = !IsLatencyTestTargetVisible;
+
+    [RelayCommand(CanExecute = nameof(CanTestSelectedProxyLatency))]
+    private async Task TestSelectedProxyLatencyAsync()
+    {
+        var node = SelectedGroup?.Nodes.FirstOrDefault(candidate => string.Equals(candidate.Name, SelectedProxy, StringComparison.Ordinal));
+        if (node is null) return;
+        await TestLatencyAsync([node]);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanTestAllProxyLatencies))]
+    private Task TestAllProxyLatenciesAsync() => TestLatencyAsync(Groups.SelectMany(group => group.Nodes).ToArray());
 
     [RelayCommand(CanExecute = nameof(CanManageConnection))]
     private async Task CloseConnectionAsync()
@@ -396,7 +467,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanActivateSubscription(ProxySubscriptionDto? subscription) => CanManage && !IsBusy && subscription is { IsActive: false };
     private bool CanImportSubscription => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(SubscriptionLink);
     private bool CanSelectGroup => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy);
+    private bool CanSelectProxyNode(ProxyNodeItem? node) => CanManage && !IsBusy && node is { IsSelected: false };
+    private bool CanTestSelectedProxyLatency => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy) && IsValidLatencyTestTarget;
+    private bool CanTestAllProxyLatencies => CanManage && !IsBusy && Groups.Count > 0 && IsValidLatencyTestTarget;
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
+    private bool IsValidLatencyTestTarget => Uri.TryCreate(LatencyTestTarget, UriKind.Absolute, out var target)
+        && target.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps && !target.IsLoopback;
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
         bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null)
@@ -444,8 +520,20 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
-    partial void OnSelectedGroupChanged(ProxyGroupDto? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
-    partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
+    partial void OnSelectedGroupChanged(ProxyGroupItem? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); }
+    partial void OnSelectedProxyChanged(string value) { ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); }
+    partial void OnRoutingModeChanged(ProxyRoutingMode value)
+    {
+        OnPropertyChanged(nameof(IsRuleRouting));
+        OnPropertyChanged(nameof(IsGlobalRouting));
+        OnPropertyChanged(nameof(IsDirectRouting));
+    }
+    partial void OnProxyNodeSortModeChanged(ProxyNodeSortMode value) => OnPropertyChanged(nameof(ProxyNodeSortLabel));
+    partial void OnLatencyTestTargetChanged(string value)
+    {
+        TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
+        TestAllProxyLatenciesCommand.NotifyCanExecuteChanged();
+    }
     partial void OnSelectedConnectionChanged(ProxyConnectionDto? value) => CloseConnectionCommand.NotifyCanExecuteChanged();
     partial void OnProfileNameChanged(string value) => CreateProfileCommand.NotifyCanExecuteChanged();
 
@@ -458,7 +546,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
         ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged(); ActivateSubscriptionCommand.NotifyCanExecuteChanged();
-        ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
+        ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); SelectProxyNodeCommand.NotifyCanExecuteChanged(); SetRoutingModeCommand.NotifyCanExecuteChanged();
+        TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); TestAllProxyLatenciesCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     private void RaiseSummaryProperties()
     {
@@ -508,5 +597,56 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         var localized = LocalizedText.Get(key);
         return localized == key ? name : localized;
     }
+    private void ReplaceGroups(IReadOnlyList<ProxyGroupDto> groups)
+    {
+        var expansion = Groups.ToDictionary(group => group.Name, group => group.IsExpanded, StringComparer.Ordinal);
+        var selectedGroupName = SelectedGroup?.Name;
+        var selectedProxyName = SelectedProxy;
+        Groups.Clear();
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var group = groups[index];
+            var isExpanded = expansion.TryGetValue(group.Name, out var expanded) ? expanded : index > 0;
+            var item = new ProxyGroupItem(group.Name, group.Type, group.Selected, group.Proxies, isExpanded);
+            item.SortNodes(ProxyNodeSortMode);
+            Groups.Add(item);
+        }
+        if (selectedGroupName is not null && Groups.FirstOrDefault(group => string.Equals(group.Name, selectedGroupName, StringComparison.Ordinal)) is { } selectedGroup)
+        {
+            SelectedGroup = selectedGroup;
+            SelectedProxy = selectedGroup.Nodes.Any(node => string.Equals(node.Name, selectedProxyName, StringComparison.Ordinal))
+                ? selectedProxyName
+                : selectedGroup.Selected ?? string.Empty;
+        }
+        TestAllProxyLatenciesCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task TestLatencyAsync(IReadOnlyList<ProxyNodeItem> nodes)
+    {
+        if (nodes.Count == 0) return;
+        try
+        {
+            IsBusy = true;
+            foreach (var node in nodes)
+            {
+                node.IsTesting = true;
+                try
+                {
+                    var delay = await repository.TestProxyDelayAsync(node.GroupName, node.Name, new TestProxyDelayRequest(LatencyTestTarget));
+                    node.SetDelay(delay.DelayMilliseconds, delay.TimedOut);
+                }
+                catch (Exception exception)
+                {
+                    node.SetDelay(null, true);
+                    StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));
+                }
+                finally { node.IsTesting = false; }
+            }
+            foreach (var group in Groups) group.SortNodes(ProxyNodeSortMode);
+            StatusText = LocalizedText.Get("proxy.status.latency_tested");
+        }
+        finally { IsBusy = false; }
+    }
+
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }
 }

@@ -10,6 +10,7 @@ public enum ProxyHealthState { Unknown, Healthy, Degraded, Failed, RecoveryRequi
 public enum ProxyOperationState { Queued, Running, Succeeded, Failed, Cancelled, Interrupted }
 public enum ProxyLifecycleAction { Start, Stop, Restart }
 public enum ProxySubscriptionDownloadRoute { Direct, SystemProxy }
+public enum ProxyRoutingMode { Rule, Global, Direct }
 
 /// <summary>All public Proxy failures use this lower-case dotted contract.</summary>
 public static class ProxyProblemCodes
@@ -85,6 +86,8 @@ public static class ProxyApiRoutes
     public const string ProfileConfigurationApplyPattern = "/profiles/{profileId:guid}/configuration/apply";
     public const string SubscriptionsRefresh = Subscriptions + "/refresh";
     public const string SubscriptionDownloadOptions = Subscriptions + "/download-options";
+    public const string Routing = Proxy + "/routing";
+    public const string GroupProxyDelayPattern = "/groups/{groupName}/proxies/{proxyName}/delay";
 }
 
 public sealed record ProxyEngineCapabilities(
@@ -147,6 +150,9 @@ public sealed record ProxySubscriptionContentDto(Guid SubscriptionId, string Con
 public sealed record ProxySubscriptionDownloadOptionsDto(bool SystemProxyAvailable);
 
 public sealed record ProxyGroupDto(string Name, string Type, string? Selected, IReadOnlyList<string> Proxies);
+public sealed record ProxyRoutingModeDto(ProxyRoutingMode Mode, string ProblemCode = "");
+public sealed record ProxyDelayDto(string ProxyName, int? DelayMilliseconds, bool TimedOut, string ProblemCode = "");
+public sealed record TestProxyDelayRequest(string Url, int TimeoutMilliseconds = 5000);
 public sealed record ProxyConnectionDto(string Id, string Network, string Source, string Destination, string Rule, string Chains, DateTimeOffset StartedAt);
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
