@@ -17,6 +17,7 @@ public interface IProxyRepository
     Task SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken = default);
     Task<ProxyDelayDto> TestProxyDelayAsync(string groupName, string proxyName, TestProxyDelayRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProxyConnectionDto>> ListConnectionsAsync(CancellationToken cancellationToken = default);
+    Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProxyLogEntryDto>> ListLogsAsync(int limit = 200, CancellationToken cancellationToken = default);
     Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken = default);
     Task<ProxySettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default);

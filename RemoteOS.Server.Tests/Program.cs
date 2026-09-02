@@ -272,6 +272,7 @@ static void VerifyProxyProtocolContract()
     Assert(ProxyApiRoutes.Proxy == "/api/v1/proxy" && ProxyApiRoutes.ProfilePattern.StartsWith("/profiles/", StringComparison.Ordinal),
         "Proxy routes must keep one versioned public base and group-relative patterns.");
     Assert(ProxyApiRoutes.RuntimeInstallFromFile == ProxyApiRoutes.Runtime + "/install/from-file", "Proxy server-file runtime install route changed unexpectedly.");
+    Assert(ProxyApiRoutes.Traffic == ProxyApiRoutes.Proxy + "/traffic", "Proxy traffic route changed unexpectedly.");
     var overview = new ProxyOverviewDto("test-engine", new(true, true, true, true, true, true), new(true, true, false, false, false, true),
         new("test-engine", ProxyRuntimeMode.Managed, ProxyRuntimeState.Running, "1.0.0", null, true, false),
         new(ProxyRuntimeState.Running, ProxyTunState.Disabled, ProxyHealthState.Healthy, true, true, true), ProxyOperatingMode.ListenerOnly,
@@ -300,6 +301,8 @@ static async Task VerifyMihomoControllerSafetyAsync()
         var payload = request.RequestUri!.PathAndQuery switch
         {
             "/proxies" => "{\"proxies\":{\"AUTO\":{\"type\":\"Selector\",\"now\":\"node-a\",\"all\":[\"node-a\",\"node-b\"]}}}",
+            "/traffic" => "{\"up\":12,\"down\":34,\"upTotal\":56,\"downTotal\":78}",
+            "/memory" => "{\"inuse\":90,\"oslimit\":0}",
             _ when request.RequestUri.PathAndQuery.StartsWith("/logs", StringComparison.Ordinal) => "[{\"time\":\"2026-08-31T00:00:00Z\",\"type\":\"info\",\"payload\":\"Authorization: Bearer controller-secret token=private-value\"}]",
             _ => "{}",
         };
@@ -309,6 +312,9 @@ static async Task VerifyMihomoControllerSafetyAsync()
     var client = new MihomoControllerClient(new HttpClient(handler), new StaticProxySecretStore(), new MihomoControllerOptions { Endpoint = new Uri("http://127.0.0.1:9090/") });
     var groups = await client.GetGroupsAsync(CancellationToken.None);
     Assert(groups.Succeeded && groups.Value!.Single().Selected == "node-a", "Mihomo groups were not mapped to neutral contracts.");
+    var traffic = await client.GetTrafficAsync(CancellationToken.None);
+    Assert(traffic is { UploadBytesPerSecond: 12, DownloadBytesPerSecond: 34, UploadTotalBytes: 56, DownloadTotalBytes: 78, MemoryBytes: 90 },
+        "Mihomo traffic was not mapped to neutral counters.");
     var logs = await client.GetLogsAsync(10, CancellationToken.None);
     var log = logs.Value?.Single();
     Assert(logs.Succeeded && log is not null && !log.Message.Contains("controller-secret", StringComparison.Ordinal)
@@ -1178,6 +1184,7 @@ sealed class HealthyMihomoController : IMihomoControllerClient
     public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) => Task.FromResult(new ProxyDelayDto(proxyName, 42, false));
     public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyConnectionDto>>.Success([]));
+    public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyTrafficDto(0, 0, 0, 0, 0));
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyLogEntryDto>>.Success([]));
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
@@ -1203,6 +1210,7 @@ sealed class DelayedHealthyMihomoController(int unavailableResponses) : IMihomoC
     public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => _healthy.SetRoutingModeAsync(mode, cancellationToken);
     public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) => _healthy.TestProxyDelayAsync(proxyName, url, timeoutMilliseconds, cancellationToken);
     public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => _healthy.GetConnectionsAsync(cancellationToken);
+    public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => _healthy.GetTrafficAsync(cancellationToken);
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => _healthy.CloseConnectionAsync(connectionId, cancellationToken);
     public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => _healthy.GetLogsAsync(limit, cancellationToken);
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => _healthy.GetDnsStatusAsync(cancellationToken);
@@ -1270,6 +1278,7 @@ sealed class TransactionTestEngine : IProxyEngine
     public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
     public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) => Task.FromResult(new ProxyDelayDto(proxyName, null, false, ProxyProblemCodes.NotSupported));
     public Task<IReadOnlyList<ProxyConnectionDto>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyConnectionDto>>([]);
+    public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyTrafficDto(0, 0, 0, 0, 0));
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
     public Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProxyLogEntryDto>>([]);
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));

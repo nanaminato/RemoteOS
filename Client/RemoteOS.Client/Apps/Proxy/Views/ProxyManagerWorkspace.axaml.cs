@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 
 namespace Client.Apps.Proxy.Views;
 
@@ -10,6 +11,7 @@ internal partial class ProxyManagerWorkspace : UserControl
     {
         InitializeComponent();
         DataContext = viewModel;
+        viewModel.NavigateRequested = section => Dispatcher.UIThread.Post(() => ShowPage(section, FindNavigationButton(section)));
         ShowPage("overview", OverviewButton);
     }
 
@@ -33,4 +35,12 @@ internal partial class ProxyManagerWorkspace : UserControl
             _ => new ProxyOverviewView()
         };
     }
+
+    private Button? FindNavigationButton(string section) => section switch
+    {
+        "profiles" => ProfilesButton,
+        "proxies" => ProxiesButton,
+        "settings" => SettingsButton,
+        _ => OverviewButton,
+    };
 }

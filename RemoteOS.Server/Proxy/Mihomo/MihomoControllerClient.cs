@@ -17,6 +17,7 @@ public interface IMihomoControllerClient
     Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken);
     Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken);
+    Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken);
     Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken);
     Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken);
     Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken);
@@ -148,6 +149,34 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         finally { result.Value?.Dispose(); }
     }
 
+    public async Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken)
+    {
+        var result = await GetJsonAsync("traffic", cancellationToken);
+        if (!result.Succeeded) return new(0, 0, 0, 0, 0, result.ProblemCode);
+        long uploadRate;
+        long downloadRate;
+        long uploadTotal;
+        long downloadTotal;
+        try
+        {
+            var traffic = result.Value!.RootElement;
+            if (!TryGetInt64(traffic, "up", out uploadRate) || !TryGetInt64(traffic, "down", out downloadRate) ||
+                !TryGetInt64(traffic, "upTotal", out uploadTotal) || !TryGetInt64(traffic, "downTotal", out downloadTotal))
+                return new(0, 0, 0, 0, 0, ProxyProblemCodes.ControllerResponseInvalid);
+        }
+        finally { result.Value?.Dispose(); }
+
+        var memoryResult = await GetJsonAsync("memory", cancellationToken);
+        if (!memoryResult.Succeeded) return new(0, 0, 0, 0, 0, memoryResult.ProblemCode);
+        try
+        {
+            return TryGetInt64(memoryResult.Value!.RootElement, "inuse", out var memory)
+                ? new(uploadRate, downloadRate, uploadTotal, downloadTotal, memory)
+                : new(0, 0, 0, 0, 0, ProxyProblemCodes.ControllerResponseInvalid);
+        }
+        finally { memoryResult.Value?.Dispose(); }
+    }
+
     public async Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) =>
         !IsName(connectionId) ? ProxyProblemCodes.ControllerResponseInvalid
             : (await SendAsync(HttpMethod.Delete, "connections/" + Uri.EscapeDataString(connectionId), null, cancellationToken)).ProblemCode;
@@ -252,6 +281,11 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
         return item.ValueKind == JsonValueKind.String ? item.GetString() : item.ValueKind == JsonValueKind.Array ? string.Join(",", item.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString())) : null;
     }
     private static bool GetBool(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True;
+    private static bool TryGetInt64(JsonElement item, string name, out long value)
+    {
+        value = 0;
+        return item.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.Number && property.TryGetInt64(out value);
+    }
     private static DateTimeOffset? GetDateTime(JsonElement item, string name) => item.TryGetProperty(name, out var value) && value.TryGetDateTimeOffset(out var result) ? result : null;
     private sealed record ControllerResponse(string? Content, string ProblemCode) { public bool Succeeded => string.IsNullOrEmpty(ProblemCode); }
 }

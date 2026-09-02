@@ -32,6 +32,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private ProxyOverviewDto? _overview;
     [ObservableProperty] private ProxyRuntimeDto? _runtime;
     [ObservableProperty] private ProxyDnsStatusDto? _dnsStatus;
+    [ObservableProperty] private ProxyTrafficDto? _traffic;
     [ObservableProperty] private ProxySettingsDto? _settings;
     [ObservableProperty] private ProxyGeoDataDto? _geoData;
     [ObservableProperty] private ProxyProfileDto? _selectedProfile;
@@ -54,6 +55,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
     public Action? ShowRuntimeSubscriptionWindow { get; set; }
+    /// <summary>Owned by the workspace so overview cards can navigate without reaching into view code.</summary>
+    public Action<string>? NavigateRequested { get; set; }
 
     public void SetServerRuntimePackageRequest(Func<Task<string?>>? request)
     {
@@ -97,6 +100,21 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         ? (DnsStatus.HijackEnabled ? LocalizedText.Get("proxy.dns.hijack_enabled") : LocalizedText.Get("proxy.dns.enabled"))
         : LocalizedText.Get("proxy.dns.disabled");
     public string ActiveProfileName => Overview?.ActiveProfile?.Name ?? LocalizedText.Get("proxy.none");
+    public ProxySubscriptionDto? ActiveSubscription => Subscriptions.FirstOrDefault(subscription => subscription.IsActive);
+    public string ActiveSubscriptionName => ActiveSubscription?.Name ?? LocalizedText.Get("proxy.none");
+    public string ActiveSubscriptionUpdatedAt => ActiveSubscription?.LastUpdatedAt is { } updated
+        ? updated.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+        : "—";
+    public ProxyGroupItem? CurrentProxyGroupItem => Groups.FirstOrDefault(group => !string.IsNullOrWhiteSpace(group.Selected));
+    public string CurrentProxyGroupName => CurrentProxyGroupItem?.Name ?? LocalizedText.Get("proxy.none");
+    public string CurrentProxyNodeName => CurrentProxyGroupItem?.Selected ?? "—";
+    public string SystemProxyState => LocalizedText.Get(SystemProxyEnabled ? "proxy.overview.enabled" : "proxy.overview.disabled");
+    public string TunOverviewState => TunState;
+    public string UploadRate => FormatTraffic(Traffic?.UploadBytesPerSecond, "/s");
+    public string DownloadRate => FormatTraffic(Traffic?.DownloadBytesPerSecond, "/s");
+    public string UploadTotal => FormatTraffic(Traffic?.UploadTotalBytes);
+    public string DownloadTotal => FormatTraffic(Traffic?.DownloadTotalBytes);
+    public string MemoryUsage => FormatTraffic(Traffic?.MemoryBytes);
     public bool IsTunAvailable => Overview?.PlatformCapabilities.SupportsTun == true;
     public bool IsRecoveryRequired => Overview?.Recovery.RecoveryRequired == true;
     public bool HasControllerAuthenticationFailure => Overview?.Health.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed;
@@ -151,6 +169,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
                 LoadOptionalAsync(() => repository.ListGroupsAsync(), ReplaceGroups),
                 LoadOptionalAsync(() => repository.GetRoutingModeAsync(), value => RoutingMode = value.Mode),
                 LoadOptionalAsync(() => repository.ListConnectionsAsync(), values => Replace(Connections, values)),
+                RefreshTrafficAsync(),
                 LoadOptionalAsync(() => repository.ListLogsAsync(), values => Replace(Logs, values)),
                 LoadOptionalAsync(() => repository.GetDnsStatusAsync(), value => DnsStatus = value));
             StatusText = Overview.Recovery.RecoveryRequired
@@ -163,6 +182,10 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
+
+    /// <summary>Small live overview refresh; it deliberately avoids reloading profiles or logs.</summary>
+    public Task RefreshTrafficAsync() => LoadOptionalAsync(() => repository.GetTrafficAsync(), value =>
+        Traffic = string.IsNullOrEmpty(value.ProblemCode) ? value : null);
 
     [RelayCommand(CanExecute = nameof(CanStartProxy))] private Task StartProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Start);
     [RelayCommand(CanExecute = nameof(CanStopProxy))] private Task StopProxyAsync() => LifecycleAsync(ProxyLifecycleAction.Stop);
@@ -397,6 +420,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [RelayCommand]
     private void ToggleLatencyTestTarget() => IsLatencyTestTargetVisible = !IsLatencyTestTargetVisible;
 
+    [RelayCommand]
+    private void Navigate(string? section)
+    {
+        if (!string.IsNullOrWhiteSpace(section)) NavigateRequested?.Invoke(section);
+    }
+
     [RelayCommand(CanExecute = nameof(CanTestGroupSelectedProxyLatency))]
     private async Task TestGroupSelectedProxyLatencyAsync(ProxyGroupItem? group)
     {
@@ -532,7 +561,13 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(SystemProxyEnabled)); OnPropertyChanged(nameof(AllowLan)); OnPropertyChanged(nameof(DnsEnabled));
         OnPropertyChanged(nameof(Ipv6Enabled)); OnPropertyChanged(nameof(UnifiedDelay)); OnPropertyChanged(nameof(LogLevel)); OnPropertyChanged(nameof(MixedPort));
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
+        OnPropertyChanged(nameof(SystemProxyState));
         SaveSettingsCommand.NotifyCanExecuteChanged();
+    }
+    partial void OnTrafficChanged(ProxyTrafficDto? value)
+    {
+        OnPropertyChanged(nameof(UploadRate)); OnPropertyChanged(nameof(DownloadRate));
+        OnPropertyChanged(nameof(UploadTotal)); OnPropertyChanged(nameof(DownloadTotal)); OnPropertyChanged(nameof(MemoryUsage));
     }
     partial void OnSelectedGroupChanged(ProxyGroupItem? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
     partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
@@ -569,6 +604,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(HealthState)); OnPropertyChanged(nameof(TunState));
         OnPropertyChanged(nameof(DnsState)); OnPropertyChanged(nameof(ActiveProfileName)); OnPropertyChanged(nameof(IsTunAvailable)); OnPropertyChanged(nameof(IsRecoveryRequired)); OnPropertyChanged(nameof(RunningConnectionCount));
         OnPropertyChanged(nameof(HasControllerAuthenticationFailure)); OnPropertyChanged(nameof(ControllerAuthenticationTitle)); OnPropertyChanged(nameof(ControllerAuthenticationHint));
+        OnPropertyChanged(nameof(ActiveSubscription)); OnPropertyChanged(nameof(ActiveSubscriptionName)); OnPropertyChanged(nameof(ActiveSubscriptionUpdatedAt));
+        OnPropertyChanged(nameof(CurrentProxyGroupItem)); OnPropertyChanged(nameof(CurrentProxyGroupName)); OnPropertyChanged(nameof(CurrentProxyNodeName));
+        OnPropertyChanged(nameof(SystemProxyState)); OnPropertyChanged(nameof(TunOverviewState));
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
     }
     private static async Task LoadOptionalAsync<T>(Func<Task<T>> load, Action<T> apply)
@@ -637,6 +675,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         }
         TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
         TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CurrentProxyGroupItem));
+        OnPropertyChanged(nameof(CurrentProxyGroupName));
+        OnPropertyChanged(nameof(CurrentProxyNodeName));
     }
 
     private async Task TestLatencyAsync(IReadOnlyList<ProxyNodeItem> nodes)
@@ -671,4 +712,14 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }
+    private static string FormatTraffic(long? bytes, string suffix = "")
+    {
+        if (bytes is null) return "—";
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = Math.Max(0, bytes.Value);
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        var digits = unit == 0 ? "0" : value >= 100 ? "0" : "0.0";
+        return value.ToString(digits, System.Globalization.CultureInfo.CurrentCulture) + " " + units[unit] + suffix;
+    }
 }

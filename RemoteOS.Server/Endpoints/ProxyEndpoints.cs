@@ -195,6 +195,7 @@ public static class ProxyEndpoints
             return string.IsNullOrEmpty(delay.ProblemCode) ? Results.Ok(delay) : Problem(delay.ProblemCode, StatusCodes.Status400BadRequest);
         }).RequireAuthorization("ProxyManage").WithTags("Proxy");
         app.MapGet(ProxyApiRoutes.Connections, async (IProxyEngineRegistry engines, CancellationToken ct) => Results.Ok(await engines.Find("mihomo")!.GetConnectionsAsync(ct))).RequireAuthorization("ProxyRead").WithTags("Proxy");
+        app.MapGet(ProxyApiRoutes.Traffic, (IProxyEngineRegistry engines, CancellationToken ct) => engines.Find("mihomo")!.GetTrafficAsync(ct)).RequireAuthorization("ProxyRead").WithTags("Proxy");
         app.MapDelete(Route(ProxyApiRoutes.ConnectionPattern), async (string connectionId, IProxyEngineRegistry engines, ProxyAuditStore audit, HttpContext context, CancellationToken ct) =>
         {
             var problem = await engines.Find("mihomo")!.CloseConnectionAsync(connectionId, ct); await audit.RecordAsync(Actor(context.User), "connection.close", string.IsNullOrEmpty(problem) ? "succeeded" : "failed", problem, ct);

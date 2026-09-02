@@ -36,6 +36,7 @@ public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConf
         var result = await controller.GetConnectionsAsync(cancellationToken);
         return result.Succeeded ? result.Value! : [];
     }
+    public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => controller.GetTrafficAsync(cancellationToken);
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => controller.CloseConnectionAsync(connectionId, cancellationToken);
     public async Task<IReadOnlyList<ProxyLogEntryDto>> GetLogsAsync(int limit, CancellationToken cancellationToken)
     {

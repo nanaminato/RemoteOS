@@ -65,6 +65,7 @@ public static class ProxyApiRoutes
     public const string Groups = Proxy + "/groups";
     public const string GroupSelectionPattern = "/groups/{groupName}/selection";
     public const string Connections = Proxy + "/connections";
+    public const string Traffic = Proxy + "/traffic";
     public const string ConnectionPattern = "/connections/{connectionId}";
     public const string Logs = Proxy + "/logs";
     public const string Dns = Proxy + "/dns";
@@ -154,6 +155,8 @@ public sealed record ProxyRoutingModeDto(ProxyRoutingMode Mode, string ProblemCo
 public sealed record ProxyDelayDto(string ProxyName, int? DelayMilliseconds, bool TimedOut, string ProblemCode = "");
 public sealed record TestProxyDelayRequest(string Url, int TimeoutMilliseconds = 5000);
 public sealed record ProxyConnectionDto(string Id, string Network, string Source, string Destination, string Rule, string Chains, DateTimeOffset StartedAt);
+/// <summary>Bounded, controller-neutral traffic counters sampled from the active proxy engine.</summary>
+public sealed record ProxyTrafficDto(long UploadBytesPerSecond, long DownloadBytesPerSecond, long UploadTotalBytes, long DownloadTotalBytes, long MemoryBytes, string ProblemCode = "");
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
 public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
