@@ -230,7 +230,7 @@ public sealed class MihomoControllerClient : IMihomoControllerClient
 
     private static bool IsName(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 512 && value.All(character => !char.IsControl(character));
     private static bool IsProbeUrl(string value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
-        && uri.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps
+        && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
         && !uri.IsLoopback && !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
     private static ProxyRoutingMode? ParseRoutingMode(string? value) => value?.ToLowerInvariant() switch
     {
