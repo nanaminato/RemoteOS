@@ -53,6 +53,13 @@ public interface IProxySettingsService
     Task<string?> UpdateAsync(UpdateProxySettingsRequest request, CancellationToken cancellationToken);
 }
 
+public interface IProxyGeoDataService
+{
+    Task<ProxyGeoDataDto> GetAsync(CancellationToken cancellationToken);
+    /// <returns>An empty string on success; otherwise a stable public problem code.</returns>
+    Task<string?> ConfigureFromServerFileAsync(string filePath, CancellationToken cancellationToken);
+}
+
 public interface IProxyRecoveryService
 {
     Task<ProxyRecoveryStatusDto> GetStatusAsync(CancellationToken cancellationToken);
@@ -77,6 +84,7 @@ public interface IProxyPlatformPaths
 {
     string GetEngineVersionsDirectory(string engineId);
     string GetProtectedConfigurationDirectory();
+    string GetEngineDataDirectory(string engineId);
     string GetStateDirectory();
     string GetSanitizedLogDirectory();
 }

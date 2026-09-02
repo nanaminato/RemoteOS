@@ -23,6 +23,8 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
     public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyDnsStatusDto>(HttpMethod.Get, ProxyApiRoutes.Dns, null, cancellationToken);
     public Task<ProxySettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default) => SendAsync<ProxySettingsDto>(HttpMethod.Get, ProxyApiRoutes.Settings, null, cancellationToken);
     public Task UpdateSettingsAsync(UpdateProxySettingsRequest request, CancellationToken cancellationToken = default) => SendNoContentAsync(HttpMethod.Put, ProxyApiRoutes.Settings, request, cancellationToken);
+    public Task<ProxyGeoDataDto> GetGeoDataAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyGeoDataDto>(HttpMethod.Get, ProxyApiRoutes.GeoData, null, cancellationToken);
+    public Task ConfigureGeoDataFromServerFileAsync(string filePath, CancellationToken cancellationToken = default) => SendNoContentAsync(HttpMethod.Put, ProxyApiRoutes.GeoData, new ConfigureProxyGeoDataRequest(filePath), cancellationToken);
     public Task<ProxyRuntimeDto> GetRuntimeAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyRuntimeDto>(HttpMethod.Get, ProxyApiRoutes.Runtime, null, cancellationToken);
     public Task<ProxyRuntimeDownloadDto?> GetManagedRuntimeDownloadAsync(string? version = null, CancellationToken cancellationToken = default) =>
         SendAsync<ProxyRuntimeDownloadDto>(HttpMethod.Get, ProxyApiRoutes.RuntimeDownload + (string.IsNullOrWhiteSpace(version) ? string.Empty : "?version=" + Uri.EscapeDataString(version)), null, cancellationToken);

@@ -93,6 +93,8 @@ public sealed class MihomoRuntimeManager(
             // The executable, arguments, and profile path are all Server-derived; no API input
             // is executed as a command.
             process.StartInfo.ArgumentList.Add("-t");
+            process.StartInfo.ArgumentList.Add("-d");
+            process.StartInfo.ArgumentList.Add(paths.GetEngineDataDirectory(MihomoEngine.Id));
             process.StartInfo.ArgumentList.Add("-f");
             process.StartInfo.ArgumentList.Add(configurationPath);
             try
@@ -100,17 +102,31 @@ public sealed class MihomoRuntimeManager(
                 if (!process.Start()) return ProxyProblemCodes.RuntimeHealthCheckFailed;
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(TimeSpan.FromSeconds(10));
-                var standardOut = process.StandardOutput.ReadToEndAsync(timeout.Token);
-                var standardError = process.StandardError.ReadToEndAsync(timeout.Token);
-                await Task.WhenAll(standardOut, standardError, process.WaitForExitAsync(timeout.Token));
-                return process.ExitCode == 0 ? null : ProxyProblemCodes.ConfigInvalid;
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                return ProxyProblemCodes.RuntimeHealthCheckFailed;
+                // Keep draining output after the deadline so a timed-out validation still leaves
+                // a safe diagnostic category. Passing the timeout token to ReadToEndAsync used
+                // to discard the only useful Mihomo error before it could be classified.
+                var standardOut = process.StandardOutput.ReadToEndAsync();
+                var standardError = process.StandardError.ReadToEndAsync();
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                    catch (InvalidOperationException) { /* The validation process won the exit race. */ }
+                    await Task.WhenAll(standardOut, standardError);
+                    var problem = ClassifyConfigurationValidationFailure((await standardOut) + "\n" + (await standardError), timedOut: true);
+                    await WriteDiagnosticAsync("warning", ConfigurationValidationDiagnostic(problem, timedOut: true), cancellationToken);
+                    return problem;
+                }
+
+                await Task.WhenAll(standardOut, standardError);
+                if (process.ExitCode == 0) return null;
+                var failure = ClassifyConfigurationValidationFailure((await standardOut) + "\n" + (await standardError), timedOut: false);
+                await WriteDiagnosticAsync("warning", ConfigurationValidationDiagnostic(failure, timedOut: false), cancellationToken);
+                return failure;
             }
             catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)
             {
+                await WriteDiagnosticAsync("warning", "Mihomo configuration validation could not be started: " + exception.GetType().Name, cancellationToken);
                 return ProxyProblemCodes.RuntimeHealthCheckFailed;
             }
         }
@@ -555,6 +571,21 @@ public sealed class MihomoRuntimeManager(
         if (OperatingSystem.IsWindows()) return true;
         return (File.GetUnixFileMode(path) & (UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute)) != 0;
     }
+    private static string ClassifyConfigurationValidationFailure(string output, bool timedOut)
+    {
+        var normalized = output.ToLowerInvariant();
+        return normalized.Contains("can't initial geoip", StringComparison.Ordinal)
+               || normalized.Contains("can't download mmdb", StringComparison.Ordinal)
+               || normalized.Contains("geoip.metadb", StringComparison.Ordinal)
+               || (normalized.Contains("geoip", StringComparison.Ordinal) && normalized.Contains("dns resolve failed", StringComparison.Ordinal))
+            ? ProxyProblemCodes.GeodataUnavailable
+            : timedOut ? ProxyProblemCodes.RuntimeHealthCheckFailed : ProxyProblemCodes.ConfigInvalid;
+    }
+    private static string ConfigurationValidationDiagnostic(string problemCode, bool timedOut) => problemCode == ProxyProblemCodes.GeodataUnavailable
+        ? "Mihomo configuration validation requires GeoIP data, but the Server could not download it. Check DNS/outbound network access or remove GEOIP rules from the subscription."
+        : timedOut
+            ? "Mihomo configuration validation exceeded its 10-second limit."
+            : "Mihomo rejected the downloaded subscription configuration.";
     private static bool TrySafeExternalPath(string value, out string path)
     {
         path = "";

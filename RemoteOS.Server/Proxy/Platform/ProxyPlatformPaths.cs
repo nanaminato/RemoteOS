@@ -10,6 +10,7 @@ public sealed class ProxyPlatformPaths : IProxyPlatformPaths
         : "/var/lib/remoteos/proxy";
 
     public string GetEngineVersionsDirectory(string engineId) => Path.Combine(_root, "engines", ValidateEngine(engineId), "versions");
+    public string GetEngineDataDirectory(string engineId) => Path.Combine(_root, "engines", ValidateEngine(engineId), "data");
     public string GetProtectedConfigurationDirectory() => OperatingSystem.IsWindows()
         ? Path.Combine(_root, "config")
         : "/etc/remoteos/proxy";

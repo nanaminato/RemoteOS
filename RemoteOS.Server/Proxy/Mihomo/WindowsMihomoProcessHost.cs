@@ -78,6 +78,10 @@ public sealed class WindowsMihomoProcessHost(
                     RedirectStandardError = true,
                 },
             };
+            var dataDirectory = paths.GetEngineDataDirectory(Engine);
+            Directory.CreateDirectory(dataDirectory);
+            process.StartInfo.ArgumentList.Add("-d");
+            process.StartInfo.ArgumentList.Add(dataDirectory);
             process.StartInfo.ArgumentList.Add("-f");
             process.StartInfo.ArgumentList.Add(configuration);
 

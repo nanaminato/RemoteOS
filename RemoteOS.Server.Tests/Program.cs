@@ -47,6 +47,7 @@ try
     await VerifyHostGlobalMigrationAsync(root);
     await VerifyProxyHostProfileRepositoryAsync(root);
     await VerifyProxySubscriptionRepositoryAsync(root);
+    await VerifyMihomoGeoDataStagingAsync(root);
     await VerifyProxyConfigurationTransactionAsync(root);
     await VerifyProxyTunSafetyAsync(root);
     await VerifyHostNetworkSafetyDiscoveryAsync();
@@ -760,6 +761,22 @@ static async Task VerifyProxySubscriptionRepositoryAsync(string root)
     Assert(await File.ReadAllTextAsync(capture) == "proxies: []\n", "Development subscription downloads were not captured verbatim in the protected log directory.");
 }
 
+static async Task VerifyMihomoGeoDataStagingAsync(string root)
+{
+    var paths = new TestProxyPaths(Path.Combine(root, "mihomo-geodata"));
+    var source = Path.Combine(root, "geoip.metadb");
+    var content = Encoding.UTF8.GetBytes("test-geodata");
+    await File.WriteAllBytesAsync(source, content);
+    var service = new MihomoGeoDataService(paths);
+    Assert((await service.GetAsync(CancellationToken.None)).IsConfigured == false, "A missing GeoIP database was reported as configured.");
+    Assert(await service.ConfigureFromServerFileAsync(source, CancellationToken.None) is null, "A Server-local geoip.metadb could not be staged.");
+    var staged = Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geoip.metadb");
+    Assert((await service.GetAsync(CancellationToken.None)).IsConfigured && (await File.ReadAllBytesAsync(staged)).SequenceEqual(content),
+        "The GeoIP database was not copied to Mihomo's protected data directory.");
+    Assert(await service.ConfigureFromServerFileAsync(Path.ChangeExtension(source, ".mmdb"), CancellationToken.None) == ProxyProblemCodes.GeodataInvalid,
+        "Unsupported GeoIP file extensions were accepted.");
+}
+
 static async Task VerifyProxyConfigurationTransactionAsync(string root)
 {
     var databasePath = Path.Combine(root, "proxy-configuration.db");
@@ -1101,6 +1118,7 @@ sealed class StaticProxySecretStore : IProxyControllerSecretStore
 sealed class TestProxyPaths(string root) : IProxyPlatformPaths
 {
     public string GetEngineVersionsDirectory(string engineId) => Path.Combine(root, "engines", engineId, "versions");
+    public string GetEngineDataDirectory(string engineId) => Path.Combine(root, "engines", engineId, "data");
     public string GetProtectedConfigurationDirectory() => Path.Combine(root, "config");
     public string GetStateDirectory() => Path.Combine(root, "state");
     public string GetSanitizedLogDirectory() => Path.Combine(root, "logs");

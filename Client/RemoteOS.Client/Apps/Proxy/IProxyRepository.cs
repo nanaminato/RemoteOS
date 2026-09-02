@@ -18,6 +18,8 @@ public interface IProxyRepository
     Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken = default);
     Task<ProxySettingsDto> GetSettingsAsync(CancellationToken cancellationToken = default);
     Task UpdateSettingsAsync(UpdateProxySettingsRequest request, CancellationToken cancellationToken = default);
+    Task<ProxyGeoDataDto> GetGeoDataAsync(CancellationToken cancellationToken = default);
+    Task ConfigureGeoDataFromServerFileAsync(string filePath, CancellationToken cancellationToken = default);
     Task<ProxyRuntimeDto> GetRuntimeAsync(CancellationToken cancellationToken = default);
     Task<ProxyRuntimeDownloadDto?> GetManagedRuntimeDownloadAsync(string? version = null, CancellationToken cancellationToken = default);
     Task<ProxyOperationDto?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken = default);

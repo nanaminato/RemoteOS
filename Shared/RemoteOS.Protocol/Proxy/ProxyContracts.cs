@@ -42,6 +42,8 @@ public static class ProxyProblemCodes
     public const string SubscriptionInvalid = "proxy.subscription_invalid";
     public const string SubscriptionFetchFailed = "proxy.subscription_fetch_failed";
     public const string SubscriptionSystemProxyUnavailable = "proxy.subscription_system_proxy_unavailable";
+    public const string GeodataUnavailable = "proxy.geodata_unavailable";
+    public const string GeodataInvalid = "proxy.geodata_invalid";
 }
 
 public static class ProxyApiRoutes
@@ -66,6 +68,7 @@ public static class ProxyApiRoutes
     public const string Logs = Proxy + "/logs";
     public const string Dns = Proxy + "/dns";
     public const string Settings = Proxy + "/settings";
+    public const string GeoData = Proxy + "/geodata";
     public const string Recovery = Proxy + "/recovery";
     public const string OperationsPattern = "/operations/{operationId:guid}";
     public const string RuntimeInstall = Runtime + "/install";
@@ -149,6 +152,8 @@ public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, st
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
 public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
     string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false);
+/// <summary>Metadata for the locally staged GeoIP database. The original Server path is never exposed.</summary>
+public sealed record ProxyGeoDataDto(bool IsConfigured, long? SizeBytes = null);
 public sealed record ProxyRecoveryStatusDto(bool RecoveryRequired, bool HasRecoveryMarker, DateTimeOffset? MarkerCreatedAt, string ProblemCode = "");
 public sealed record ProxyOperationDto(Guid OperationId, string Kind, ProxyOperationState State, string Stage, string ProblemCode, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt);
 
@@ -170,4 +175,6 @@ public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
 public sealed record UpdateProxySettingsRequest(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
     string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false);
+/// <summary>Selects a GeoIP database already accessible to the RemoteOS Server service account.</summary>
+public sealed record ConfigureProxyGeoDataRequest(string FilePath);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

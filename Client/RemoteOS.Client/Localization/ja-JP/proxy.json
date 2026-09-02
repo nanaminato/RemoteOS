@@ -1,6 +1,16 @@
 {
   "Culture": "ja-JP",
   "Strings": {
+    "proxy.problem.geodata_unavailable": "サブスクリプションには GeoIP データが必要ですが、Server がデータベースをダウンロードできません。DNS と外向きネットワークを確認するか、GEOIP ルールを含まないサブスクリプションを使用してください。",
+    "proxy.problem.geodata_invalid": "選択した GeoIP データベースが無効、大きすぎる、または RemoteOS Server のサービス アカウントから読み取れません。Server 上でアクセス可能な通常の geoip.metadb ファイルを選択してください。",
+    "proxy.geodata": "GeoIP データベース",
+    "proxy.geodata.hint": "GEOIP ルールを含むサブスクリプションでは、RemoteOS Server 上の geoip.metadb を先に選択できます。保護された Mihomo データ ディレクトリにコピーされるため、検証時にダウンロードは不要です。",
+    "proxy.geodata.state": "ローカル データベース",
+    "proxy.geodata.configured": "構成済み",
+    "proxy.geodata.not_configured": "未構成（Mihomo がダウンロードする場合があります）",
+    "proxy.geodata.select_server_file": "Server 上の geoip.metadb を選択",
+    "proxy.geodata.file_filter": "GeoIP データベース (geoip.metadb)",
+    "proxy.status.geodata_configured": "Mihomo 用のローカル GeoIP データベースを構成しました。",
     "proxy.subscription_runtime_required": "サブスクリプションをインポートして構成を検証する前に、管理対象の Mihomo ランタイムをインストールしてください。",
     "proxy.title": "プロキシ マネージャー", "proxy.login_required": "プロキシを管理するには RemoteOS Server にサインインしてください。", "proxy.status.loading": "プロキシの状態を読み込んでいます…", "proxy.status.ready": "ランタイム: {0}; ヘルス: {1}", "proxy.status.recovery_required": "別の TUN 操作の前にネットワーク回復が必要です。", "proxy.status.operation_queued": "操作はサーバーにキュー登録されました。", "proxy.status.operation_unavailable": "サーバーの操作状態を取得できません。", "proxy.status.failed": "プロキシ要求に失敗しました: {0}", "proxy.status.controller_authentication_failed": "Mihomo コントローラーの認証に失敗しました。サーバー構成を確認してから再試行してください。",
     "proxy.start": "開始", "proxy.stop": "停止", "proxy.restart": "再起動", "proxy.emergency_disable": "TUN を緊急停止", "proxy.subtitle": "ホストのプロキシ ランタイム、プロファイル、トラフィック、ネットワーク安全性を管理します。", "proxy.workspace": "ワークスペース", "proxy.overview": "概要", "proxy.profiles": "プロファイル", "proxy.proxies": "プロキシ グループ", "proxy.connections": "接続", "proxy.logs": "ログ", "proxy.settings": "設定", "proxy.runtime": "ランタイム", "proxy.health": "ヘルス", "proxy.active_profile": "アクティブなプロファイル", "proxy.none": "なし",

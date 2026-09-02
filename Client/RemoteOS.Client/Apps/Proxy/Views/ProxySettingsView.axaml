@@ -39,6 +39,19 @@
     </Border>
     <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
       <StackPanel Spacing="12">
+        <TextBlock Text="{loc:Loc proxy.geodata}" FontSize="19" FontWeight="SemiBold" />
+        <TextBlock Text="{loc:Loc proxy.geodata.hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
+          <TextBlock Text="{loc:Loc proxy.geodata.state}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding GeoDataState}" VerticalAlignment="Center" />
+        </Grid>
+        <WrapPanel Margin="0,6,0,0">
+          <Button Content="{loc:Loc proxy.geodata.select_server_file}" Command="{Binding ConfigureGeoDataFromServerFileCommand}" Margin="0,0,8,8" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <StackPanel Spacing="12">
         <TextBlock Text="{loc:Loc proxy.network_settings}" FontSize="19" FontWeight="SemiBold" />
         <TextBlock Text="{loc:Loc proxy.network_settings_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10">

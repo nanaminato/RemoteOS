@@ -229,7 +229,7 @@ public sealed class NativeMihomoPrivilegedOperations(
         "",
         "[Service]",
         "Type=simple",
-        $"ExecStart={ActiveBinaryPath()} -f {Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml")}",
+        $"ExecStart={ActiveBinaryPath()} -d {paths.GetEngineDataDirectory(Engine)} -f {Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml")}",
         "Restart=on-failure",
         "RestartSec=3",
         "NoNewPrivileges=true",

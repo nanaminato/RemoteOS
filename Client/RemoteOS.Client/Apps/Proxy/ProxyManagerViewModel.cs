@@ -33,6 +33,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private ProxyRuntimeDto? _runtime;
     [ObservableProperty] private ProxyDnsStatusDto? _dnsStatus;
     [ObservableProperty] private ProxySettingsDto? _settings;
+    [ObservableProperty] private ProxyGeoDataDto? _geoData;
     [ObservableProperty] private ProxyProfileDto? _selectedProfile;
     [ObservableProperty] private ProxySubscriptionDto? _selectedSubscription;
     [ObservableProperty] private ProxyGroupDto? _selectedGroup;
@@ -44,6 +45,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private bool _isRuntimeSubscriptionVisible;
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
+    public Func<Task<string?>>? RequestServerGeoDataFileAsync { get; set; }
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
 
@@ -51,6 +53,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     {
         RequestServerRuntimePackageAsync = request;
         InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
+    }
+
+    public void SetServerGeoDataFileRequest(Func<Task<string?>>? request)
+    {
+        RequestServerGeoDataFileAsync = request;
+        ConfigureGeoDataFromServerFileCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>Updates the capability snapshot only after the owning application has completed its permission prompt.</summary>
@@ -96,6 +104,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string LogLevel { get => Settings?.LogLevel ?? "warning"; set => SetSettings(logLevel: value); }
     public int MixedPort { get => Settings?.MixedPort ?? 7890; set => SetSettings(mixedPort: value); }
     public bool AllowInsecureSubscriptionSources { get => Settings?.AllowInsecureSubscriptionSources == true; set => SetSettings(allowInsecureSubscriptionSources: value); }
+    public bool GeoDataIsConfigured => GeoData?.IsConfigured == true;
+    public string GeoDataState => LocalizedText.Get(GeoDataIsConfigured ? "proxy.geodata.configured" : "proxy.geodata.not_configured");
     public IReadOnlyList<string> LogLevels { get; } = ["silent", "error", "warning", "info", "debug"];
 
     public async Task StartAsync() => await RefreshAsync();
@@ -110,7 +120,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             var profilesTask = repository.ListProfilesAsync();
             var subscriptionsTask = repository.ListSubscriptionsAsync();
             var settingsTask = repository.GetSettingsAsync();
-            await Task.WhenAll(overviewTask, profilesTask, subscriptionsTask, settingsTask);
+            var geoDataTask = repository.GetGeoDataAsync();
+            await Task.WhenAll(overviewTask, profilesTask, subscriptionsTask, settingsTask, geoDataTask);
 
             Overview = await overviewTask;
             Runtime = Overview.Runtime;
@@ -118,6 +129,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             Replace(Subscriptions, await subscriptionsTask);
             OnPropertyChanged(nameof(VisibleSubscriptions));
             Settings = await settingsTask;
+            GeoData = await geoDataTask;
             // A stopped/not-yet-installed runtime cannot answer controller requests. The shell
             // must still show its install and profile pages rather than fail the entire refresh.
             await Task.WhenAll(
@@ -179,6 +191,23 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources));
             StatusText = LocalizedText.Get("proxy.status.settings_saved");
             await RefreshAsync();
+        }
+        catch (Exception exception) { SetFailureStatus(exception); }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfigureGeoDataFromServerFile))]
+    private async Task ConfigureGeoDataFromServerFileAsync()
+    {
+        if (RequestServerGeoDataFileAsync is not { } requestFile) return;
+        var filePath = await requestFile();
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+        try
+        {
+            IsBusy = true;
+            await repository.ConfigureGeoDataFromServerFileAsync(filePath);
+            GeoData = await repository.GetGeoDataAsync();
+            StatusText = LocalizedText.Get("proxy.status.geodata_configured");
         }
         catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
@@ -357,6 +386,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanRestartProxy => CanManage && Runtime?.State is ProxyRuntimeState.Stopped or ProxyRuntimeState.Running;
     private bool CanToggleProxy => CanManage && ProxyCanToggle;
     private bool CanInstallRuntimeFromServerFile => CanInstallRuntime && RequestServerRuntimePackageAsync is not null;
+    private bool CanConfigureGeoDataFromServerFile => CanManage && RequestServerGeoDataFileAsync is not null;
     private bool CanTun => HasTunManagePermission && !IsBusy && IsTunAvailable;
     private bool CanEnableTun => CanTun && SelectedProfile is not null;
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
@@ -400,6 +430,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         InstallRuntimeCommand.NotifyCanExecuteChanged(); ShowRuntimeDownloadCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
         RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
     }
+    partial void OnGeoDataChanged(ProxyGeoDataDto? value)
+    {
+        OnPropertyChanged(nameof(GeoDataIsConfigured));
+        OnPropertyChanged(nameof(GeoDataState));
+    }
     partial void OnSettingsChanged(ProxySettingsDto? value)
     {
         OnPropertyChanged(nameof(SystemProxyEnabled)); OnPropertyChanged(nameof(AllowLan)); OnPropertyChanged(nameof(DnsEnabled));
@@ -416,6 +451,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     {
         RefreshCommand.NotifyCanExecuteChanged(); StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged(); ToggleProxyCommand.NotifyCanExecuteChanged();
         InstallRuntimeCommand.NotifyCanExecuteChanged(); ShowRuntimeDownloadCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
+        ConfigureGeoDataFromServerFileCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();

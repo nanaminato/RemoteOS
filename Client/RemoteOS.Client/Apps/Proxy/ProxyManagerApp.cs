@@ -52,6 +52,21 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
                 return new ExplorerMainView { DataContext = picker };
             }, new RemoteOS.Core.Primitives.Size(720, 520));
         });
+        vm.SetServerGeoDataFileRequest(async () =>
+        {
+            if (files is null) return null;
+            return await context.ShowDialogAsync<string?>(window, LocalizedText.Get("proxy.geodata.select_server_file"), dialog =>
+            {
+                var picker = new ExplorerViewModel(files,
+                    new ExplorerPickerOptions(ExplorerPickerMode.OpenFile, Filters: [new ExplorerFileFilter(LocalizedText.Get("proxy.geodata.file_filter"), ["*.metadb"])]),
+                    paths => dialog.Close(paths.FirstOrDefault()))
+                {
+                    CancelAction = dialog.Cancel,
+                };
+                _ = picker.LoadRootAsync();
+                return new ExplorerMainView { DataContext = picker };
+            }, new RemoteOS.Core.Primitives.Size(720, 520));
+        });
         vm.ShowRuntimeDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("proxy.runtime_download_title"), url);
         vm.RequestSystemProxySubscriptionDownloadAsync = async () =>
         {
