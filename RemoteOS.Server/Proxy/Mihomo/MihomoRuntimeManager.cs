@@ -472,17 +472,28 @@ public sealed class MihomoRuntimeManager(
     {
         var deadline = Stopwatch.GetTimestamp() + (long)(Stopwatch.Frequency * controllerOptions.StartupReadinessSeconds);
         ControllerResult<bool> result;
+        var attempts = 0;
         do
         {
+            attempts++;
             result = await controller.IsReachableAsync(cancellationToken);
             if (result.Succeeded || result.ProblemCode is not (ProxyProblemCodes.ControllerUnavailable or ProxyProblemCodes.ControllerTimeout))
+            {
+                if (!result.Succeeded)
+                    await WriteDiagnosticAsync("warning", "Managed Mihomo controller readiness failed after " + attempts + " check(s): " + result.ProblemCode, cancellationToken);
                 return result;
+            }
 
-            if (Stopwatch.GetTimestamp() >= deadline) return result;
+            if (Stopwatch.GetTimestamp() >= deadline)
+            {
+                await WriteDiagnosticAsync("warning", "Managed Mihomo controller did not become reachable after " + attempts + " check(s): " + result.ProblemCode, cancellationToken);
+                return result;
+            }
             await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
         }
         while (Stopwatch.GetTimestamp() < deadline);
 
+        await WriteDiagnosticAsync("warning", "Managed Mihomo controller readiness window elapsed after " + attempts + " check(s): " + result.ProblemCode, cancellationToken);
         return result;
     }
 

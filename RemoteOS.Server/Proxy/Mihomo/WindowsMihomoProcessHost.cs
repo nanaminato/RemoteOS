@@ -77,23 +77,26 @@ public sealed class WindowsMihomoProcessHost(
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                 },
-                EnableRaisingEvents = true,
             };
             process.StartInfo.ArgumentList.Add("-f");
             process.StartInfo.ArgumentList.Add(configuration);
-            process.Exited += (_, _) => _ = HandleExitedAsync(process);
-            process.OutputDataReceived += (_, eventArgs) => WriteProcessOutput("info", eventArgs.Data);
-            process.ErrorDataReceived += (_, eventArgs) => WriteProcessOutput("warning", eventArgs.Data);
 
             if (!process.Start())
             {
                 process.Dispose();
                 return Unavailable();
             }
+            // Read each pipe to EOF instead of relying on OutputDataReceived. A process that
+            // terminates during startup can otherwise lose its final parse error when the Exited
+            // callback disposes the Process before the event queue has drained.
+            var standardOutput = CaptureProcessOutputAsync(process.StandardOutput, "info");
+            var standardError = CaptureProcessOutputAsync(process.StandardError, "warning");
+            // Assign before enabling exit notifications. Enabling events on an already-exited
+            // process may invoke the callback immediately.
             _process = process;
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            await WriteDiagnosticAsync("info", "Managed Mihomo started as a child process of RemoteOS.Server.");
+            process.Exited += (_, _) => _ = HandleExitedAsync(process, standardOutput, standardError);
+            process.EnableRaisingEvents = true;
+            await WriteDiagnosticAsync("info", "Managed Mihomo started as a child process of RemoteOS.Server. pid=" + process.Id + ".");
             return Success();
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or UnauthorizedAccessException or IOException)
@@ -136,7 +139,7 @@ public sealed class WindowsMihomoProcessHost(
         finally { process.Dispose(); }
     }
 
-    private async Task HandleExitedAsync(Process process)
+    private async Task HandleExitedAsync(Process process, Task standardOutput, Task standardError)
     {
         var exitCode = TryGetExitCode(process);
         var restart = false;
@@ -149,6 +152,8 @@ public sealed class WindowsMihomoProcessHost(
         }
         finally { _gate.Release(); }
 
+        try { await Task.WhenAll(standardOutput, standardError); }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException) { }
         process.Dispose();
         await WriteDiagnosticAsync("warning", "Managed Mihomo exited unexpectedly" + (exitCode is { } code ? " with exit code " + code : "") + ".");
         if (!restart) return;
@@ -187,9 +192,15 @@ public sealed class WindowsMihomoProcessHost(
         if (diagnostics is not null) await diagnostics.WriteAsync(level, message, CancellationToken.None);
     }
 
-    private void WriteProcessOutput(string level, string? output)
+    private async Task CaptureProcessOutputAsync(StreamReader reader, string level)
     {
-        if (!string.IsNullOrWhiteSpace(output)) _ = WriteDiagnosticAsync(level, "mihomo: " + output);
+        try
+        {
+            while (await reader.ReadLineAsync() is { } output)
+                if (!string.IsNullOrWhiteSpace(output)) await WriteDiagnosticAsync(level, "mihomo: " + output);
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
     private static int? TryGetExitCode(Process process)
