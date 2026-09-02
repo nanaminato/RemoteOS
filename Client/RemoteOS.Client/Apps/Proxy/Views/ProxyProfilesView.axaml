@@ -5,7 +5,7 @@
              xmlns:dto="clr-namespace:RemoteOS.Protocol.Proxy;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Proxy.Views.ProxyProfilesView"
              x:DataType="proxy:ProxyManagerViewModel">
-  <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="18">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="18">
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
       <StackPanel Spacing="4">
         <TextBlock Text="{loc:Loc proxy.subscriptions}" FontSize="21" FontWeight="SemiBold" />
@@ -18,14 +18,21 @@
       </WrapPanel>
     </Grid>
 
-    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+    <Border Grid.Row="1" IsVisible="{Binding RuntimeIsNotInstalled}" Background="{DynamicResource WarningMutedBrush}" CornerRadius="10" Padding="14">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+        <TextBlock Text="{loc:Loc proxy.subscription_runtime_required}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.runtime_install}" Command="{Binding InstallRuntimeCommand}" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="10" IsEnabled="{Binding RuntimeIsInstalled}">
       <TextBox Text="{Binding SubscriptionLink, Mode=TwoWay}" PlaceholderText="{loc:Loc proxy.subscription_link}" />
       <Button Grid.Column="1" Content="{loc:Loc proxy.subscription_import}" Command="{Binding ImportSubscriptionCommand}" />
     </Grid>
 
-    <ListBox Grid.Row="2"
+    <ListBox Grid.Row="3"
              ItemsSource="{Binding VisibleSubscriptions}"
-             SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+             SelectedItem="{Binding SelectedSubscription, Mode=TwoWay}"
              BorderThickness="0"
              Background="Transparent">
       <ListBox.ItemsPanel>
@@ -76,7 +83,7 @@
       </ListBox.ItemTemplate>
     </ListBox>
 
-    <Border Grid.Row="3" IsVisible="{Binding IsRuntimeSubscriptionVisible}" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+    <Border Grid.Row="4" IsVisible="{Binding IsRuntimeSubscriptionVisible}" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
       <Grid RowDefinitions="Auto,*" RowSpacing="10">
         <TextBlock Text="{loc:Loc proxy.subscription_content}" FontSize="16" FontWeight="SemiBold" />
         <TextBox Grid.Row="1" Text="{Binding RuntimeSubscriptionText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas" MinHeight="180" MaxHeight="260" />

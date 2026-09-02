@@ -751,6 +751,13 @@ static async Task VerifyProxySubscriptionRepositoryAsync(string root)
     Assert(converted.Content.Contains("proxies:", StringComparison.Ordinal) && converted.Content.Contains("type: ss", StringComparison.Ordinal)
         && converted.Content.Contains("cipher: \"aes-256-gcm\"", StringComparison.Ordinal) && converted.Content.Contains("password: \"password\"", StringComparison.Ordinal),
         "Base64 Shadowsocks subscription was not converted to Mihomo YAML.");
+
+    var debugPaths = new TestProxyPaths(Path.Combine(root, "proxy-subscription-debug"));
+    var debugDownloader = new ProxySubscriptionDownloader(new FixtureHttpClientFactory(Encoding.UTF8.GetBytes("proxies: []\n")), new StaticProxySettingsService(),
+        new TestHostEnvironment(root) { EnvironmentName = Environments.Development }, debugPaths);
+    await debugDownloader.DownloadAsync("https://1.1.1.1/subscription", ProxySubscriptionDownloadRoute.Direct, CancellationToken.None);
+    var capture = Directory.GetFiles(debugPaths.GetSanitizedLogDirectory(), "subscription-download-*.txt").Single();
+    Assert(await File.ReadAllTextAsync(capture) == "proxies: []\n", "Development subscription downloads were not captured verbatim in the protected log directory.");
 }
 
 static async Task VerifyProxyConfigurationTransactionAsync(string root)

@@ -49,7 +49,6 @@ var mihomoController = builder.Configuration.GetSection("Proxy:Mihomo:Controller
 mihomoController.Validate();
 builder.Services.AddSingleton(mihomoController);
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IProxyControllerSecretStore, Server.Proxy.Mihomo.DataProtectionProxyControllerSecretStore>();
-builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator, Server.Proxy.Mihomo.UnavailableMihomoConfigurationValidator>();
 // The controller is an optional local process. Its expected "not started" condition is
 // reported by MihomoControllerClient as one actionable warning, instead of HttpClient's
 // full connection exception stack on every status poll.
@@ -66,7 +65,9 @@ builder.Services.AddSingleton<Server.Proxy.IProxyPlatformService, Server.Proxy.P
 builder.Services.AddSingleton<Server.Proxy.IProxyDiagnosticLogStore, Server.Proxy.ProxyDiagnosticLogStore>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManifest>();
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Proxy.Mihomo.MihomoRuntimeProbe>();
-builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManager>();
+builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
 builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("ProxySubscriptionDirect", client => client.Timeout = TimeSpan.FromSeconds(30))

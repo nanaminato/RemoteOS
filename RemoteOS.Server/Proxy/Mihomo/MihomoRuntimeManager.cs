@@ -20,7 +20,7 @@ public sealed class MihomoRuntimeManager(
     IProxyControllerSecretStore controllerSecrets,
     MihomoControllerOptions controllerOptions,
     MihomoRuntimeManifest manifest,
-    IProxyDiagnosticLogStore? diagnostics = null) : IProxyRuntimeManager
+    IProxyDiagnosticLogStore? diagnostics = null) : IProxyRuntimeManager, IMihomoConfigurationValidator
 {
     private const string ServiceName = "remoteos-mihomo";
     private const string ServiceConfigurationId = "mihomo-default";
@@ -59,6 +59,60 @@ public sealed class MihomoRuntimeManager(
                 ? ProxyRuntimeState.Running
                 : ProxyRuntimeState.Stopped;
             return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, runtimeState, active, state.PreviousVersion, true, false);
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// Validates a candidate profile with the active, verified managed binary. This deliberately
+    /// does not depend on the controller or service being running: importing a subscription must
+    /// be possible before the profile is activated.
+    /// </summary>
+    public async Task<string?> ValidateAsync(string configurationPath, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(configurationPath) || !Path.IsPathFullyQualified(configurationPath) || !File.Exists(configurationPath))
+            return ProxyProblemCodes.ConfigInvalid;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var state = await ReadStateAsync(cancellationToken);
+            var executable = state?.ActiveVersion is { Length: > 0 } active ? ExecutablePath(active) : null;
+            if (executable is null || !File.Exists(executable)) return ProxyProblemCodes.RuntimeNotInstalled;
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo(executable)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                },
+            };
+            // The executable, arguments, and profile path are all Server-derived; no API input
+            // is executed as a command.
+            process.StartInfo.ArgumentList.Add("-t");
+            process.StartInfo.ArgumentList.Add("-f");
+            process.StartInfo.ArgumentList.Add(configurationPath);
+            try
+            {
+                if (!process.Start()) return ProxyProblemCodes.RuntimeHealthCheckFailed;
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                var standardOut = process.StandardOutput.ReadToEndAsync(timeout.Token);
+                var standardError = process.StandardError.ReadToEndAsync(timeout.Token);
+                await Task.WhenAll(standardOut, standardError, process.WaitForExitAsync(timeout.Token));
+                return process.ExitCode == 0 ? null : ProxyProblemCodes.ConfigInvalid;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return ProxyProblemCodes.RuntimeHealthCheckFailed;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)
+            {
+                return ProxyProblemCodes.RuntimeHealthCheckFailed;
+            }
         }
         finally { _gate.Release(); }
     }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using Microsoft.Extensions.Hosting;
 using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Mihomo;
 
@@ -110,9 +111,14 @@ public interface IProxySubscriptionDownloader
 public sealed record ProxySubscriptionDownload(Uri Uri, string Content);
 
 /// <summary>Bounded subscription downloader that always rejects loopback, private and link-local targets.</summary>
-public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFactory, IProxySettingsService settingsService) : IProxySubscriptionDownloader
+public sealed class ProxySubscriptionDownloader(
+    IHttpClientFactory httpClientFactory,
+    IProxySettingsService settingsService,
+    IHostEnvironment? environment = null,
+    IProxyPlatformPaths? paths = null) : IProxySubscriptionDownloader
 {
     private const int MaximumBytes = 1_048_576;
+    private const int MaximumDebugCaptures = 10;
 
     public Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken) =>
         Task.FromResult(new ProxySubscriptionDownloadOptionsDto(ProxySubscriptionNetworkPolicy.HasSystemProxy()));
@@ -180,11 +186,41 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
             catch (DecoderFallbackException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid); }
             if (string.IsNullOrWhiteSpace(content) || content.IndexOf('\0') >= 0)
                 throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
+            await CaptureDebugDownloadAsync(content, cancellationToken);
             return new ProxySubscriptionDownload(uri, ProxySubscriptionContentNormalizer.Normalize(content));
         }
         catch (HttpRequestException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
         catch (IOException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
         }
+    }
+
+    /// <summary>
+    /// Keeps the exact response available for local debugging without weakening production
+    /// secrecy. Subscription material may contain credentials, so it is never captured outside
+    /// Development and the filename intentionally contains no source URL or subscription name.
+    /// </summary>
+    private async Task CaptureDebugDownloadAsync(string content, CancellationToken cancellationToken)
+    {
+        if (environment?.IsDevelopment() != true || paths is null) return;
+        try
+        {
+            var directory = paths.GetSanitizedLogDirectory();
+            Directory.CreateDirectory(directory);
+            var name = "subscription-download-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture)
+                + "-" + Guid.NewGuid().ToString("N") + ".txt";
+            var path = Path.Combine(directory, name);
+            await File.WriteAllTextAsync(path, content, new UTF8Encoding(false), cancellationToken);
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+
+            foreach (var stale in Directory.EnumerateFiles(directory, "subscription-download-*.txt", SearchOption.TopDirectoryOnly)
+                         .OrderByDescending(File.GetCreationTimeUtc)
+                         .Skip(MaximumDebugCaptures))
+                File.Delete(stale);
+        }
+        // Capturing debug material must not interfere with importing a valid subscription.
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
 }
