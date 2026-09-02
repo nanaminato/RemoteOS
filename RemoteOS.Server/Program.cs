@@ -69,6 +69,9 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
 builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
 builder.Services.AddSingleton<Server.Proxy.IProxyGeoDataService, Server.Proxy.Mihomo.MihomoGeoDataService>();
+// Provision bundled GEO files into Mihomo's -d HomeDir during Server startup, before users
+// import subscriptions. The transaction service repeats this as an idempotent safety net.
+builder.Services.AddHostedService<Server.Proxy.Mihomo.MihomoGeoDataHostedService>();
 builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("ProxySubscriptionDirect", client => client.Timeout = TimeSpan.FromSeconds(30))

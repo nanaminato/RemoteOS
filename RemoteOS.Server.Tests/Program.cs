@@ -48,6 +48,7 @@ try
     await VerifyProxyHostProfileRepositoryAsync(root);
     await VerifyProxySubscriptionRepositoryAsync(root);
     await VerifyMihomoGeoDataStagingAsync(root);
+    await VerifyMihomoGeoDataStartupProvisioningAsync();
     await VerifyProxyConfigurationTransactionAsync(root);
     await VerifyProxyTunSafetyAsync(root);
     await VerifyHostNetworkSafetyDiscoveryAsync();
@@ -795,6 +796,15 @@ static async Task VerifyMihomoGeoDataStagingAsync(string root)
         "Unsupported GeoIP file extensions were accepted.");
 }
 
+static async Task VerifyMihomoGeoDataStartupProvisioningAsync()
+{
+    var geoData = new RecordingGeoDataService();
+    var hostedService = new MihomoGeoDataHostedService(geoData);
+    await hostedService.StartAsync(CancellationToken.None);
+    Assert(geoData.EnsureCalls == 1,
+        "Server startup did not provision bundled GEO data before subscription import.");
+}
+
 static async Task VerifyProxyConfigurationTransactionAsync(string root)
 {
     var databasePath = Path.Combine(root, "proxy-configuration.db");
@@ -1217,6 +1227,14 @@ sealed class TestProxyPrivilegedOperations : IProxyPrivilegedOperations
     public Task<ProxyPrivilegedResult> WriteProtectedConfigurationAsync(WriteProxyConfigurationOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> RestoreNetworkConfigurationAsync(RestoreProxyNetworkOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
     public Task<ProxyPrivilegedResult> RepairServiceAsync(ProxyServiceOperation request, CancellationToken cancellationToken) => Task.FromResult(Result());
+}
+
+sealed class RecordingGeoDataService : IProxyGeoDataService
+{
+    public int EnsureCalls { get; private set; }
+    public Task<ProxyGeoDataDto> GetAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyGeoDataDto(false));
+    public Task<string?> EnsureBundledAsync(CancellationToken cancellationToken) { EnsureCalls++; return Task.FromResult<string?>(null); }
+    public Task<string?> ConfigureFromServerFileAsync(string filePath, CancellationToken cancellationToken) => Task.FromResult<string?>(ProxyProblemCodes.NotSupported);
 }
 
 sealed class TransactionTestEngine : IProxyEngine
