@@ -29,7 +29,7 @@
     "proxy.subscription_source_configured": "订阅链接已安全保存",
     "proxy.subscription_update_all": "更新所有订阅",
     "proxy.subscription_view_runtime": "查看运行时订阅",
-    "proxy.subscription_reactivate": "重新激活订阅",
+    "proxy.subscription_reactivate": "切换到此订阅",
     "proxy.subscription_runtime": "运行时订阅",
     "proxy.subscription_last_updated": "上次更新时间",
     "proxy.subscription_active": "当前生效",

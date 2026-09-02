@@ -29,7 +29,7 @@
     "proxy.subscription_source_configured": "Subscription link securely stored",
     "proxy.subscription_update_all": "Update all subscriptions",
     "proxy.subscription_view_runtime": "View runtime subscriptions",
-    "proxy.subscription_reactivate": "Reactivate subscription",
+    "proxy.subscription_reactivate": "Switch to this subscription",
     "proxy.subscription_runtime": "Runtime subscription",
     "proxy.subscription_last_updated": "Last updated",
     "proxy.subscription_active": "Active now",

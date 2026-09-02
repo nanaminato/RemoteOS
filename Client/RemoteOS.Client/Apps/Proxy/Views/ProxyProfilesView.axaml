@@ -5,7 +5,25 @@
              xmlns:dto="clr-namespace:RemoteOS.Protocol.Proxy;assembly=RemoteOS.Protocol"
              x:Class="Client.Apps.Proxy.Views.ProxyProfilesView"
              x:DataType="proxy:ProxyManagerViewModel">
-  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="18">
+  <UserControl.Styles>
+    <Style Selector="Button.subscription-card">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Path.subscription-refreshing">
+      <Style.Animations>
+        <Animation Duration="0:0:0.9" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="RotateTransform.Angle" Value="360" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="18">
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
       <StackPanel Spacing="4">
         <TextBlock Text="{loc:Loc proxy.subscriptions}" FontSize="21" FontWeight="SemiBold" />
@@ -13,8 +31,7 @@
       </StackPanel>
       <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
         <Button Content="{loc:Loc proxy.subscription_update_all}" Command="{Binding UpdateAllSubscriptionsCommand}" Margin="0,0,8,0" />
-        <Button Content="{loc:Loc proxy.subscription_view_runtime}" Command="{Binding ViewRuntimeSubscriptionsCommand}" Margin="0,0,8,0" />
-        <Button Classes="primary" Content="{loc:Loc proxy.subscription_reactivate}" Command="{Binding ReactivateSubscriptionCommand}" />
+        <Button Classes="primary" Content="{loc:Loc proxy.subscription_view_runtime}" Command="{Binding ViewRuntimeSubscriptionsCommand}" />
       </WrapPanel>
     </Grid>
 
@@ -30,64 +47,52 @@
       <Button Grid.Column="1" Content="{loc:Loc proxy.subscription_import}" Command="{Binding ImportSubscriptionCommand}" />
     </Grid>
 
-    <ListBox Grid.Row="3"
-             ItemsSource="{Binding VisibleSubscriptions}"
-             SelectedItem="{Binding SelectedSubscription, Mode=TwoWay}"
-             BorderThickness="0"
-             Background="Transparent">
-      <ListBox.ItemsPanel>
+    <ItemsControl Grid.Row="3" ItemsSource="{Binding VisibleSubscriptions}">
+      <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
           <WrapPanel Orientation="Horizontal" />
         </ItemsPanelTemplate>
-      </ListBox.ItemsPanel>
-      <ListBox.Styles>
-        <Style Selector="ListBoxItem">
-          <Setter Property="Padding" Value="0" />
-          <Setter Property="Margin" Value="0,0,16,16" />
-          <Setter Property="Background" Value="Transparent" />
-          <Setter Property="BorderThickness" Value="0" />
-        </Style>
-      </ListBox.Styles>
-      <ListBox.ItemTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="dto:ProxySubscriptionDto">
-          <Border Width="320"
-                  MinHeight="176"
-                  Background="{DynamicResource SurfaceBrush}"
-                  BorderBrush="{DynamicResource BorderDefaultBrush}"
-                  BorderThickness="1"
-                  CornerRadius="14"
-                  Padding="18">
-            <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <Border Grid.Column="1" Background="{DynamicResource AccentMutedBrush}" CornerRadius="10" Padding="8,3">
-                  <TextBlock Text="{loc:Loc proxy.subscription_runtime}" FontSize="11" Foreground="{DynamicResource AccentBrush}" />
-                </Border>
-              </Grid>
-
-              <TextBlock Grid.Row="1" Text="{loc:Loc proxy.subscription_source_configured}" Foreground="{DynamicResource TextSecondaryBrush}" />
-
-              <StackPanel Grid.Row="2" Spacing="5">
-                <TextBlock Text="{loc:Loc proxy.subscription_last_updated}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" />
-                <TextBlock Text="{Binding LastUpdatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" FontSize="13" />
-              </StackPanel>
-
-              <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <TextBlock Text="{loc:Loc proxy.subscription_inactive}" IsVisible="{Binding !IsActive}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" />
-                <TextBlock Text="{loc:Loc proxy.subscription_active}" IsVisible="{Binding IsActive}" Foreground="{DynamicResource AccentBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Content="{loc:Loc proxy.subscription_reactivate}" Command="{Binding $parent[ListBox].DataContext.ReactivateSubscriptionCommand}" CommandParameter="{Binding}" />
+          <Button Classes="subscription-card"
+                  Width="252"
+                  Height="104"
+                  Margin="0,0,14,14"
+                  Command="{Binding $parent[ItemsControl].DataContext.ActivateSubscriptionCommand}"
+                  CommandParameter="{Binding}"
+                  ToolTip.Tip="{loc:Loc proxy.subscription_reactivate}">
+            <Grid>
+              <Border Background="{DynamicResource SurfaceBrush}"
+                      BorderBrush="{DynamicResource BorderDefaultBrush}"
+                      BorderThickness="1"
+                      CornerRadius="10" />
+              <Border Width="4" Background="{DynamicResource AccentBrush}" CornerRadius="10,0,0,10" HorizontalAlignment="Left" IsVisible="{Binding IsActive}" />
+              <Grid Margin="14,11,12,10" RowDefinitions="Auto,*,Auto" RowSpacing="4">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                  <Path Data="M5,3 A2,2 0 1,0 5,7 A2,2 0 1,0 5,3 M5,10 A2,2 0 1,0 5,14 A2,2 0 1,0 5,10 M12,3 A2,2 0 1,0 12,7 A2,2 0 1,0 12,3 M12,10 A2,2 0 1,0 12,14 A2,2 0 1,0 12,10"
+                        Width="15" Height="15" Stretch="Uniform" Fill="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <Grid Grid.Column="2" Width="18" Height="18" ToolTip.Tip="{loc:Loc proxy.subscription_reactivate}">
+                    <Path Data="M12,4 V1 L16,5 L12,9 V6 A6,6 0 1,0 5.4,14.4 L6.8,13 A4,4 0 1,1 12,6 M4,11 V14 L0,10 L4,6 V9 A6,6 0 0,0 10.6,0.6 L9.2,2 A4,4 0 1,1 4,9"
+                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding $parent[ItemsControl].DataContext.IsBusy}" Classes="subscription-refreshing" RenderTransformOrigin="50%,50%">
+                      <Path.RenderTransform><RotateTransform Angle="0" /></Path.RenderTransform>
+                    </Path>
+                    <Path Data="M12,4 V1 L16,5 L12,9 V6 A6,6 0 1,0 5.4,14.4 L6.8,13 A4,4 0 1,1 12,6 M4,11 V14 L0,10 L4,6 V9 A6,6 0 0,0 10.6,0.6 L9.2,2 A4,4 0 1,1 4,9"
+                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding !$parent[ItemsControl].DataContext.IsBusy}" />
+                  </Grid>
+                </Grid>
+                <TextBlock Grid.Row="1" Text="{loc:Loc proxy.subscription_source_configured}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <TextBlock Text="{Binding LastUpdatedAt, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" />
+                  <TextBlock Grid.Column="1" Text="{loc:Loc proxy.subscription_active}" IsVisible="{Binding IsActive}" Foreground="{DynamicResource AccentBrush}" FontSize="12" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="{loc:Loc proxy.subscription_inactive}" IsVisible="{Binding !IsActive}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" />
+                </Grid>
               </Grid>
             </Grid>
-          </Border>
+          </Button>
         </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
-
-    <Border Grid.Row="4" IsVisible="{Binding IsRuntimeSubscriptionVisible}" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
-      <Grid RowDefinitions="Auto,*" RowSpacing="10">
-        <TextBlock Text="{loc:Loc proxy.subscription_content}" FontSize="16" FontWeight="SemiBold" />
-        <TextBox Grid.Row="1" Text="{Binding RuntimeSubscriptionText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" FontFamily="Consolas" MinHeight="180" MaxHeight="260" />
-      </Grid>
-    </Border>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
   </Grid>
 </UserControl>

@@ -80,6 +80,11 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
             }, new RemoteOS.Core.Primitives.Size(460, 220));
             return useSystemProxy;
         };
+        vm.ShowRuntimeSubscriptionWindow = () =>
+        {
+            _ = context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.subscription_content"), dialog =>
+                new ProxySubscriptionContentDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(840, 560));
+        };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
         context.WindowManager.WindowClosed += closed;

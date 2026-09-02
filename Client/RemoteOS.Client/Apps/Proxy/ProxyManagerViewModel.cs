@@ -42,12 +42,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private string _selectedProxy = string.Empty;
     [ObservableProperty] private string _subscriptionLink = string.Empty;
     [ObservableProperty] private string _runtimeSubscriptionText = string.Empty;
-    [ObservableProperty] private bool _isRuntimeSubscriptionVisible;
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
     public Func<Task<string?>>? RequestServerGeoDataFileAsync { get; set; }
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
+    public Action? ShowRuntimeSubscriptionWindow { get; set; }
 
     public void SetServerRuntimePackageRequest(Func<Task<string?>>? request)
     {
@@ -245,18 +245,19 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             IsBusy = true;
             var content = await repository.GetSubscriptionContentAsync(SelectedSubscription.Id);
             RuntimeSubscriptionText = content.Content;
-            IsRuntimeSubscriptionVisible = true;
             StatusText = LocalizedText.Get("proxy.status.runtime_subscriptions_shown");
+            ShowRuntimeSubscriptionWindow?.Invoke();
         }
         catch (Exception exception) { SetFailureStatus(exception); }
         finally { IsBusy = false; }
     }
 
-    [RelayCommand]
-    private async Task ReactivateSubscriptionAsync(ProxySubscriptionDto? subscription)
+    [RelayCommand(CanExecute = nameof(CanActivateSubscription))]
+    private async Task ActivateSubscriptionAsync(ProxySubscriptionDto? subscription)
     {
-        SelectedSubscription = subscription ?? SelectedSubscription ?? Subscriptions.FirstOrDefault(candidate => candidate.IsActive);
-        if (SelectedSubscription is not null) await QueueAsync(() => repository.ActivateSubscriptionAsync(SelectedSubscription.Id));
+        if (subscription is null || subscription.IsActive) return;
+        SelectedSubscription = subscription;
+        await QueueAsync(() => repository.ActivateSubscriptionAsync(subscription.Id));
     }
 
     [RelayCommand(CanExecute = nameof(CanImportSubscription))]
@@ -392,6 +393,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
     private bool CanManageProfile => CanManage && SelectedProfile is not null;
     private bool CanViewRuntimeSubscription => !IsBusy && Subscriptions.Count > 0;
+    private bool CanActivateSubscription(ProxySubscriptionDto? subscription) => CanManage && !IsBusy && subscription is { IsActive: false };
     private bool CanImportSubscription => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(SubscriptionLink);
     private bool CanSelectGroup => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy);
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
@@ -455,7 +457,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
-        ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged();
+        ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged(); ActivateSubscriptionCommand.NotifyCanExecuteChanged();
         ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     private void RaiseSummaryProperties()
