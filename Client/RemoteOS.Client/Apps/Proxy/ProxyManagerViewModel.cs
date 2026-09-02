@@ -472,7 +472,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanTestAllProxyLatencies => CanManage && !IsBusy && Groups.Count > 0 && IsValidLatencyTestTarget;
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
     private bool IsValidLatencyTestTarget => Uri.TryCreate(LatencyTestTarget, UriKind.Absolute, out var target)
-        && target.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps && !target.IsLoopback;
+        && (target.Scheme == Uri.UriSchemeHttp || target.Scheme == Uri.UriSchemeHttps) && !target.IsLoopback;
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
         bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null)
