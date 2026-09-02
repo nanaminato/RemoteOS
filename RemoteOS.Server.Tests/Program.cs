@@ -737,6 +737,20 @@ static async Task VerifyProxySubscriptionRepositoryAsync(string root)
     command.Parameters.AddWithValue("$id", created.Id.ToString("D"));
     Assert(!string.Equals((string?)await command.ExecuteScalarAsync(), url, StringComparison.Ordinal),
         "Proxy subscription URL was stored in plaintext.");
+
+    var downloadFactory = new FixtureHttpClientFactory(Encoding.UTF8.GetBytes("proxies: []\n"));
+    var downloader = new ProxySubscriptionDownloader(downloadFactory, new StaticProxySettingsService());
+    await downloader.DownloadAsync("https://1.1.1.1/subscription", ProxySubscriptionDownloadRoute.Direct, CancellationToken.None);
+    Assert(downloadFactory.LastClientName == "ProxySubscriptionDirect" && downloadFactory.LastUserAgent == "clash.meta",
+        "Subscription downloads did not request the Mihomo-compatible response format.");
+
+    var universalSubscription = "ss://YWVzLTI1Ni1nY206cGFzc3dvcmQ@1.1.1.1:443#edge";
+    var conversionFactory = new FixtureHttpClientFactory(Encoding.UTF8.GetBytes(Convert.ToBase64String(Encoding.UTF8.GetBytes(universalSubscription))));
+    var converted = await new ProxySubscriptionDownloader(conversionFactory, new StaticProxySettingsService())
+        .DownloadAsync("https://1.1.1.1/subscription", ProxySubscriptionDownloadRoute.Direct, CancellationToken.None);
+    Assert(converted.Content.Contains("proxies:", StringComparison.Ordinal) && converted.Content.Contains("type: ss", StringComparison.Ordinal)
+        && converted.Content.Contains("cipher: \"aes-256-gcm\"", StringComparison.Ordinal) && converted.Content.Contains("password: \"password\"", StringComparison.Ordinal),
+        "Base64 Shadowsocks subscription was not converted to Mihomo YAML.");
 }
 
 static async Task VerifyProxyConfigurationTransactionAsync(string root)
@@ -1045,11 +1059,31 @@ static void Assert(bool condition, string message)
 
 sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory
 {
-    public HttpClient CreateClient(string name) => new(new FixtureHandler(payload));
-    private sealed class FixtureHandler(byte[] payload) : HttpMessageHandler
+    public string? LastClientName { get; private set; }
+    public string? LastUserAgent { get; private set; }
+
+    public HttpClient CreateClient(string name)
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+        LastClientName = name;
+        return new(new FixtureHandler(payload, request => LastUserAgent = request.Headers.UserAgent.ToString()));
     }
+
+    private sealed class FixtureHandler(byte[] payload, Action<HttpRequestMessage> inspect) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            inspect(request);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(payload) });
+        }
+    }
+}
+
+sealed class StaticProxySettingsService : IProxySettingsService
+{
+    public Task<ProxySettingsDto> GetAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ProxySettingsDto(false, false, true, true, false, "warning", 7890));
+
+    public Task<string?> UpdateAsync(UpdateProxySettingsRequest request, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 }
 
 sealed class StaticProxySecretStore : IProxyControllerSecretStore

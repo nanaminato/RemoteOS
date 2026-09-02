@@ -140,6 +140,10 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
             throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionSystemProxyUnavailable);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        // Subscription services commonly select the returned format by User-Agent. Without a
+        // Mihomo-compatible value they may return a generic Base64 node list or an HTML page
+        // instead of the YAML configuration accepted by the Server's profile importer.
+        request.Headers.UserAgent.ParseAdd("clash.meta");
         HttpResponseMessage response;
         var clientName = (downloadRoute, allowInsecureSources) switch
         {
@@ -176,7 +180,7 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
             catch (DecoderFallbackException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid); }
             if (string.IsNullOrWhiteSpace(content) || content.IndexOf('\0') >= 0)
                 throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
-            return new ProxySubscriptionDownload(uri, content);
+            return new ProxySubscriptionDownload(uri, ProxySubscriptionContentNormalizer.Normalize(content));
         }
         catch (HttpRequestException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
         catch (IOException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
