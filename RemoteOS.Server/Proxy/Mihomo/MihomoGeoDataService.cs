@@ -68,18 +68,20 @@ public sealed class MihomoGeoDataService(
             {
                 var destination = ManagedFilePath(fileName);
                 // The existing UI explicitly lets an administrator stage a Server-local
-                // geoip.metadb. Keep that intentional override; all other GEO artifacts are
-                // always refreshed from the verified package.
+                // geoip.metadb. Keep that intentional override.  The other artifacts are
+                // immutable verified copies, so do not replace an identical file while Mihomo
+                // is using it: Windows can hold its database files open without delete sharing.
                 if (fileName == PrimaryFileName && IsExistingManagedFile(destination)) continue;
+                if (fileName != PrimaryFileName && IsSafeBundledFile(destination)) continue;
                 await CopyAtomicallyAsync(Path.Combine(sourceDirectory, fileName), destination, cancellationToken);
             }
 
             await WriteDiagnosticAsync("info", "Bundled GEO data was staged for managed Mihomo.", cancellationToken);
             return null;
         }
-        catch (IOException)
+        catch (IOException exception)
         {
-            await WriteDiagnosticAsync("warning", "Bundled GEO data could not be staged for managed Mihomo.", cancellationToken);
+            await WriteDiagnosticAsync("warning", "Bundled GEO data could not be staged for managed Mihomo: " + exception.GetType().Name, cancellationToken);
             return ProxyProblemCodes.GeodataUnavailable;
         }
         catch (UnauthorizedAccessException)

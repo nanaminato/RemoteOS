@@ -781,6 +781,10 @@ static async Task VerifyMihomoGeoDataStagingAsync(string root)
     Assert((await service.GetAsync(CancellationToken.None)).IsConfigured == false, "A missing GeoIP database was reported as configured.");
     Assert(await service.EnsureBundledAsync(CancellationToken.None) is null, "Bundled GEO data could not be staged.");
     Assert(File.Exists(Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geosite.dat")), "Bundled GeoSite data was not copied to Mihomo's protected data directory.");
+    var loadedGeoSite = Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geosite.dat");
+    using (new FileStream(loadedGeoSite, FileMode.Open, FileAccess.Read, FileShare.Read))
+        Assert(await service.EnsureBundledAsync(CancellationToken.None) is null,
+            "Verified GEO data was unnecessarily replaced while Mihomo could be using it.");
     Assert(await service.ConfigureFromServerFileAsync(source, CancellationToken.None) is null, "A Server-local geoip.metadb could not be staged.");
     var staged = Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geoip.metadb");
     Assert((await service.GetAsync(CancellationToken.None)).IsConfigured && (await File.ReadAllBytesAsync(staged)).SequenceEqual(content),
