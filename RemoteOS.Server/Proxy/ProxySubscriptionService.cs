@@ -84,8 +84,8 @@ public sealed class ProxySubscriptionService(
     {
         var record = await subscriptions.GetAsync(subscriptionId, cancellationToken);
         if (record is null) return null;
-        var source = await downloader.DownloadAsync(record.Url, record.DownloadRoute, cancellationToken);
-        return new ProxySubscriptionContentDto(subscriptionId, source.Content, DateTimeOffset.UtcNow);
+        var content = await configurations.ReadStoredAsync(record.Subscription.ProfileId, cancellationToken);
+        return content is null ? null : new ProxySubscriptionContentDto(subscriptionId, content, record.Subscription.LastUpdatedAt ?? record.Subscription.CreatedAt);
     }
 
     public Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken) =>

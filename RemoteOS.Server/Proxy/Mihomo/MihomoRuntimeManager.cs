@@ -39,19 +39,11 @@ public sealed class MihomoRuntimeManager(
             if (!File.Exists(ExecutablePath(active)))
                 return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.NotInstalled, active, state.PreviousVersion, false, false, ProxyProblemCodes.RuntimeNotInstalled);
 
-            // Older builds allowed raw profile YAML to overwrite managed controller and GEO
-            // fields. Reconcile before exposing the runtime so opening Proxy Manager repairs a
-            // stale process instead of retaining a subscription-controlled GEO downloader.
-            var reconciliation = await ReconcileControllerConfigurationAsync(cancellationToken);
-            if (!reconciliation.Succeeded)
-                return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, reconciliation.ProblemCode);
-            if (reconciliation.Changed)
-            {
-                var restart = await privileged.RestartServiceAsync(new ProxyServiceOperation(MihomoEngine.Id, ServiceName), cancellationToken);
-                if (!restart.Succeeded)
-                    return new(MihomoEngine.Id, ProxyRuntimeMode.Managed, ProxyRuntimeState.Failed, active, state.PreviousVersion, true, false, restart.ProblemCode);
-                await WriteDiagnosticAsync("info", "Managed Mihomo controller settings were restored and the service was restarted.", cancellationToken);
-            }
+            // Runtime status is intentionally read-only. Opening Proxy Manager or pressing its
+            // ordinary refresh button must never rewrite configuration or restart Mihomo: a
+            // restart can make provider-backed subscriptions fetch again. Managed
+            // controller/GEO settings are applied by explicit configuration and subscription
+            // refresh operations instead.
             var controllerHealth = await controller.IsReachableAsync(cancellationToken);
             // An HTTP 401 proves Mihomo is listening even though its credential is wrong; the
             // health projection reports that mismatch separately. Other failures mean the
@@ -478,7 +470,9 @@ public sealed class MihomoRuntimeManager(
             Directory.CreateDirectory(directory); MakePrivateDirectory(directory);
             var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
             var temporary = Path.Combine(directory, ".bootstrap-" + Guid.NewGuid().ToString("N"));
-            var content = MihomoManagedConfiguration.WithServerControllerSettings("mixed-port: 7890\nmode: rule\nlog-level: warning\n", controllerOptions, secret);
+            var content = MihomoManagedConfiguration.WithServerControllerSettings(
+                MihomoManagedConfiguration.WithServerGeoDataSettings("mixed-port: 7890\nmode: rule\nlog-level: warning\n"),
+                controllerOptions, secret);
             await File.WriteAllTextAsync(temporary, content, cancellationToken);
             MakePrivateFile(temporary); File.Move(temporary, Path.Combine(directory, "active.yaml"), overwrite: true); MakePrivateFile(Path.Combine(directory, "active.yaml"));
             return new(true);
@@ -522,39 +516,6 @@ public sealed class MihomoRuntimeManager(
 
         await WriteDiagnosticAsync("warning", "Managed Mihomo controller readiness window elapsed after " + attempts + " check(s): " + result.ProblemCode, cancellationToken);
         return result;
-    }
-
-    private async Task<ControllerConfigurationReconciliation> ReconcileControllerConfigurationAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var directory = paths.GetProtectedConfigurationDirectory();
-            var active = Path.Combine(directory, "active.yaml");
-            if (!File.Exists(active)) return new(true, false);
-            var current = await File.ReadAllTextAsync(active, cancellationToken);
-            var normalized = MihomoManagedConfiguration.WithServerControllerSettings(
-                MihomoManagedConfiguration.WithServerGeoDataSettings(current), controllerOptions,
-                await controllerSecrets.GetOrCreateAsync(cancellationToken));
-            if (string.Equals(current, normalized, StringComparison.Ordinal)) return new(true, false);
-
-            var temporary = Path.Combine(directory, ".controller-repair-" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                await File.WriteAllTextAsync(temporary, normalized, cancellationToken);
-                MakePrivateFile(temporary);
-                File.Move(temporary, active, overwrite: true);
-                MakePrivateFile(active);
-                return new(true, true);
-            }
-            finally
-            {
-                if (File.Exists(temporary)) File.Delete(temporary);
-            }
-        }
-        catch (ProxyControllerSecretException) { return new(false, false, ProxyProblemCodes.ConfigApplyFailed); }
-        catch (ArgumentException) { return new(false, false, ProxyProblemCodes.ConfigInvalid); }
-        catch (IOException) { return new(false, false, ProxyProblemCodes.ConfigApplyFailed); }
-        catch (UnauthorizedAccessException) { return new(false, false, ProxyProblemCodes.PrivilegedOperationUnavailable); }
     }
 
     private async Task<RuntimeState?> ReadStateAsync(CancellationToken cancellationToken)
@@ -679,7 +640,6 @@ public sealed class MihomoRuntimeManager(
     private static void MakePrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
     private static void MakePrivateExecutable(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private sealed record RuntimeState(string ActiveVersion, string? PreviousVersion, DateTimeOffset ActivatedAt);
-    private sealed record ControllerConfigurationReconciliation(bool Succeeded, bool Changed, string ProblemCode = "");
 }
 
 public sealed class RuntimeInstallException(string problemCode) : Exception(problemCode)

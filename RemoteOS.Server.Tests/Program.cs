@@ -354,6 +354,10 @@ static async Task VerifyMihomoRuntimeSafetyAsync(string root)
     Assert(installed.State == ProxyRuntimeState.Running && installed.IntegrityVerified && installed.Version == MihomoRuntimeManifest.SupportedVersion,
         "A verified Mihomo fixture did not activate only after controller health.");
     Assert(privileged.InstalledService && privileged.RestartCount == 1, "Managed Mihomo did not use the constrained native-service operations.");
+    var restartCountBeforeStatusRead = privileged.RestartCount;
+    var statusRead = await manager.GetAsync(MihomoEngine.Id, CancellationToken.None);
+    Assert(statusRead.State == ProxyRuntimeState.Running && privileged.RestartCount == restartCountBeforeStatusRead,
+        "Reading Mihomo status restarted the runtime and could refresh subscriptions.");
 
     var delayedPaths = new TestProxyPaths(Path.Combine(root, "mihomo-delayed-controller"));
     var delayedPrivileged = new TestProxyPrivilegedOperations();

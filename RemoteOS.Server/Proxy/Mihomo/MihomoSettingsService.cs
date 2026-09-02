@@ -42,7 +42,8 @@ public sealed class MihomoSettingsService(
             try
             {
                 updated = MihomoManagedConfiguration.WithServerControllerSettings(
-                    MihomoManagedConfiguration.WithRuntimeSettings(original, settings), controllerOptions,
+                    MihomoManagedConfiguration.WithServerGeoDataSettings(
+                        MihomoManagedConfiguration.WithRuntimeSettings(original, settings)), controllerOptions,
                     await controllerSecrets.GetOrCreateAsync(cancellationToken));
             }
             catch (ProxyControllerSecretException) { return ProxyProblemCodes.ConfigApplyFailed; }

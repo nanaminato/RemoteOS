@@ -7,6 +7,7 @@ namespace Server.Proxy;
 public interface IProxyConfigurationTransactionService
 {
     Task<string?> StoreAsync(Guid profileId, string yaml, CancellationToken cancellationToken);
+    Task<string?> ReadStoredAsync(Guid profileId, CancellationToken cancellationToken);
     Task<string?> ActivateStoredAsync(Guid profileId, CancellationToken cancellationToken);
     Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken);
 }
@@ -64,6 +65,16 @@ public sealed class ProxyConfigurationTransactionService(
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>Reads the last imported profile content without contacting its subscription source.</summary>
+    public async Task<string?> ReadStoredAsync(Guid profileId, CancellationToken cancellationToken)
+    {
+        var storedPath = ProfilePath(profileId);
+        if (!File.Exists(storedPath)) return null;
+        try { return await File.ReadAllTextAsync(storedPath, cancellationToken); }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
     }
 
     public async Task<string?> ActivateStoredAsync(Guid profileId, CancellationToken cancellationToken)
