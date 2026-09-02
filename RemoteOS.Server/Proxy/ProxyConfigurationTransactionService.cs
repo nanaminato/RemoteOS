@@ -16,7 +16,8 @@ public sealed class ProxyConfigurationTransactionService(
     IProxyEngineRegistry engines,
     IProxyProfileRepository profiles,
     IProxyControllerSecretStore controllerSecrets,
-    MihomoControllerOptions controllerOptions) : IProxyConfigurationTransactionService
+    MihomoControllerOptions controllerOptions,
+    IProxyGeoDataService? geoData = null) : IProxyConfigurationTransactionService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     public async Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken)
@@ -31,6 +32,11 @@ public sealed class ProxyConfigurationTransactionService(
         var profile = await profiles.GetAsync(profileId, cancellationToken);
         var engine = profile is null ? null : engines.Find(profile.EngineId);
         if (engine is null) return ProxyProblemCodes.NotSupported;
+        if (engine.EngineId == MihomoEngine.Id && geoData is not null)
+        {
+            var geoProblem = await geoData.EnsureBundledAsync(cancellationToken);
+            if (!string.IsNullOrEmpty(geoProblem)) return geoProblem;
+        }
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -65,7 +71,8 @@ public sealed class ProxyConfigurationTransactionService(
             var directory = paths.GetProtectedConfigurationDirectory(); Directory.CreateDirectory(directory); SetPrivateDirectory(directory);
             var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
             var managedYaml = engine.EngineId == MihomoEngine.Id
-                ? MihomoManagedConfiguration.WithServerControllerSettings(yaml, controllerOptions, secret)
+                ? MihomoManagedConfiguration.WithServerControllerSettings(
+                    MihomoManagedConfiguration.WithServerGeoDataSettings(yaml), controllerOptions, secret)
                 : yaml;
             var active = Path.Combine(directory, "active.yaml");
             var temporary = Path.Combine(directory, ".apply-" + Guid.NewGuid().ToString("N"));

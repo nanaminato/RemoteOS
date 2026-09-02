@@ -764,15 +764,29 @@ static async Task VerifyProxySubscriptionRepositoryAsync(string root)
 static async Task VerifyMihomoGeoDataStagingAsync(string root)
 {
     var paths = new TestProxyPaths(Path.Combine(root, "mihomo-geodata"));
+    var bundled = Path.Combine(root, "mihomo-geodata-bundled");
+    Directory.CreateDirectory(bundled);
+    var bundledFiles = new[] { "geoip.metadb", "geoip.dat", "geosite.dat", "country.mmdb", "GeoLite2-ASN.mmdb" };
+    var bundledHashes = new Dictionary<string, string>(StringComparer.Ordinal);
+    foreach (var fileName in bundledFiles)
+    {
+        var bytes = Encoding.UTF8.GetBytes("bundled-" + fileName);
+        await File.WriteAllBytesAsync(Path.Combine(bundled, fileName), bytes);
+        bundledHashes[fileName] = Convert.ToHexString(SHA256.HashData(bytes));
+    }
     var source = Path.Combine(root, "geoip.metadb");
     var content = Encoding.UTF8.GetBytes("test-geodata");
     await File.WriteAllBytesAsync(source, content);
-    var service = new MihomoGeoDataService(paths);
+    var service = new MihomoGeoDataService(paths, bundledDataDirectory: bundled, bundledFileHashes: bundledHashes);
     Assert((await service.GetAsync(CancellationToken.None)).IsConfigured == false, "A missing GeoIP database was reported as configured.");
+    Assert(await service.EnsureBundledAsync(CancellationToken.None) is null, "Bundled GEO data could not be staged.");
+    Assert(File.Exists(Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geosite.dat")), "Bundled GeoSite data was not copied to Mihomo's protected data directory.");
     Assert(await service.ConfigureFromServerFileAsync(source, CancellationToken.None) is null, "A Server-local geoip.metadb could not be staged.");
     var staged = Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), "geoip.metadb");
     Assert((await service.GetAsync(CancellationToken.None)).IsConfigured && (await File.ReadAllBytesAsync(staged)).SequenceEqual(content),
         "The GeoIP database was not copied to Mihomo's protected data directory.");
+    Assert(await service.EnsureBundledAsync(CancellationToken.None) is null && (await File.ReadAllBytesAsync(staged)).SequenceEqual(content),
+        "The bundled GEO data overwrote an administrator-selected GeoIP database.");
     Assert(await service.ConfigureFromServerFileAsync(Path.ChangeExtension(source, ".mmdb"), CancellationToken.None) == ProxyProblemCodes.GeodataInvalid,
         "Unsupported GeoIP file extensions were accepted.");
 }
@@ -786,7 +800,7 @@ static async Task VerifyProxyConfigurationTransactionAsync(string root)
     var engine = new TransactionTestEngine();
     var paths = new TestProxyPaths(Path.Combine(root, "proxy-configuration-files"));
     var service = new ProxyConfigurationTransactionService(paths, new ProxyEngineRegistry([engine]), profiles, new StaticProxySecretStore(), new MihomoControllerOptions());
-    Assert(await service.ApplyAsync(profile.Id, "mode: rule\n\"external-controller\": 192.0.2.4:9090\n\"secret\": stale-secret\n", CancellationToken.None) is null,
+    Assert(await service.ApplyAsync(profile.Id, "mode: rule\ngeodata-mode: true\ngeo-auto-update: true\ngeox-url:\n  geoip: https://untrusted.example/geoip.dat\n\"external-controller\": 192.0.2.4:9090\n\"secret\": stale-secret\n", CancellationToken.None) is null,
         "Valid Proxy YAML was not applied.");
     engine.FailNextReload = true;
     Assert(await service.ApplyAsync(profile.Id, "mode: global\n", CancellationToken.None) == ProxyProblemCodes.ConfigApplyFailed,
@@ -795,9 +809,12 @@ static async Task VerifyProxyConfigurationTransactionAsync(string root)
     Assert(active.Contains("mode: rule\n", StringComparison.Ordinal)
         && active.Contains("external-controller: 127.0.0.1:9090\n", StringComparison.Ordinal)
         && active.Contains("secret: \"controller-secret\"\n", StringComparison.Ordinal)
+        && active.Contains("geodata-mode: false\n", StringComparison.Ordinal)
+        && active.Contains("geo-auto-update: false\n", StringComparison.Ordinal)
         && !active.Contains("192.0.2.4", StringComparison.Ordinal)
-        && !active.Contains("stale-secret", StringComparison.Ordinal),
-        "Managed Proxy configuration did not preserve the server-owned controller settings.");
+        && !active.Contains("stale-secret", StringComparison.Ordinal)
+        && !active.Contains("untrusted.example", StringComparison.Ordinal),
+        "Managed Proxy configuration did not preserve its server-owned controller and GEO settings.");
 }
 
 static async Task VerifyProxyTunSafetyAsync(string root)

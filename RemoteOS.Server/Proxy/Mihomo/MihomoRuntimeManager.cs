@@ -20,7 +20,8 @@ public sealed class MihomoRuntimeManager(
     IProxyControllerSecretStore controllerSecrets,
     MihomoControllerOptions controllerOptions,
     MihomoRuntimeManifest manifest,
-    IProxyDiagnosticLogStore? diagnostics = null) : IProxyRuntimeManager, IMihomoConfigurationValidator
+    IProxyDiagnosticLogStore? diagnostics = null,
+    IProxyGeoDataService? geoData = null) : IProxyRuntimeManager, IMihomoConfigurationValidator
 {
     private const string ServiceName = "remoteos-mihomo";
     private const string ServiceConfigurationId = "mihomo-default";
@@ -201,6 +202,16 @@ public sealed class MihomoRuntimeManager(
                 {
                     await WriteDiagnosticAsync("warning", "Managed Mihomo runtime verification failed after extraction.", cancellationToken);
                     return Failure(before, ProxyProblemCodes.RuntimeHealthCheckFailed);
+                }
+
+                if (geoData is not null)
+                {
+                    var geoProblem = await geoData.EnsureBundledAsync(cancellationToken);
+                    if (!string.IsNullOrEmpty(geoProblem))
+                    {
+                        await WriteDiagnosticAsync("warning", "Managed Mihomo installation could not stage its bundled GEO data: " + geoProblem, cancellationToken);
+                        return Failure(before, geoProblem);
+                    }
                 }
 
                 await ReportStageAsync(stageReporter, "activating");

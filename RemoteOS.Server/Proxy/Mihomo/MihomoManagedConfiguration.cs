@@ -20,6 +20,10 @@ internal static class MihomoManagedConfiguration
     {
         "mixed-port", "allow-lan", "bind-address", "ipv6", "unified-delay", "log-level"
     };
+    private static readonly HashSet<string> GeoDataKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "geodata-mode", "geo-auto-update", "geo-update-interval", "geox-url"
+    };
 
     public static string WithServerControllerSettings(string yaml, MihomoControllerOptions options, string secret)
     {
@@ -51,6 +55,21 @@ internal static class MihomoManagedConfiguration
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Managed Mihomo always uses the versioned GEO files staged in its <c>-d</c> directory.
+    /// Removing profile-provided download settings prevents first-start networking from becoming
+    /// a hidden dependency or allowing a subscription to replace the trusted data source.
+    /// </summary>
+    public static string WithServerGeoDataSettings(string yaml)
+    {
+        var content = RemoveTopLevelKeys(yaml, GeoDataKeys);
+        var builder = new StringBuilder(content.TrimEnd('\r', '\n'));
+        if (builder.Length > 0) builder.Append('\n');
+        builder.Append("geodata-mode: false\n");
+        builder.Append("geo-auto-update: false\n");
+        return builder.ToString();
+    }
+
     private static string RemoveTopLevelControllerSettings(string yaml)
     {
         using var reader = new StringReader(yaml);
@@ -67,13 +86,18 @@ internal static class MihomoManagedConfiguration
     }
 
     private static string RemoveTopLevelSettings(string yaml)
+        => RemoveTopLevelKeys(yaml, SettingsKeys);
+
+    private static string RemoveTopLevelKeys(string yaml, IReadOnlySet<string> keys)
     {
         using var reader = new StringReader(yaml);
         var retained = new StringBuilder(yaml.Length);
+        var skipping = false;
         string? line;
         while ((line = reader.ReadLine()) is not null)
         {
-            if (!TryGetTopLevelKey(line, out var key) || !SettingsKeys.Contains(key)) retained.AppendLine(line);
+            if (TryGetTopLevelKey(line, out var key)) skipping = keys.Contains(key);
+            if (!skipping) retained.AppendLine(line);
         }
         return retained.ToString();
     }

@@ -1,15 +1,38 @@
+using System.Security.Cryptography;
 using RemoteOS.Protocol.Proxy;
 
 namespace Server.Proxy.Mihomo;
 
 /// <summary>
-/// Stages a user-selected Server-local GeoIP database under a fixed private name. Mihomo only
-/// receives this managed directory through <c>-d</c>; it never receives an arbitrary UI path.
+/// Stages bundled or user-selected GEO data under fixed private names. Mihomo only receives this
+/// managed directory through <c>-d</c>; it never receives an arbitrary UI path.
 /// </summary>
-public sealed class MihomoGeoDataService(IProxyPlatformPaths paths, IProxyDiagnosticLogStore? diagnostics = null) : IProxyGeoDataService
+public sealed class MihomoGeoDataService(
+    IProxyPlatformPaths paths,
+    IProxyDiagnosticLogStore? diagnostics = null,
+    string? bundledDataDirectory = null,
+    IReadOnlyDictionary<string, string>? bundledFileHashes = null) : IProxyGeoDataService
 {
     private const long MaximumBytes = 128L * 1024 * 1024;
-    private const string FileName = "geoip.metadb";
+    private const string PrimaryFileName = "geoip.metadb";
+    private static readonly string[] BundledFileNames =
+    [
+        "geoip.metadb",
+        "geoip.dat",
+        "geosite.dat",
+        "country.mmdb",
+        "GeoLite2-ASN.mmdb",
+    ];
+    // SHA-256 values of the artifacts committed in Assets/Mihomo/GeoData. Do not accept a
+    // partially downloaded or replaced payload merely because its name and length look valid.
+    private static readonly IReadOnlyDictionary<string, string> BundledFileHashes = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["country.mmdb"] = "FE721D5E47D320B2A23DB4EAFDDB796A22026EF01899BBE7007FC0274016E5F4",
+        ["geoip.dat"] = "0D5D2BA0C5A5C58027FD1347A6AFD57C9470799B6BB3CBC274FD4657ED8DE382",
+        ["geoip.metadb"] = "91EF340938FF44A94FF8E5D8D8BD7E8D7DAD9D9E3C4ECEA9E160DD95E6A9916B",
+        ["GeoLite2-ASN.mmdb"] = "93456017EEF970E7E60AB66312402B2130BB233AF792A5AA30B2FF4DE854C5CF",
+        ["geosite.dat"] = "665FAD6D83E9F3CF28EC7200D2812280508FBBF07983818A33CAF90514AB6F17",
+    };
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     public Task<ProxyGeoDataDto> GetAsync(CancellationToken cancellationToken)
@@ -17,13 +40,54 @@ public sealed class MihomoGeoDataService(IProxyPlatformPaths paths, IProxyDiagno
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            var info = new FileInfo(ManagedFilePath());
+            var info = new FileInfo(ManagedFilePath(PrimaryFileName));
             return Task.FromResult(info.Exists && info.Length is > 0 and <= MaximumBytes
                 ? new ProxyGeoDataDto(true, info.Length)
                 : new ProxyGeoDataDto(false));
         }
         catch (IOException) { return Task.FromResult(new ProxyGeoDataDto(false)); }
         catch (UnauthorizedAccessException) { return Task.FromResult(new ProxyGeoDataDto(false)); }
+    }
+
+    public async Task<string?> EnsureBundledAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var sourceDirectory = bundledDataDirectory ?? Path.Combine(AppContext.BaseDirectory, "Assets", "Mihomo", "GeoData");
+            if (!BundledFileNames.All(name => IsSafeBundledFile(Path.Combine(sourceDirectory, name))))
+            {
+                await WriteDiagnosticAsync("warning", "The packaged Mihomo GEO data is missing, invalid, or exceeds its size limit.", cancellationToken);
+                return ProxyProblemCodes.GeodataUnavailable;
+            }
+
+            var directory = paths.GetEngineDataDirectory(MihomoEngine.Id);
+            Directory.CreateDirectory(directory);
+            MakePrivateDirectory(directory);
+            foreach (var fileName in BundledFileNames)
+            {
+                var destination = ManagedFilePath(fileName);
+                // The existing UI explicitly lets an administrator stage a Server-local
+                // geoip.metadb. Keep that intentional override; all other GEO artifacts are
+                // always refreshed from the verified package.
+                if (fileName == PrimaryFileName && IsExistingManagedFile(destination)) continue;
+                await CopyAtomicallyAsync(Path.Combine(sourceDirectory, fileName), destination, cancellationToken);
+            }
+
+            await WriteDiagnosticAsync("info", "Bundled GEO data was staged for managed Mihomo.", cancellationToken);
+            return null;
+        }
+        catch (IOException)
+        {
+            await WriteDiagnosticAsync("warning", "Bundled GEO data could not be staged for managed Mihomo.", cancellationToken);
+            return ProxyProblemCodes.GeodataUnavailable;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await WriteDiagnosticAsync("warning", "The RemoteOS Server service account cannot stage bundled GEO data.", cancellationToken);
+            return ProxyProblemCodes.PrivilegedOperationUnavailable;
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<string?> ConfigureFromServerFileAsync(string filePath, CancellationToken cancellationToken)
@@ -44,8 +108,8 @@ public sealed class MihomoGeoDataService(IProxyPlatformPaths paths, IProxyDiagno
                 await CopyLimitedAsync(input, output, cancellationToken);
                 await output.FlushAsync(cancellationToken);
                 MakePrivateFile(temporary);
-                File.Move(temporary, ManagedFilePath(), overwrite: true);
-                MakePrivateFile(ManagedFilePath());
+                File.Move(temporary, ManagedFilePath(PrimaryFileName), overwrite: true);
+                MakePrivateFile(ManagedFilePath(PrimaryFileName));
                 await WriteDiagnosticAsync("info", "A Server-local GeoIP database was staged for managed Mihomo.", cancellationToken);
                 return null;
             }
@@ -67,7 +131,51 @@ public sealed class MihomoGeoDataService(IProxyPlatformPaths paths, IProxyDiagno
         finally { _gate.Release(); }
     }
 
-    private string ManagedFilePath() => Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), FileName);
+    private string ManagedFilePath(string fileName) => Path.Combine(paths.GetEngineDataDirectory(MihomoEngine.Id), fileName);
+
+    private bool IsSafeBundledFile(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length is <= 0 or > MaximumBytes || (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0
+                || !(bundledFileHashes ?? BundledFileHashes).TryGetValue(info.Name, out var expectedHash)) return false;
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return Convert.ToHexString(SHA256.HashData(stream)).Equals(expectedHash, StringComparison.Ordinal);
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private static bool IsExistingManagedFile(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists && info.Length is > 0 and <= MaximumBytes && (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+    }
+
+    private async Task CopyAtomicallyAsync(string source, string destination, CancellationToken cancellationToken)
+    {
+        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, ".geodata-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+            await using var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+            await CopyLimitedAsync(input, output, cancellationToken);
+            await output.FlushAsync(cancellationToken);
+            MakePrivateFile(temporary);
+            File.Move(temporary, destination, overwrite: true);
+            MakePrivateFile(destination);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
     private static bool TrySafeSourcePath(string value, out string path)
     {
         path = string.Empty;

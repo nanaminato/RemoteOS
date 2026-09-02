@@ -56,6 +56,8 @@ public interface IProxySettingsService
 public interface IProxyGeoDataService
 {
     Task<ProxyGeoDataDto> GetAsync(CancellationToken cancellationToken);
+    /// <summary>Copies the GEO data packaged with RemoteOS into Mihomo's private data directory.</summary>
+    Task<string?> EnsureBundledAsync(CancellationToken cancellationToken);
     /// <returns>An empty string on success; otherwise a stable public problem code.</returns>
     Task<string?> ConfigureFromServerFileAsync(string filePath, CancellationToken cancellationToken);
 }
