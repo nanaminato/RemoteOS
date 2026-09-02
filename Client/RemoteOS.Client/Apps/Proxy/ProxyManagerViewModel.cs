@@ -45,6 +45,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
+    public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
 
     public void SetServerRuntimePackageRequest(Func<Task<string?>>? request)
     {
@@ -235,7 +236,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            var subscription = await repository.ImportSubscriptionAsync(new ImportProxySubscriptionRequest(SubscriptionLink.Trim()));
+            var downloadRoute = ProxySubscriptionDownloadRoute.Direct;
+            var options = await repository.GetSubscriptionDownloadOptionsAsync();
+            if (options.SystemProxyAvailable && RequestSystemProxySubscriptionDownloadAsync is not null &&
+                await RequestSystemProxySubscriptionDownloadAsync())
+                downloadRoute = ProxySubscriptionDownloadRoute.SystemProxy;
+            var subscription = await repository.ImportSubscriptionAsync(new ImportProxySubscriptionRequest(SubscriptionLink.Trim(), DownloadRoute: downloadRoute));
             Subscriptions.Add(subscription);
             SubscriptionLink = string.Empty;
             StatusText = LocalizedText.Get("proxy.status.subscription_imported");

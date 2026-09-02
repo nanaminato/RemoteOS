@@ -14,6 +14,7 @@ public interface IProxySubscriptionService
     Task<string?> RefreshAllAsync(CancellationToken cancellationToken);
     Task<string?> ActivateAsync(Guid subscriptionId, CancellationToken cancellationToken);
     Task<ProxySubscriptionContentDto?> GetContentAsync(Guid subscriptionId, CancellationToken cancellationToken);
+    Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>Subscription coordinator. URLs stay inside the protected repository and are never logged or returned.</summary>
@@ -27,14 +28,14 @@ public sealed class ProxySubscriptionService(
 
     public async Task<ProxySubscriptionDto> ImportAsync(ImportProxySubscriptionRequest request, CancellationToken cancellationToken)
     {
-        var source = await downloader.DownloadAsync(request.Url, cancellationToken);
+        var source = await downloader.DownloadAsync(request.Url, request.DownloadRoute, cancellationToken);
         var name = NormalizeName(request.Name, source.Uri);
         var profile = await profiles.UpsertAsync(null, name, MihomoEngine.Id, null, cancellationToken);
         try
         {
             var problem = await configurations.StoreAsync(profile.Id, source.Content, cancellationToken);
             if (!string.IsNullOrEmpty(problem)) throw new ProxySubscriptionException(problem);
-            return await subscriptions.CreateAsync(name, profile.Id, source.Uri.AbsoluteUri, cancellationToken);
+            return await subscriptions.CreateAsync(name, profile.Id, source.Uri.AbsoluteUri, request.DownloadRoute, cancellationToken);
         }
         catch
         {
@@ -47,7 +48,7 @@ public sealed class ProxySubscriptionService(
     {
         var record = await subscriptions.GetAsync(subscriptionId, cancellationToken);
         if (record is null) return ProxyProblemCodes.SubscriptionInvalid;
-        var source = await downloader.DownloadAsync(record.Url, cancellationToken);
+        var source = await downloader.DownloadAsync(record.Url, record.DownloadRoute, cancellationToken);
         var problem = await configurations.StoreAsync(record.Subscription.ProfileId, source.Content, cancellationToken);
         if (!string.IsNullOrEmpty(problem)) return problem;
         if (record.Subscription.IsActive)
@@ -82,9 +83,12 @@ public sealed class ProxySubscriptionService(
     {
         var record = await subscriptions.GetAsync(subscriptionId, cancellationToken);
         if (record is null) return null;
-        var source = await downloader.DownloadAsync(record.Url, cancellationToken);
+        var source = await downloader.DownloadAsync(record.Url, record.DownloadRoute, cancellationToken);
         return new ProxySubscriptionContentDto(subscriptionId, source.Content, DateTimeOffset.UtcNow);
     }
+
+    public Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken) =>
+        downloader.GetDownloadOptionsAsync(cancellationToken);
 
     private static string NormalizeName(string? requestedName, Uri source)
     {
@@ -99,7 +103,8 @@ public sealed class ProxySubscriptionService(
 
 public interface IProxySubscriptionDownloader
 {
-    Task<ProxySubscriptionDownload> DownloadAsync(string url, CancellationToken cancellationToken);
+    Task<ProxySubscriptionDownload> DownloadAsync(string url, ProxySubscriptionDownloadRoute downloadRoute, CancellationToken cancellationToken);
+    Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken);
 }
 
 public sealed record ProxySubscriptionDownload(Uri Uri, string Content);
@@ -109,7 +114,10 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
 {
     private const int MaximumBytes = 1_048_576;
 
-    public async Task<ProxySubscriptionDownload> DownloadAsync(string url, CancellationToken cancellationToken)
+    public Task<ProxySubscriptionDownloadOptionsDto> GetDownloadOptionsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new ProxySubscriptionDownloadOptionsDto(ProxySubscriptionNetworkPolicy.HasSystemProxy()));
+
+    public async Task<ProxySubscriptionDownload> DownloadAsync(string url, ProxySubscriptionDownloadRoute downloadRoute, CancellationToken cancellationToken)
     {
         var allowInsecureSources = (await settingsService.GetAsync(cancellationToken)).AllowInsecureSubscriptionSources;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
@@ -127,12 +135,26 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
         if (addresses.Length == 0 || addresses.Any(ProxySubscriptionNetworkPolicy.IsPrivateAddress))
             throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
 
+        if (!Enum.IsDefined(downloadRoute)) throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
+        if (downloadRoute == ProxySubscriptionDownloadRoute.SystemProxy && !ProxySubscriptionNetworkPolicy.HasSystemProxy(uri))
+            throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionSystemProxyUnavailable);
+
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         HttpResponseMessage response;
-        var http = httpClientFactory.CreateClient(allowInsecureSources ? "ProxySubscriptionInsecureTls" : "ProxySubscription");
+        var clientName = (downloadRoute, allowInsecureSources) switch
+        {
+            (ProxySubscriptionDownloadRoute.Direct, false) => "ProxySubscriptionDirect",
+            (ProxySubscriptionDownloadRoute.Direct, true) => "ProxySubscriptionDirectInsecureTls",
+            (ProxySubscriptionDownloadRoute.SystemProxy, false) => "ProxySubscriptionSystemProxy",
+            _ => "ProxySubscriptionSystemProxyInsecureTls",
+        };
+        var http = httpClientFactory.CreateClient(clientName);
+        var transportFailure = downloadRoute == ProxySubscriptionDownloadRoute.SystemProxy
+            ? ProxyProblemCodes.SubscriptionSystemProxyUnavailable
+            : ProxyProblemCodes.SubscriptionFetchFailed;
         try { response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken); }
-        catch (HttpRequestException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionFetchFailed); }
+        catch (HttpRequestException) { throw new ProxySubscriptionException(transportFailure); }
+        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ProxySubscriptionException(transportFailure); }
         using (response)
         {
         if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength is > MaximumBytes)
@@ -165,17 +187,61 @@ public sealed class ProxySubscriptionDownloader(IHttpClientFactory httpClientFac
 
 internal static class ProxySubscriptionNetworkPolicy
 {
+    public static bool HasSystemProxy() =>
+        HasSystemProxy(new Uri("https://remoteos.invalid/")) || HasSystemProxy(new Uri("http://remoteos.invalid/"));
+
+    public static bool HasSystemProxy(Uri destination)
+    {
+        try
+        {
+            var systemProxy = WebRequest.DefaultWebProxy;
+            if (systemProxy is null) return false;
+            var proxy = systemProxy.GetProxy(destination);
+            return proxy is not null && proxy != destination &&
+                   (proxy.Scheme == Uri.UriSchemeHttp || proxy.Scheme == Uri.UriSchemeHttps);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or UriFormatException) { return false; }
+    }
+
     public static async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+        => await ConnectCoreAsync(context.DnsEndPoint, cancellationToken, allowPrivateEndpoint: false);
+
+    /// <summary>Allows only the exact endpoint selected by the Server's system proxy configuration.</summary>
+    public static async ValueTask<Stream> ConnectUsingSystemProxyAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        var destination = context.InitialRequestMessage.RequestUri;
+        var proxy = destination is null ? null : TryGetSystemProxy(destination);
+        var isConfiguredProxy = proxy is not null && EndpointMatches(context.DnsEndPoint, proxy);
+        return await ConnectCoreAsync(context.DnsEndPoint, cancellationToken, allowPrivateEndpoint: isConfiguredProxy);
+    }
+
+    private static Uri? TryGetSystemProxy(Uri destination)
+    {
+        try
+        {
+            var systemProxy = WebRequest.DefaultWebProxy;
+            if (systemProxy is null) return null;
+            var proxy = systemProxy.GetProxy(destination);
+            return proxy is not null && proxy != destination &&
+                   (proxy.Scheme == Uri.UriSchemeHttp || proxy.Scheme == Uri.UriSchemeHttps) ? proxy : null;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or UriFormatException) { return null; }
+    }
+
+    private static bool EndpointMatches(DnsEndPoint endpoint, Uri proxy) =>
+        endpoint.Port == proxy.Port && string.Equals(endpoint.Host.TrimEnd('.'), proxy.DnsSafeHost.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+
+    private static async ValueTask<Stream> ConnectCoreAsync(DnsEndPoint endpoint, CancellationToken cancellationToken, bool allowPrivateEndpoint)
     {
         IPAddress[] addresses;
-        try { addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken); }
+        try { addresses = await Dns.GetHostAddressesAsync(endpoint.Host, cancellationToken); }
         catch (SocketException exception) { throw new HttpRequestException("Subscription host could not be resolved.", exception); }
-        var address = addresses.FirstOrDefault(candidate => !IsPrivateAddress(candidate));
+        var address = addresses.FirstOrDefault(candidate => allowPrivateEndpoint || !IsPrivateAddress(candidate));
         if (address is null) throw new HttpRequestException("Subscription host resolves to a prohibited network.");
         var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         try
         {
-            await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), cancellationToken);
+            await socket.ConnectAsync(new IPEndPoint(address, endpoint.Port), cancellationToken);
             return new NetworkStream(socket, ownsSocket: true);
         }
         catch

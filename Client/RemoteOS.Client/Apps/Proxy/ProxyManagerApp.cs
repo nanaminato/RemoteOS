@@ -4,6 +4,7 @@ using Avalonia.Input.Platform;
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
+using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Proxy.Views;
 using Client.Localization;
 using Client.Services.Auth;
@@ -52,6 +53,18 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
             }, new RemoteOS.Core.Primitives.Size(720, 520));
         });
         vm.ShowRuntimeDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("proxy.runtime_download_title"), url);
+        vm.RequestSystemProxySubscriptionDownloadAsync = async () =>
+        {
+            var useSystemProxy = false;
+            await context.ShowDialogAsync<bool?>(window, LocalizedText.Get("proxy.subscription_system_proxy.title"), dialog => new ConfirmDialogView
+            {
+                DataContext = new ConfirmDialogViewModel(
+                    LocalizedText.Get("proxy.subscription_system_proxy.message"),
+                    result => { useSystemProxy = result; dialog.Close(result); },
+                    LocalizedText.Get("proxy.subscription_system_proxy.confirm")),
+            }, new RemoteOS.Core.Primitives.Size(460, 220));
+            return useSystemProxy;
+        };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
         context.WindowManager.WindowClosed += closed;

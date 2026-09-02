@@ -92,6 +92,7 @@ public static class ProxyEndpoints
 
         app.MapGet(ProxyApiRoutes.Profiles, (IProxyProfileService service, CancellationToken ct) => service.ListAsync(ct)).RequireAuthorization("ProxyRead").WithTags("Proxy");
         app.MapGet(ProxyApiRoutes.Subscriptions, (IProxySubscriptionService service, CancellationToken ct) => service.ListAsync(ct)).RequireAuthorization("ProxyRead").WithTags("Proxy");
+        app.MapGet(ProxyApiRoutes.SubscriptionDownloadOptions, (IProxySubscriptionService service, CancellationToken ct) => service.GetDownloadOptionsAsync(ct)).RequireAuthorization("ProxyManage").WithTags("Proxy");
         app.MapPost(ProxyApiRoutes.Subscriptions, async (ImportProxySubscriptionRequest request, IProxySubscriptionService service, ProxyAuditStore audit, HttpContext context, CancellationToken ct) =>
         {
             try

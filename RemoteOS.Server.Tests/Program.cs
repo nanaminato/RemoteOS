@@ -693,11 +693,13 @@ static async Task VerifyHostGlobalMigrationAsync(string root)
     await connection.OpenAsync();
     await using var command = connection.CreateCommand();
     command.CommandText = "SELECT MAX(version) FROM remoteos_host_schema_migrations;";
-    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 9, "HostGlobal migrations did not reach the expected version.");
+    Assert(Convert.ToInt32(await command.ExecuteScalarAsync()) == 10, "HostGlobal migrations did not reach the expected version.");
     command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_profiles');";
     Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy profile metadata table was not migrated.");
     command.CommandText = "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_subscriptions');";
     Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy subscription metadata table was not migrated.");
+    command.CommandText = "SELECT EXISTS(SELECT 1 FROM pragma_table_info('proxy_subscriptions') WHERE name='download_route');";
+    Assert(Convert.ToInt64(await command.ExecuteScalarAsync()) == 1, "Host-global Proxy subscription download route was not migrated.");
 }
 
 static async Task VerifyProxyHostProfileRepositoryAsync(string root)
@@ -725,9 +727,9 @@ static async Task VerifyProxySubscriptionRepositoryAsync(string root)
     var keys = Path.Combine(root, "proxy-subscription-keys");
     var repository = new SqliteProxySubscriptionRepository(environment, options, DataProtectionProvider.Create(keys));
     var url = "https://example.com/secret-token";
-    var created = await repository.CreateAsync("Example", profile.Id, url, CancellationToken.None);
+    var created = await repository.CreateAsync("Example", profile.Id, url, ProxySubscriptionDownloadRoute.SystemProxy, CancellationToken.None);
     var stored = await repository.GetAsync(created.Id, CancellationToken.None);
-    Assert(stored?.Url == url && (await repository.ListAsync(CancellationToken.None)).Single().Name == "Example",
+    Assert(stored?.Url == url && stored.DownloadRoute == ProxySubscriptionDownloadRoute.SystemProxy && (await repository.ListAsync(CancellationToken.None)).Single().Name == "Example",
         "Proxy subscription metadata was not persisted or protected URL could not be recovered.");
     await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath}");
     await connection.OpenAsync(); await using var command = connection.CreateCommand();

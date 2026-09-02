@@ -9,6 +9,7 @@ public enum ProxyTunState { Disabled, Enabling, Enabled, Disabling, Recovering, 
 public enum ProxyHealthState { Unknown, Healthy, Degraded, Failed, RecoveryRequired }
 public enum ProxyOperationState { Queued, Running, Succeeded, Failed, Cancelled, Interrupted }
 public enum ProxyLifecycleAction { Start, Stop, Restart }
+public enum ProxySubscriptionDownloadRoute { Direct, SystemProxy }
 
 /// <summary>All public Proxy failures use this lower-case dotted contract.</summary>
 public static class ProxyProblemCodes
@@ -40,6 +41,7 @@ public static class ProxyProblemCodes
     public const string NotSupported = "proxy.not_supported";
     public const string SubscriptionInvalid = "proxy.subscription_invalid";
     public const string SubscriptionFetchFailed = "proxy.subscription_fetch_failed";
+    public const string SubscriptionSystemProxyUnavailable = "proxy.subscription_system_proxy_unavailable";
 }
 
 public static class ProxyApiRoutes
@@ -79,6 +81,7 @@ public static class ProxyApiRoutes
     public const string ProfileActivatePattern = "/profiles/{profileId:guid}/activate";
     public const string ProfileConfigurationApplyPattern = "/profiles/{profileId:guid}/configuration/apply";
     public const string SubscriptionsRefresh = Subscriptions + "/refresh";
+    public const string SubscriptionDownloadOptions = Subscriptions + "/download-options";
 }
 
 public sealed record ProxyEngineCapabilities(
@@ -138,6 +141,7 @@ public sealed record ProxySubscriptionDto(
 
 /// <summary>Read-only source content requested by a privileged user. The source URL is never included.</summary>
 public sealed record ProxySubscriptionContentDto(Guid SubscriptionId, string Content, DateTimeOffset RetrievedAt);
+public sealed record ProxySubscriptionDownloadOptionsDto(bool SystemProxyAvailable);
 
 public sealed record ProxyGroupDto(string Name, string Type, string? Selected, IReadOnlyList<string> Proxies);
 public sealed record ProxyConnectionDto(string Id, string Network, string Source, string Destination, string Rule, string Chains, DateTimeOffset StartedAt);
@@ -153,7 +157,8 @@ public sealed record ProxyOverviewDto(string EngineId, ProxyEngineCapabilities E
     int ActiveConnections, ProxyRecoveryStatusDto Recovery);
 
 public sealed record UpsertProxyProfileRequest(string Name, string EngineId, long? ExpectedRevision = null);
-public sealed record ImportProxySubscriptionRequest(string Url, string? Name = null);
+public sealed record ImportProxySubscriptionRequest(string Url, string? Name = null,
+    ProxySubscriptionDownloadRoute DownloadRoute = ProxySubscriptionDownloadRoute.Direct);
 public sealed record SelectProxyGroupRequest(string Proxy);
 public sealed record ProxyTunRequest(Guid ProfileId);
 public sealed record ProxyRuntimeRequest(string EngineId, string? Version = null, string? ExternalPath = null);

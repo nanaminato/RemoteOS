@@ -237,6 +237,13 @@ internal static class HostGlobalMigrationRunner
                 INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (9, CURRENT_TIMESTAMP);
                 """, cancellationToken);
         }
+        if (!await IsAppliedAsync(connection, transaction, 10, cancellationToken))
+        {
+            if (!await HasColumnAsync(connection, transaction, "proxy_subscriptions", "download_route", cancellationToken))
+                await ExecuteAsync(connection, transaction, "ALTER TABLE proxy_subscriptions ADD COLUMN download_route INTEGER NOT NULL DEFAULT 0;", cancellationToken);
+            await ExecuteAsync(connection, transaction,
+                "INSERT INTO remoteos_host_schema_migrations(version, applied_at) VALUES (10, CURRENT_TIMESTAMP);", cancellationToken);
+        }
         transaction.Commit();
     }
 

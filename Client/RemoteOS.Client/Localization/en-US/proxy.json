@@ -21,6 +21,9 @@
     "proxy.subscriptions_hint": "Subscription configurations are presented as cards; only protected runtime metadata is shown.",
     "proxy.subscription_link": "Subscription link",
     "proxy.subscription_import": "Import",
+    "proxy.subscription_system_proxy.title": "Download subscription through system proxy",
+    "proxy.subscription_system_proxy.message": "RemoteOS Server has a system proxy configured. Use it to download this subscription? Choosing Cancel connects directly to the subscription source.",
+    "proxy.subscription_system_proxy.confirm": "Use system proxy",
     "proxy.subscription_content": "Runtime subscription content (read-only)",
     "proxy.subscription_source_configured": "Subscription link securely stored",
     "proxy.subscription_update_all": "Update all subscriptions",
@@ -175,6 +178,7 @@
     "proxy.problem.not_supported": "This proxy operation is not supported.",
     "proxy.problem.subscription_invalid": "The subscription link or configuration is invalid.",
     "proxy.problem.subscription_fetch_failed": "The subscription content could not be retrieved.",
+    "proxy.problem.subscription_system_proxy_unavailable": "The Server system proxy is unavailable or does not apply to this subscription address.",
     "proxy.problem.http_401": "Your RemoteOS session is no longer authorized. Sign in again.",
     "proxy.problem.response_empty": "The Server returned an empty proxy response.",
     "proxy.problem.unknown": "An unknown proxy error occurred."

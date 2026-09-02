@@ -7,6 +7,7 @@ public interface IProxyRepository
     Task<ProxyOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProxyProfileDto>> ListProfilesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProxySubscriptionDto>> ListSubscriptionsAsync(CancellationToken cancellationToken = default);
+    Task<ProxySubscriptionDownloadOptionsDto> GetSubscriptionDownloadOptionsAsync(CancellationToken cancellationToken = default);
     Task<ProxySubscriptionDto> ImportSubscriptionAsync(ImportProxySubscriptionRequest request, CancellationToken cancellationToken = default);
     Task<ProxySubscriptionContentDto> GetSubscriptionContentAsync(Guid subscriptionId, CancellationToken cancellationToken = default);
     Task<ProxyOperationAcceptedDto> RefreshAllSubscriptionsAsync(CancellationToken cancellationToken = default);

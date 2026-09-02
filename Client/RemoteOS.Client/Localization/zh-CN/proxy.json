@@ -21,6 +21,9 @@
     "proxy.subscriptions_hint": "订阅配置以卡片形式呈现；只显示受保护的运行时元数据。",
     "proxy.subscription_link": "订阅文件链接",
     "proxy.subscription_import": "导入",
+    "proxy.subscription_system_proxy.title": "通过系统代理下载订阅",
+    "proxy.subscription_system_proxy.message": "检测到 RemoteOS Server 配置了系统代理。是否通过该代理下载此订阅？选择“取消”将直接连接订阅源。",
+    "proxy.subscription_system_proxy.confirm": "使用系统代理",
     "proxy.subscription_content": "运行时订阅内容（只读）",
     "proxy.subscription_source_configured": "订阅链接已安全保存",
     "proxy.subscription_update_all": "更新所有订阅",
@@ -175,6 +178,7 @@
     "proxy.problem.not_supported": "不支持此代理操作。",
     "proxy.problem.subscription_invalid": "订阅链接或订阅配置无效。",
     "proxy.problem.subscription_fetch_failed": "无法获取订阅内容。",
+    "proxy.problem.subscription_system_proxy_unavailable": "服务器系统代理不可用，或不适用于该订阅地址。",
     "proxy.problem.http_401": "当前 RemoteOS 会话已失去授权，请重新登录。",
     "proxy.problem.response_empty": "服务器返回了空的代理响应。",
     "proxy.problem.unknown": "发生了未知代理错误。"

@@ -69,17 +69,35 @@ builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Pr
 builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager, Server.Proxy.Mihomo.MihomoRuntimeManager>();
 builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
 builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
-builder.Services.AddHttpClient("ProxySubscription", client => client.Timeout = TimeSpan.FromSeconds(30))
+builder.Services.AddHttpClient("ProxySubscriptionDirect", client => client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
     {
+        UseProxy = false,
         AllowAutoRedirect = false,
         ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
     });
-builder.Services.AddHttpClient("ProxySubscriptionInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+builder.Services.AddHttpClient("ProxySubscriptionDirectInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        UseProxy = false,
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+        },
+    });
+builder.Services.AddHttpClient("ProxySubscriptionSystemProxy", client => client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
     {
         AllowAutoRedirect = false,
-        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync,
+    });
+builder.Services.AddHttpClient("ProxySubscriptionSystemProxyInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync,
         SslOptions = new System.Net.Security.SslClientAuthenticationOptions
         {
             RemoteCertificateValidationCallback = static (_, _, _, _) => true,

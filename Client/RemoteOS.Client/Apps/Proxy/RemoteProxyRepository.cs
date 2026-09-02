@@ -12,6 +12,7 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
     public Task<ProxyOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyOverviewDto>(HttpMethod.Get, ProxyApiRoutes.Overview, null, cancellationToken);
     public Task<IReadOnlyList<ProxyProfileDto>> ListProfilesAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxyProfileDto>>(HttpMethod.Get, ProxyApiRoutes.Profiles, null, cancellationToken);
     public Task<IReadOnlyList<ProxySubscriptionDto>> ListSubscriptionsAsync(CancellationToken cancellationToken = default) => SendAsync<IReadOnlyList<ProxySubscriptionDto>>(HttpMethod.Get, ProxyApiRoutes.Subscriptions, null, cancellationToken);
+    public Task<ProxySubscriptionDownloadOptionsDto> GetSubscriptionDownloadOptionsAsync(CancellationToken cancellationToken = default) => SendAsync<ProxySubscriptionDownloadOptionsDto>(HttpMethod.Get, ProxyApiRoutes.SubscriptionDownloadOptions, null, cancellationToken);
     public Task<ProxySubscriptionDto> ImportSubscriptionAsync(ImportProxySubscriptionRequest request, CancellationToken cancellationToken = default) => SendAsync<ProxySubscriptionDto>(HttpMethod.Post, ProxyApiRoutes.Subscriptions, request, cancellationToken);
     public Task<ProxySubscriptionContentDto> GetSubscriptionContentAsync(Guid subscriptionId, CancellationToken cancellationToken = default) => SendAsync<ProxySubscriptionContentDto>(HttpMethod.Get, SubscriptionRoute(subscriptionId) + "/content", null, cancellationToken);
     public Task<ProxyOperationAcceptedDto> RefreshAllSubscriptionsAsync(CancellationToken cancellationToken = default) => SendAsync<ProxyOperationAcceptedDto>(HttpMethod.Post, ProxyApiRoutes.SubscriptionsRefresh, null, cancellationToken, idempotent: true);
@@ -50,7 +51,7 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
         if (idempotent) request.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString("N"));
         using var response = await http.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode) throw new ProxyRequestException("proxy.http_" + (int)response.StatusCode);
+        if (!response.IsSuccessStatusCode) throw await CreateRequestExceptionAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<T>(RemoteOsJsonOptions.Default, cancellationToken) ?? throw new ProxyRequestException("proxy.response_empty");
     }
 
@@ -63,10 +64,24 @@ public sealed class RemoteProxyRepository(HttpClient http, IAuthSession session)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.Tokens.AccessToken);
         using var response = await http.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode) throw new ProxyRequestException("proxy.http_" + (int)response.StatusCode);
+        if (!response.IsSuccessStatusCode) throw await CreateRequestExceptionAsync(response, cancellationToken);
     }
 
     private static string ProfileRoute(Guid profileId) => ProxyApiRoutes.Proxy + "/profiles/" + profileId;
     private static string SubscriptionRoute(Guid subscriptionId) => ProxyApiRoutes.Proxy + "/subscriptions/" + subscriptionId;
+
+    private static async Task<ProxyRequestException> CreateRequestExceptionAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProxyProblemResponse>(RemoteOsJsonOptions.Default, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(problem?.Detail) && problem.Detail.StartsWith("proxy.", StringComparison.Ordinal))
+                return new ProxyRequestException(problem.Detail);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or System.Text.Json.JsonException or NotSupportedException) { }
+        return new ProxyRequestException("proxy.http_" + (int)response.StatusCode);
+    }
+
+    private sealed record ProxyProblemResponse(string? Detail);
 }
 public sealed class ProxyRequestException(string problemCode) : Exception(problemCode) { public string ProblemCode { get; } = problemCode; }

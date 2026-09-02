@@ -12,11 +12,11 @@ public interface IProxySubscriptionRepository
 {
     Task<IReadOnlyList<ProxySubscriptionDto>> ListAsync(CancellationToken cancellationToken);
     Task<ProxySubscriptionRecord?> GetAsync(Guid id, CancellationToken cancellationToken);
-    Task<ProxySubscriptionDto> CreateAsync(string name, Guid profileId, string url, CancellationToken cancellationToken);
+    Task<ProxySubscriptionDto> CreateAsync(string name, Guid profileId, string url, ProxySubscriptionDownloadRoute downloadRoute, CancellationToken cancellationToken);
     Task SetLastUpdatedAsync(Guid id, DateTimeOffset updatedAt, CancellationToken cancellationToken);
 }
 
-public sealed record ProxySubscriptionRecord(ProxySubscriptionDto Subscription, string Url);
+public sealed record ProxySubscriptionRecord(ProxySubscriptionDto Subscription, string Url, ProxySubscriptionDownloadRoute DownloadRoute);
 
 public sealed class SqliteProxySubscriptionRepository(
     IHostEnvironment environment,
@@ -41,27 +41,34 @@ public sealed class SqliteProxySubscriptionRepository(
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT s.subscription_id,s.name,s.profile_id,p.is_active,s.last_updated_at,s.created_at,s.updated_at,s.protected_url FROM proxy_subscriptions s JOIN proxy_profiles p ON p.profile_id=s.profile_id WHERE s.subscription_id=$id;";
+        command.CommandText = "SELECT s.subscription_id,s.name,s.profile_id,p.is_active,s.last_updated_at,s.created_at,s.updated_at,s.protected_url,s.download_route FROM proxy_subscriptions s JOIN proxy_profiles p ON p.profile_id=s.profile_id WHERE s.subscription_id=$id;";
         command.Parameters.AddWithValue("$id", id.ToString("D"));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
-        try { return new ProxySubscriptionRecord(ReadDto(reader), _protector.Unprotect(reader.GetString(7))); }
+        try
+        {
+            var route = reader.GetInt64(8) is (long)ProxySubscriptionDownloadRoute.Direct or (long)ProxySubscriptionDownloadRoute.SystemProxy
+                ? (ProxySubscriptionDownloadRoute)reader.GetInt64(8)
+                : throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
+            return new ProxySubscriptionRecord(ReadDto(reader), _protector.Unprotect(reader.GetString(7)), route);
+        }
         catch (CryptographicException) { throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid); }
     }
 
-    public async Task<ProxySubscriptionDto> CreateAsync(string name, Guid profileId, string url, CancellationToken cancellationToken)
+    public async Task<ProxySubscriptionDto> CreateAsync(string name, Guid profileId, string url, ProxySubscriptionDownloadRoute downloadRoute, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 128)
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 128 || !Enum.IsDefined(downloadRoute))
             throw new ProxySubscriptionException(ProxyProblemCodes.SubscriptionInvalid);
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid();
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "INSERT INTO proxy_subscriptions(subscription_id,name,profile_id,protected_url,last_updated_at,created_at,updated_at) VALUES($id,$name,$profile,$url,$last,$created,$updated);";
+        command.CommandText = "INSERT INTO proxy_subscriptions(subscription_id,name,profile_id,protected_url,download_route,last_updated_at,created_at,updated_at) VALUES($id,$name,$profile,$url,$route,$last,$created,$updated);";
         command.Parameters.AddWithValue("$id", id.ToString("D"));
         command.Parameters.AddWithValue("$name", name.Trim());
         command.Parameters.AddWithValue("$profile", profileId.ToString("D"));
         command.Parameters.AddWithValue("$url", _protector.Protect(url));
+        command.Parameters.AddWithValue("$route", (int)downloadRoute);
         command.Parameters.AddWithValue("$last", now.ToString("O"));
         command.Parameters.AddWithValue("$created", now.ToString("O"));
         command.Parameters.AddWithValue("$updated", now.ToString("O"));
