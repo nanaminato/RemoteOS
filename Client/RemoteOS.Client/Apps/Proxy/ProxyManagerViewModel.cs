@@ -390,16 +390,18 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [RelayCommand]
     private void ToggleLatencyTestTarget() => IsLatencyTestTargetVisible = !IsLatencyTestTargetVisible;
 
-    [RelayCommand(CanExecute = nameof(CanTestSelectedProxyLatency))]
-    private async Task TestSelectedProxyLatencyAsync()
+    [RelayCommand(CanExecute = nameof(CanTestGroupSelectedProxyLatency))]
+    private async Task TestGroupSelectedProxyLatencyAsync(ProxyGroupItem? group)
     {
-        var node = SelectedGroup?.Nodes.FirstOrDefault(candidate => string.Equals(candidate.Name, SelectedProxy, StringComparison.Ordinal));
+        var node = group?.Nodes.FirstOrDefault(candidate => candidate.IsSelected);
         if (node is null) return;
         await TestLatencyAsync([node]);
     }
 
-    [RelayCommand(CanExecute = nameof(CanTestAllProxyLatencies))]
-    private Task TestAllProxyLatenciesAsync() => TestLatencyAsync(Groups.SelectMany(group => group.Nodes).ToArray());
+    [RelayCommand(CanExecute = nameof(CanTestGroupProxyLatencies))]
+    private Task TestGroupProxyLatenciesAsync(ProxyGroupItem? group) => group is null
+        ? Task.CompletedTask
+        : TestLatencyAsync(group.Nodes.ToArray());
 
     [RelayCommand(CanExecute = nameof(CanManageConnection))]
     private async Task CloseConnectionAsync()
@@ -468,8 +470,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanImportSubscription => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(SubscriptionLink);
     private bool CanSelectGroup => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy);
     private bool CanSelectProxyNode(ProxyNodeItem? node) => CanManage && !IsBusy && node is { IsSelected: false };
-    private bool CanTestSelectedProxyLatency => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy) && IsValidLatencyTestTarget;
-    private bool CanTestAllProxyLatencies => CanManage && !IsBusy && Groups.Count > 0 && IsValidLatencyTestTarget;
+    private bool CanTestGroupSelectedProxyLatency(ProxyGroupItem? group) => CanManage && !IsBusy && group?.Selected is not null && IsValidLatencyTestTarget;
+    private bool CanTestGroupProxyLatencies(ProxyGroupItem? group) => CanManage && !IsBusy && group?.Nodes.Count > 0 && IsValidLatencyTestTarget;
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
     private bool IsValidLatencyTestTarget => Uri.TryCreate(LatencyTestTarget, UriKind.Absolute, out var target)
         && (target.Scheme == Uri.UriSchemeHttp || target.Scheme == Uri.UriSchemeHttps) && !target.IsLoopback;
@@ -520,8 +522,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
-    partial void OnSelectedGroupChanged(ProxyGroupItem? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); }
-    partial void OnSelectedProxyChanged(string value) { ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); }
+    partial void OnSelectedGroupChanged(ProxyGroupItem? value) { SelectedProxy = value?.Selected ?? string.Empty; ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); }
+    partial void OnSelectedProxyChanged(string value) => ApplyGroupSelectionCommand.NotifyCanExecuteChanged();
     partial void OnRoutingModeChanged(ProxyRoutingMode value)
     {
         OnPropertyChanged(nameof(IsRuleRouting));
@@ -531,8 +533,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     partial void OnProxyNodeSortModeChanged(ProxyNodeSortMode value) => OnPropertyChanged(nameof(ProxyNodeSortLabel));
     partial void OnLatencyTestTargetChanged(string value)
     {
-        TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
-        TestAllProxyLatenciesCommand.NotifyCanExecuteChanged();
+        TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
+        TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged();
     }
     partial void OnSelectedConnectionChanged(ProxyConnectionDto? value) => CloseConnectionCommand.NotifyCanExecuteChanged();
     partial void OnProfileNameChanged(string value) => CreateProfileCommand.NotifyCanExecuteChanged();
@@ -547,7 +549,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
         ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged(); ActivateSubscriptionCommand.NotifyCanExecuteChanged();
         ApplyGroupSelectionCommand.NotifyCanExecuteChanged(); SelectProxyNodeCommand.NotifyCanExecuteChanged(); SetRoutingModeCommand.NotifyCanExecuteChanged();
-        TestSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); TestAllProxyLatenciesCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
+        TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged(); TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged(); CloseConnectionCommand.NotifyCanExecuteChanged(); SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     private void RaiseSummaryProperties()
     {
@@ -603,9 +605,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         var selectedGroupName = SelectedGroup?.Name;
         var selectedProxyName = SelectedProxy;
         Groups.Clear();
-        for (var index = 0; index < groups.Count; index++)
+        SelectedGroup = null;
+        SelectedProxy = string.Empty;
+        var visibleGroups = groups.Where(group => !string.Equals(group.Name, "GLOBAL", StringComparison.OrdinalIgnoreCase)).ToArray();
+        for (var index = 0; index < visibleGroups.Length; index++)
         {
-            var group = groups[index];
+            var group = visibleGroups[index];
             var isExpanded = expansion.TryGetValue(group.Name, out var expanded) ? expanded : index > 0;
             var item = new ProxyGroupItem(group.Name, group.Type, group.Selected, group.Proxies, isExpanded);
             item.SortNodes(ProxyNodeSortMode);
@@ -618,7 +623,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
                 ? selectedProxyName
                 : selectedGroup.Selected ?? string.Empty;
         }
-        TestAllProxyLatenciesCommand.NotifyCanExecuteChanged();
+        TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
+        TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged();
     }
 
     private async Task TestLatencyAsync(IReadOnlyList<ProxyNodeItem> nodes)

@@ -29,37 +29,24 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,*" RowSpacing="14">
-    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18">
-      <StackPanel Spacing="4">
-        <TextBlock Text="{loc:Loc proxy.proxies}" FontSize="21" FontWeight="SemiBold" />
-        <TextBlock Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
-      </StackPanel>
-      <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="3">
-        <StackPanel Orientation="Horizontal" Spacing="2">
-          <Button Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding !IsRuleRouting}" />
-          <Button Classes="primary" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding IsRuleRouting}" />
-          <Button Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding !IsGlobalRouting}" />
-          <Button Classes="primary" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding IsGlobalRouting}" />
-          <Button Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding !IsDirectRouting}" />
-          <Button Classes="primary" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding IsDirectRouting}" />
-        </StackPanel>
-      </Border>
-    </Grid>
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
+    <StackPanel Spacing="4">
+      <TextBlock Text="{loc:Loc proxy.proxies}" FontSize="21" FontWeight="SemiBold" />
+      <TextBlock Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+    </StackPanel>
+    <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="3">
+      <Grid ColumnDefinitions="*,*,*" ColumnSpacing="2">
+        <Button Grid.Column="0" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding !IsRuleRouting}" />
+        <Button Grid.Column="0" Classes="primary" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding IsRuleRouting}" />
+        <Button Grid.Column="1" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding !IsGlobalRouting}" />
+        <Button Grid.Column="1" Classes="primary" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding IsGlobalRouting}" />
+        <Button Grid.Column="2" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding !IsDirectRouting}" />
+        <Button Grid.Column="2" Classes="primary" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding IsDirectRouting}" />
+      </Grid>
+    </Border>
 
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Spacing="10">
-        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="6,4">
-          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
-            <Button Classes="proxy-toolbar-button" Content="◉" ToolTip.Tip="{loc:Loc proxy.latency_test_selected}" Command="{Binding TestSelectedProxyLatencyCommand}" />
-            <Button Grid.Column="1" Classes="proxy-toolbar-button" Content="↻" ToolTip.Tip="{loc:Loc proxy.latency_test_all}" Command="{Binding TestAllProxyLatenciesCommand}" HorizontalAlignment="Left" />
-            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
-              <TextBox Width="360" IsVisible="{Binding IsLatencyTestTargetVisible}" Text="{Binding LatencyTestTarget, Mode=TwoWay}" PlaceholderText="{loc:Loc proxy.latency_test_target_placeholder}" VerticalAlignment="Center" />
-              <Button Classes="proxy-toolbar-button" Content="↕" ToolTip.Tip="{Binding ProxyNodeSortLabel}" Command="{Binding CycleProxyNodeSortCommand}" />
-              <Button Classes="proxy-toolbar-button" Content="⌁" ToolTip.Tip="{loc:Loc proxy.latency_test_target}" Command="{Binding ToggleLatencyTestTargetCommand}" />
-            </StackPanel>
-          </Grid>
-        </Border>
         <ItemsControl ItemsSource="{Binding Groups}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
@@ -85,6 +72,23 @@
               </Button>
 
               <Border IsVisible="{Binding IsExpanded}" Background="{DynamicResource SurfaceBrush}" CornerRadius="10" Padding="10">
+                <StackPanel Spacing="8">
+                  <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="7" Padding="6,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                      <Button Classes="proxy-toolbar-button" Content="◉" ToolTip.Tip="{loc:Loc proxy.latency_test_selected}"
+                              Command="{Binding DataContext.TestGroupSelectedProxyLatencyCommand, ElementName=Root}" CommandParameter="{Binding}" />
+                      <Button Grid.Column="1" Classes="proxy-toolbar-button" Content="↻" ToolTip.Tip="{loc:Loc proxy.latency_test_all}"
+                              Command="{Binding DataContext.TestGroupProxyLatenciesCommand, ElementName=Root}" CommandParameter="{Binding}" HorizontalAlignment="Left" />
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+                        <TextBox Width="360" IsVisible="{Binding DataContext.IsLatencyTestTargetVisible, ElementName=Root}"
+                                 Text="{Binding DataContext.LatencyTestTarget, ElementName=Root, Mode=TwoWay}" PlaceholderText="{loc:Loc proxy.latency_test_target_placeholder}" VerticalAlignment="Center" />
+                        <Button Classes="proxy-toolbar-button" Content="↕" ToolTip.Tip="{Binding DataContext.ProxyNodeSortLabel, ElementName=Root}"
+                                Command="{Binding DataContext.CycleProxyNodeSortCommand, ElementName=Root}" />
+                        <Button Classes="proxy-toolbar-button" Content="⌁" ToolTip.Tip="{loc:Loc proxy.latency_test_target}"
+                                Command="{Binding DataContext.ToggleLatencyTestTargetCommand, ElementName=Root}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
                   <ItemsControl ItemsSource="{Binding Nodes}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
@@ -111,6 +115,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                </StackPanel>
               </Border>
             </StackPanel>
           </DataTemplate>
