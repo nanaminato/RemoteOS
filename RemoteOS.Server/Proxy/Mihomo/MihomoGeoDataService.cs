@@ -14,6 +14,7 @@ public sealed class MihomoGeoDataService(
     IReadOnlyDictionary<string, string>? bundledFileHashes = null) : IProxyGeoDataService
 {
     private const long MaximumBytes = 128L * 1024 * 1024;
+    private const int CopyAttempts = 3;
     private const string PrimaryFileName = "geoip.metadb";
     private static readonly string[] BundledFileNames =
     [
@@ -73,15 +74,16 @@ public sealed class MihomoGeoDataService(
                 // is using it: Windows can hold its database files open without delete sharing.
                 if (fileName == PrimaryFileName && IsExistingManagedFile(destination)) continue;
                 if (fileName != PrimaryFileName && IsSafeBundledFile(destination)) continue;
-                await CopyAtomicallyAsync(Path.Combine(sourceDirectory, fileName), destination, cancellationToken);
+                try { await CopyAtomicallyAsync(Path.Combine(sourceDirectory, fileName), destination, cancellationToken); }
+                catch (IOException exception) { throw new GeoDataStagingException(fileName, exception); }
             }
 
             await WriteDiagnosticAsync("info", "Bundled GEO data was staged for managed Mihomo.", cancellationToken);
             return null;
         }
-        catch (IOException exception)
+        catch (GeoDataStagingException exception)
         {
-            await WriteDiagnosticAsync("warning", "Bundled GEO data could not be staged for managed Mihomo: " + exception.GetType().Name, cancellationToken);
+            await WriteDiagnosticAsync("warning", "Bundled GEO data could not be staged for managed Mihomo: " + exception.FileName + " (" + exception.InnerException!.GetType().Name + ").", cancellationToken);
             return ProxyProblemCodes.GeodataUnavailable;
         }
         catch (UnauthorizedAccessException)
@@ -162,20 +164,28 @@ public sealed class MihomoGeoDataService(
 
     private async Task CopyAtomicallyAsync(string source, string destination, CancellationToken cancellationToken)
     {
-        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, ".geodata-" + Guid.NewGuid().ToString("N"));
-        try
+        for (var attempt = 1; attempt <= CopyAttempts; attempt++)
         {
-            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
-            await using var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-            await CopyLimitedAsync(input, output, cancellationToken);
-            await output.FlushAsync(cancellationToken);
-            MakePrivateFile(temporary);
-            File.Move(temporary, destination, overwrite: true);
-            MakePrivateFile(destination);
-        }
-        finally
-        {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            var temporary = Path.Combine(Path.GetDirectoryName(destination)!, ".geodata-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+                await using var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+                await CopyLimitedAsync(input, output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+                MakePrivateFile(temporary);
+                File.Move(temporary, destination, overwrite: true);
+                MakePrivateFile(destination);
+                return;
+            }
+            catch (IOException) when (attempt < CopyAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(150 * attempt), cancellationToken);
+            }
+            finally
+            {
+                if (File.Exists(temporary)) File.Delete(temporary);
+            }
         }
     }
     private static bool TrySafeSourcePath(string value, out string path)
@@ -209,4 +219,9 @@ public sealed class MihomoGeoDataService(
     }
     private static void MakePrivateDirectory(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
     private static void MakePrivateFile(string path) { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+
+    private sealed class GeoDataStagingException(string fileName, IOException innerException) : IOException(innerException.Message, innerException)
+    {
+        public string FileName { get; } = fileName;
+    }
 }
