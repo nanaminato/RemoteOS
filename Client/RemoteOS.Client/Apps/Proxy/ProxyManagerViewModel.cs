@@ -43,6 +43,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private ProxyRoutingMode _routingMode = ProxyRoutingMode.Rule;
     [ObservableProperty] private ProxyNodeSortMode _proxyNodeSortMode = ProxyNodeSortMode.Default;
     [ObservableProperty] private bool _isLatencyTestTargetVisible;
+    [ObservableProperty] private bool _isLatencyTesting;
+    [ObservableProperty] private bool _isSubscriptionRefreshActive;
     [ObservableProperty] private string _latencyTestTarget = "https://www.gstatic.com/generate_204";
     [ObservableProperty] private string _subscriptionLink = string.Empty;
     [ObservableProperty] private string _runtimeSubscriptionText = string.Empty;
@@ -246,7 +248,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRefresh))]
     private async Task UpdateAllSubscriptionsAsync()
     {
-        await QueueAsync(() => repository.RefreshAllSubscriptionsAsync());
+        try
+        {
+            IsSubscriptionRefreshActive = true;
+            await QueueAsync(() => repository.RefreshAllSubscriptionsAsync());
+        }
+        finally { IsSubscriptionRefreshActive = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanViewRuntimeSubscription))]
@@ -470,8 +477,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanImportSubscription => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(SubscriptionLink);
     private bool CanSelectGroup => CanManage && !IsBusy && SelectedGroup is not null && !string.IsNullOrWhiteSpace(SelectedProxy);
     private bool CanSelectProxyNode(ProxyNodeItem? node) => CanManage && !IsBusy && node is { IsSelected: false };
-    private bool CanTestGroupSelectedProxyLatency(ProxyGroupItem? group) => CanManage && !IsBusy && group?.Selected is not null && IsValidLatencyTestTarget;
-    private bool CanTestGroupProxyLatencies(ProxyGroupItem? group) => CanManage && !IsBusy && group?.Nodes.Count > 0 && IsValidLatencyTestTarget;
+    private bool CanTestGroupSelectedProxyLatency(ProxyGroupItem? group) => CanManage && !IsLatencyTesting && group?.Selected is not null && IsValidLatencyTestTarget;
+    private bool CanTestGroupProxyLatencies(ProxyGroupItem? group) => CanManage && !IsLatencyTesting && group?.Nodes.Count > 0 && IsValidLatencyTestTarget;
     private bool CanManageConnection => CanManage && !IsBusy && SelectedConnection is not null;
     private bool IsValidLatencyTestTarget => Uri.TryCreate(LatencyTestTarget, UriKind.Absolute, out var target)
         && (target.Scheme == Uri.UriSchemeHttp || target.Scheme == Uri.UriSchemeHttps) && !target.IsLoopback;
@@ -494,6 +501,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     }
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
+    partial void OnIsLatencyTestingChanged(bool value)
+    {
+        TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
+        TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged();
+    }
     partial void OnHasManagePermissionChanged(bool value) => NotifyCommands();
     partial void OnHasTunManagePermissionChanged(bool value) => NotifyCommands();
     partial void OnSelectedProfileChanged(ProxyProfileDto? value) { EnableTunCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged(); }
@@ -629,29 +641,33 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
 
     private async Task TestLatencyAsync(IReadOnlyList<ProxyNodeItem> nodes)
     {
-        if (nodes.Count == 0) return;
+        if (nodes.Count == 0 || IsLatencyTesting) return;
         try
         {
-            IsBusy = true;
-            foreach (var node in nodes)
-            {
-                node.IsTesting = true;
-                try
-                {
-                    var delay = await repository.TestProxyDelayAsync(node.GroupName, node.Name, new TestProxyDelayRequest(LatencyTestTarget));
-                    node.SetDelay(delay.DelayMilliseconds, delay.TimedOut);
-                }
-                catch (Exception exception)
-                {
-                    node.SetDelay(null, true);
-                    StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));
-                }
-                finally { node.IsTesting = false; }
-            }
+            IsLatencyTesting = true;
+            foreach (var node in nodes) node.IsTesting = true;
+            using var concurrency = new SemaphoreSlim(Math.Min(6, nodes.Count));
+            await Task.WhenAll(nodes.Select(node => TestNodeLatencyAsync(node, LatencyTestTarget, concurrency)));
             foreach (var group in Groups) group.SortNodes(ProxyNodeSortMode);
             StatusText = LocalizedText.Get("proxy.status.latency_tested");
         }
-        finally { IsBusy = false; }
+        finally { IsLatencyTesting = false; }
+    }
+
+    private async Task TestNodeLatencyAsync(ProxyNodeItem node, string target, SemaphoreSlim concurrency)
+    {
+        await concurrency.WaitAsync();
+        try
+        {
+            var delay = await repository.TestProxyDelayAsync(node.GroupName, node.Name, new TestProxyDelayRequest(target));
+            node.SetDelay(delay.DelayMilliseconds, delay.TimedOut);
+        }
+        catch { node.SetDelay(null, true); }
+        finally
+        {
+            concurrency.Release();
+            node.IsTesting = false;
+        }
     }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }

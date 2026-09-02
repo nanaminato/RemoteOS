@@ -77,14 +77,14 @@
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                   <Path Data="M5,3 A2,2 0 1,0 5,7 A2,2 0 1,0 5,3 M5,10 A2,2 0 1,0 5,14 A2,2 0 1,0 5,10 M12,3 A2,2 0 1,0 12,7 A2,2 0 1,0 12,3 M12,10 A2,2 0 1,0 12,14 A2,2 0 1,0 12,10"
                         Width="15" Height="15" Stretch="Uniform" Fill="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   <Grid Grid.Column="2" Width="18" Height="18" ToolTip.Tip="{loc:Loc proxy.subscription_reactivate}">
                     <Path Data="M12,4 V1 L16,5 L12,9 V6 A6,6 0 1,0 5.4,14.4 L6.8,13 A4,4 0 1,1 12,6 M4,11 V14 L0,10 L4,6 V9 A6,6 0 0,0 10.6,0.6 L9.2,2 A4,4 0 1,1 4,9"
-                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding $parent[ItemsControl].DataContext.IsBusy}" Classes="subscription-refreshing" RenderTransformOrigin="50%,50%">
+                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding $parent[ItemsControl].DataContext.IsSubscriptionRefreshActive}" Classes="subscription-refreshing" RenderTransformOrigin="50%,50%">
                       <Path.RenderTransform><RotateTransform Angle="0" /></Path.RenderTransform>
                     </Path>
                     <Path Data="M12,4 V1 L16,5 L12,9 V6 A6,6 0 1,0 5.4,14.4 L6.8,13 A4,4 0 1,1 12,6 M4,11 V14 L0,10 L4,6 V9 A6,6 0 0,0 10.6,0.6 L9.2,2 A4,4 0 1,1 4,9"
-                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding !$parent[ItemsControl].DataContext.IsBusy}" />
+                          Stretch="Uniform" Fill="{DynamicResource AccentBrush}" IsVisible="{Binding !$parent[ItemsControl].DataContext.IsSubscriptionRefreshActive}" />
                   </Grid>
                 </Grid>
                 <TextBlock Grid.Row="1" Text="{loc:Loc proxy.subscription_source_configured}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />

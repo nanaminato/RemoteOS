@@ -114,7 +114,7 @@
                             <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" CornerRadius="8" IsVisible="{Binding IsSelected}" />
                             <Border Width="4" Background="{DynamicResource AccentBrush}" CornerRadius="8,0,0,8" HorizontalAlignment="Left" IsVisible="{Binding IsSelected}" />
                             <Grid Margin="11,8" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="5">
-                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                               <TextBlock Grid.Column="1" Text="{Binding DelayText}" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding HasFastDelay}" FontWeight="SemiBold" />
                               <TextBlock Grid.Column="1" Text="{Binding DelayText}" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding HasSlowDelay}" FontWeight="SemiBold" />
                               <TextBlock Grid.Column="1" Text="{Binding DelayText}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding HasTimeout}" FontWeight="SemiBold" />
