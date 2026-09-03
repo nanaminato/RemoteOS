@@ -70,7 +70,7 @@ public sealed class WindowManager : IWindowManager
 
         foreach (var session in _modalSessions)
             session.Blocker.ApplyBounds(session.Owner.Info.Bounds);
-        foreach (var session in _shellModalSessions)
+        foreach (var session in _shellModalSessions.Where(session => !session.CoversFullDesktop))
             session.Blocker.ApplyBounds(_hostBounds);
     }
 
@@ -83,6 +83,8 @@ public sealed class WindowManager : IWindowManager
             window.View.ApplyBounds(bounds);
             UpdateDialogs(window);
         }
+        foreach (var session in _shellModalSessions.Where(session => session.CoversFullDesktop))
+            session.Blocker.ApplyBounds(bounds);
     }
 
     public ManagedWindow Create(WindowCreateOptions options)
@@ -259,6 +261,55 @@ public sealed class WindowManager : IWindowManager
         return dialog.Result;
     }
 
+    public Task<TResult?> ShowSystemDialogAsync<TResult>(
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize)
+    {
+        if (_host == null)
+            throw new InvalidOperationException("WindowManager is not attached to a host canvas.");
+
+        var bounds = GetFullScreenBounds();
+        var width = Math.Min(preferredSize.Width, Math.Max(320, bounds.Width - 48));
+        var height = Math.Min(preferredSize.Height, Math.Max(220, bounds.Height - 56));
+        var dialogBounds = new Rect(
+            bounds.X + Math.Max(24, (bounds.Width - width) / 2),
+            bounds.Y + Math.Max(28, (bounds.Height - height) / 2),
+            width,
+            height);
+        var dialog = new ModalDialog<TResult>(this, owner: null);
+        var dialogWindow = Create(new WindowCreateOptions(
+            OwnerAppId: new AppId("remoteos.shell"),
+            Title: title,
+            Content: contentFactory(dialog),
+            Bounds: dialogBounds,
+            IconGlyph: "🖥",
+            CanResize: true,
+            CanMinimize: false,
+            CanMaximize: false,
+            IsModalDialog: true));
+        var dialogHost = GetFullScreenHost();
+        MoveToHost(dialogWindow, dialogHost);
+        dialog.Attach(dialogWindow);
+
+        var blocker = new ModalBlocker();
+        blocker.ApplyBounds(bounds);
+        blocker.ZIndex = dialogWindow.View.ZIndex - 1;
+        blocker.PointerPressed += (_, e) =>
+        {
+            e.Handled = true;
+            Focus(dialogWindow);
+        };
+        dialogHost.Children.Add(blocker);
+
+        var session = new ShellModalSession<TResult>(dialogWindow, blocker, dialogHost, dialog, coversFullDesktop: true);
+        _shellModalSessions.Add(session);
+        UpdateFullScreenHostInteractivity();
+        _ = dialog.Result.ContinueWith(_ => Dispatcher.UIThread.Post(() => CloseShellModalSession(session)),
+            TaskScheduler.Default);
+        return dialog.Result;
+    }
+
     public void Close(ManagedWindow window)
     {
         if (!_windows.Remove(window))
@@ -309,6 +360,8 @@ public sealed class WindowManager : IWindowManager
 
         if (_windows.Contains(session.DialogWindow))
             Close(session.DialogWindow);
+
+        UpdateFullScreenHostInteractivity();
     }
 
     public void Focus(ManagedWindow window)
@@ -663,7 +716,8 @@ public sealed class WindowManager : IWindowManager
     private void UpdateFullScreenHostInteractivity()
     {
         if (_fullScreenHost is not null)
-            _fullScreenHost.IsHitTestVisible = _windows.Any(w => w.Info.State == WindowState.FullScreen);
+            _fullScreenHost.IsHitTestVisible = _windows.Any(w => w.Info.State == WindowState.FullScreen)
+                || _shellModalSessions.Any(session => session.CoversFullDesktop);
     }
 
     private Rect ResolveInitialBounds(

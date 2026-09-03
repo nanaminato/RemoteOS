@@ -257,9 +257,7 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             }
             catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
             {
-                var owner = FindOwnerWindow(context, vm);
-                if (owner is null) return false;
-                var password = await context.ShowDialogAsync<string?>(owner, "管理员认证", dialog =>
+                var password = await context.WindowManager.ShowSystemDialogAsync<string?>("管理员认证", dialog =>
                 {
                     var input = new TextBox { PasswordChar = '•', PlaceholderText = "请输入当前管理员密码" };
                     var cancel = new Button { Content = LocalizedText.Get("common.cancel") };

@@ -58,6 +58,7 @@ internal interface IShellModalSession
     ManagedWindow DialogWindow { get; }
     ModalBlocker Blocker { get; }
     Canvas Host { get; }
+    bool CoversFullDesktop { get; }
     void Cancel();
 }
 
@@ -79,11 +80,13 @@ internal sealed class ShellModalSession<TResult>(
     ManagedWindow dialogWindow,
     ModalBlocker blocker,
     Canvas host,
-    ModalDialog<TResult> dialog) : IShellModalSession
+    ModalDialog<TResult> dialog,
+    bool coversFullDesktop = false) : IShellModalSession
 {
     public ManagedWindow DialogWindow { get; } = dialogWindow;
     public ModalBlocker Blocker { get; } = blocker;
     public Canvas Host { get; } = host;
+    public bool CoversFullDesktop { get; } = coversFullDesktop;
     public void Cancel() => dialog.Cancel();
 }
 
