@@ -1,6 +1,7 @@
 using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Mihomo;
 using Server.Proxy.Platform;
+using System.Runtime.InteropServices;
 
 namespace Server.Proxy;
 
@@ -28,7 +29,7 @@ public sealed class ProxyLifecycleService(
         var recoveryState = await recovery.GetStatusAsync(cancellationToken);
         return new ProxyOverviewDto(MihomoEngine.Id, await engine.GetCapabilitiesAsync(cancellationToken), await platform.GetCapabilitiesAsync(cancellationToken),
             await runtime.GetAsync(MihomoEngine.Id, cancellationToken), await engine.GetHealthAsync(cancellationToken), ProxyOperatingMode.ListenerOnly,
-            active, (await engine.GetConnectionsAsync(cancellationToken)).Count, recoveryState);
+            active, (await engine.GetConnectionsAsync(cancellationToken)).Count, recoveryState, RuntimeInformation.OSDescription);
     }
 
     public async Task<string?> ExecuteLifecycleAsync(ProxyLifecycleAction action, CancellationToken cancellationToken)

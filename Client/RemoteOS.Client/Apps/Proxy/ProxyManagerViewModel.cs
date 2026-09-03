@@ -112,6 +112,22 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string ActiveSubscriptionUpdatedAt => ActiveSubscription?.LastUpdatedAt is { } updated
         ? updated.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
         : "—";
+    public string SystemProxyEndpoint => SystemProxyEnabled ? $"http://{SystemProxyHost}:{MixedPort}" : "—";
+    public string RuntimeUptime => "—";
+    public string RuleCount => "—";
+    public string ServerOperatingSystem => Overview?.OperatingSystem ?? "—";
+    /// <summary>Displayed only as an informational status; no startup configuration is read or changed.</summary>
+    public string StartupState => LocalizedText.Get("proxy.system_info.startup_disabled");
+    public string RuntimeServiceMode => Runtime?.Mode switch
+    {
+        ProxyRuntimeMode.Managed => LocalizedText.Get("proxy.system_info.managed_service"),
+        ProxyRuntimeMode.External => LocalizedText.Get("proxy.system_info.external_runtime"),
+        _ => "—",
+    };
+    public string ConfigurationUpdatedAt => Overview?.ActiveProfile?.UpdatedAt is { } updated
+        ? updated.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+        : "—";
+    public string ClientVersion => GetType().Assembly.GetName().Version?.ToString() ?? "—";
     /// <summary>The Server orders groups from proxy-groups in the active YAML, making the first one the overview entry point.</summary>
     public ProxyGroupItem? CurrentProxyGroupItem => Groups.FirstOrDefault();
     public string CurrentProxyGroupName => CurrentProxyGroupItem?.Name ?? LocalizedText.Get("proxy.none");
@@ -562,6 +578,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(ProxyActionText)); OnPropertyChanged(nameof(ProxyStateLabel));
         OnPropertyChanged(nameof(RuntimeIsInstalled)); OnPropertyChanged(nameof(RuntimeIsNotInstalled));
         OnPropertyChanged(nameof(RuntimeInstalledVersion)); OnPropertyChanged(nameof(RuntimeAvailableVersion));
+        OnPropertyChanged(nameof(RuntimeServiceMode));
         StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged();
         ToggleProxyCommand.NotifyCanExecuteChanged();
         InstallRuntimeCommand.NotifyCanExecuteChanged(); ShowRuntimeDownloadCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged();
@@ -579,6 +596,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
         OnPropertyChanged(nameof(SystemProxyHost));
         OnPropertyChanged(nameof(SystemProxyState));
+        OnPropertyChanged(nameof(SystemProxyEndpoint));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     partial void OnTrafficChanged(ProxyTrafficDto? value)
@@ -629,6 +647,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentProxyGroupItem)); OnPropertyChanged(nameof(CurrentProxyGroupName)); OnPropertyChanged(nameof(CurrentProxyNodeName));
         OnPropertyChanged(nameof(OverviewProxyNodes));
         OnPropertyChanged(nameof(SystemProxyState)); OnPropertyChanged(nameof(TunOverviewState));
+        OnPropertyChanged(nameof(ServerOperatingSystem)); OnPropertyChanged(nameof(StartupState));
+        OnPropertyChanged(nameof(ConfigurationUpdatedAt)); OnPropertyChanged(nameof(ClientVersion));
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
     }
     private static async Task LoadOptionalAsync<T>(Func<Task<T>> load, Action<T> apply)

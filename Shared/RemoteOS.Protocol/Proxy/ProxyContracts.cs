@@ -168,7 +168,7 @@ public sealed record ProxyOperationDto(Guid OperationId, string Kind, ProxyOpera
 
 public sealed record ProxyOverviewDto(string EngineId, ProxyEngineCapabilities EngineCapabilities, ProxyPlatformCapabilities PlatformCapabilities,
     ProxyRuntimeDto Runtime, ProxyHealthDto Health, ProxyOperatingMode OperatingMode, ProxyProfileDto? ActiveProfile,
-    int ActiveConnections, ProxyRecoveryStatusDto Recovery);
+    int ActiveConnections, ProxyRecoveryStatusDto Recovery, string? OperatingSystem = null);
 
 public sealed record UpsertProxyProfileRequest(string Name, string EngineId, long? ExpectedRevision = null);
 public sealed record ImportProxySubscriptionRequest(string Url, string? Name = null,
