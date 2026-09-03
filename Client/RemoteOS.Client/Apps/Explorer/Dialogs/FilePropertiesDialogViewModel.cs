@@ -11,6 +11,7 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
     private readonly Action _close;
     private readonly Func<int, Task<FilePropertiesDto>>? _saveUnixPermissions;
     private bool _initializingPermissions;
+    private bool _synchronizingPermissionOctalInput;
     private int _specialPermissionBits;
 
     public FilePropertiesDialogViewModel(
@@ -34,11 +35,14 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
     [ObservableProperty] private bool _othersWrite;
     [ObservableProperty] private bool _othersExecute;
     [ObservableProperty] private bool _isSavingPermissions;
+    [ObservableProperty] private string _permissionOctalInput = string.Empty;
+    [ObservableProperty] private string? _permissionOctalError;
     [ObservableProperty] private string _permissionStatus = LocalizedText.Get("explorer.permissions.select_then_save");
 
     public string SizeText => Properties.Size is { } size ? LocalizedText.Format("explorer.properties.size_bytes", size) : "—";
     public bool CanEditPermissions => Properties.UnixMode is not null && _saveUnixPermissions is not null;
-    public string PermissionOctal => Convert.ToString(CurrentUnixMode, 8).PadLeft(4, '0');
+    public bool HasValidPermissionOctal => PermissionOctalError is null;
+    public bool HasPermissionOctalError => PermissionOctalError is not null;
 
     partial void OnPropertiesChanged(FilePropertiesDto value)
     {
@@ -47,6 +51,33 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
     }
 
     partial void OnIsSavingPermissionsChanged(bool value) => SavePermissionsCommand.NotifyCanExecuteChanged();
+
+    partial void OnPermissionOctalInputChanged(string value)
+    {
+        if (_synchronizingPermissionOctalInput)
+            return;
+
+        if (!TryParseUnixMode(value, out var mode))
+        {
+            PermissionOctalError = LocalizedText.Get("explorer.permissions.invalid_octal");
+            SavePermissionsCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        _initializingPermissions = true;
+        ApplyUnixMode(mode);
+        _initializingPermissions = false;
+        PermissionOctalError = null;
+        PermissionStatus = LocalizedText.Get("explorer.permissions.unsaved_changes");
+        SavePermissionsCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPermissionOctalErrorChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasValidPermissionOctal));
+        OnPropertyChanged(nameof(HasPermissionOctalError));
+        SavePermissionsCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnOwnerReadChanged(bool value) => OnPermissionsChanged();
     partial void OnOwnerWriteChanged(bool value) => OnPermissionsChanged();
@@ -69,7 +100,7 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
         try
         {
             Properties = await _saveUnixPermissions(CurrentUnixMode);
-            PermissionStatus = LocalizedText.Format("explorer.permissions.saved", PermissionOctal);
+            PermissionStatus = LocalizedText.Format("explorer.permissions.saved", PermissionOctalInput);
         }
         catch (Exception ex)
         {
@@ -84,12 +115,30 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
     [RelayCommand]
     private void Close() => _close();
 
-    private bool CanSavePermissions() => CanEditPermissions && !IsSavingPermissions;
+    private bool CanSavePermissions() => CanEditPermissions && HasValidPermissionOctal && !IsSavingPermissions;
 
     private void InitializePermissions()
     {
         _initializingPermissions = true;
-        var mode = Properties.UnixMode ?? 0;
+        ApplyUnixMode(Properties.UnixMode ?? 0);
+        _initializingPermissions = false;
+        PermissionOctalError = null;
+        SynchronizePermissionOctalInput();
+        OnPropertyChanged(nameof(CanEditPermissions));
+        SavePermissionsCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnPermissionsChanged()
+    {
+        if (_initializingPermissions)
+            return;
+
+        SynchronizePermissionOctalInput();
+        PermissionStatus = LocalizedText.Get("explorer.permissions.unsaved_changes");
+    }
+
+    private void ApplyUnixMode(int mode)
+    {
         _specialPermissionBits = mode & ~0x1FF;
         OwnerRead = HasMode(mode, 0x100);
         OwnerWrite = HasMode(mode, 0x80);
@@ -100,20 +149,26 @@ public sealed partial class FilePropertiesDialogViewModel : ObservableObject
         OthersRead = HasMode(mode, 0x4);
         OthersWrite = HasMode(mode, 0x2);
         OthersExecute = HasMode(mode, 0x1);
-        _initializingPermissions = false;
-        OnPropertyChanged(nameof(CanEditPermissions));
-        OnPropertyChanged(nameof(PermissionOctal));
-        SavePermissionsCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnPermissionsChanged()
+    private void SynchronizePermissionOctalInput()
     {
-        if (_initializingPermissions)
-            return;
-
-        OnPropertyChanged(nameof(PermissionOctal));
-        PermissionStatus = LocalizedText.Get("explorer.permissions.unsaved_changes");
+        _synchronizingPermissionOctalInput = true;
+        PermissionOctalInput = FormatUnixMode(CurrentUnixMode);
+        _synchronizingPermissionOctalInput = false;
     }
+
+    private static bool TryParseUnixMode(string value, out int mode)
+    {
+        mode = 0;
+        if (value.Length is < 3 or > 4 || value.Any(c => c is < '0' or > '7'))
+            return false;
+
+        mode = Convert.ToInt32(value, 8);
+        return true;
+    }
+
+    private static string FormatUnixMode(int mode) => Convert.ToString(mode, 8).PadLeft(4, '0');
 
     private int CurrentUnixMode => _specialPermissionBits |
         (OwnerRead ? 0x100 : 0) | (OwnerWrite ? 0x80 : 0) | (OwnerExecute ? 0x40 : 0) |
