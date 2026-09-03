@@ -171,9 +171,19 @@ public sealed record ProxyTunSettingsDto(
 {
     public static ProxyTunSettingsDto Default { get; } = new("mixed", "Mihomo", true, false, true, "any:53", 1500);
 }
+/// <summary>Windows Internet Settings values owned by RemoteOS. PAC uses Windows auto-detection; it never accepts an untrusted PAC URL.</summary>
+public sealed record ProxySystemProxyOptionsDto(
+    bool UsePac = false,
+    bool GuardEnabled = false,
+    int GuardIntervalSeconds = 30,
+    bool UseDefaultBypass = true,
+    string BypassList = "")
+{
+    public static ProxySystemProxyOptionsDto Default { get; } = new();
+}
 public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
     string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1",
-    ProxyTunSettingsDto? Tun = null);
+    ProxyTunSettingsDto? Tun = null, ProxySystemProxyOptionsDto? SystemProxy = null);
 /// <summary>Metadata for the locally staged GeoIP database. The original Server path is never exposed.</summary>
 public sealed record ProxyGeoDataDto(bool IsConfigured, long? SizeBytes = null);
 public sealed record ProxyRecoveryStatusDto(bool RecoveryRequired, bool HasRecoveryMarker, DateTimeOffset? MarkerCreatedAt, string ProblemCode = "");
@@ -197,7 +207,7 @@ public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
 public sealed record UpdateProxySettingsRequest(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
     string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1",
-    ProxyTunSettingsDto? Tun = null);
+    ProxyTunSettingsDto? Tun = null, ProxySystemProxyOptionsDto? SystemProxy = null);
 /// <summary>Selects a GeoIP database already accessible to the RemoteOS Server service account.</summary>
 public sealed record ConfigureProxyGeoDataRequest(string FilePath);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

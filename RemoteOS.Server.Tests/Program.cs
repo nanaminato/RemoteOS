@@ -58,6 +58,7 @@ try
     VerifyTunnelProtocolContract();
     VerifyProxyProtocolContract();
     await VerifyMihomoControllerSafetyAsync();
+    await VerifyMihomoProxyGroupOrderingAsync(root);
     await VerifyProxyDiagnosticLogsAsync(root);
     await VerifyLinuxMihomoRuntimeLinkActivationAsync(root);
     await VerifyMihomoRuntimeSafetyAsync(root);
@@ -328,6 +329,31 @@ static async Task VerifyMihomoControllerSafetyAsync()
         "A controller 401 was not exposed as an authentication failure.");
 }
 
+static async Task VerifyMihomoProxyGroupOrderingAsync(string root)
+{
+    var paths = new TestProxyPaths(Path.Combine(root, "mihomo-group-order"));
+    Directory.CreateDirectory(paths.GetProtectedConfigurationDirectory());
+    await File.WriteAllTextAsync(Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml"), """
+        proxy-groups:
+          - { name: 节点选择, type: select, proxies: [自动选择] }
+          - name: 自动选择
+            type: url-test
+          - { name: ChatGPT, type: select, proxies: [节点选择] }
+        rules: []
+        """);
+
+    var controller = new StaticGroupMihomoController(
+    [
+        new ProxyGroupDto("自动选择", "url-test", null, []),
+        new ProxyGroupDto("ChatGPT", "select", null, []),
+        new ProxyGroupDto("节点选择", "select", null, []),
+    ]);
+    var engine = new MihomoEngine(controller, new UnavailableMihomoConfigurationValidator(), paths);
+    var groups = await engine.GetGroupsAsync(CancellationToken.None);
+    Assert(groups.Select(group => group.Name).SequenceEqual(["节点选择", "自动选择", "ChatGPT"]),
+        "Mihomo proxy groups did not retain the order from active.yaml.");
+}
+
 static async Task VerifyProxyDiagnosticLogsAsync(string root)
 {
     var diagnostics = new ProxyDiagnosticLogStore(new TestProxyPaths(Path.Combine(root, "proxy-diagnostics")));
@@ -336,7 +362,7 @@ static async Task VerifyProxyDiagnosticLogsAsync(string root)
     Assert(entries.Count == 1 && entries[0].Level == "warning" && !entries[0].Message.Contains("private-value", StringComparison.Ordinal)
         && entries[0].Message.Contains("[REDACTED]", StringComparison.Ordinal), "Proxy installation diagnostics were not retained and sanitized.");
 
-    var engine = new MihomoEngine(new HealthyMihomoController(), new UnavailableMihomoConfigurationValidator(), diagnostics);
+    var engine = new MihomoEngine(new HealthyMihomoController(), new UnavailableMihomoConfigurationValidator(), new TestProxyPaths(Path.Combine(root, "proxy-diagnostics")), diagnostics);
     var combined = await engine.GetLogsAsync(10, CancellationToken.None);
     Assert(combined.Any(entry => entry.Message.Contains("Managed Mihomo service start failed", StringComparison.Ordinal)),
         "Proxy diagnostic logs were not exposed when the controller log was unavailable.");
@@ -1183,6 +1209,22 @@ sealed class HealthyMihomoController : IMihomoControllerClient
     public Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyRoutingModeDto(ProxyRoutingMode.Rule));
     public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
     public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) => Task.FromResult(new ProxyDelayDto(proxyName, 42, false));
+    public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyConnectionDto>>.Success([]));
+    public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyTrafficDto(0, 0, 0, 0, 0));
+    public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<ControllerResult<IReadOnlyList<ProxyLogEntryDto>>> GetLogsAsync(int limit, CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyLogEntryDto>>.Success([]));
+    public Task<ProxyDnsStatusDto> GetDnsStatusAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyDnsStatusDto(false, false, null));
+    public Task<string?> ReloadAsync(CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+}
+
+sealed class StaticGroupMihomoController(IReadOnlyList<ProxyGroupDto> groups) : IMihomoControllerClient
+{
+    public Task<ControllerResult<bool>> IsReachableAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<bool>.Success(true));
+    public Task<ControllerResult<IReadOnlyList<ProxyGroupDto>>> GetGroupsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyGroupDto>>.Success(groups));
+    public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyRoutingModeDto(ProxyRoutingMode.Rule));
+    public Task<string?> SetRoutingModeAsync(ProxyRoutingMode mode, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    public Task<ProxyDelayDto> TestProxyDelayAsync(string proxyName, string url, int timeoutMilliseconds, CancellationToken cancellationToken) => Task.FromResult(new ProxyDelayDto(proxyName, null, false));
     public Task<ControllerResult<IReadOnlyList<ProxyConnectionDto>>> GetConnectionsAsync(CancellationToken cancellationToken) => Task.FromResult(ControllerResult<IReadOnlyList<ProxyConnectionDto>>.Success([]));
     public Task<ProxyTrafficDto> GetTrafficAsync(CancellationToken cancellationToken) => Task.FromResult(new ProxyTrafficDto(0, 0, 0, 0, 0));
     public Task<string?> CloseConnectionAsync(string connectionId, CancellationToken cancellationToken) => Task.FromResult<string?>(null);

@@ -172,6 +172,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string ControllerAuthenticationHint => LocalizedText.Get("proxy.controller_authentication.hint");
     public bool SystemProxyEnabled { get => Settings?.SystemProxyEnabled == true; set => SetSettings(systemProxyEnabled: value); }
     public string SystemProxyHost { get => Settings?.SystemProxyHost ?? "127.0.0.1"; set => SetSettings(systemProxyHost: value); }
+    private ProxySystemProxyOptionsDto SystemProxyOptions => Settings?.SystemProxy ?? ProxySystemProxyOptionsDto.Default;
+    public bool SystemProxyUsePac { get => SystemProxyOptions.UsePac; set => SetSystemProxyOptions(SystemProxyOptions with { UsePac = value }); }
+    public bool SystemProxyGuardEnabled { get => SystemProxyOptions.GuardEnabled; set => SetSystemProxyOptions(SystemProxyOptions with { GuardEnabled = value }); }
+    public int SystemProxyGuardIntervalSeconds { get => SystemProxyOptions.GuardIntervalSeconds; set => SetSystemProxyOptions(SystemProxyOptions with { GuardIntervalSeconds = value }); }
+    public bool SystemProxyUseDefaultBypass { get => SystemProxyOptions.UseDefaultBypass; set => SetSystemProxyOptions(SystemProxyOptions with { UseDefaultBypass = value }); }
+    public string SystemProxyBypassList { get => SystemProxyOptions.BypassList; set => SetSystemProxyOptions(SystemProxyOptions with { BypassList = value ?? string.Empty }); }
     public bool AllowLan { get => Settings?.AllowLan == true; set => SetSettings(allowLan: value); }
     public bool DnsEnabled { get => Settings?.DnsEnabled != false; set => SetSettings(dnsEnabled: value); }
     public bool Ipv6Enabled { get => Settings?.Ipv6Enabled != false; set => SetSettings(ipv6Enabled: value); }
@@ -284,7 +290,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources, SystemProxyHost, TunSettings));
+            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources, SystemProxyHost, TunSettings, SystemProxyOptions));
             StatusText = LocalizedText.Get("proxy.status.settings_saved");
             await RefreshAsync();
         }
@@ -592,7 +598,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
         bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null,
-        string? systemProxyHost = null, ProxyTunSettingsDto? tun = null)
+        string? systemProxyHost = null, ProxyTunSettingsDto? tun = null, ProxySystemProxyOptionsDto? systemProxy = null)
     {
         var current = Settings ?? new ProxySettingsDto(false, false, true, true, false, "warning", 7890);
         Settings = current with
@@ -607,10 +613,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             AllowInsecureSubscriptionSources = allowInsecureSubscriptionSources ?? current.AllowInsecureSubscriptionSources,
             SystemProxyHost = string.IsNullOrWhiteSpace(systemProxyHost) ? current.SystemProxyHost : systemProxyHost.Trim(),
             Tun = tun ?? current.Tun ?? ProxyTunSettingsDto.Default,
+            SystemProxy = systemProxy ?? current.SystemProxy ?? ProxySystemProxyOptionsDto.Default,
         };
     }
 
     private void SetTunSettings(ProxyTunSettingsDto tun) => SetSettings(tun: tun);
+    private void SetSystemProxyOptions(ProxySystemProxyOptionsDto options) => SetSettings(systemProxy: options);
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
     partial void OnIsLatencyTestingChanged(bool value)
@@ -646,6 +654,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(Ipv6Enabled)); OnPropertyChanged(nameof(UnifiedDelay)); OnPropertyChanged(nameof(LogLevel)); OnPropertyChanged(nameof(MixedPort));
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
         OnPropertyChanged(nameof(SystemProxyHost));
+        OnPropertyChanged(nameof(SystemProxyUsePac)); OnPropertyChanged(nameof(SystemProxyGuardEnabled));
+        OnPropertyChanged(nameof(SystemProxyGuardIntervalSeconds)); OnPropertyChanged(nameof(SystemProxyUseDefaultBypass));
+        OnPropertyChanged(nameof(SystemProxyBypassList));
         OnPropertyChanged(nameof(SystemProxyState));
         OnPropertyChanged(nameof(SystemProxyEndpoint));
         OnPropertyChanged(nameof(SystemProxyModeHint));
@@ -794,10 +805,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         SelectedGroup = null;
         SelectedProxy = string.Empty;
         var visibleGroups = groups.Where(group => !string.Equals(group.Name, "GLOBAL", StringComparison.OrdinalIgnoreCase)).ToArray();
-        for (var index = 0; index < visibleGroups.Length; index++)
+        foreach (var group in visibleGroups)
         {
-            var group = visibleGroups[index];
-            var isExpanded = expansion.TryGetValue(group.Name, out var expanded) ? expanded : index > 0;
+            // Expansion is a view-only preference for the current session. New groups must
+            // never open automatically, so a refreshed proxy page stays compact by default.
+            var isExpanded = expansion.TryGetValue(group.Name, out var expanded) && expanded;
             var item = new ProxyGroupItem(group.Name, group.Type, group.Selected, group.Proxies, isExpanded);
             item.SortNodes(ProxyNodeSortMode);
             Groups.Add(item);

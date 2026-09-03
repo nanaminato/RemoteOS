@@ -44,13 +44,16 @@ internal static partial class MihomoProxyGroupOrder
     {
         var match = NamePattern().Match(value);
         if (!match.Success) return;
-        var name = match.Groups[1].Value.Trim().Trim('\'', '"');
+        var name = match.Groups.Cast<Group>().Skip(1).FirstOrDefault(group => group.Success)?.Value.Trim() ?? string.Empty;
         if (name.Length == 0) return;
         if (!result.ContainsKey(name)) result.Add(name, result.Count);
         needsName = false;
     }
 
-    [GeneratedRegex(@"(?:^|\s)name\s*:\s*([^#]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // A group often uses flow mapping syntax, e.g. "- { name: 节点选择, type: select }".
+    // Stop an unquoted scalar at the next flow-mapping delimiter instead of including the
+    // remaining properties in the group name.
+    [GeneratedRegex(@"(?:^|\s)name\s*:\s*(?:""([^""]*)""|'([^']*)'|([^,}\s#][^,}#]*?)(?=\s*[,}]|\s*$))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex NamePattern();
 
     private static readonly IReadOnlyDictionary<string, int> Empty = new Dictionary<string, int>(StringComparer.Ordinal);

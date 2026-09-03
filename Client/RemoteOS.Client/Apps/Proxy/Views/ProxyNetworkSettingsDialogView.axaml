@@ -19,6 +19,12 @@
         <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="9" Padding="14">
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy}" FontWeight="SemiBold" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding SystemProxyEnabled, Mode=TwoWay}"/></Grid>
         </Border>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.proxy_host}" VerticalAlignment="Center"/><TextBox Grid.Column="1" Width="190" Text="{Binding SystemProxyHost}" IsReadOnly="True" ToolTip.Tip="{loc:Loc proxy.proxy_host_follows_listener}"/></Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy_pac}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding SystemProxyUsePac, Mode=TwoWay}"/></Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy_guard}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding SystemProxyGuardEnabled, Mode=TwoWay}"/></Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy_guard_interval}" VerticalAlignment="Center"/><NumericUpDown Grid.Column="1" Width="110" Minimum="5" Maximum="3600" Value="{Binding SystemProxyGuardIntervalSeconds, Mode=TwoWay}" FormatString="0 's'"/></Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy_default_bypass}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding SystemProxyUseDefaultBypass, Mode=TwoWay}"/></Grid>
+        <StackPanel Spacing="5"><TextBlock Text="{loc:Loc proxy.system_proxy_bypass_list}"/><TextBox Text="{Binding SystemProxyBypassList, Mode=TwoWay}" AcceptsReturn="True" MinHeight="72" TextWrapping="Wrap"/></StackPanel>
       </StackPanel>
       <StackPanel Spacing="12" IsVisible="{Binding IsTunSettingsSelected}">
         <Border BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="6" Padding="10,7"><TextBlock Text="{Binding TunModeHint}" Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Center" TextWrapping="Wrap"/></Border>

@@ -28,8 +28,10 @@ public sealed class MihomoSettingsService(
         if (systemProxyHost is null) return ProxyProblemCodes.ConfigInvalid;
         var tun = request.Tun ?? ProxyTunSettingsDto.Default;
         if (!IsValidTunSettings(tun)) return ProxyProblemCodes.ConfigInvalid;
+        var systemProxy = request.SystemProxy ?? ProxySystemProxyOptionsDto.Default;
+        if (!IsValidSystemProxyOptions(systemProxy)) return ProxyProblemCodes.ConfigInvalid;
         var settings = new ProxySettingsDto(request.SystemProxyEnabled, request.AllowLan, request.DnsEnabled, request.Ipv6Enabled,
-            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources, systemProxyHost, tun);
+            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources, systemProxyHost, tun, systemProxy);
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -70,7 +72,7 @@ public sealed class MihomoSettingsService(
                     await controller.ReloadAsync(cancellationToken);
                     return ProxyProblemCodes.ConfigApplyFailed;
                 }
-                if (!ApplyWindowsSystemProxy(settings.SystemProxyEnabled, settings.SystemProxyHost, settings.MixedPort))
+                if (!ApplyWindowsSystemProxy(settings.SystemProxyEnabled, settings.SystemProxyHost, settings.MixedPort, settings.SystemProxy ?? ProxySystemProxyOptionsDto.Default))
                 {
                     await File.WriteAllTextAsync(active, original, cancellationToken);
                     if (controllerAvailable) await controller.ReloadAsync(cancellationToken);
@@ -94,7 +96,11 @@ public sealed class MihomoSettingsService(
         {
             await using var input = File.OpenRead(path);
             var settings = await JsonSerializer.DeserializeAsync<ProxySettingsDto>(input, cancellationToken: cancellationToken);
-            return settings is null ? null : settings with { Tun = settings.Tun ?? ProxyTunSettingsDto.Default };
+            return settings is null ? null : settings with
+            {
+                Tun = settings.Tun ?? ProxyTunSettingsDto.Default,
+                SystemProxy = settings.SystemProxy ?? ProxySystemProxyOptionsDto.Default,
+            };
         }
         catch (JsonException) { return null; }
     }
@@ -108,7 +114,7 @@ public sealed class MihomoSettingsService(
         File.Move(temporary, path, overwrite: true);
     }
 
-    private static bool ApplyWindowsSystemProxy(bool enabled, string host, int port)
+    internal static bool ApplyWindowsSystemProxy(bool enabled, string host, int port, ProxySystemProxyOptionsDto options)
     {
         if (!OperatingSystem.IsWindows()) return !enabled;
         try
@@ -116,13 +122,14 @@ public sealed class MihomoSettingsService(
             using var key = Registry.CurrentUser.CreateSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", writable: true);
             if (key is null) return false;
             key.SetValue("ProxyEnable", enabled ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("AutoDetect", enabled && options.UsePac ? 1 : 0, RegistryValueKind.DWord);
             if (enabled)
             {
                 var proxyHost = IPAddress.TryParse(host, out var address) && address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                     ? "[" + host + "]"
                     : host;
                 key.SetValue("ProxyServer", proxyHost + ":" + port.ToString(System.Globalization.CultureInfo.InvariantCulture), RegistryValueKind.String);
-                key.SetValue("ProxyOverride", "<local>;127.0.0.1;localhost", RegistryValueKind.String);
+                key.SetValue("ProxyOverride", BuildBypassList(options), RegistryValueKind.String);
             }
             return true;
         }
@@ -135,10 +142,12 @@ public sealed class MihomoSettingsService(
         {
             AllowInsecureSubscriptionSources = updated.AllowInsecureSubscriptionSources,
             Tun = updated.Tun,
+            SystemProxy = updated.SystemProxy,
         } == updated;
 
     private static string? NormalizeSystemProxyHost(string? value)
     {
+        if (string.Equals(value?.Trim(), "localhost", StringComparison.OrdinalIgnoreCase)) return IPAddress.Loopback.ToString();
         if (!IPAddress.TryParse(value, out var address)) return null;
         if (IPAddress.IsLoopback(address)) return address.ToString();
         try
@@ -159,11 +168,25 @@ public sealed class MihomoSettingsService(
         && IsValidDnsHijack(settings.DnsHijack)
         && (!settings.StrictRoute || settings.AutoRoute);
 
+    private static bool IsValidSystemProxyOptions(ProxySystemProxyOptionsDto options) =>
+        options.GuardIntervalSeconds is >= 5 and <= 3_600
+        && options.BypassList.Length <= 4_096
+        && options.BypassList.All(character => !char.IsControl(character));
+
+    private static string BuildBypassList(ProxySystemProxyOptionsDto options)
+    {
+        const string defaults = "<local>;localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*";
+        var custom = options.BypassList.Trim().Trim(';');
+        return options.UseDefaultBypass
+            ? string.IsNullOrWhiteSpace(custom) ? defaults : defaults + ";" + custom
+            : custom;
+    }
+
     private static bool IsValidDnsHijack(string value)
     {
         var match = Regex.Match(value, "^(?:(?:tcp|udp)://)?(?:any|[0-9A-Fa-f:.]+):(\\d{1,5})$", RegexOptions.CultureInvariant);
         return match.Success && int.TryParse(match.Groups[1].Value, out var port) && port is > 0 and <= 65535;
     }
 
-    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false, "127.0.0.1", ProxyTunSettingsDto.Default);
+    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false, "127.0.0.1", ProxyTunSettingsDto.Default, ProxySystemProxyOptionsDto.Default);
 }
