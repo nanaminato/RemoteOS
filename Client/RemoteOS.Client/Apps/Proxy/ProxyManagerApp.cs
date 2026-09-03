@@ -6,6 +6,7 @@ using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Apps.Explorer.Dialogs;
 using Client.Apps.Proxy.Views;
+using Client.Apps.TaskManager;
 using Client.Localization;
 using Client.Services.Auth;
 using Client.Views;
@@ -32,10 +33,11 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
             context.ShowWindow(LocalizedText.Get("application.remoteos.proxy.display_name"), new TextBlock { Text = LocalizedText.Get("proxy.login_required"), Margin = new Thickness(24), TextWrapping = Avalonia.Media.TextWrapping.Wrap }, new Rect(180, 160, 470, 180), Manifest.IconGlyph, false, false, false); return;
         }
         var files = context.Services.GetService(typeof(IExplorerClient)) as IExplorerClient;
+        var systemMonitor = context.Services.GetService(typeof(ITaskManagerClient)) as ITaskManagerClient;
         // Do not start a proxy operation with the initial Undecided permission snapshot.
         // ApplicationManager presents prompts after Activate returns, so this workspace owns
         // the first request and waits for its decision before enabling server actions.
-        var vm = new ProxyManagerViewModel(repository, canManage: false, canManageTun: false);
+        var vm = new ProxyManagerViewModel(repository, canManage: false, canManageTun: false, systemMonitor);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.proxy.display_name"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
         vm.SetServerRuntimePackageRequest(async () =>
         {
@@ -84,6 +86,12 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         {
             _ = context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.subscription_content"), dialog =>
                 new ProxySubscriptionContentDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(840, 560));
+        };
+        vm.OpenNetworkSettingsDialogAsync = async () =>
+        {
+            await vm.LoadSystemProxyHostOptionsAsync();
+            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.network_settings"), dialog =>
+                new ProxyNetworkSettingsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(560, 580));
         };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };

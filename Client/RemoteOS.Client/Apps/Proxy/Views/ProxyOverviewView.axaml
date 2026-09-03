@@ -15,24 +15,14 @@
         </Animation>
       </Style.Animations>
     </Style>
-    <Style Selector="Button.overview-link-card">
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-      <Setter Property="VerticalContentAlignment" Value="Stretch" />
-    </Style>
-    <Style Selector="Button.overview-mode-button">
-      <Setter Property="Padding" Value="13,7" />
-      <Setter Property="MinWidth" Value="94" />
-    </Style>
   </UserControl.Styles>
 
-  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <!-- Keep content clear of the vertical scrollbar; the card grid fills the available viewport width. -->
-    <Grid RowDefinitions="Auto,16,Auto,16,Auto" Margin="0,0,14,14" HorizontalAlignment="Stretch">
+  <ScrollViewer x:Name="OverviewScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <!-- The code-behind gives this container the finite viewport width needed for star columns. -->
+    <Border x:Name="OverviewContent" Padding="0,0,14,14">
+    <Grid RowDefinitions="Auto,16,Auto,16,Auto">
       <!-- The existing lifecycle control intentionally remains the only legacy overview card. -->
-      <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
+      <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
         <StackPanel Spacing="12">
           <TextBlock Text="{loc:Loc proxy.runtime_control}" FontSize="19" FontWeight="SemiBold" />
           <TextBlock Text="{loc:Loc proxy.runtime_control_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
@@ -63,77 +53,63 @@
           </Grid>
         </StackPanel>
       </Border>
-
       <Grid Grid.Row="2" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="16" HorizontalAlignment="Stretch">
-        <Button Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="profiles">
-          <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+        <!-- 订阅 -->
+        <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <Border Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="☁" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-                <TextBlock Grid.Column="1" Text="{loc:Loc proxy.subscriptions}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="2" Text="›" FontSize="24" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding ActiveSubscriptionName}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <Border Grid.Column="2" Padding="8,4" PointerPressed="SubscriptionNavigation_PointerPressed"><TextBlock Text="{loc:Loc proxy.subscriptions}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/></Border>
               </Grid>
-              <StackPanel Grid.Row="1" Spacing="6" Margin="0,4,0,0">
-                <TextBlock Text="{Binding ActiveSubscriptionName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="{loc:Loc proxy.subscription_last_updated}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/>
-              </StackPanel>
-              <TextBlock Grid.Row="2" Text="{Binding ActiveSubscriptionUpdatedAt}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12"/>
+              <StackPanel Grid.Row="1" Spacing="6" Margin="0,4,0,0"><TextBlock Text="{loc:Loc proxy.subscription_last_updated}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding ActiveSubscriptionUpdatedAt}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12"/></StackPanel>
+              <TextBlock Grid.Row="2" Text="{loc:Loc proxy.subscriptions_hint}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
             </Grid>
-          </Border>
-        </Button>
-
-        <Button Grid.Column="1" Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="proxies">
-          <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+        </Border>
+        <!-- 当前节点 -->
+        <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                 <Border Width="36" Height="36" Background="{DynamicResource SuccessMutedBrush}" CornerRadius="9"><TextBlock Text="◈" FontSize="20" Foreground="{DynamicResource SuccessBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                 <TextBlock Grid.Column="1" Text="{loc:Loc proxy.current_node}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="2" Text="›" FontSize="24" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                <Border Grid.Column="2" Padding="8,4" PointerPressed="ProxyNavigation_PointerPressed"><TextBlock Text="{loc:Loc proxy.proxies}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/></Border>
               </Grid>
-              <StackPanel Grid.Row="1" Spacing="5" Margin="0,4,0,0">
-                <TextBlock Text="{Binding CurrentProxyNodeName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                <TextBlock Text="{Binding CurrentProxyGroupName}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
-              </StackPanel>
-              <TextBlock Grid.Row="2" Text="{loc:Loc proxy.proxies_hint}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+              <StackPanel Grid.Row="1" Spacing="5" Margin="0,4,0,0"><TextBlock Text="{Binding CurrentProxyGroupName}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><ComboBox ItemsSource="{Binding OverviewProxyNodes}" SelectedItem="{Binding SelectedOverviewProxyNode, Mode=TwoWay}"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+              <TextBlock Grid.Row="2" Text="{Binding CurrentProxyNodeName}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
             </Grid>
-          </Border>
-        </Button>
-        <Button Grid.Row="1" Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="settings">
-          <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+        </Border>
+        <!-- 网络设置 -->
+        <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="11">
-              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                <Border Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="▣" FontSize="18" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+              <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Border Grid.Column="0" Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="▣" FontSize="18" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                 <TextBlock Grid.Column="1" Text="{loc:Loc proxy.network_settings}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="2" Text="›" FontSize="24" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                <Border Grid.Column="2" Padding="8,4" PointerPressed="NetworkSettings_PointerPressed"><TextBlock Text="{loc:Loc proxy.settings}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/></Border>
               </Grid>
               <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
-                <StackPanel Spacing="3"><TextBlock Text="{loc:Loc proxy.system_proxy}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding SystemProxyState}" FontWeight="SemiBold"/></StackPanel>
+                <StackPanel Grid.Column="0" Spacing="3"><TextBlock Text="{loc:Loc proxy.system_proxy}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding SystemProxyState}" FontWeight="SemiBold"/></StackPanel>
                 <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{loc:Loc proxy.tun_mode}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding TunOverviewState}" FontWeight="SemiBold"/></StackPanel>
               </Grid>
-              <TextBlock Grid.Row="2" Text="{loc:Loc proxy.network_settings_hint}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+              <TextBlock Grid.Row="2" Text="{Binding SystemProxyHost}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
             </Grid>
-          </Border>
-        </Button>
-
+        </Border>
+        <!-- 代理模式 -->
         <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
           <Grid RowDefinitions="Auto,*,Auto" RowSpacing="11">
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-              <Border Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="⇆" FontSize="19" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <Grid Grid.Row="0"  ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Border Grid.Column="0" Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="⇆" FontSize="19" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
               <TextBlock Grid.Column="1" Text="{loc:Loc proxy.routing_mode}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </Grid>
-            <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemHeight="34" HorizontalAlignment="Center">
-              <Button Classes="overview-mode-button" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding !IsRuleRouting}"/>
-              <Button Classes="overview-mode-button primary" Content="{loc:Loc proxy.routing_rule}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}" IsVisible="{Binding IsRuleRouting}"/>
-              <Button Classes="overview-mode-button" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding !IsGlobalRouting}"/>
-              <Button Classes="overview-mode-button primary" Content="{loc:Loc proxy.routing_global}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" IsVisible="{Binding IsGlobalRouting}"/>
-              <Button Classes="overview-mode-button" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding !IsDirectRouting}"/>
-              <Button Classes="overview-mode-button primary" Content="{loc:Loc proxy.routing_direct}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" IsVisible="{Binding IsDirectRouting}"/>
-            </WrapPanel>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+              <RadioButton Content="{loc:Loc proxy.routing_rule}" IsChecked="{Binding IsRuleRouting, Mode=OneWay}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Rule}"/>
+              <RadioButton Content="{loc:Loc proxy.routing_global}" IsChecked="{Binding IsGlobalRouting, Mode=OneWay}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Global}" Margin="8,0,0,0"/>
+              <RadioButton Content="{loc:Loc proxy.routing_direct}" IsChecked="{Binding IsDirectRouting, Mode=OneWay}" Command="{Binding SetRoutingModeCommand}" CommandParameter="{x:Static dto:ProxyRoutingMode.Direct}" Margin="8,0,0,0"/>
+            </StackPanel>
             <TextBlock Grid.Row="2" Text="{loc:Loc proxy.routing_mode_hint}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextAlignment="Center" TextWrapping="Wrap"/>
           </Grid>
         </Border>
       </Grid>
-
+      <!-- 流量统计 -->
       <Border Grid.Row="4" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
         <StackPanel Spacing="14">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
@@ -151,5 +127,6 @@
         </StackPanel>
       </Border>
     </Grid>
+    </Border>
   </ScrollViewer>
 </UserControl>

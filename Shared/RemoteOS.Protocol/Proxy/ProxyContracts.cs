@@ -160,7 +160,7 @@ public sealed record ProxyTrafficDto(long UploadBytesPerSecond, long DownloadByt
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
 public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
-    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false);
+    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1");
 /// <summary>Metadata for the locally staged GeoIP database. The original Server path is never exposed.</summary>
 public sealed record ProxyGeoDataDto(bool IsConfigured, long? SizeBytes = null);
 public sealed record ProxyRecoveryStatusDto(bool RecoveryRequired, bool HasRecoveryMarker, DateTimeOffset? MarkerCreatedAt, string ProblemCode = "");
@@ -183,7 +183,7 @@ public sealed record InstallProxyRuntimeFromFileRequest(string EngineId, string?
 public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
 public sealed record UpdateProxySettingsRequest(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
-    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false);
+    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1");
 /// <summary>Selects a GeoIP database already accessible to the RemoteOS Server service account.</summary>
 public sealed record ConfigureProxyGeoDataRequest(string FilePath);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

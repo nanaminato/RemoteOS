@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Net;
+using System.Net.NetworkInformation;
 using Microsoft.Win32;
 using RemoteOS.Protocol.Proxy;
 
@@ -21,8 +23,10 @@ public sealed class MihomoSettingsService(
     {
         if (request.MixedPort is < 1 or > 65535 || !LogLevels.Contains(request.LogLevel)) return ProxyProblemCodes.ConfigInvalid;
         if (request.SystemProxyEnabled && !OperatingSystem.IsWindows()) return ProxyProblemCodes.NotSupported;
+        var systemProxyHost = NormalizeSystemProxyHost(request.SystemProxyHost);
+        if (systemProxyHost is null) return ProxyProblemCodes.ConfigInvalid;
         var settings = new ProxySettingsDto(request.SystemProxyEnabled, request.AllowLan, request.DnsEnabled, request.Ipv6Enabled,
-            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources);
+            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources, systemProxyHost);
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -62,7 +66,7 @@ public sealed class MihomoSettingsService(
                     await controller.ReloadAsync(cancellationToken);
                     return ProxyProblemCodes.ConfigApplyFailed;
                 }
-                if (!ApplyWindowsSystemProxy(settings.SystemProxyEnabled, settings.MixedPort))
+                if (!ApplyWindowsSystemProxy(settings.SystemProxyEnabled, settings.SystemProxyHost, settings.MixedPort))
                 {
                     await File.WriteAllTextAsync(active, original, cancellationToken);
                     if (controllerAvailable) await controller.ReloadAsync(cancellationToken);
@@ -95,7 +99,7 @@ public sealed class MihomoSettingsService(
         File.Move(temporary, path, overwrite: true);
     }
 
-    private static bool ApplyWindowsSystemProxy(bool enabled, int port)
+    private static bool ApplyWindowsSystemProxy(bool enabled, string host, int port)
     {
         if (!OperatingSystem.IsWindows()) return !enabled;
         try
@@ -105,7 +109,10 @@ public sealed class MihomoSettingsService(
             key.SetValue("ProxyEnable", enabled ? 1 : 0, RegistryValueKind.DWord);
             if (enabled)
             {
-                key.SetValue("ProxyServer", "127.0.0.1:" + port.ToString(System.Globalization.CultureInfo.InvariantCulture), RegistryValueKind.String);
+                var proxyHost = IPAddress.TryParse(host, out var address) && address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                    ? "[" + host + "]"
+                    : host;
+                key.SetValue("ProxyServer", proxyHost + ":" + port.ToString(System.Globalization.CultureInfo.InvariantCulture), RegistryValueKind.String);
                 key.SetValue("ProxyOverride", "<local>;127.0.0.1;localhost", RegistryValueKind.String);
             }
             return true;
@@ -117,5 +124,20 @@ public sealed class MihomoSettingsService(
     private static bool HasOnlySubscriptionSecurityChanged(ProxySettingsDto previous, ProxySettingsDto updated) =>
         previous with { AllowInsecureSubscriptionSources = updated.AllowInsecureSubscriptionSources } == updated;
 
-    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false);
+    private static string? NormalizeSystemProxyHost(string? value)
+    {
+        if (!IPAddress.TryParse(value, out var address)) return null;
+        if (IPAddress.IsLoopback(address)) return address.ToString();
+        try
+        {
+            var isLocal = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(network => network.OperationalStatus == OperationalStatus.Up)
+                .SelectMany(network => network.GetIPProperties().UnicastAddresses)
+                .Any(unicast => unicast.Address.Equals(address));
+            return isLocal ? address.ToString() : null;
+        }
+        catch (NetworkInformationException) { return null; }
+    }
+
+    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false, "127.0.0.1");
 }

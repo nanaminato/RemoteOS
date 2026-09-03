@@ -128,6 +128,7 @@
     "proxy.geodata.file_filter": "GeoIP 数据库 (geoip.metadb)",
     "proxy.status.geodata_configured": "已为 Mihomo 配置本地 GeoIP 数据库。",
     "proxy.network_settings": "网络设置",
+    "proxy.proxy_host": "代理主机",
     "proxy.network_settings_hint": "仅当主机支持时才显示会改变网络的操作。",
     "proxy.tun_mode": "虚拟网卡模式",
     "proxy.system_proxy": "系统代理",

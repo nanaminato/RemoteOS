@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Client.Apps.TaskManager;
 using Client.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,12 +11,15 @@ namespace Client.Apps.Proxy;
 public sealed partial class ProxyManagerViewModel : ObservableObject
 {
     private readonly IProxyRepository repository;
+    private readonly ITaskManagerClient? systemMonitor;
+    private bool _updatingOverviewProxySelection;
     [ObservableProperty] private bool _hasManagePermission;
     [ObservableProperty] private bool _hasTunManagePermission;
 
-    public ProxyManagerViewModel(IProxyRepository repository, bool canManage, bool canManageTun)
+    public ProxyManagerViewModel(IProxyRepository repository, bool canManage, bool canManageTun, ITaskManagerClient? systemMonitor = null)
     {
         this.repository = repository;
+        this.systemMonitor = systemMonitor;
         _hasManagePermission = canManage;
         _hasTunManagePermission = canManageTun;
     }
@@ -25,6 +29,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public ObservableCollection<ProxyGroupItem> Groups { get; } = [];
     public ObservableCollection<ProxyConnectionDto> Connections { get; } = [];
     public ObservableCollection<ProxyLogEntryDto> Logs { get; } = [];
+    public ObservableCollection<string> SystemProxyHostOptions { get; } = ["127.0.0.1"];
     public IEnumerable<ProxySubscriptionDto> VisibleSubscriptions => Subscriptions;
 
     [ObservableProperty] private string _statusText = LocalizedText.Get("proxy.status.loading");
@@ -49,12 +54,14 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private string _latencyTestTarget = "https://www.gstatic.com/generate_204";
     [ObservableProperty] private string _subscriptionLink = string.Empty;
     [ObservableProperty] private string _runtimeSubscriptionText = string.Empty;
+    [ObservableProperty] private ProxyNodeItem? _selectedOverviewProxyNode;
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
     public Func<Task<string?>>? RequestServerGeoDataFileAsync { get; set; }
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
     public Action? ShowRuntimeSubscriptionWindow { get; set; }
+    public Func<Task>? OpenNetworkSettingsDialogAsync { get; set; }
     /// <summary>Owned by the workspace so overview cards can navigate without reaching into view code.</summary>
     public Action<string>? NavigateRequested { get; set; }
 
@@ -105,9 +112,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string ActiveSubscriptionUpdatedAt => ActiveSubscription?.LastUpdatedAt is { } updated
         ? updated.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
         : "—";
-    public ProxyGroupItem? CurrentProxyGroupItem => Groups.FirstOrDefault(group => !string.IsNullOrWhiteSpace(group.Selected));
+    /// <summary>The Server orders groups from proxy-groups in the active YAML, making the first one the overview entry point.</summary>
+    public ProxyGroupItem? CurrentProxyGroupItem => Groups.FirstOrDefault();
     public string CurrentProxyGroupName => CurrentProxyGroupItem?.Name ?? LocalizedText.Get("proxy.none");
     public string CurrentProxyNodeName => CurrentProxyGroupItem?.Selected ?? "—";
+    public IEnumerable<ProxyNodeItem> OverviewProxyNodes => CurrentProxyGroupItem?.Nodes ?? [];
     public string SystemProxyState => LocalizedText.Get(SystemProxyEnabled ? "proxy.overview.enabled" : "proxy.overview.disabled");
     public string TunOverviewState => TunState;
     public string UploadRate => FormatTraffic(Traffic?.UploadBytesPerSecond, "/s");
@@ -121,6 +130,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string ControllerAuthenticationTitle => LocalizedText.Get("proxy.controller_authentication.title");
     public string ControllerAuthenticationHint => LocalizedText.Get("proxy.controller_authentication.hint");
     public bool SystemProxyEnabled { get => Settings?.SystemProxyEnabled == true; set => SetSettings(systemProxyEnabled: value); }
+    public string SystemProxyHost { get => Settings?.SystemProxyHost ?? "127.0.0.1"; set => SetSettings(systemProxyHost: value); }
     public bool AllowLan { get => Settings?.AllowLan == true; set => SetSettings(allowLan: value); }
     public bool DnsEnabled { get => Settings?.DnsEnabled != false; set => SetSettings(dnsEnabled: value); }
     public bool Ipv6Enabled { get => Settings?.Ipv6Enabled != false; set => SetSettings(ipv6Enabled: value); }
@@ -172,6 +182,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
                 RefreshTrafficAsync(),
                 LoadOptionalAsync(() => repository.ListLogsAsync(), values => Replace(Logs, values)),
                 LoadOptionalAsync(() => repository.GetDnsStatusAsync(), value => DnsStatus = value));
+            await LoadSystemProxyHostOptionsAsync();
             StatusText = Overview.Recovery.RecoveryRequired
                 ? LocalizedText.Get("proxy.status.recovery_required")
                 : HasControllerAuthenticationFailure
@@ -227,7 +238,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources));
+            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources, SystemProxyHost));
             StatusText = LocalizedText.Get("proxy.status.settings_saved");
             await RefreshAsync();
         }
@@ -426,6 +437,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(section)) NavigateRequested?.Invoke(section);
     }
 
+    [RelayCommand]
+    private Task ShowNetworkSettingsDialogAsync() => OpenNetworkSettingsDialogAsync?.Invoke() ?? Task.CompletedTask;
+
     [RelayCommand(CanExecute = nameof(CanTestGroupSelectedProxyLatency))]
     private async Task TestGroupSelectedProxyLatencyAsync(ProxyGroupItem? group)
     {
@@ -513,7 +527,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         && (target.Scheme == Uri.UriSchemeHttp || target.Scheme == Uri.UriSchemeHttps) && !target.IsLoopback;
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
-        bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null)
+        bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null,
+        string? systemProxyHost = null)
     {
         var current = Settings ?? new ProxySettingsDto(false, false, true, true, false, "warning", 7890);
         Settings = current with
@@ -526,6 +541,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             LogLevel = logLevel ?? current.LogLevel,
             MixedPort = mixedPort ?? current.MixedPort,
             AllowInsecureSubscriptionSources = allowInsecureSubscriptionSources ?? current.AllowInsecureSubscriptionSources,
+            SystemProxyHost = string.IsNullOrWhiteSpace(systemProxyHost) ? current.SystemProxyHost : systemProxyHost.Trim(),
         };
     }
 
@@ -561,6 +577,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(SystemProxyEnabled)); OnPropertyChanged(nameof(AllowLan)); OnPropertyChanged(nameof(DnsEnabled));
         OnPropertyChanged(nameof(Ipv6Enabled)); OnPropertyChanged(nameof(UnifiedDelay)); OnPropertyChanged(nameof(LogLevel)); OnPropertyChanged(nameof(MixedPort));
         OnPropertyChanged(nameof(AllowInsecureSubscriptionSources));
+        OnPropertyChanged(nameof(SystemProxyHost));
         OnPropertyChanged(nameof(SystemProxyState));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
@@ -585,6 +602,10 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     }
     partial void OnSelectedConnectionChanged(ProxyConnectionDto? value) => CloseConnectionCommand.NotifyCanExecuteChanged();
     partial void OnProfileNameChanged(string value) => CreateProfileCommand.NotifyCanExecuteChanged();
+    partial void OnSelectedOverviewProxyNodeChanged(ProxyNodeItem? value)
+    {
+        if (!_updatingOverviewProxySelection && value is { IsSelected: false }) _ = SelectProxyNodeAsync(value);
+    }
 
     private void NotifyCommands()
     {
@@ -606,6 +627,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(HasControllerAuthenticationFailure)); OnPropertyChanged(nameof(ControllerAuthenticationTitle)); OnPropertyChanged(nameof(ControllerAuthenticationHint));
         OnPropertyChanged(nameof(ActiveSubscription)); OnPropertyChanged(nameof(ActiveSubscriptionName)); OnPropertyChanged(nameof(ActiveSubscriptionUpdatedAt));
         OnPropertyChanged(nameof(CurrentProxyGroupItem)); OnPropertyChanged(nameof(CurrentProxyGroupName)); OnPropertyChanged(nameof(CurrentProxyNodeName));
+        OnPropertyChanged(nameof(OverviewProxyNodes));
         OnPropertyChanged(nameof(SystemProxyState)); OnPropertyChanged(nameof(TunOverviewState));
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
     }
@@ -621,6 +643,22 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         try { Replace(Logs, await repository.ListLogsAsync()); }
         catch (ProxyRequestException) { }
         catch (HttpRequestException) { }
+    }
+    public async Task LoadSystemProxyHostOptionsAsync()
+    {
+        if (systemMonitor is null) return;
+        try
+        {
+            var addresses = await systemMonitor.GetNetworkAddressesAsync();
+            var values = new[] { "127.0.0.1" }
+                .Concat(addresses.Where(address => string.Equals(address.Family, "IPv4", StringComparison.OrdinalIgnoreCase)).Select(address => address.Address))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            SystemProxyHostOptions.Clear();
+            foreach (var value in values) SystemProxyHostOptions.Add(value);
+            if (!SystemProxyHostOptions.Contains(SystemProxyHost, StringComparer.Ordinal)) SystemProxyHostOptions.Add(SystemProxyHost);
+        }
+        catch (Exception) { }
     }
     private static string FormatOperation(ProxyOperationDto operation)
     {
@@ -690,11 +728,16 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
                 ? selectedProxyName
                 : selectedGroup.Selected ?? string.Empty;
         }
+        _updatingOverviewProxySelection = true;
+        SelectedOverviewProxyNode = CurrentProxyGroupItem?.Nodes.FirstOrDefault(node => node.IsSelected)
+            ?? CurrentProxyGroupItem?.Nodes.FirstOrDefault();
+        _updatingOverviewProxySelection = false;
         TestGroupSelectedProxyLatencyCommand.NotifyCanExecuteChanged();
         TestGroupProxyLatenciesCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CurrentProxyGroupItem));
         OnPropertyChanged(nameof(CurrentProxyGroupName));
         OnPropertyChanged(nameof(CurrentProxyNodeName));
+        OnPropertyChanged(nameof(OverviewProxyNodes));
     }
 
     private async Task TestLatencyAsync(IReadOnlyList<ProxyNodeItem> nodes)

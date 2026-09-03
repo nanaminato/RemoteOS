@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:Client.Localization"
+             xmlns:proxy="clr-namespace:Client.Apps.Proxy"
+             x:Class="Client.Apps.Proxy.Views.ProxyNetworkSettingsDialogView"
+             x:DataType="proxy:ProxyManagerViewModel">
+  <Grid Margin="22" RowDefinitions="Auto,*,Auto" RowSpacing="18">
+    <StackPanel Spacing="4">
+      <TextBlock Text="{loc:Loc proxy.system_proxy}" FontSize="20" FontWeight="SemiBold"/>
+      <TextBlock Text="{loc:Loc proxy.network_settings_hint}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.system_proxy}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding SystemProxyEnabled, Mode=TwoWay}"/></Grid>
+        <StackPanel Spacing="6"><TextBlock Text="{loc:Loc proxy.proxy_host}"/><ComboBox ItemsSource="{Binding SystemProxyHostOptions}" SelectedItem="{Binding SystemProxyHost, Mode=TwoWay}"/></StackPanel>
+        <StackPanel Spacing="6"><TextBlock Text="{loc:Loc proxy.port}"/><NumericUpDown Minimum="1" Maximum="65535" Value="{Binding MixedPort, Mode=TwoWay}"/></StackPanel>
+        <Border Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="8" Padding="12"><StackPanel Spacing="10"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.allow_lan}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding AllowLan, Mode=TwoWay}"/></Grid><Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.dns_override}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding DnsEnabled, Mode=TwoWay}"/></Grid><Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.ipv6}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding Ipv6Enabled, Mode=TwoWay}"/></Grid><Grid ColumnDefinitions="*,Auto" ColumnSpacing="16"><TextBlock Text="{loc:Loc proxy.unified_delay}" VerticalAlignment="Center"/><ToggleSwitch Grid.Column="1" IsChecked="{Binding UnifiedDelay, Mode=TwoWay}"/></Grid></StackPanel></Border>
+      </StackPanel>
+    </ScrollViewer>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10"><Button Content="{loc:Loc common.cancel}" Click="Cancel_Click"/><Button Classes="primary" Content="{loc:Loc common.save}" Click="Save_Click"/></StackPanel>
+  </Grid>
+</UserControl>

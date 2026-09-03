@@ -48,7 +48,7 @@ internal static class MihomoManagedConfiguration
         if (builder.Length > 0) builder.Append('\n');
         builder.Append("mixed-port: ").Append(settings.MixedPort.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
         builder.Append("allow-lan: ").Append(settings.AllowLan ? "true" : "false").Append('\n');
-        builder.Append("bind-address: ").Append(settings.AllowLan ? "\"*\"" : "\"127.0.0.1\"").Append('\n');
+        builder.Append("bind-address: ").Append(settings.AllowLan ? "\"*\"" : "\"" + settings.SystemProxyHost + "\"").Append('\n');
         builder.Append("ipv6: ").Append(settings.Ipv6Enabled ? "true" : "false").Append('\n');
         builder.Append("unified-delay: ").Append(settings.UnifiedDelay ? "true" : "false").Append('\n');
         builder.Append("log-level: ").Append(settings.LogLevel).Append('\n');

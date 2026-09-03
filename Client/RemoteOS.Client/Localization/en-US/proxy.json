@@ -128,6 +128,7 @@
     "proxy.geodata.file_filter": "GeoIP database (geoip.metadb)",
     "proxy.status.geodata_configured": "A local GeoIP database is configured for Mihomo.",
     "proxy.network_settings": "Network settings",
+    "proxy.proxy_host": "Proxy host",
     "proxy.network_settings_hint": "Network-changing actions are available only when this host supports them.",
     "proxy.tun_mode": "Virtual adapter mode",
     "proxy.system_proxy": "System proxy",

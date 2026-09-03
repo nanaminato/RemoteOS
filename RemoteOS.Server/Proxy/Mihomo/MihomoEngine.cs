@@ -3,7 +3,7 @@ using RemoteOS.Protocol.Proxy;
 namespace Server.Proxy.Mihomo;
 
 /// <summary>First engine implementation. It exposes only neutral contracts and cannot be reached by a RemoteOS Client.</summary>
-public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConfigurationValidator validator, IProxyDiagnosticLogStore? diagnostics = null) : IProxyEngine
+public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConfigurationValidator validator, IProxyPlatformPaths paths, IProxyDiagnosticLogStore? diagnostics = null) : IProxyEngine
 {
     public const string Id = "mihomo";
     public string EngineId => Id;
@@ -24,7 +24,11 @@ public sealed class MihomoEngine(IMihomoControllerClient controller, IMihomoConf
     public async Task<IReadOnlyList<ProxyGroupDto>> GetGroupsAsync(CancellationToken cancellationToken)
     {
         var result = await controller.GetGroupsAsync(cancellationToken);
-        return result.Succeeded ? result.Value! : [];
+        if (!result.Succeeded) return [];
+        var configuredOrder = await MihomoProxyGroupOrder.ReadAsync(paths, cancellationToken);
+        return result.Value!
+            .OrderBy(group => configuredOrder.TryGetValue(group.Name, out var index) ? index : int.MaxValue)
+            .ToArray();
     }
     public Task<string?> SelectGroupAsync(string groupName, string proxyName, CancellationToken cancellationToken) => controller.SelectGroupAsync(groupName, proxyName, cancellationToken);
     public Task<ProxyRoutingModeDto> GetRoutingModeAsync(CancellationToken cancellationToken) => controller.GetRoutingModeAsync(cancellationToken);
