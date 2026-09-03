@@ -143,6 +143,7 @@
     "proxy.geodata.file_filter": "GeoIP database (geoip.metadb)",
     "proxy.status.geodata_configured": "A local GeoIP database is configured for Mihomo.",
     "proxy.network_settings": "Network settings",
+    "proxy.system_settings": "System settings",
     "proxy.system_proxy_settings": "System proxy settings",
     "proxy.clash_settings": "Clash settings",
     "proxy.system_proxy_mode_hint_enabled": "System proxy is enabled; host traffic is forwarded through the Mihomo listener.",

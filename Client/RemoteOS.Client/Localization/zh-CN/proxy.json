@@ -143,6 +143,7 @@
     "proxy.geodata.file_filter": "GeoIP 数据库 (geoip.metadb)",
     "proxy.status.geodata_configured": "已为 Mihomo 配置本地 GeoIP 数据库。",
     "proxy.network_settings": "网络设置",
+    "proxy.system_settings": "系统设置",
     "proxy.system_proxy_settings": "系统代理设置",
     "proxy.clash_settings": "Clash 设置",
     "proxy.system_proxy_mode_hint_enabled": "系统代理已开启，主机流量将通过 Mihomo 监听端口转发。",
