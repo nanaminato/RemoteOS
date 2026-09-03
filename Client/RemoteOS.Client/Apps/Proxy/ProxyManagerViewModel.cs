@@ -55,6 +55,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [ObservableProperty] private string _subscriptionLink = string.Empty;
     [ObservableProperty] private string _runtimeSubscriptionText = string.Empty;
     [ObservableProperty] private ProxyNodeItem? _selectedOverviewProxyNode;
+    [ObservableProperty] private bool _isTunSettingsSelected;
 
     public Func<Task<string?>>? RequestServerRuntimePackageAsync { get; set; }
     public Func<Task<string?>>? RequestServerGeoDataFileAsync { get; set; }
@@ -141,6 +142,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public string DownloadTotal => FormatTraffic(Traffic?.DownloadTotalBytes);
     public string MemoryUsage => FormatTraffic(Traffic?.MemoryBytes);
     public bool IsTunAvailable => Overview?.PlatformCapabilities.SupportsTun == true;
+    public bool IsTunEnabled => Overview?.Health.TunState == ProxyTunState.Enabled;
+    public bool IsSystemProxySettingsSelected => !IsTunSettingsSelected;
+    public string SystemProxyModeHint => LocalizedText.Get(SystemProxyEnabled
+        ? "proxy.system_proxy_mode_hint_enabled"
+        : "proxy.system_proxy_mode_hint_disabled");
+    public string TunModeHint => LocalizedText.Get("proxy.tun_mode_hint");
     public bool IsRecoveryRequired => Overview?.Recovery.RecoveryRequired == true;
     public bool HasControllerAuthenticationFailure => Overview?.Health.ProblemCode == ProxyProblemCodes.ControllerAuthenticationFailed;
     public string ControllerAuthenticationTitle => LocalizedText.Get("proxy.controller_authentication.title");
@@ -245,9 +252,14 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     }
     [RelayCommand(CanExecute = nameof(CanInstalledRuntime))] private Task RollbackRuntimeAsync() => QueueAsync(() => repository.RollbackRuntimeAsync());
     [RelayCommand(CanExecute = nameof(CanInstalledRuntime))] private Task UninstallRuntimeAsync() => QueueAsync(() => repository.UninstallRuntimeAsync());
-    [RelayCommand(CanExecute = nameof(CanEnableTun))] private Task EnableTunAsync() => QueueAsync(() => repository.EnableTunAsync(SelectedProfile!.Id));
+    [RelayCommand(CanExecute = nameof(CanEnableTun))]
+    private Task EnableTunAsync() => (SelectedProfile ?? Overview?.ActiveProfile) is { } profile
+        ? QueueAsync(() => repository.EnableTunAsync(profile.Id))
+        : Task.CompletedTask;
     [RelayCommand(CanExecute = nameof(CanTun))] private Task DisableTunAsync() => QueueAsync(() => repository.DisableTunAsync());
     [RelayCommand(CanExecute = nameof(CanTun))] private Task EmergencyDisableAsync() => QueueAsync(() => repository.EmergencyDisableTunAsync());
+    [RelayCommand(CanExecute = nameof(CanToggleTun))]
+    private Task ToggleTunAsync() => IsTunEnabled ? DisableTunAsync() : EnableTunAsync();
     [RelayCommand(CanExecute = nameof(CanManage))]
     private async Task SaveSettingsAsync()
     {
@@ -456,6 +468,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     [RelayCommand]
     private Task ShowNetworkSettingsDialogAsync() => OpenNetworkSettingsDialogAsync?.Invoke() ?? Task.CompletedTask;
 
+    [RelayCommand]
+    private void SelectNetworkSettingsPage(bool isTun) => IsTunSettingsSelected = isTun;
+
     [RelayCommand(CanExecute = nameof(CanTestGroupSelectedProxyLatency))]
     private async Task TestGroupSelectedProxyLatencyAsync(ProxyGroupItem? group)
     {
@@ -528,7 +543,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     private bool CanInstallRuntimeFromServerFile => CanInstallRuntime && RequestServerRuntimePackageAsync is not null;
     private bool CanConfigureGeoDataFromServerFile => CanManage && RequestServerGeoDataFileAsync is not null;
     private bool CanTun => HasTunManagePermission && !IsBusy && IsTunAvailable;
-    private bool CanEnableTun => CanTun && SelectedProfile is not null;
+    private bool CanEnableTun => CanTun && (SelectedProfile ?? Overview?.ActiveProfile) is not null;
+    private bool CanToggleTun => CanTun && Overview?.Health.TunState is ProxyTunState.Disabled or ProxyTunState.Enabled
+        && (IsTunEnabled || (SelectedProfile ?? Overview?.ActiveProfile) is not null);
     private bool CanCreateProfile => CanManage && !IsBusy && !string.IsNullOrWhiteSpace(ProfileName);
     private bool CanManageProfile => CanManage && SelectedProfile is not null;
     private bool CanViewRuntimeSubscription => !IsBusy && Subscriptions.Count > 0;
@@ -597,8 +614,10 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(SystemProxyHost));
         OnPropertyChanged(nameof(SystemProxyState));
         OnPropertyChanged(nameof(SystemProxyEndpoint));
+        OnPropertyChanged(nameof(SystemProxyModeHint));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
+    partial void OnIsTunSettingsSelectedChanged(bool value) => OnPropertyChanged(nameof(IsSystemProxySettingsSelected));
     partial void OnTrafficChanged(ProxyTrafficDto? value)
     {
         OnPropertyChanged(nameof(UploadRate)); OnPropertyChanged(nameof(DownloadRate));
@@ -630,7 +649,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         RefreshCommand.NotifyCanExecuteChanged(); StartProxyCommand.NotifyCanExecuteChanged(); StopProxyCommand.NotifyCanExecuteChanged(); RestartProxyCommand.NotifyCanExecuteChanged(); ToggleProxyCommand.NotifyCanExecuteChanged();
         InstallRuntimeCommand.NotifyCanExecuteChanged(); ShowRuntimeDownloadCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         ConfigureGeoDataFromServerFileCommand.NotifyCanExecuteChanged();
-        EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
+        EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged(); ToggleTunCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
         ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged(); ActivateSubscriptionCommand.NotifyCanExecuteChanged();
@@ -647,9 +666,10 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentProxyGroupItem)); OnPropertyChanged(nameof(CurrentProxyGroupName)); OnPropertyChanged(nameof(CurrentProxyNodeName));
         OnPropertyChanged(nameof(OverviewProxyNodes));
         OnPropertyChanged(nameof(SystemProxyState)); OnPropertyChanged(nameof(TunOverviewState));
+        OnPropertyChanged(nameof(IsTunEnabled)); OnPropertyChanged(nameof(SystemProxyModeHint)); OnPropertyChanged(nameof(TunModeHint));
         OnPropertyChanged(nameof(ServerOperatingSystem)); OnPropertyChanged(nameof(StartupState));
         OnPropertyChanged(nameof(ConfigurationUpdatedAt)); OnPropertyChanged(nameof(ClientVersion));
-        EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged();
+        EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged(); ToggleTunCommand.NotifyCanExecuteChanged();
     }
     private static async Task LoadOptionalAsync<T>(Func<Task<T>> load, Action<T> apply)
     {

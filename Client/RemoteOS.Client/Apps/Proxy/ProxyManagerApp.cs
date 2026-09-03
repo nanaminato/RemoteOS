@@ -91,7 +91,7 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         {
             await vm.LoadSystemProxyHostOptionsAsync();
             await context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.network_settings"), dialog =>
-                new ProxyNetworkSettingsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(560, 580));
+                new ProxyNetworkSettingsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(600, 680));
         };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };
