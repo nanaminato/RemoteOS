@@ -83,6 +83,7 @@ public static class FileEndpoints
                 catch (FileNotFoundException) { return Problem(404, "not-found", "文件不存在", $"找不到: {path}"); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "访问被拒", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "特权助手不可用", helperEx.Message); }
+                catch (IOException helperEx) { return Problem(500, "io-error", "I/O 错误", helperEx.Message); }
             }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "路径无效", ex.Message); }
         })
@@ -109,6 +110,7 @@ public static class FileEndpoints
                 catch (FileNotFoundException) { return Problem(404, "not-found", "Not found", $"Cannot find {path}"); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "Access denied", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "Privileged helper unavailable", helperEx.Message); }
+                catch (IOException helperEx) { return Problem(500, "io-error", "I/O error", helperEx.Message); }
             }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
         })

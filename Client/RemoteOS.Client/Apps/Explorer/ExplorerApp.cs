@@ -22,6 +22,7 @@ using RemoteOS.Runtime;
 using RemoteOS.WindowManager;
 using AppContext = RemoteOS.AppSDK.AppContext;
 using Rect = RemoteOS.Core.Primitives.Rect;
+using Size = RemoteOS.Core.Primitives.Size;
 
 namespace Client.Apps.Explorer;
 
