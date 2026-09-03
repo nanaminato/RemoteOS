@@ -624,11 +624,28 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     }
     private static string FormatOperation(ProxyOperationDto operation)
     {
+        if (operation.State == ProxyOperationState.Succeeded)
+            return LocalizedText.Get(operation.Kind switch
+            {
+                "runtime.install" or "runtime.install_from_file" => "proxy.operation.completed.runtime_install",
+                "runtime.rollback" => "proxy.operation.completed.runtime_rollback",
+                "runtime.uninstall" => "proxy.operation.completed.runtime_uninstall",
+                "lifecycle.start" => "proxy.operation.completed.lifecycle_start",
+                "lifecycle.stop" => "proxy.operation.completed.lifecycle_stop",
+                "lifecycle.restart" => "proxy.operation.completed.lifecycle_restart",
+                "tun.enable" => "proxy.operation.completed.tun_enable",
+                "tun.disable" or "tun.emergency-disable" => "proxy.operation.completed.tun_disable",
+                "subscription.refresh" or "subscription.refresh_all" => "proxy.operation.completed.subscription_refresh",
+                "subscription.activate" => "proxy.operation.completed.subscription_activate",
+                _ => "proxy.operation.completed.generic",
+            });
         if (operation.State is ProxyOperationState.Failed or ProxyOperationState.Interrupted)
             return LocalizedText.Format("proxy.status.failed", FormatProblemCode(operation.ProblemCode));
+        if (operation.State == ProxyOperationState.Cancelled)
+            return LocalizedText.Get("proxy.operation.cancelled");
         var key = "proxy.operation." + operation.Stage;
         var stage = LocalizedText.Get(key);
-        return stage == key ? operation.Stage : stage;
+        return stage == key ? LocalizedText.Get("proxy.operation.running") : stage;
     }
     private void SetFailureStatus(Exception exception) =>
         StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));

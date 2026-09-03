@@ -29,7 +29,8 @@
   </UserControl.Styles>
 
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Spacing="16" Margin="0,0,2,14">
+    <!-- Keep content clear of the vertical scrollbar; the card grid fills the available viewport width. -->
+    <Grid RowDefinitions="Auto,16,Auto,16,Auto" Margin="0,0,14,14" HorizontalAlignment="Stretch">
       <!-- The existing lifecycle control intentionally remains the only legacy overview card. -->
       <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="20">
         <StackPanel Spacing="12">
@@ -63,7 +64,7 @@
         </StackPanel>
       </Border>
 
-      <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+      <Grid Grid.Row="2" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="16" HorizontalAlignment="Stretch">
         <Button Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="profiles">
           <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
@@ -97,10 +98,7 @@
             </Grid>
           </Border>
         </Button>
-      </Grid>
-
-      <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-        <Button Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="settings">
+        <Button Grid.Row="1" Classes="overview-link-card" Command="{Binding NavigateCommand}" CommandParameter="settings">
           <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="11">
               <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
@@ -117,7 +115,7 @@
           </Border>
         </Button>
 
-        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+        <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
           <Grid RowDefinitions="Auto,*,Auto" RowSpacing="11">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
               <Border Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="⇆" FontSize="19" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
@@ -136,7 +134,7 @@
         </Border>
       </Grid>
 
-      <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
+      <Border Grid.Row="4" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
         <StackPanel Spacing="14">
           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
             <Border Width="36" Height="36" Background="{DynamicResource WarningMutedBrush}" CornerRadius="9"><TextBlock Text="⌁" FontSize="20" Foreground="{DynamicResource WarningBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
@@ -152,6 +150,6 @@
           </Grid>
         </StackPanel>
       </Border>
-    </StackPanel>
+    </Grid>
   </ScrollViewer>
 </UserControl>
