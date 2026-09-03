@@ -20,6 +20,7 @@ internal static class MihomoManagedConfiguration
     {
         "mixed-port", "allow-lan", "bind-address", "ipv6", "unified-delay", "log-level"
     };
+    private static readonly HashSet<string> TunSettingsKeys = new(StringComparer.OrdinalIgnoreCase) { "tun" };
     private static readonly HashSet<string> GeoDataKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "geodata-mode", "geo-auto-update", "geo-update-interval", "geox-url"
@@ -52,6 +53,27 @@ internal static class MihomoManagedConfiguration
         builder.Append("ipv6: ").Append(settings.Ipv6Enabled ? "true" : "false").Append('\n');
         builder.Append("unified-delay: ").Append(settings.UnifiedDelay ? "true" : "false").Append('\n');
         builder.Append("log-level: ").Append(settings.LogLevel).Append('\n');
+        return builder.ToString();
+    }
+
+    /// <summary>Replaces profile-provided TUN options with the bounded Server-owned subset.
+    /// TUN is deliberately kept disabled here; the transaction service remains its only activation path.</summary>
+    public static string WithManagedTunSettings(string yaml, ProxySettingsDto settings)
+    {
+        var tun = settings.Tun ?? ProxyTunSettingsDto.Default;
+        var content = RemoveTopLevelKeys(yaml, TunSettingsKeys);
+        var builder = new StringBuilder(content.TrimEnd('\r', '\n'));
+        if (builder.Length > 0) builder.Append('\n');
+        builder.Append("tun:\n");
+        builder.Append("  enable: false\n");
+        builder.Append("  stack: ").Append(tun.Stack).Append('\n');
+        builder.Append("  device: \"").Append(EscapeYamlDoubleQuotedScalar(tun.DeviceName)).Append("\"\n");
+        builder.Append("  auto-route: ").Append(tun.AutoRoute ? "true" : "false").Append('\n');
+        builder.Append("  strict-route: ").Append(tun.StrictRoute ? "true" : "false").Append('\n');
+        builder.Append("  auto-detect-interface: ").Append(tun.AutoDetectInterface ? "true" : "false").Append('\n');
+        builder.Append("  dns-hijack:\n");
+        builder.Append("    - \"").Append(EscapeYamlDoubleQuotedScalar(tun.DnsHijack)).Append("\"\n");
+        builder.Append("  mtu: ").Append(tun.Mtu.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
         return builder.ToString();
     }
 

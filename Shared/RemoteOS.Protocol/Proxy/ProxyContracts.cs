@@ -159,8 +159,21 @@ public sealed record ProxyConnectionDto(string Id, string Network, string Source
 public sealed record ProxyTrafficDto(long UploadBytesPerSecond, long DownloadBytesPerSecond, long UploadTotalBytes, long DownloadTotalBytes, long MemoryBytes, string ProblemCode = "");
 public sealed record ProxyLogEntryDto(DateTimeOffset Timestamp, string Level, string Message);
 public sealed record ProxyDnsStatusDto(bool Enabled, bool HijackEnabled, string? Mode, string ProblemCode = "");
+/// <summary>Managed subset of Mihomo's top-level TUN configuration. Enabling TUN remains a separate protected operation.</summary>
+public sealed record ProxyTunSettingsDto(
+    string Stack,
+    string DeviceName,
+    bool AutoRoute,
+    bool StrictRoute,
+    bool AutoDetectInterface,
+    string DnsHijack,
+    int Mtu)
+{
+    public static ProxyTunSettingsDto Default { get; } = new("mixed", "Mihomo", true, false, true, "any:53", 1500);
+}
 public sealed record ProxySettingsDto(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
-    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1");
+    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1",
+    ProxyTunSettingsDto? Tun = null);
 /// <summary>Metadata for the locally staged GeoIP database. The original Server path is never exposed.</summary>
 public sealed record ProxyGeoDataDto(bool IsConfigured, long? SizeBytes = null);
 public sealed record ProxyRecoveryStatusDto(bool RecoveryRequired, bool HasRecoveryMarker, DateTimeOffset? MarkerCreatedAt, string ProblemCode = "");
@@ -183,7 +196,8 @@ public sealed record InstallProxyRuntimeFromFileRequest(string EngineId, string?
 public sealed record ProxyLifecycleRequest(bool Confirmed = false);
 public sealed record ApplyProxyConfigurationRequest(string Yaml);
 public sealed record UpdateProxySettingsRequest(bool SystemProxyEnabled, bool AllowLan, bool DnsEnabled, bool Ipv6Enabled, bool UnifiedDelay,
-    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1");
+    string LogLevel, int MixedPort, bool AllowInsecureSubscriptionSources = false, string SystemProxyHost = "127.0.0.1",
+    ProxyTunSettingsDto? Tun = null);
 /// <summary>Selects a GeoIP database already accessible to the RemoteOS Server service account.</summary>
 public sealed record ConfigureProxyGeoDataRequest(string FilePath);
 public sealed record ProxyOperationAcceptedDto(Guid OperationId);

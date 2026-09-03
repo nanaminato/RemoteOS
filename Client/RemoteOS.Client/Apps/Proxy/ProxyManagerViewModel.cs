@@ -144,6 +144,15 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public bool IsTunAvailable => Overview?.PlatformCapabilities.SupportsTun == true;
     public bool IsTunEnabled => Overview?.Health.TunState == ProxyTunState.Enabled;
     public bool IsSystemProxySettingsSelected => !IsTunSettingsSelected;
+    private ProxyTunSettingsDto TunSettings => Settings?.Tun ?? ProxyTunSettingsDto.Default;
+    public IReadOnlyList<string> TunStacks { get; } = ["system", "gvisor", "mixed"];
+    public string TunStack { get => TunSettings.Stack; set => SetTunSettings(TunSettings with { Stack = value }); }
+    public string TunDeviceName { get => TunSettings.DeviceName; set => SetTunSettings(TunSettings with { DeviceName = value }); }
+    public bool TunAutoRoute { get => TunSettings.AutoRoute; set => SetTunSettings(TunSettings with { AutoRoute = value }); }
+    public bool TunStrictRoute { get => TunSettings.StrictRoute; set => SetTunSettings(TunSettings with { StrictRoute = value }); }
+    public bool TunAutoDetectInterface { get => TunSettings.AutoDetectInterface; set => SetTunSettings(TunSettings with { AutoDetectInterface = value }); }
+    public string TunDnsHijack { get => TunSettings.DnsHijack; set => SetTunSettings(TunSettings with { DnsHijack = value }); }
+    public int TunMtu { get => TunSettings.Mtu; set => SetTunSettings(TunSettings with { Mtu = value }); }
     public string SystemProxyModeHint => LocalizedText.Get(SystemProxyEnabled
         ? "proxy.system_proxy_mode_hint_enabled"
         : "proxy.system_proxy_mode_hint_disabled");
@@ -266,7 +275,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources, SystemProxyHost));
+            await repository.UpdateSettingsAsync(new UpdateProxySettingsRequest(SystemProxyEnabled, AllowLan, DnsEnabled, Ipv6Enabled, UnifiedDelay, LogLevel, MixedPort, AllowInsecureSubscriptionSources, SystemProxyHost, TunSettings));
             StatusText = LocalizedText.Get("proxy.status.settings_saved");
             await RefreshAsync();
         }
@@ -561,7 +570,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
 
     private void SetSettings(bool? systemProxyEnabled = null, bool? allowLan = null, bool? dnsEnabled = null, bool? ipv6Enabled = null,
         bool? unifiedDelay = null, string? logLevel = null, int? mixedPort = null, bool? allowInsecureSubscriptionSources = null,
-        string? systemProxyHost = null)
+        string? systemProxyHost = null, ProxyTunSettingsDto? tun = null)
     {
         var current = Settings ?? new ProxySettingsDto(false, false, true, true, false, "warning", 7890);
         Settings = current with
@@ -575,8 +584,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             MixedPort = mixedPort ?? current.MixedPort,
             AllowInsecureSubscriptionSources = allowInsecureSubscriptionSources ?? current.AllowInsecureSubscriptionSources,
             SystemProxyHost = string.IsNullOrWhiteSpace(systemProxyHost) ? current.SystemProxyHost : systemProxyHost.Trim(),
+            Tun = tun ?? current.Tun ?? ProxyTunSettingsDto.Default,
         };
     }
+
+    private void SetTunSettings(ProxyTunSettingsDto tun) => SetSettings(tun: tun);
 
     partial void OnIsBusyChanged(bool value) => NotifyCommands();
     partial void OnIsLatencyTestingChanged(bool value)
@@ -615,6 +627,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(SystemProxyState));
         OnPropertyChanged(nameof(SystemProxyEndpoint));
         OnPropertyChanged(nameof(SystemProxyModeHint));
+        OnPropertyChanged(nameof(TunStack)); OnPropertyChanged(nameof(TunDeviceName)); OnPropertyChanged(nameof(TunAutoRoute));
+        OnPropertyChanged(nameof(TunStrictRoute)); OnPropertyChanged(nameof(TunAutoDetectInterface)); OnPropertyChanged(nameof(TunDnsHijack)); OnPropertyChanged(nameof(TunMtu));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
     partial void OnIsTunSettingsSelectedChanged(bool value) => OnPropertyChanged(nameof(IsSystemProxySettingsSelected));

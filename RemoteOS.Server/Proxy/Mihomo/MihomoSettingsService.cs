@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using RemoteOS.Protocol.Proxy;
 
@@ -25,8 +26,10 @@ public sealed class MihomoSettingsService(
         if (request.SystemProxyEnabled && !OperatingSystem.IsWindows()) return ProxyProblemCodes.NotSupported;
         var systemProxyHost = NormalizeSystemProxyHost(request.SystemProxyHost);
         if (systemProxyHost is null) return ProxyProblemCodes.ConfigInvalid;
+        var tun = request.Tun ?? ProxyTunSettingsDto.Default;
+        if (!IsValidTunSettings(tun)) return ProxyProblemCodes.ConfigInvalid;
         var settings = new ProxySettingsDto(request.SystemProxyEnabled, request.AllowLan, request.DnsEnabled, request.Ipv6Enabled,
-            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources, systemProxyHost);
+            request.UnifiedDelay, request.LogLevel.ToLowerInvariant(), request.MixedPort, request.AllowInsecureSubscriptionSources, systemProxyHost, tun);
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -37,7 +40,7 @@ public sealed class MihomoSettingsService(
             {
                 // Subscription trust is host-level rather than a Mihomo YAML option. Let an
                 // operator change it before importing a subscription or installing the runtime.
-                if (!HasOnlySubscriptionSecurityChanged(previous, settings)) return ProxyProblemCodes.RuntimeNotInstalled;
+                if (!CanPersistWithoutRuntime(previous, settings)) return ProxyProblemCodes.RuntimeNotInstalled;
                 await WriteAsync(settings, cancellationToken);
                 return null;
             }
@@ -47,7 +50,8 @@ public sealed class MihomoSettingsService(
             {
                 updated = MihomoManagedConfiguration.WithServerControllerSettings(
                     MihomoManagedConfiguration.WithServerGeoDataSettings(
-                        MihomoManagedConfiguration.WithRuntimeSettings(original, settings)), controllerOptions,
+                        MihomoManagedConfiguration.WithRuntimeSettings(
+                            MihomoManagedConfiguration.WithManagedTunSettings(original, settings), settings)), controllerOptions,
                     await controllerSecrets.GetOrCreateAsync(cancellationToken));
             }
             catch (ProxyControllerSecretException) { return ProxyProblemCodes.ConfigApplyFailed; }
@@ -86,7 +90,12 @@ public sealed class MihomoSettingsService(
     {
         var path = Path.Combine(paths.GetStateDirectory(), "mihomo-settings.json");
         if (!File.Exists(path)) return null;
-        try { await using var input = File.OpenRead(path); return await JsonSerializer.DeserializeAsync<ProxySettingsDto>(input, cancellationToken: cancellationToken); }
+        try
+        {
+            await using var input = File.OpenRead(path);
+            var settings = await JsonSerializer.DeserializeAsync<ProxySettingsDto>(input, cancellationToken: cancellationToken);
+            return settings is null ? null : settings with { Tun = settings.Tun ?? ProxyTunSettingsDto.Default };
+        }
         catch (JsonException) { return null; }
     }
 
@@ -121,8 +130,12 @@ public sealed class MihomoSettingsService(
         catch (System.Security.SecurityException) { return false; }
     }
 
-    private static bool HasOnlySubscriptionSecurityChanged(ProxySettingsDto previous, ProxySettingsDto updated) =>
-        previous with { AllowInsecureSubscriptionSources = updated.AllowInsecureSubscriptionSources } == updated;
+    private static bool CanPersistWithoutRuntime(ProxySettingsDto previous, ProxySettingsDto updated) =>
+        previous with
+        {
+            AllowInsecureSubscriptionSources = updated.AllowInsecureSubscriptionSources,
+            Tun = updated.Tun,
+        } == updated;
 
     private static string? NormalizeSystemProxyHost(string? value)
     {
@@ -139,5 +152,18 @@ public sealed class MihomoSettingsService(
         catch (NetworkInformationException) { return null; }
     }
 
-    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false, "127.0.0.1");
+    private static bool IsValidTunSettings(ProxyTunSettingsDto settings) =>
+        settings.Stack is "system" or "gvisor" or "mixed"
+        && Regex.IsMatch(settings.DeviceName, "^[A-Za-z0-9_.-]{1,64}$", RegexOptions.CultureInvariant)
+        && settings.Mtu is >= 576 and <= 9000
+        && IsValidDnsHijack(settings.DnsHijack)
+        && (!settings.StrictRoute || settings.AutoRoute);
+
+    private static bool IsValidDnsHijack(string value)
+    {
+        var match = Regex.Match(value, "^(?:(?:tcp|udp)://)?(?:any|[0-9A-Fa-f:.]+):(\\d{1,5})$", RegexOptions.CultureInvariant);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var port) && port is > 0 and <= 65535;
+    }
+
+    private static readonly ProxySettingsDto Defaults = new(false, false, true, true, false, "warning", 7890, false, "127.0.0.1", ProxyTunSettingsDto.Default);
 }

@@ -18,7 +18,8 @@ public sealed class ProxyConfigurationTransactionService(
     IProxyProfileRepository profiles,
     IProxyControllerSecretStore controllerSecrets,
     MihomoControllerOptions controllerOptions,
-    IProxyGeoDataService? geoData = null) : IProxyConfigurationTransactionService
+    IProxyGeoDataService? geoData = null,
+    IProxySettingsService? settingsService = null) : IProxyConfigurationTransactionService
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     public async Task<string?> ApplyAsync(Guid profileId, string yaml, CancellationToken cancellationToken)
@@ -89,9 +90,14 @@ public sealed class ProxyConfigurationTransactionService(
             var yaml = await File.ReadAllTextAsync(storedPath, cancellationToken);
             var directory = paths.GetProtectedConfigurationDirectory(); Directory.CreateDirectory(directory); SetPrivateDirectory(directory);
             var secret = await controllerSecrets.GetOrCreateAsync(cancellationToken);
+            var settings = settingsService is null
+                ? new ProxySettingsDto(false, false, true, true, false, "warning", 7890, false, "127.0.0.1", ProxyTunSettingsDto.Default)
+                : await settingsService.GetAsync(cancellationToken);
             var managedYaml = engine.EngineId == MihomoEngine.Id
                 ? MihomoManagedConfiguration.WithServerControllerSettings(
-                    MihomoManagedConfiguration.WithServerGeoDataSettings(yaml), controllerOptions, secret)
+                    MihomoManagedConfiguration.WithRuntimeSettings(
+                        MihomoManagedConfiguration.WithManagedTunSettings(
+                            MihomoManagedConfiguration.WithServerGeoDataSettings(yaml), settings), settings), controllerOptions, secret)
                 : yaml;
             var active = Path.Combine(directory, "active.yaml");
             var temporary = Path.Combine(directory, ".apply-" + Guid.NewGuid().ToString("N"));
