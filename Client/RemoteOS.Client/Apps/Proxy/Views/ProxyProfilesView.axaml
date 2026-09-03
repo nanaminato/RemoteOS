@@ -47,7 +47,12 @@
       <Button Grid.Column="1" Content="{loc:Loc proxy.subscription_import}" Command="{Binding ImportSubscriptionCommand}" />
     </Grid>
 
-    <ItemsControl Grid.Row="3" ItemsSource="{Binding VisibleSubscriptions}">
+    <!-- Keep the cards in the page viewport.  Without this, a long subscription list
+         grows beyond the workspace's final star row and is clipped by its parent. -->
+    <ScrollViewer Grid.Row="3"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+    <ItemsControl ItemsSource="{Binding VisibleSubscriptions}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
           <WrapPanel Orientation="Horizontal" />
@@ -99,5 +104,6 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+    </ScrollViewer>
   </Grid>
 </UserControl>
