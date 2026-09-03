@@ -65,6 +65,10 @@ public sealed class ExplorerClient : IExplorerClient
         return await resp.Content.ReadAsByteArrayAsync(ct);
     }
 
+    public Task<FileElevationResult> ElevateFileAccessAsync(string path, string? password = null, CancellationToken ct = default)
+        => SendAsync<FileElevationResult>(HttpMethod.Post, FileApiRoutes.Elevation,
+            body: new FileElevationRequest(path, password), ct: ct);
+
     public async Task<FileEntryDto> WriteFileAsync(string path, byte[] content, CancellationToken ct = default)
     {
         var serverUrl = RequireSession();

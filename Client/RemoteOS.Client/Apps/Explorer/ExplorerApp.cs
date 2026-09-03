@@ -247,6 +247,49 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             return file?.TryGetLocalPath();
         };
 
+        vm.RequestFileElevationAsync = async path =>
+        {
+            try
+            {
+                await client.ElevateFileAccessAsync(path);
+                return true;
+            }
+            catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
+            {
+                var owner = FindOwnerWindow(context, vm);
+                if (owner is null) return false;
+                var password = await context.ShowDialogAsync<string?>(owner, "管理员认证", dialog =>
+                {
+                    var input = new TextBox { PasswordChar = '•', PlaceholderText = "请输入当前管理员密码" };
+                    var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+                    cancel.Click += (_, _) => dialog.Cancel();
+                    var confirm = new Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+                    confirm.Click += (_, _) => dialog.Close(input.Text);
+                    return new StackPanel
+                    {
+                        Margin = new Thickness(20), Spacing = 12,
+                        Children =
+                        {
+                            new TextBlock { Text = "此文件需要管理员权限才能打开。", TextWrapping = TextWrapping.Wrap },
+                            input,
+                            new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Children = { cancel, confirm } },
+                        },
+                    };
+                }, new Size(420, 180));
+                if (password is null) return false;
+                try
+                {
+                    await client.ElevateFileAccessAsync(path, password);
+                    return true;
+                }
+                catch (RemoteOsAuthException retry) when (retry.Type.EndsWith("/elevation-password-invalid", StringComparison.Ordinal))
+                {
+                    await (vm.ShowMessageAsync?.Invoke("管理员认证", "密码不正确。") ?? Task.CompletedTask);
+                    return false;
+                }
+            }
+        };
+
         var applications = context.Services.GetService(typeof(ApplicationManager)) as ApplicationManager;
         var defaults = context.Services.GetService(typeof(DefaultAppRegistry)) as DefaultAppRegistry;
         var textSniffer = context.Services.GetService(typeof(ITextFileSniffer)) as ITextFileSniffer;

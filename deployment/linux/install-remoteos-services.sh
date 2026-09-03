@@ -9,17 +9,21 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-INSTALL_ROOT="${1:?usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE SERVER_PORT [SERVICE_USER]}"
+INSTALL_ROOT="${1:?usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE PRIVILEGED_HELPER_EXECUTABLE SERVER_PORT [SERVICE_USER]}"
 SERVER_EXECUTABLE="${2:?missing SERVER_EXECUTABLE}"
 GUARDIAN_EXECUTABLE="${3:?missing GUARDIAN_EXECUTABLE}"
-SERVER_PORT="${4:?missing SERVER_PORT}"
-SERVICE_USER="${5:-remoteos-server}"
+PRIVILEGED_HELPER_EXECUTABLE="${4:?missing PRIVILEGED_HELPER_EXECUTABLE}"
+SERVER_PORT="${5:?missing SERVER_PORT}"
+SERVICE_USER="${6:-remoteos-server}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 FIREWALL_HELPER_SOURCE="$SCRIPT_DIR/remoteos-firewall-helper"
 FIREWALL_HELPER=/usr/local/lib/remoteos/remoteos-firewall-helper
-SUDOERS_FILE=/etc/sudoers.d/remoteos-firewall-helper
+PRIVILEGED_HELPER_SOURCE_DIR="$(dirname -- "$PRIVILEGED_HELPER_EXECUTABLE")"
+PRIVILEGED_HELPER_INSTALL_DIR=/usr/local/lib/remoteos/privileged-helper
+PRIVILEGED_HELPER="$PRIVILEGED_HELPER_INSTALL_DIR/$(basename -- "$PRIVILEGED_HELPER_EXECUTABLE")"
+SUDOERS_FILE=/etc/sudoers.d/remoteos-helpers
 
-for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE" "$FIREWALL_HELPER_SOURCE"; do
+for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE" "$PRIVILEGED_HELPER_EXECUTABLE" "$FIREWALL_HELPER_SOURCE"; do
   [[ -f "$file" ]] || { echo "Missing executable: $file" >&2; exit 1; }
 done
 [[ "$SERVER_PORT" =~ ^[0-9]+$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || { echo "Invalid server port." >&2; exit 1; }
@@ -51,6 +55,8 @@ Storage__DatabasePath=$INSTALL_ROOT/data/remoteos.db
 DockerCompose__DataDirectory=/var/lib/remoteos/docker-compose
 Firewall__HelperPath=$FIREWALL_HELPER
 Firewall__SudoPath=$(command -v sudo)
+PrivilegedHelper__HelperPath=$PRIVILEGED_HELPER
+PrivilegedHelper__SudoPath=$(command -v sudo)
 EOF
 chmod 0600 /etc/remoteos/guardian.env /etc/remoteos/server.env
 
@@ -59,11 +65,20 @@ chmod 0600 /etc/remoteos/guardian.env /etc/remoteos/server.env
 # its small, structured UFW command grammar.
 install -d -o root -g root -m 0755 /usr/local/lib/remoteos
 install -o root -g root -m 0755 "$FIREWALL_HELPER_SOURCE" "$FIREWALL_HELPER"
-SUDOERS_TEMP="$(mktemp /etc/sudoers.d/remoteos-firewall-helper.XXXXXX)"
+# The published .NET helper has a companion runtimeconfig/deps file (and may have managed
+# assemblies). Copy its whole publish directory, then make it root-owned and immutable to the
+# Server account. The fourth installer argument must therefore point at the helper apphost from
+# `dotnet publish`, not merely the .dll produced by `dotnet build`.
+install -d -o root -g root -m 0755 "$PRIVILEGED_HELPER_INSTALL_DIR"
+cp -a "$PRIVILEGED_HELPER_SOURCE_DIR/." "$PRIVILEGED_HELPER_INSTALL_DIR/"
+chown -R root:root "$PRIVILEGED_HELPER_INSTALL_DIR"
+chmod -R go-w "$PRIVILEGED_HELPER_INSTALL_DIR"
+chmod 0755 "$PRIVILEGED_HELPER"
+SUDOERS_TEMP="$(mktemp /etc/sudoers.d/remoteos-helpers.XXXXXX)"
 trap 'rm -f "$SUDOERS_TEMP"' EXIT
 cat >"$SUDOERS_TEMP" <<EOF
 # Managed by RemoteOS. Do not edit: reinstall to regenerate.
-$SERVICE_USER ALL=(root) NOPASSWD: $FIREWALL_HELPER *
+$SERVICE_USER ALL=(root) NOPASSWD: $FIREWALL_HELPER *, $PRIVILEGED_HELPER
 EOF
 chmod 0440 "$SUDOERS_TEMP"
 visudo -cf "$SUDOERS_TEMP"

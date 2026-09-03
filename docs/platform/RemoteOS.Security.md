@@ -272,6 +272,18 @@ Windows:  whoami → machine\alice
 
 ## 10. Privilege Command Handling
 
+RemoteOS Server normally runs as an unprivileged service account. Linux packages also install
+`RemoteOS.PrivilegedHelper`: a root-owned local executable invoked through the dedicated
+`sudo -n` rule. It accepts local structured operations for protected file reads/writes and a
+generic `run` operation for future host-management capabilities; it is not an HTTP server and
+is never exposed on a network port.
+
+For RemoteExplorer, a failed direct read prompts a non-root user for their current host password.
+PAM validates the password, then grants the exact path to the current JWT for five minutes. Root
+users skip this prompt. Subsequent protected reads and writes for that path are passed to the
+helper. This is a desktop-style confirmation flow, not an isolation boundary: the generic helper
+means compromise of the RemoteOS Server service account can lead to root command execution.
+
 用户执行提权命令时，RemoteOS 不拦截，交给宿主 OS：
 
 ```text
