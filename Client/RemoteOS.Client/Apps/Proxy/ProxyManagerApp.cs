@@ -87,11 +87,12 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
             _ = context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.subscription_content"), dialog =>
                 new ProxySubscriptionContentDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(840, 560));
         };
-        vm.OpenNetworkSettingsDialogAsync = async () =>
+        vm.OpenNetworkSettingsDialogAsync = async isTun =>
         {
+            vm.SelectNetworkSettingsPageForDialog(isTun);
             await vm.LoadSystemProxyHostOptionsAsync();
-            await context.ShowDialogAsync<bool>(window, LocalizedText.Get("proxy.network_settings"), dialog =>
-                new ProxyNetworkSettingsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(600, 680));
+            await context.ShowDialogAsync<bool>(window, vm.NetworkSettingsDialogTitle, dialog =>
+                new ProxyNetworkSettingsDialogView(vm, dialog), new RemoteOS.Core.Primitives.Size(600, isTun ? 700 : 650));
         };
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, current) => { if (ReferenceEquals(current, window)) context.WindowManager.WindowClosed -= closed; };

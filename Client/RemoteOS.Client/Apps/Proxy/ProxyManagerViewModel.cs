@@ -62,7 +62,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
     public Action? ShowRuntimeSubscriptionWindow { get; set; }
-    public Func<Task>? OpenNetworkSettingsDialogAsync { get; set; }
+    /// <summary>Opens the settings dialog for one concrete network mode; the two modes never share an ambiguous entry point.</summary>
+    public Func<bool, Task>? OpenNetworkSettingsDialogAsync { get; set; }
     /// <summary>Owned by the workspace so overview cards can navigate without reaching into view code.</summary>
     public Action<string>? NavigateRequested { get; set; }
 
@@ -85,6 +86,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         HasTunManagePermission = canManageTun;
         NotifyCommands();
     }
+
+    /// <summary>Dialog forms edit an in-memory record. Keep a cheap immutable snapshot so Cancel really means cancel.</summary>
+    public ProxySettingsDto? CapturePendingSettings() => Settings;
+
+    public void RestorePendingSettings(ProxySettingsDto? settings) => Settings = settings;
 
     public int RunningConnectionCount => Connections.Count;
     public string RuntimeVersion => Runtime?.Version ?? "—";
@@ -144,6 +150,9 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public bool IsTunAvailable => Overview?.PlatformCapabilities.SupportsTun == true;
     public bool IsTunEnabled => Overview?.Health.TunState == ProxyTunState.Enabled;
     public bool IsSystemProxySettingsSelected => !IsTunSettingsSelected;
+    public string NetworkSettingsDialogTitle => LocalizedText.Get(IsTunSettingsSelected
+        ? "proxy.tun_managed_settings"
+        : "proxy.system_proxy_settings");
     private ProxyTunSettingsDto TunSettings => Settings?.Tun ?? ProxyTunSettingsDto.Default;
     public IReadOnlyList<string> TunStacks { get; } = ["system", "gvisor", "mixed"];
     public string TunStack { get => TunSettings.Stack; set => SetTunSettings(TunSettings with { Stack = value }); }
@@ -474,11 +483,24 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(section)) NavigateRequested?.Invoke(section);
     }
 
+    /// <summary>The overview switch is deliberately immediate, unlike the editable form which has an explicit Save button.</summary>
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private async Task ToggleSystemProxyAsync()
+    {
+        SystemProxyEnabled = !SystemProxyEnabled;
+        await SaveSettingsAsync();
+    }
+
     [RelayCommand]
-    private Task ShowNetworkSettingsDialogAsync() => OpenNetworkSettingsDialogAsync?.Invoke() ?? Task.CompletedTask;
+    private Task ShowSystemProxySettingsDialogAsync() => OpenNetworkSettingsDialogAsync?.Invoke(false) ?? Task.CompletedTask;
+
+    [RelayCommand]
+    private Task ShowTunSettingsDialogAsync() => OpenNetworkSettingsDialogAsync?.Invoke(true) ?? Task.CompletedTask;
 
     [RelayCommand]
     private void SelectNetworkSettingsPage(bool isTun) => IsTunSettingsSelected = isTun;
+
+    public void SelectNetworkSettingsPageForDialog(bool isTun) => IsTunSettingsSelected = isTun;
 
     [RelayCommand(CanExecute = nameof(CanTestGroupSelectedProxyLatency))]
     private async Task TestGroupSelectedProxyLatencyAsync(ProxyGroupItem? group)
@@ -631,7 +653,11 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(TunStrictRoute)); OnPropertyChanged(nameof(TunAutoDetectInterface)); OnPropertyChanged(nameof(TunDnsHijack)); OnPropertyChanged(nameof(TunMtu));
         SaveSettingsCommand.NotifyCanExecuteChanged();
     }
-    partial void OnIsTunSettingsSelectedChanged(bool value) => OnPropertyChanged(nameof(IsSystemProxySettingsSelected));
+    partial void OnIsTunSettingsSelectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsSystemProxySettingsSelected));
+        OnPropertyChanged(nameof(NetworkSettingsDialogTitle));
+    }
     partial void OnTrafficChanged(ProxyTrafficDto? value)
     {
         OnPropertyChanged(nameof(UploadRate)); OnPropertyChanged(nameof(DownloadRate));
@@ -664,6 +690,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         InstallRuntimeCommand.NotifyCanExecuteChanged(); ShowRuntimeDownloadCommand.NotifyCanExecuteChanged(); InstallRuntimeFromServerFileCommand.NotifyCanExecuteChanged(); RollbackRuntimeCommand.NotifyCanExecuteChanged(); UninstallRuntimeCommand.NotifyCanExecuteChanged();
         ConfigureGeoDataFromServerFileCommand.NotifyCanExecuteChanged();
         EnableTunCommand.NotifyCanExecuteChanged(); DisableTunCommand.NotifyCanExecuteChanged(); EmergencyDisableCommand.NotifyCanExecuteChanged(); ToggleTunCommand.NotifyCanExecuteChanged();
+        ToggleSystemProxyCommand.NotifyCanExecuteChanged();
         CreateProfileCommand.NotifyCanExecuteChanged(); ActivateProfileCommand.NotifyCanExecuteChanged(); DeleteProfileCommand.NotifyCanExecuteChanged();
         UpdateAllSubscriptionsCommand.NotifyCanExecuteChanged();
         ImportSubscriptionCommand.NotifyCanExecuteChanged(); ViewRuntimeSubscriptionsCommand.NotifyCanExecuteChanged(); ActivateSubscriptionCommand.NotifyCanExecuteChanged();

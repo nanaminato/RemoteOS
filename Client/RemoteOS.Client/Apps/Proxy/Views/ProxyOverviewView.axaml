@@ -15,6 +15,17 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <Style Selector="ToggleButton.network-mode-tab">
+      <Setter Property="Background" Value="{DynamicResource SurfaceSunkenBrush}"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="10,7"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="ToggleButton.network-mode-tab:checked">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}"/>
+    </Style>
   </UserControl.Styles>
 
   <ScrollViewer x:Name="OverviewScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -80,17 +91,35 @@
         </Border>
         <!-- 网络设置 -->
         <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="18">
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="11">
-              <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="11">
+              <Grid Grid.Row="0" ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <Border Grid.Column="0" Width="36" Height="36" Background="{DynamicResource AccentMutedBrush}" CornerRadius="9"><TextBlock Text="▣" FontSize="18" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
                 <TextBlock Grid.Column="1" Text="{loc:Loc proxy.network_settings}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <Border Grid.Column="2" Padding="8,4" PointerPressed="NetworkSettings_PointerPressed"><TextBlock Text="{loc:Loc proxy.settings}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/></Border>
               </Grid>
-              <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
-                <StackPanel Grid.Column="0" Spacing="3"><TextBlock Text="{loc:Loc proxy.system_proxy}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding SystemProxyState}" FontWeight="SemiBold"/></StackPanel>
-                <StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{loc:Loc proxy.tun_mode}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/><TextBlock Text="{Binding TunOverviewState}" FontWeight="SemiBold"/></StackPanel>
+              <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
+                <ToggleButton Classes="network-mode-tab" IsChecked="{Binding IsSystemProxySettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}">
+                  <ToggleButton.CommandParameter><x:Boolean>False</x:Boolean></ToggleButton.CommandParameter>
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="7"><TextBlock Text="▣"/><TextBlock Text="{loc:Loc proxy.system_proxy}" FontWeight="SemiBold"/></StackPanel>
+                </ToggleButton>
+                <ToggleButton Grid.Column="1" Classes="network-mode-tab" IsChecked="{Binding IsTunSettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}">
+                  <ToggleButton.CommandParameter><x:Boolean>True</x:Boolean></ToggleButton.CommandParameter>
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="7"><TextBlock Text="◉"/><TextBlock Text="{loc:Loc proxy.tun_mode}" FontWeight="SemiBold"/></StackPanel>
+                </ToggleButton>
               </Grid>
-              <TextBlock Grid.Row="2" Text="{Binding SystemProxyHost}" Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+              <Border Grid.Row="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="10" Padding="13" IsVisible="{Binding IsSystemProxySettingsSelected}">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="3"><TextBlock Text="{loc:Loc proxy.system_proxy}" FontWeight="SemiBold"/><TextBlock Text="{Binding SystemProxyEndpoint}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/></StackPanel>
+                  <Button Grid.Column="1" Classes="flat" Command="{Binding ShowSystemProxySettingsDialogCommand}" ToolTip.Tip="{loc:Loc proxy.system_proxy_settings}" Content="⚙" FontSize="18"/>
+                  <ToggleSwitch Grid.Column="2" IsChecked="{Binding SystemProxyEnabled, Mode=OneWay}" Command="{Binding ToggleSystemProxyCommand}" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+              <Border Grid.Row="2" Background="{DynamicResource SurfaceSunkenBrush}" CornerRadius="10" Padding="13" IsVisible="{Binding IsTunSettingsSelected}">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="3"><TextBlock Text="{loc:Loc proxy.tun_mode}" FontWeight="SemiBold"/><TextBlock Text="{Binding TunOverviewState}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12"/></StackPanel>
+                  <Button Grid.Column="1" Classes="flat" Command="{Binding ShowTunSettingsDialogCommand}" ToolTip.Tip="{loc:Loc proxy.tun_managed_settings}" Content="⚙" FontSize="18"/>
+                  <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsTunEnabled, Mode=OneWay}" Command="{Binding ToggleTunCommand}" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
             </Grid>
         </Border>
         <!-- 代理模式 -->

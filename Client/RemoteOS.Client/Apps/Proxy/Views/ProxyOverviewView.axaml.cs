@@ -42,13 +42,6 @@ internal partial class ProxyOverviewView : UserControl
     private void ProxyNavigation_PointerPressed(object? sender, PointerPressedEventArgs eventArgs) =>
         Navigate("proxies", eventArgs);
 
-    private void NetworkSettings_PointerPressed(object? sender, PointerPressedEventArgs eventArgs)
-    {
-        if (DataContext is ProxyManagerViewModel viewModel && viewModel.ShowNetworkSettingsDialogCommand.CanExecute(null))
-            viewModel.ShowNetworkSettingsDialogCommand.Execute(null);
-        eventArgs.Handled = true;
-    }
-
     private void Navigate(string section, PointerPressedEventArgs eventArgs)
     {
         if (DataContext is ProxyManagerViewModel viewModel && viewModel.NavigateCommand.CanExecute(section))
