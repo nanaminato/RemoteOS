@@ -266,25 +266,14 @@ public partial class DesktopShellView : UserControl
 
         shell.RequestFirstTimeDesktopSetupAsync = async () =>
         {
-            // 首次配置：先把「跳过也算完成」写入 HasCompletedFirstTimeSetup
             var confirmed = await ShowDesktopDialogAsync<bool>(shell, LocalizedText.Get("shell.desktop_display.welcome_title"),
                 new Size(580, 560),
                 complete => new DesktopDisplayDialogs(
                     shell.Settings,
                     applications,
-                    async () =>
-                    {
-                        shell.Settings.HasCompletedFirstTimeSetup = true;
-                        await shell.SavePreferencesFireAndForgetAsync();
-                    },
+                    () => shell.SavePreferencesFireAndForgetAsync(),
                     result => complete(result),
                     isFirstTime: true));
-            // 无论是确认还是跳过，都标记首次配置已完成
-            if (confirmed == false)
-            {
-                shell.Settings.HasCompletedFirstTimeSetup = true;
-                await shell.SavePreferencesFireAndForgetAsync();
-            }
             return confirmed;
         };
     }
