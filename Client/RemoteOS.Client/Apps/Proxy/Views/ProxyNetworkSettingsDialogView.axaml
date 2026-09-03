@@ -24,10 +24,12 @@
       <TextBlock Grid.Column="1" Text="{loc:Loc proxy.network_settings}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="10">
-      <ToggleButton Classes="network-mode-tab" IsChecked="{Binding IsSystemProxySettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}" CommandParameter="False">
+      <ToggleButton Classes="network-mode-tab" IsChecked="{Binding IsSystemProxySettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}">
+        <ToggleButton.CommandParameter><x:Boolean>False</x:Boolean></ToggleButton.CommandParameter>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8"><TextBlock Text="▣"/><TextBlock Text="{loc:Loc proxy.system_proxy}" FontWeight="SemiBold"/></StackPanel>
       </ToggleButton>
-      <ToggleButton Grid.Column="1" Classes="network-mode-tab" IsChecked="{Binding IsTunSettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}" CommandParameter="True">
+      <ToggleButton Grid.Column="1" Classes="network-mode-tab" IsChecked="{Binding IsTunSettingsSelected, Mode=OneWay}" Command="{Binding SelectNetworkSettingsPageCommand}">
+        <ToggleButton.CommandParameter><x:Boolean>True</x:Boolean></ToggleButton.CommandParameter>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8"><TextBlock Text="◉"/><TextBlock Text="{loc:Loc proxy.tun_mode}" FontWeight="SemiBold"/></StackPanel>
       </ToggleButton>
     </Grid>
