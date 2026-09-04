@@ -33,6 +33,13 @@ public enum PrivilegedOperationKind
     ProxyMihomoServiceAction,
     ProxyMihomoInstallSystemService,
     ProxyMihomoRemoveSystemService,
+    GitPackageInstall,
+    FirewallUfwStatus,
+    FirewallUfwSetEnabled,
+    FirewallUfwSetDefaults,
+    FirewallUfwCreateRule,
+    FirewallUfwReplaceRule,
+    FirewallUfwDeleteRule,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PrivilegedServiceAction>))]
@@ -67,6 +74,19 @@ public enum ProxyMihomoServiceAction
     Restart,
     TryRestart,
 }
+
+/// <summary>Closed UFW rule verbs. Endpoint values are validated again by the Helper.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<FirewallRuleAction>))]
+public enum FirewallRuleAction { Allow, Deny, Reject, Limit }
+
+[JsonConverter(typeof(JsonStringEnumConverter<FirewallRuleDirection>))]
+public enum FirewallRuleDirection { In, Out }
+
+[JsonConverter(typeof(JsonStringEnumConverter<FirewallRuleProtocol>))]
+public enum FirewallRuleProtocol { Tcp, Udp, Any }
+
+[JsonConverter(typeof(JsonStringEnumConverter<FirewallDefaultPolicy>))]
+public enum FirewallDefaultPolicy { Allow, Deny, Reject }
 
 /// <summary>Stable, non-secret failure classifications returned by a local Helper.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<PrivilegedProblemCode>))]
@@ -104,6 +124,18 @@ public sealed record PrivilegedOperationRequest(
     [property: JsonPropertyName("nginxServiceAction")] NginxSystemServiceAction? NginxServiceAction = null,
     [property: JsonPropertyName("packageVersion")] string? PackageVersion = null,
     [property: JsonPropertyName("proxyMihomoServiceAction")] ProxyMihomoServiceAction? ProxyMihomoServiceAction = null,
+    [property: JsonPropertyName("firewallEnabled")] bool? FirewallEnabled = null,
+    [property: JsonPropertyName("firewallNumberedStatus")] bool? FirewallNumberedStatus = null,
+    [property: JsonPropertyName("firewallIncomingPolicy")] FirewallDefaultPolicy? FirewallIncomingPolicy = null,
+    [property: JsonPropertyName("firewallOutgoingPolicy")] FirewallDefaultPolicy? FirewallOutgoingPolicy = null,
+    [property: JsonPropertyName("firewallRuleAction")] FirewallRuleAction? FirewallRuleAction = null,
+    [property: JsonPropertyName("firewallRuleDirection")] FirewallRuleDirection? FirewallRuleDirection = null,
+    [property: JsonPropertyName("firewallRuleProtocol")] FirewallRuleProtocol? FirewallRuleProtocol = null,
+    [property: JsonPropertyName("firewallSource")] string? FirewallSource = null,
+    [property: JsonPropertyName("firewallDestination")] string? FirewallDestination = null,
+    [property: JsonPropertyName("firewallPort")] string? FirewallPort = null,
+    [property: JsonPropertyName("firewallRuleNumber")] int? FirewallRuleNumber = null,
+    [property: JsonPropertyName("firewallCompanionRuleNumber")] int? FirewallCompanionRuleNumber = null,
     [property: JsonPropertyName("operationId")] Guid? OperationId = null,
     [property: JsonPropertyName("version")] int Version = PrivilegedOperationProtocol.Version);
 

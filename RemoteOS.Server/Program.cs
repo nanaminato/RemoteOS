@@ -362,7 +362,6 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.SystemPerfo
 builder.Services.AddSingleton(builder.Configuration.GetSection("DockerEngine").Get<Server.Docker.DockerCliEngineOptions>() ?? new Server.Docker.DockerCliEngineOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
 builder.Services.AddScoped<Server.ImageMirrors.IDockerImageMirrorResolver, Server.ImageMirrors.DockerImageMirrorResolver>();
-builder.Services.AddSingleton(builder.Configuration.GetSection("DockerRuntimeInstaller").Get<Server.Docker.DockerRuntimeInstallerOptions>() ?? new Server.Docker.DockerRuntimeInstallerOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
 builder.Services.Configure<Server.Docker.DockerComposeOptions>(builder.Configuration.GetSection("DockerCompose"));
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
@@ -370,7 +369,6 @@ var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Serv
 builder.Services.AddSingleton(guardianOptions);
 builder.Services.AddSingleton<Server.ProcessGuardian.IProcessGuardianService, Server.ProcessGuardian.NamedPipeProcessGuardianService>();
 builder.Services.AddSingleton<Server.ProcessGuardian.IRunAsAuthorizationService, Server.ProcessGuardian.RunAsAuthorizationService>();
-builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianAgentInstaller").Get<Server.ProcessGuardian.GuardianAgentInstallerOptions>() ?? new Server.ProcessGuardian.GuardianAgentInstallerOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Server.ProcessGuardian.GuardianAgentInstaller>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();

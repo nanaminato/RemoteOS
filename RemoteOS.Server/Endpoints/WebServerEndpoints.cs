@@ -17,8 +17,13 @@ public static class WebServerEndpoints
             await manager.GetStatusAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.TestConfigurationPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.TestConfigurationAsync(id, ct) is { } result ? Results.Ok(result) : Results.NotFound());
-        group.MapPost(WebServerApiRoutes.ManagedInstallPattern, async (string providerId, InstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await StartAsync(context.Request, key => manager.InstallManagedAsync(providerId, key, request, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.ManagedInstallPattern, async (string providerId, InstallManagedWebServerRequest request, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxInstall, providerId))
+                return ElevationRequired("此 Nginx 安装操作需要当前会话对该提供程序的管理员授权。");
+            return await StartAsync(context.Request, key => manager.InstallManagedAsync(providerId, key, request, Actor(context), ct));
+        });
         group.MapPost(WebServerApiRoutes.ManagedPackagePattern, async (string providerId, HttpRequest request, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
         {
             if (!request.HasFormContentType) return Results.BadRequest(new { problemCode = "webserver.package_multipart_required" });
@@ -34,26 +39,46 @@ public static class WebServerEndpoints
             await manager.GetManagedInstallCatalogAsync(providerId, ct) is { } catalog ? Results.Ok(catalog) : Results.NotFound());
         group.MapGet(WebServerApiRoutes.ManagedDownloadPattern, async (string providerId, string? version, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.GetManagedInstallDownloadAsync(providerId, version, ct) is { } download ? Results.Ok(download) : Results.NotFound());
-        group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxConfigurationWrite, id))
+                return ElevationRequired("此 Nginx 配置操作需要当前会话对该实例的管理员授权。");
+            return await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct));
+        });
         group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context,
             IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
         {
             if (!Enum.TryParse<WebServerLifecycleAction>(action, ignoreCase: true, out var lifecycle))
                 return Results.BadRequest(new { problemCode = "webserver.lifecycle_action_invalid" });
-            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxLifecycle, id))
-                return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "需要管理员权限",
-                    detail: "此 Nginx 生命周期操作需要当前会话的管理员授权。", type: "https://remoteos.app/problems/elevation-required");
+            var capability = lifecycle == WebServerLifecycleAction.EnableAcmeHttp01
+                ? HostElevationCapability.NginxConfigurationWrite
+                : HostElevationCapability.NginxLifecycle;
+            if (!elevations.IsGranted(context.User, capability, id))
+                return ElevationRequired("此 Nginx 操作需要当前会话对该实例的管理员授权。");
             return await StartAsync(context.Request, key => manager.ApplyLifecycleAsync(id, lifecycle, key, Actor(context), ct));
         });
-        group.MapPost(WebServerApiRoutes.ManagedUninstallPattern, async (string id, UninstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await StartAsync(context.Request, key => manager.UninstallManagedAsync(id, key, request, Actor(context), ct)));
-        group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await StartAsync(context.Request, key => manager.ReloadAsync(id, key, Actor(context), ct)));
+        group.MapPost(WebServerApiRoutes.ManagedUninstallPattern, async (string id, UninstallManagedWebServerRequest request, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxInstall, id))
+                return ElevationRequired("此 Nginx 卸载操作需要当前会话对该实例的管理员授权。");
+            return await StartAsync(context.Request, key => manager.UninstallManagedAsync(id, key, request, Actor(context), ct));
+        });
+        group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxLifecycle, id))
+                return ElevationRequired("此 Nginx reload 操作需要当前会话对该实例的管理员授权。");
+            return await StartAsync(context.Request, key => manager.ReloadAsync(id, key, Actor(context), ct));
+        });
         group.MapGet(WebServerApiRoutes.SitesPattern, async (string id, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.ListSitesAsync(id, ct) is { } sites ? Results.Ok(sites) : Results.NotFound());
-        group.MapPost(WebServerApiRoutes.SitesPattern, async (string id, UpsertWebServerSiteRequest request, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        group.MapPost(WebServerApiRoutes.SitesPattern, async (string id, UpsertWebServerSiteRequest request, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
         {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxConfigurationWrite, id))
+                return ElevationRequired("此 Nginx 站点配置操作需要当前会话对该实例的管理员授权。");
             try
             {
                 return await manager.UpsertSiteAsync(id, request, ct) is { } site
@@ -73,8 +98,13 @@ public static class WebServerEndpoints
                 return Results.BadRequest(new { problemCode = exception.ProblemCode });
             }
         });
-        group.MapDelete(WebServerApiRoutes.SiteByIdPattern, async (string id, string siteId, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            await manager.DeleteSiteAsync(id, siteId, ct) switch { true => Results.NoContent(), false => Results.NotFound(), _ => Results.BadRequest(new { problemCode = "webserver.site_delete_failed" }) });
+        group.MapDelete(WebServerApiRoutes.SiteByIdPattern, async (string id, string siteId, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxConfigurationWrite, id))
+                return ElevationRequired("此 Nginx 站点配置操作需要当前会话对该实例的管理员授权。");
+            return await manager.DeleteSiteAsync(id, siteId, ct) switch { true => Results.NoContent(), false => Results.NotFound(), _ => Results.BadRequest(new { problemCode = "webserver.site_delete_failed" }) };
+        });
         group.MapGet(WebServerApiRoutes.OperationsPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>
             await operations.GetAsync(operationId, ct) is { } operation ? Results.Ok(operation) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.CancelOperationPattern, async (Guid operationId, Server.WebServer.WebServerOperationStore operations, CancellationToken ct) =>
@@ -101,4 +131,7 @@ public static class WebServerEndpoints
 
     private static string? Actor(HttpContext context) => context.User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Name)?.Value
         ?? context.User.Identity?.Name;
+
+    private static IResult ElevationRequired(string detail) => Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+        title: "需要管理员权限", detail: detail, type: "https://remoteos.app/problems/elevation-required");
 }

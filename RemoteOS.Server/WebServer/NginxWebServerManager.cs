@@ -20,7 +20,6 @@ namespace Server.WebServer;
 /// an optional host integration.
 /// </summary>
 internal sealed partial class NginxWebServerManager(
-    IHostPrivilegeService privileges,
     IPrivilegedNginxOperations privilegedNginx,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
@@ -97,8 +96,6 @@ internal sealed partial class NginxWebServerManager(
         if (detected is null || detected.Id != instanceId) return null;
         if (!request.Confirmed)
             return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "validation", "webserver.confirmation_required", null, null, DateTimeOffset.UtcNow);
-        if (!privileges.IsAdministrator)
-            return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "authorization", "webserver.config_elevation_required", null, null, DateTimeOffset.UtcNow);
         return await operations.StartAsync(idempotencyKey, instanceId, "integrate", actor, ct => IntegrateCoreAsync(detected, ct), lifetime.ApplicationStopping);
     }
 
@@ -108,8 +105,6 @@ internal sealed partial class NginxWebServerManager(
         if (detected is null || detected.Id != instanceId) return null;
         if (detected.ManagementMode != WebServerManagementMode.Integrated)
             return new WebServerOperationDto(Guid.Empty, instanceId, "reload", WebServerOperationState.Failed, "authorization", "webserver.reload_not_permitted", null, null, DateTimeOffset.UtcNow);
-        if (!privileges.IsAdministrator)
-            return new WebServerOperationDto(Guid.Empty, instanceId, "reload", WebServerOperationState.Failed, "authorization", "webserver.lifecycle_elevation_required", null, null, DateTimeOffset.UtcNow);
         return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
             new WebServerOperationResult((await RunNginxAsync(detected.ExecutablePath, ["-s", "reload"], ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
     }
@@ -119,8 +114,6 @@ internal sealed partial class NginxWebServerManager(
         var layout = GetManagedLayout();
         if (!request.Confirmed)
             return Rejected(layout.InstanceId, "install", "webserver.confirmation_required");
-        if (!privileges.IsAdministrator)
-            return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
         // The built-in Linux installer owns the distribution package it installs.  Do not
@@ -200,8 +193,6 @@ internal sealed partial class NginxWebServerManager(
         // The system-package lifecycle is delegated to IPrivilegedNginxOperations. ACME
         // integration still writes protected configuration and remains unavailable until its
         // file operation is migrated to the same Helper boundary.
-        if (!privileges.IsAdministrator && action == WebServerLifecycleAction.EnableAcmeHttp01)
-            return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.lifecycle_elevation_required");
         if (action == WebServerLifecycleAction.Reload)
         {
             if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
@@ -235,7 +226,6 @@ internal sealed partial class NginxWebServerManager(
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null) return null;
         if (!request.Confirmed) return Rejected(instanceId, "uninstall", "webserver.confirmation_required");
-        if (!privileges.IsAdministrator) return Rejected(instanceId, "uninstall", "webserver.install_elevation_required");
         if (instance.ManagementMode != WebServerManagementMode.Managed) return Rejected(instanceId, "uninstall", "webserver.managed_required");
         return await operations.StartAsync(idempotencyKey, instanceId, "uninstall", actor,
             ct => UninstallManagedCoreAsync(GetManagedLayout(), ct), lifetime.ApplicationStopping);
@@ -255,11 +245,6 @@ internal sealed partial class NginxWebServerManager(
         {
             logger.LogWarning("Nginx site save rejected because the requested instance was not found. InstanceId={InstanceId}", instanceId);
             return null;
-        }
-        if (!privileges.IsAdministrator)
-        {
-            logger.LogError("Nginx site save rejected because the RemoteOS Server process is not elevated. InstanceId={InstanceId}, ServerIdentity={ServerIdentity}, Configuration={Configuration}", instance.Id, Environment.UserName, instance.ConfigurationPath);
-            throw new WebServerSiteApplyException("webserver.site_elevation_required");
         }
         if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
         {
@@ -325,7 +310,7 @@ internal sealed partial class NginxWebServerManager(
     public async Task<bool?> DeleteSiteAsync(string instanceId, string siteId, CancellationToken cancellationToken)
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
-        if (instance is null || !privileges.IsAdministrator || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed) || !SiteIdPattern().IsMatch(siteId)) return null;
+        if (instance is null || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed) || !SiteIdPattern().IsMatch(siteId)) return null;
         var directory = GetSitesDirectory(instance);
         if (directory is null) return null;
         await IntegrationGate.WaitAsync(cancellationToken);
@@ -694,12 +679,12 @@ internal sealed partial class NginxWebServerManager(
         var capabilities = new WebServerCapabilities(
             CanRead: true,
             CanTestConfiguration: true,
-            CanIntegrate: !isManaged && !integrated && privileges.IsAdministrator && includeDirectory is not null,
-            CanReload: (integrated || isManaged) && privileges.IsAdministrator,
-            CanStart: isManaged && privileges.IsAdministrator,
-            CanStop: isManaged && privileges.IsAdministrator,
-            CanRestart: isManaged && privileges.IsAdministrator,
-            CanUninstall: isManaged && privileges.IsAdministrator);
+            CanIntegrate: !isManaged && !integrated && includeDirectory is not null,
+            CanReload: integrated || isManaged,
+            CanStart: isManaged,
+            CanStop: isManaged,
+            CanRestart: isManaged,
+            CanUninstall: isManaged);
         var instance = new WebServerDto(InstanceId(executable), ProviderKey, WebServerType.Nginx, mode, executable, configPath, version, DateTimeOffset.UtcNow, capabilities);
         await metadata.UpsertInstanceAsync(instance, cancellationToken);
         return instance;

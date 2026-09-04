@@ -65,6 +65,13 @@ static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationReq
             PrivilegedOperationKind.ProxyMihomoServiceAction => await ApplyProxyMihomoServiceActionAsync(request.ProxyMihomoServiceAction),
             PrivilegedOperationKind.ProxyMihomoInstallSystemService => await InstallProxyMihomoSystemServiceAsync(),
             PrivilegedOperationKind.ProxyMihomoRemoveSystemService => RemoveProxyMihomoSystemService(),
+            PrivilegedOperationKind.GitPackageInstall => await InstallGitPackageAsync(),
+            PrivilegedOperationKind.FirewallUfwStatus => await ReadFirewallStatusAsync(request.FirewallNumberedStatus == true),
+            PrivilegedOperationKind.FirewallUfwSetEnabled => await SetFirewallEnabledAsync(request.FirewallEnabled),
+            PrivilegedOperationKind.FirewallUfwSetDefaults => await SetFirewallDefaultsAsync(request.FirewallIncomingPolicy, request.FirewallOutgoingPolicy),
+            PrivilegedOperationKind.FirewallUfwCreateRule => await CreateFirewallRuleAsync(request),
+            PrivilegedOperationKind.FirewallUfwReplaceRule => await ReplaceFirewallRuleAsync(request),
+            PrivilegedOperationKind.FirewallUfwDeleteRule => await DeleteFirewallRuleAsync(request.FirewallRuleNumber, request.FirewallCompanionRuleNumber),
             _ => Fail(64, PrivilegedProblemCode.UnsupportedOperation, "unsupported operation"),
         };
     }
@@ -353,6 +360,116 @@ static async Task<PrivilegedOperationResult> InstallNginxPackageAsync(string? ve
 static Task<PrivilegedOperationResult> UninstallNginxPackageAsync() => !OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get")
     ? Task.FromResult(Fail(64, PrivilegedProblemCode.UnsupportedOperation, "nginx package operation is unavailable"))
     : RunFixedCommandAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], TimeSpan.FromMinutes(10), "nginx package uninstall failed");
+
+static async Task<PrivilegedOperationResult> InstallGitPackageAsync()
+{
+    if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get")) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "git package operation is unavailable");
+    var update = await RunFixedCommandAsync("/usr/bin/apt-get", ["update"], TimeSpan.FromMinutes(10), "git package update failed");
+    return update.Success
+        ? await RunFixedCommandAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", "git"], TimeSpan.FromMinutes(10), "git package install failed")
+        : update;
+}
+
+static Task<PrivilegedOperationResult> ReadFirewallStatusAsync(bool numbered)
+{
+    if (!OperatingSystem.IsLinux() || !File.Exists("/usr/sbin/ufw"))
+        return Task.FromResult(Fail(64, PrivilegedProblemCode.UnsupportedOperation, "ufw is unavailable"));
+    return RunFixedCommandWithOutputAsync("/usr/sbin/ufw", numbered ? ["status", "numbered"] : ["status", "verbose"], "firewall status failed");
+}
+
+static Task<PrivilegedOperationResult> SetFirewallEnabledAsync(bool? enabled) => enabled is null
+    ? Task.FromResult(Fail(64, PrivilegedProblemCode.InvalidRequest, "firewall enabled state is required"))
+    : RunUfwAsync(["--force", enabled.Value ? "enable" : "disable"], "firewall state update failed");
+
+static Task<PrivilegedOperationResult> SetFirewallDefaultsAsync(FirewallDefaultPolicy? incoming, FirewallDefaultPolicy? outgoing)
+{
+    if (incoming is null || outgoing is null) return Task.FromResult(Fail(64, PrivilegedProblemCode.InvalidRequest, "firewall defaults are required"));
+    return SetFirewallDefaultsCoreAsync(incoming.Value, outgoing.Value);
+}
+
+static async Task<PrivilegedOperationResult> SetFirewallDefaultsCoreAsync(FirewallDefaultPolicy incoming, FirewallDefaultPolicy outgoing)
+{
+    var first = await RunUfwAsync(["default", FirewallPolicy(incoming), "incoming"], "firewall default update failed");
+    return first.Success ? await RunUfwAsync(["default", FirewallPolicy(outgoing), "outgoing"], "firewall default update failed") : first;
+}
+
+static Task<PrivilegedOperationResult> CreateFirewallRuleAsync(PrivilegedOperationRequest request)
+    => TryFirewallRuleArguments(request, out var arguments)
+        ? RunUfwAsync(arguments, "firewall rule creation failed")
+        : Task.FromResult(Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid firewall rule"));
+
+static async Task<PrivilegedOperationResult> ReplaceFirewallRuleAsync(PrivilegedOperationRequest request)
+{
+    if (!TryFirewallRuleNumber(request.FirewallRuleNumber, out var number) || !TryFirewallRuleArguments(request, out var rule))
+        return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid firewall rule replacement");
+    if (request.FirewallCompanionRuleNumber is { } companion && (!TryFirewallRuleNumber(companion, out _) || companion == number))
+        return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid firewall companion rule");
+    var delete = await DeleteFirewallRuleAsync(number, request.FirewallCompanionRuleNumber);
+    return delete.Success ? await RunUfwAsync(["insert", number.ToString(System.Globalization.CultureInfo.InvariantCulture), .. rule], "firewall rule replacement failed") : delete;
+}
+
+static async Task<PrivilegedOperationResult> DeleteFirewallRuleAsync(int? requestedNumber, int? requestedCompanion)
+{
+    if (!TryFirewallRuleNumber(requestedNumber, out var number)) return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid firewall rule number");
+    if (requestedCompanion is { } companion && (!TryFirewallRuleNumber(companion, out _) || companion == number))
+        return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid firewall companion rule");
+    var numbers = requestedCompanion is { } value ? new[] { number, value }.OrderDescending().ToArray() : [number];
+    foreach (var item in numbers)
+    {
+        var deleted = await RunUfwAsync(["--force", "delete", item.ToString(System.Globalization.CultureInfo.InvariantCulture)], "firewall rule deletion failed");
+        if (!deleted.Success) return deleted;
+    }
+    return new(true);
+}
+
+static bool TryFirewallRuleArguments(PrivilegedOperationRequest request, out string[] arguments)
+{
+    arguments = [];
+    if (request.FirewallRuleAction is null || request.FirewallRuleDirection is null || request.FirewallRuleProtocol is null
+        || !TryFirewallEndpoint(request.FirewallSource, out var source) || !TryFirewallEndpoint(request.FirewallDestination, out var destination)
+        || !TryFirewallPort(request.FirewallPort, out var port)) return false;
+    arguments = [FirewallAction(request.FirewallRuleAction.Value), FirewallDirection(request.FirewallRuleDirection.Value)];
+    if (request.FirewallRuleProtocol != FirewallRuleProtocol.Any) arguments = [.. arguments, "proto", FirewallProtocol(request.FirewallRuleProtocol.Value)];
+    arguments = [.. arguments, "from", source, "to", destination];
+    return port == "any" ? true : (arguments = [.. arguments, "port", port]) is not null;
+}
+
+static bool TryFirewallRuleNumber(int? value, out int number) => (number = value ?? 0) is > 0 and <= 10_000;
+static bool TryFirewallEndpoint(string? value, out string endpoint)
+{
+    endpoint = value?.Trim().ToLowerInvariant() ?? string.Empty;
+    if (endpoint == "any") return true;
+    return endpoint.Length <= 64 && System.Text.RegularExpressions.Regex.IsMatch(endpoint, "^[0-9a-f:.]+(/[0-9]{1,3})?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+}
+static bool TryFirewallPort(string? value, out string port)
+{
+    port = value?.Trim().ToLowerInvariant() ?? string.Empty;
+    if (port == "any") return true;
+    if (!System.Text.RegularExpressions.Regex.IsMatch(port, "^[0-9]+(:[0-9]+)?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return false;
+    var parts = port.Split(':');
+    return int.TryParse(parts[0], out var first) && first is >= 1 and <= 65535
+        && int.TryParse(parts[^1], out var last) && last is >= first and <= 65535;
+}
+static string FirewallAction(FirewallRuleAction value) => value.ToString().ToLowerInvariant();
+static string FirewallDirection(FirewallRuleDirection value) => value.ToString().ToLowerInvariant();
+static string FirewallProtocol(FirewallRuleProtocol value) => value.ToString().ToLowerInvariant();
+static string FirewallPolicy(FirewallDefaultPolicy value) => value.ToString().ToLowerInvariant();
+static Task<PrivilegedOperationResult> RunUfwAsync(IReadOnlyList<string> arguments, string failure) => !OperatingSystem.IsLinux() || !File.Exists("/usr/sbin/ufw")
+    ? Task.FromResult(Fail(64, PrivilegedProblemCode.UnsupportedOperation, "ufw is unavailable"))
+    : RunFixedCommandAsync("/usr/sbin/ufw", arguments, TimeSpan.FromSeconds(30), failure);
+
+static async Task<PrivilegedOperationResult> RunFixedCommandWithOutputAsync(string executable, IReadOnlyList<string> arguments, string failure)
+{
+    using var process = new System.Diagnostics.Process { StartInfo = new System.Diagnostics.ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true } };
+    foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+    if (!process.Start()) return Fail(69, PrivilegedProblemCode.HelperUnavailable, "host operation could not start");
+    using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    var output = process.StandardOutput.ReadToEndAsync(cancellation.Token);
+    try { await process.WaitForExitAsync(cancellation.Token); }
+    catch (OperationCanceledException) { return Fail(124, PrivilegedProblemCode.TimedOut, "host operation timed out"); }
+    var text = await output;
+    return process.ExitCode == 0 ? new(true, OutputBase64: Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text))) : Fail(1, PrivilegedProblemCode.InternalError, failure);
+}
 
 static async Task<PrivilegedOperationResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, TimeSpan timeout, string failure)
 {

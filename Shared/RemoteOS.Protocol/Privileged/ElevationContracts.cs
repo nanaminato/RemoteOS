@@ -20,6 +20,7 @@ public enum HostElevationCapability
     NginxConfigurationWrite,
     ProxyServiceAction,
     FirewallChange,
+    GitPackageInstall,
 }
 
 /// <summary>Authenticated request for one non-file host capability and exact managed resource.</summary>

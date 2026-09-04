@@ -13,9 +13,10 @@
 | Nginx 集成、站点与 ACME 配置写入 | `WebServer/NginxWebServerManager` | 必须 Helper | 待迁移；受保护配置写入仍不允许以普通 Server 身份执行 |
 | Mihomo systemd unit 与服务生命周期 | `Proxy/Platform/NativeMihomoPrivilegedOperations` | 必须 Helper | 已迁移：固定 unit、daemon-reload 与枚举 service action 均经 Helper |
 | Mihomo 受保护配置与网络恢复 | `Proxy` | 必须 Helper | 待迁移；暂保持 fail-closed，不允许 Server 以特权直写 |
-| ACME / 证书部署与 80/443 绑定 | `Certificate` | 必须 Helper | 待迁移；仅应用私有存储写入保持非特权 |
-| Docker runtime 安装 | `Docker` | 必须 Helper 或手工操作 | 待逐项建模；不能安全结构化时返回 `manual-host-action-required` |
-| Git engine 安装 | `Git/LocalGitRepositoryService` | 必须 Helper 或手工操作 | 待逐项建模；普通 Git 仓库操作是非特权 |
+| ACME / 证书部署与 80/443 绑定 | `Certificate` | 必须 Helper | 待迁移且已 fail-closed；Server 进程即使为 root/Admin 也不能直接绕过 Helper |
+| Docker runtime 安装 | `Docker` | 必须 Helper 或手工操作 | 已降级为 `manual_host_action_required`；移除了管理员配置的任意安装器命令 |
+| Git engine 安装 | `Git/LocalGitRepositoryService` | 必须 Helper 或手工操作 | 已迁移 Linux APT 固定安装；Windows/非 APT 主机返回手工操作提示；普通 Git 仓库操作是非特权 |
+| Guardian Agent 安装器 | `ProcessGuardian/GuardianAgentInstaller` | 手工宿主操作 | 已降级为 `guardian.manual_host_action_required`；仅签名部署包可安装服务 |
 | Guardian workload、FRP、普通 Docker CLI | `Guardian`、`Tunnels`、`Docker` | 无特权 | 仅对 Server 私有目录或用户权限范围运行，不进入 Helper |
 | 指标、Nginx/服务发现、配置测试 | `SystemMonitor`、`WebServer` | 无特权 | 固定只读子进程；不得借用 Helper |
 
