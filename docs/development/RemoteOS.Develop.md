@@ -96,8 +96,7 @@ printf '%s' '{"operation":"FirewallUfwStatus","operationId":"11111111-1111-1111-
 ```
 
 不要使用 `sudo dotnet run`，否则构建输出可能被 root 占有。也不要把 sudoers 规则直接指向开发账户
-可写的 `bin/Debug` apphost；那等价于授予该账户 root 能力。旧
-`install-remoteos-firewall-development.sh` 仅保留为兼容转发，实际应使用统一 Helper 脚本。
+可写的 `bin/Debug` apphost；那等价于授予该账户 root 能力。
 
 ## 进程守护
 ### 1. 配置 Agent 环境变量
