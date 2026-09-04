@@ -1,56 +1,43 @@
 # 代理管理器实现调研
 
-## 阶段 0 结论
+> 状态：**代码级实现已完成，尚未完成发布级平台验证**  
+> 核对日期：2026-09-04  
+> 核对范围：`feature_privileged` 当前代码、Proxy Manager 提交历史和跳过测试登记表。本文不改变产品代码。
 
-本文将完整阅读的 `docs/applications/RemoteOS.ProxyManager.Design.md`（4,155 行）映射到 2026-08-31 检查的仓库。阶段 0 不改变产品代码：尚无 Proxy Manager API、服务、Mihomo 控制器客户端、运行时安装器、配置文件存储或 Avalonia UI。
+## 当前结论
 
-实现必须是主机全局内置应用，可复用现有 Protocol、类型化 HTTP 客户端、Avalonia 工作区/模态框、密钥、操作台账、审计和运行时安全模式。不得将 FRP 子进程监管用于 Mihomo：TUN 需要原生 OS 服务、管理路由保护、恢复标记和网络回滚。
+旧的阶段 0 结论（“尚无 Proxy Manager，必须从阶段 1 开始”）已不再适用。当前分支已有可运行的 `remoteos.proxy` 内置应用、`/api/v1/proxy` API、Server-only Mihomo 适配器、受保护的配置/订阅存储、运行时生命周期、受限特权操作边界、TUN 事务框架和审计/操作台账。
 
-## 相关项目
+这不等于 Proxy Manager 已达到 V1 发布条件：真实 Windows/Ubuntu 特权、Mihomo 生命周期、TUN 路由/DNS 变更、崩溃/重启恢复仍未在隔离主机上验证；当前生产网络平台实现会在不能证明安全时拒绝变更。下一阶段是**受控平台验证与发布收尾**，不是重新实现阶段 1。
 
-| 区域 | 仓库实际角色 | 代理映射 |
-| --- | --- | --- |
-| `Shared/RemoteOS.Protocol` | Client/Server DTO、枚举、路由/Hub 常量、JSON 约定 | 在此新增 Proxy 协议族 |
-| `RemoteOS.Server` | ASP.NET Core .NET 10 宿主、Minimal API、主机集成、SQLite 存储 | 新增代理领域、平台适配器、服务、提供程序和端点 |
-| `Client/RemoteOS.Client` | Avalonia Shell、内置应用、类型化远程客户端、DI、本地化、主题 | 新增 `remoteos.proxy`、类型化仓库、工作区/页面/视图模型 |
-| `Framework/RemoteOS.Core` | 应用清单及请求能力声明 | 仅新增清单所需的稳定代理能力 |
-| `Framework/RemoteOS.App.SDK` 与 `RemoteOS.WindowManager` | 托管窗口和所有者范围模态框 | 用于代理窗口及配置文件/配置/恢复对话框 |
-| `RemoteOS.Server.Tests` | 控制台验证套件，不是 xUnit | 新增聚焦的协议/安全测试，再新增平台集成测试 |
+## 已实现能力
 
-Server 是单个 Windows/Linux 程序集；`Program.cs` 组合平台实现并映射端点族。当前没有 `RemoteOS.Network`、`PlatformPaths` 抽象、通用服务管理器、通用操作框架或代理功能。
+| 层面 | 当前实现 |
+| --- | --- |
+| 协议与授权 | `Shared/RemoteOS.Protocol/Proxy` 提供 engine-neutral DTO、路由、状态和稳定 `proxy.*` 问题码；`MapProxyEndpoints` 已映射 `/api/v1/proxy`。`ProxyRead`、`ProxyManage` 和 `ProxyDangerous` 策略将读取、管理及运行时/TUN 等危险操作分开；长操作使用持久化 operation ID 和 `Idempotency-Key`。 |
+| Server 与 Mihomo | `MihomoEngine`、仅 Server 使用的 loopback Controller client、控制器密钥保护存储、运行状态/代理组/节点选择、路由模式、延迟测试、连接关闭、流量/内存、日志和 DNS 状态均已接入。Controller 地址、密钥和原始 Controller JSON 不会进入 Client API。 |
+| 托管运行时 | `MihomoRuntimeManager` 使用源代码固定的受信任清单；支持下载或从 Server 文件安装，执行大小/归档路径/哈希/架构/版本检查、暂存、健康检查、active/previous 切换、回滚和卸载。Linux 使用受限的 `systemd` 操作；Windows 由 `WindowsMihomoProcessHost` 管理 Mihomo 进程树及异常重启/宿主停止清理。 |
+| 配置与订阅 | 主机全局 SQLite 元数据、受保护 raw YAML、串行配置事务、备份/原子提交/reload/健康检查/回滚、订阅导入/刷新/激活和加密 URL 存储均已实现。订阅默认仅接受公网 HTTPS、禁止重定向并限制响应；可显式选择经过验证的系统代理路径。Base64/明文节点列表可转换为 Mihomo YAML；受保护的本地 `geoip.metadb` 支持离线校验与运行。 |
+| 特权与恢复 | `IProxyPrivilegedOperations` 只允许固定的 Mihomo 运行时、服务和网络恢复操作，不接受通用命令、参数或密码。统一特权助手已覆盖 Linux `remoteos-mihomo.service` 的固定操作；缺少可用 Helper/Windows 服务权限或管道 ACL 时，当前分支以 `proxy.privileged_operation_unavailable` 返回统一的中/英/日修复指引。TUN 已有全局锁、管理路由方案、恢复标记、恢复 hosted service、禁用和紧急禁用路径。 |
+| Avalonia | 已注册 `IProxyRepository` / `RemoteProxyRepository` 和单窗口 `remoteos.proxy` 应用。工作区包含概览、订阅、代理组、连接、日志和设置；支持运行时安装/回滚/卸载、启停、订阅、节点、路由模式、测速、系统代理、TUN 设置及紧急禁用。所有请求经类型化 RemoteOS API；中、英、日资源已接入。 |
+| 可观测性与测试 | 安装、生命周期、TUN、订阅、配置、节点和连接操作有无秘密审计；诊断日志有界且经脱敏。`RemoteOS.Server.Tests` 已覆盖协议、主机级持久化、订阅加密与下载限制、GEO 数据、配置事务、TUN 故障关闭/恢复标记、Controller 安全、运行时归档与回滚等进程内场景。 |
 
-## 现有抽象与约束
+## 近期实现变化
 
-- `RemoteOsEndpoints` 将 REST 根固定为 `/api/v1`；代理必须使用 `/api/v1/proxy`，不能使用规范中的无版本 `/api/proxy` 示例。协议放在 `Shared/RemoteOS.Protocol/Proxy`，端点和客户端不得重复路由字符串。端点使用 `RequireAuthorization` 与 `WithTags`；WebServer 是需要 `Idempotency-Key`、返回 `202 Accepted` 持久操作、并把提权问题码映射为 403 的参考。
-- JWT 是 Server 基础保护。`TunnelsRead` 允许 controller/observer，`TunnelsManage` 要求 controller。`AppPermissions` 是桌面清单/能力目录，只用于启用 UI，不是 Server 授权。代理必须实施真正的读/管理/TUN/运行时/恢复策略，并保留认证、主机 OS 检查、确认与审计。
-- `ISecretStore`/`DataProtectionSecretStore` 是仅 Server 加密密钥的模式；隧道安全 DTO 只返回 `TokenConfigured`，FRP 日志有边界且脱敏。代理须使用独立用途的代理密钥存储，永不在路由、DTO、审计、日志、异常响应或 UI 状态中返回控制器密钥、订阅 Token、认证头、代理凭据、UUID 或私有/WireGuard 密钥。
-- `TunnelAudit` 是简易审计参考；`HostOperationJournal`、`WebServerOperationStore` 与 `CertificateOperationStore` 是主机全局持久操作参考。代理长操作应复用或有意抽取 WebServer 的幂等性、取消、阶段/进度、持久关联 ID、锁定和中断恢复语义；不能无说明地复制第三套存储。TUN 还必须有持久恢复标记和回滚状态。
-- `FrpRuntimeManager` 可提供固定清单、HTTPS 下载、归档验证、SHA-256、暂存、可执行健康检查、版本、当前/上一版本和回滚的安全经验；`FrpTunnelProvider` 可提供临时写入、验证、备份、原子提交、重启、尝试回滚模式。两者均为 FRP 专属，不得扩展；Mihomo 必须走原生 Windows 服务管理器或 systemd 生命周期及受保护路径。
-- `INativeServiceAdapter` 只对白名单服务执行查询/启停/重启，不能安装或删除服务。`IHostPrivilegeService` 只报告 Server 是否已 root/管理员；Linux Firewall 有仅接受结构化防火墙操作的 root 辅助程序。它们不能变成通用代理命令执行器。Guardian 安装器和 Docker 安装计划也不是提权工作流。
+- 2026-09-01 起，Windows 不再创建额外 SCM 服务：`RemoteOS.Server` 通过 `WindowsMihomoProcessHost` 直接拥有 Mihomo 子进程；Linux 仍使用 `remoteos-mihomo.service`。
+- 2026-09-01 至 03，补齐了订阅安全导入、离线 GeoIP、代理组/路由模式/测速、流量与内存、系统代理和受管 TUN 配置；配置刷新不再隐式重启或拉取订阅。
+- 2026-09-04，统一特权助手链路已让 Proxy 与其他特权功能一致地保留并呈现“特权助手不可用”的结构化问题码和平台对应修复指引。
 
-需要新增：专注于 Windows ProgramData 与 Linux `/etc`、`/var/lib`、`/var/log`、`/opt` 的代理路径抽象；Windows/Linux `IProxyPlatformService`（能力、接口/路由/DNS 检查、路由保护、快照、恢复、TUN 诊断）；只允许已命名代理操作的强类型特权边界；以及可能从 `INativeServiceAdapter` 抽取的白名单生命周期控制。不得创建通用执行器，不得将 `systemctl`、`sc.exe`、`netsh`、PowerShell 或 `ip` 命令散落到业务服务。
+## 剩余缺口与发布门槛
 
-## UI、主题、本地化与所有权
+1. **真实平台验证尚未完成。** `docs/testing/RemoteOS.ProxyManager.SkippedTests.md` 所列 Windows/Windows Server 与 Ubuntu/Ubuntu Server 用例仍待在隔离、可丢弃的主机上执行：托管运行时安装/更新/回滚、服务生命周期、TUN 启停、紧急恢复，以及 Mihomo/Server/OS 崩溃和重启后的恢复。
+2. **TUN 目前按安全失败。** `HostProxyNetworkSafetyPlatform` 仅在 Linux 读取默认路由以生成管理路径方案；Windows 返回无方案，而 apply、verify 和 restore 目前一律拒绝。因此 API/UI 和恢复模型已在，但当前默认平台实现不会宣称已经能安全地修改真实路由或 DNS。
+3. **特权部署是前置条件。** Linux 需要已部署 root-owned Helper、固定发布目录和 sudoers 配置；Windows 需要服务、命名管道 ACL 与共享密钥。缺失任一条件时，运行时/服务所需的操作应失败，不得绕过到 shell 或收集操作系统密码。
+4. **API 宿主集成验证待补。** 进程内 Server 测试覆盖了大部分领域安全路径；跳过测试登记表仍要求增加并运行真实 API 宿主夹具，以验证代理授权、幂等、操作恢复和审计输出。
+5. **范围仍是单引擎 V1。** 仅 Mihomo 已实现；sing-box/Xray、集中式多主机编排、规则可视化编辑器、流量历史库和自动订阅刷新不在当前范围。系统代理目前仅 Windows 支持；“开机自启”没有实现，UI 明确显示未启用。
 
-先提供受限且脱敏的 REST 日志；若后续需要实时日志/连接，应沿用现有 SignalR Hub 协议，不新增原始套接字框架。内置应用派生自 `RemoteApplicationBase`，声明 `remoteos.*` AppId/清单，从 `AppContext.Services` 解析类型化服务，打开桌面托管窗口。Server 客户端使用在 `Bootstrapper` 注册且含诊断、`AcceptLanguageHandler` 和认证的类型化 `HttpClient`；Proxy 必须采用 `IProxyRepository`/`RemoteProxyRepository`，视图/视图模型不能直接创建 `HttpClient` 或连接 Mihomo。
+## 下一阶段入口
 
-使用 CommunityToolkit.Mvvm 的 `ObservableObject`、`ObservableProperty`、`RelayCommand`。工作区参照 Docker 的左侧导航、`ContentControl`、独立 AXAML 页；禁止巨大单页或隐藏标签页。模态框使用 `AppContext.ShowDialogAsync<TResult>`，不得使用原生 OS 对话框。主题使用 `ThemeService` 的动态语义资源，禁止 Mihomo/Clash 专用调色板或硬编码颜色。所有 Proxy 键加入 en-US、zh-CN、ja-JP；动态文本响应 `LanguageChanged`。
+先在带第二条管理连接的临时 VM 上，依照 [`RemoteOS.ProxyManager.SkippedTests.md`](../testing/RemoteOS.ProxyManager.SkippedTests.md) 执行 PM-G5-WIN-01 至 03 和 PM-G5-UBU-01 至 03；记录 RemoteOS 修订、Mihomo 资产哈希、环境、结果与问题码。随后补齐并运行 PM-G6-G8-API-01 的 API 宿主夹具。所有用例通过前，不得将 Proxy Manager 标记为 V1 已完成，尤其不得在生产主机首次启用 TUN。
 
-代理状态（运行时库存、活动配置文件、恢复标记、网络快照、控制器配置、操作/审计历史、安全状态）是主机全局的，不能放到工作区偏好或用户行中；用户/会话身份只用于审计归因。选择主机全局迁移方案后，原始 YAML、备份和运行时资产写入受保护平台路径；保留完整引擎 YAML 加 RemoteOS 覆盖层，不尝试完整 DTO 重写。
-
-## 必需组件图与实施阶段
-
-1. **阶段 1：领域与协议。** 在 `Shared/RemoteOS.Protocol/Proxy` 新增引擎/平台能力、运行/运行时/TUN/健康/操作状态、稳定问题码、配置文件、运行时、组、连接、日志、DNS、恢复和路由常量；新增引擎无关 Server 接口及序列化/问题码测试。没有 UI、下载、服务或 TUN 激活。
-2. **阶段 2：Mihomo 适配器。** 实现 Server 专用 `MihomoEngine` 和仅本机控制器客户端，映射为中立协议、保护生成的控制器密钥、验证配置、脱敏有界日志；客户端无控制器访问。
-3. **阶段 3：运行时与原生服务。** 以 FRP 的验证/暂存/版本/回滚经验实现托管/外部 Mihomo 运行时，但使用代理路径；新增强类型运行时/服务/配置操作及 Windows/Linux 服务集成。首次安装和健康检查关闭 TUN。
-4. **阶段 4：配置文件与配置事务。** 实现主机全局元数据、活动配置、原始 YAML 读写、验证、临时写入、备份、提交、重载、健康检查与回滚；避免完整 YAML 可视模型。
-5. **阶段 5：TUN 安全。** 实现能力检测、活动会话路由捕获、系统绕过、出站接口、路由/DNS 快照、恢复标记、事务启停、启动恢复评估、回滚与紧急禁用。先完成 Server 测试，证明管理流量在激活时可达，才暴露 UI/API。
-6. **阶段 6：API 与授权。** 在 `Program.cs` 注册服务并添加 `MapProxyEndpoints`；应用认证和危险操作策略；运行时/TUN/恢复变更需要幂等键与持久操作 ID；审计操作人/会话/主机/引擎/配置文件/结果/关联 ID，且无敏感内容。
-7. **阶段 7：Avalonia。** 注册类型化仓库、清单和内置应用；提供概览、配置文件、代理、连接、DNS、日志、设置等按能力而非引擎名称划分的页面；使用现有主题、本地化、托管模态框。
-8. **阶段 8–10。** 完成审计/密钥/控制器安全和授权测试，在真实 Windows 与 Ubuntu 执行 TUN 集成测试证明管理路径存活，最后完善代理架构、Mihomo、TUN、恢复、安全、安装和故障排查文档。
-
-## 风险与阶段 0 完成条件
-
-当前没有跨平台提权工作流；阶段 3 必须先设计受约束部署/类型化辅助边界，不能收集 OS 密码或成为通用执行器。平台路径和网络路由/DNS 抽象是新增基础设施，`INativeServiceAdapter` 过窄，现有操作存储需要明确的复用/抽取决定，且必须新增主机范围 TUN 锁和恢复标记。FRP 仅是安全模式参考；其常驻子进程设计违反 Mihomo 服务要求。阶段 1 仅可诊断防火墙，不得直接写入 UFW、nftables、iptables 或 Windows 防火墙策略。规范中大写错误示例与仓库小写点分规范冲突，阶段 1 必须选择一种稳定公共格式并始终使用。
-
-阶段 0 已完成：阅读完整规范；检查解决方案、Server 组合和持久化；检查权限、提权、服务、平台边界、API、操作、审计、密钥存储和流式传输；检查 Avalonia MVVM、类型化客户端、工作区、模态框、主题和本地化模式；识别可复用基础设施、缺失组件和冲突；除本文档外未修改产品代码。只有接受本文档后才能开始阶段 1。
+设计范围与长期安全约束仍见 [`RemoteOS.ProxyManager.Design.md`](./RemoteOS.ProxyManager.Design.md)，执行基线见 [`RemoteOS.ProxyManager.Goal.md`](./RemoteOS.ProxyManager.Goal.md)，操作员文档见 [`docs/proxy/`](../proxy/)。若这些早期规划文档与本页的“当前实现”叙述冲突，以本页、代码和跳过测试登记表为准，并应在后续文档维护中同步修正。

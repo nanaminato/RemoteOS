@@ -19,7 +19,7 @@
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)
 > - 任务管理器性能采集重写方案（后续 Goal 执行基线）见 [`RemoteOS.TaskManager.Rewrite.md`](./applications/RemoteOS.TaskManager.Rewrite.md)
 > - FRP 内网穿透的 Goal 执行基线见 [`RemoteOS.FRP_Integration.Goal.md`](./applications/RemoteOS.FRP_Integration.Goal.md)；架构与安全设计见 [`RemoteOS.FRP_Integration.Design.md`](./applications/RemoteOS.FRP_Integration.Design.md)，当前实现与运维边界见 [`RemoteOS.FRP_Integration.Implementation.md`](./applications/RemoteOS.FRP_Integration.Implementation.md)
-> - 代理管理器的 Goal 执行基线见 [`RemoteOS.ProxyManager.Goal.md`](./applications/RemoteOS.ProxyManager.Goal.md)；架构与安全设计见 [`RemoteOS.ProxyManager.Design.md`](./applications/RemoteOS.ProxyManager.Design.md)，实施前调研见 [`RemoteOS.ProxyManager.Discovery.md`](./applications/RemoteOS.ProxyManager.Discovery.md)
+> - 代理管理器已完成代码级实现，发布级平台验证仍待完成：当前能力、缺口和下一阶段入口见 [`RemoteOS.ProxyManager.Discovery.md`](./applications/RemoteOS.ProxyManager.Discovery.md)（[English](./applications/RemoteOS.ProxyManager.Discovery.en.md)）；执行基线见 [`RemoteOS.ProxyManager.Goal.md`](./applications/RemoteOS.ProxyManager.Goal.md)，架构与安全设计见 [`RemoteOS.ProxyManager.Design.md`](./applications/RemoteOS.ProxyManager.Design.md)，操作员文档见 [`docs/proxy/`](./proxy/)
 > - Docker 管理器见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)
 > - 证书管理器见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
 > - Web Server 管理器 / Nginx 集成设计中，见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)
