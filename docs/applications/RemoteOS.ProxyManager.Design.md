@@ -3470,7 +3470,7 @@ ProxyServiceManagerForWindows
 输出：
 
 ```text
-PROXY_IMPLEMENTATION_DISCOVERY.md
+docs/applications/RemoteOS.ProxyManager.Discovery.md
 ```
 
 内容：
@@ -4119,7 +4119,7 @@ infrastructure already exists.
 
 Start with Phase 0 only.
 
-Create PROXY_IMPLEMENTATION_DISCOVERY.md describing how this specification
+Create `docs/applications/RemoteOS.ProxyManager.Discovery.md` describing how this specification
 maps onto the actual repository.
 
 Do not begin the full implementation until the discovery document is

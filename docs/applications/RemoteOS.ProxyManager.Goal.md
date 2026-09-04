@@ -3,7 +3,7 @@
 > 状态：实施中（Goal 0–8 与 Goal 10 已实现；Goal 9 需要受控 Windows/Ubuntu 环境验证）
 > 建立日期：2026-08-31  
 > 适用范围：`.NET 10` Server、Avalonia Client、Windows / Windows Server / Ubuntu / Ubuntu Server  
-> 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](../../PROXY_IMPLEMENTATION_DISCOVERY.md)
+> 架构依据：[代理管理器实现规范](./RemoteOS.ProxyManager.Design.md)；[实现调研](./RemoteOS.ProxyManager.Discovery.md)
 
 本文是 Proxy Manager 的 `/goal` 执行基线。它将设计规范与已完成的仓库调研合并为可独立构建、验证、回滚的实施目标；设计规范仍是产品行为和安全原则的权威来源，调研文档仍是当前代码基线与可复用设施的权威来源。
 
@@ -115,7 +115,7 @@ Controller secret、订阅 URL token/认证头、代理凭据、UUID、WireGuard
 
 **状态**：已完成。冻结记录见 [Goal 0 decision record](./RemoteOS.ProxyManager.Goal0.md)。
 
-**工作**：复核 `PROXY_IMPLEMENTATION_DISCOVERY.md` 中的 Solution、授权、Service、特权、持久化、操作、秘密、Client 与 UI 结论。冻结 V1 Windows/Linux/CPU 发布矩阵、Mihomo 支持版本范围、固定发布清单与哈希材料来源、主机级 schema/migration 方案、平台路径/保留策略、问题码表、权限矩阵、审计事件和不支持能力的返回约定。明确当前缺少通用 elevation workflow 是 Phase 3 的设计门槛。
+**工作**：复核 `RemoteOS.ProxyManager.Discovery.md` 中的 Solution、授权、Service、特权、持久化、操作、秘密、Client 与 UI 结论。冻结 V1 Windows/Linux/CPU 发布矩阵、Mihomo 支持版本范围、固定发布清单与哈希材料来源、主机级 schema/migration 方案、平台路径/保留策略、问题码表、权限矩阵、审计事件和不支持能力的返回约定。明确当前缺少通用 elevation workflow 是 Phase 3 的设计门槛。
 
 **验收**：没有未决的“假定已有”服务或权限抽象；威胁模型覆盖恶意归档、路径遍历、校验失败、YAML/命令注入、秘密泄露、Controller 暴露、操作中断、路由/DNS 损坏、管理连接中断、Defender/组织策略拒绝；关键设计决定写入本文或设计文档。
 
@@ -229,4 +229,4 @@ Proxy Manager 仅在以下条件全部满足后才可标为 V1 完成：
 
 后续在 Goal 模式中应使用以下任务描述，并把本文件、实现规范和调研一并作为约束：
 
-> 依据 `docs/applications/RemoteOS.ProxyManager.Goal.md`、`docs/applications/RemoteOS.ProxyManager.Design.md` 与 `PROXY_IMPLEMENTATION_DISCOVERY.md` 实现 RemoteOS 代理管理器。严格按 Goal 0–10 顺序推进：先确认已完成调研并冻结主机级持久化、权限、问题码和受限特权边界；再建立 Engine-neutral contracts、Server-only Mihomo adapter、受验证 Runtime 和配置事务。TUN 安全（管理路径保护、快照、recovery marker、回滚与紧急恢复）必须先完成 Server/平台验证，才可开放 API/UI。Mihomo 必须以原生 OS Service 运行，Controller 仅本机访问；禁止 Client 直连、秘密泄露、shell/任意提权、Defender/Firewall 绕过以及业务层 OS 命令散布。每个 Goal 只有在构建、测试和本文件验收通过后才能进入下一项。
+> 依据 `docs/applications/RemoteOS.ProxyManager.Goal.md`、`docs/applications/RemoteOS.ProxyManager.Design.md` 与 `docs/applications/RemoteOS.ProxyManager.Discovery.md` 实现 RemoteOS 代理管理器。严格按 Goal 0–10 顺序推进：先确认已完成调研并冻结主机级持久化、权限、问题码和受限特权边界；再建立 Engine-neutral contracts、Server-only Mihomo adapter、受验证 Runtime 和配置事务。TUN 安全（管理路径保护、快照、recovery marker、回滚与紧急恢复）必须先完成 Server/平台验证，才可开放 API/UI。Mihomo 必须以原生 OS Service 运行，Controller 仅本机访问；禁止 Client 直连、秘密泄露、shell/任意提权、Defender/Firewall 绕过以及业务层 OS 命令散布。每个 Goal 只有在构建、测试和本文件验收通过后才能进入下一项。

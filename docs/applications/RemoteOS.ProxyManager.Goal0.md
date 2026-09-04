@@ -4,7 +4,7 @@
 
 ## 评审结果
 
-`PROXY_IMPLEMENTATION_DISCOVERY.md` 对当前代码树仍然准确：尚无代理功能或通用提权工作流。可复用的只是模式：主机元数据的 `HostGlobalMigrationRunner`、持久幂等操作的 `WebServerOperationStore`、仅 Server 加密值的 `DataProtectionSecretStore`、验证/暂存/回滚经验的 `FrpRuntimeManager`，以及白名单生命周期控制的 `INativeServiceAdapter`。这些均不得扩展为监管 Mihomo 或通用命令运行器。
+`RemoteOS.ProxyManager.Discovery.md` 对当前代码树仍然准确：尚无代理功能或通用提权工作流。可复用的只是模式：主机元数据的 `HostGlobalMigrationRunner`、持久幂等操作的 `WebServerOperationStore`、仅 Server 加密值的 `DataProtectionSecretStore`、验证/暂存/回滚经验的 `FrpRuntimeManager`，以及白名单生命周期控制的 `INativeServiceAdapter`。这些均不得扩展为监管 Mihomo 或通用命令运行器。
 
 ## V1 平台与运行时发布矩阵
 

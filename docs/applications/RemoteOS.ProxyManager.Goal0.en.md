@@ -7,7 +7,7 @@
 
 ## Review result
 
-`PROXY_IMPLEMENTATION_DISCOVERY.en.md` remains accurate for the current tree:
+`RemoteOS.ProxyManager.Discovery.en.md` remains accurate for the current tree:
 there is no proxy feature or general elevation workflow. The reusable pieces
 are patterns only: `HostGlobalMigrationRunner` for host metadata,
 `WebServerOperationStore` for durable idempotent operations,
