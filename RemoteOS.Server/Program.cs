@@ -17,7 +17,21 @@ using Server.Identity;
 using Server.Storage;
 using Server.Storage.Sqlite;
 
-var builder = WebApplication.CreateBuilder(args);
+// `dotnet run` normally treats the project directory as ContentRoot, which would put every
+// ContentRoot-relative runtime artifact under the checkout's data directory. Keep development
+// data beside the compiled executable instead, while installed hosts retain their configured
+// content root and storage locations.
+var environmentName = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+    ?? Environments.Production;
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    EnvironmentName = environmentName,
+    ContentRootPath = environmentName.Equals(Environments.Development, StringComparison.OrdinalIgnoreCase)
+        ? AppContext.BaseDirectory
+        : null,
+});
 var kestrelCertificates = new Server.Certificate.KestrelCertificateRegistry();
 builder.WebHost.ConfigureKestrel(options => options.ConfigureHttpsDefaults(https =>
     https.ServerCertificateSelector = (_, hostName) => kestrelCertificates.Select(hostName)));
@@ -27,6 +41,99 @@ builder.Services.AddDataProtection();
 // The signed host installer writes this ACL-protected file. It keeps machine-only
 // Guardian IPC settings out of source-controlled appsettings.json and out of HTTP DTOs.
 builder.Configuration.AddJsonFile("appsettings.host.json", optional: true, reloadOnChange: false);
+
+// Proxy Goal 2: a Server-only, loopback-only controller adapter. There is deliberately no
+// endpoint mapping or client registration until Goal 6, and no service/process management until Goal 3.
+var mihomoController = builder.Configuration.GetSection("Proxy:Mihomo:Controller").Get<Server.Proxy.Mihomo.MihomoControllerOptions>()
+    ?? new Server.Proxy.Mihomo.MihomoControllerOptions();
+mihomoController.Validate();
+builder.Services.AddSingleton(mihomoController);
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IProxyControllerSecretStore, Server.Proxy.Mihomo.DataProtectionProxyControllerSecretStore>();
+// The controller is an optional local process. Its expected "not started" condition is
+// reported by MihomoControllerClient as one actionable warning, instead of HttpClient's
+// full connection exception stack on every status poll.
+builder.Services.AddHttpClient<Server.Proxy.Mihomo.IMihomoControllerClient, Server.Proxy.Mihomo.MihomoControllerClient>()
+    .RemoveAllLoggers();
+builder.Services.AddSingleton<Server.Proxy.IProxyEngine, Server.Proxy.Mihomo.MihomoEngine>();
+builder.Services.AddSingleton<Server.Proxy.IProxyEngineRegistry, Server.Proxy.ProxyEngineRegistry>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.WindowsMihomoProcessHost>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IWindowsMihomoProcessHost>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.WindowsMihomoProcessHost>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.Proxy.Mihomo.WindowsMihomoProcessHost>());
+builder.Services.AddSingleton<Server.Proxy.Platform.IProxyPrivilegedOperations, Server.Proxy.Platform.NativeMihomoPrivilegedOperations>();
+builder.Services.AddSingleton<Server.Proxy.IProxyPlatformPaths, Server.Proxy.Platform.ProxyPlatformPaths>();
+builder.Services.AddSingleton<Server.Proxy.IProxyPlatformService, Server.Proxy.Platform.ProxyPlatformService>();
+builder.Services.AddSingleton<Server.Proxy.IProxyDiagnosticLogStore, Server.Proxy.ProxyDiagnosticLogStore>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManifest>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoRuntimeProbe, Server.Proxy.Mihomo.MihomoRuntimeProbe>();
+builder.Services.AddSingleton<Server.Proxy.Mihomo.MihomoRuntimeManager>();
+builder.Services.AddSingleton<Server.Proxy.IProxyRuntimeManager>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
+builder.Services.AddSingleton<Server.Proxy.Mihomo.IMihomoConfigurationValidator>(sp => sp.GetRequiredService<Server.Proxy.Mihomo.MihomoRuntimeManager>());
+builder.Services.AddSingleton<Server.Proxy.IProxyGeoDataService, Server.Proxy.Mihomo.MihomoGeoDataService>();
+// Provision bundled GEO files into Mihomo's -d HomeDir during Server startup, before users
+// import subscriptions. The transaction service repeats this as an idempotent safety net.
+builder.Services.AddHostedService<Server.Proxy.Mihomo.MihomoGeoDataHostedService>();
+builder.Services.AddSingleton<Server.Proxy.IProxySettingsService, Server.Proxy.Mihomo.MihomoSettingsService>();
+builder.Services.AddHostedService<Server.Proxy.Mihomo.SystemProxyGuardHostedService>();
+builder.Services.AddHttpClient("MihomoRuntime", client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("ProxySubscriptionDirect", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        UseProxy = false,
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+    });
+builder.Services.AddHttpClient("ProxySubscriptionDirectInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        UseProxy = false,
+        AllowAutoRedirect = false,
+        ConnectCallback = Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectAsync,
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+        },
+    });
+builder.Services.AddHttpClient("ProxySubscriptionSystemProxy", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() =>
+    {
+        // Keep the handler and the connection policy on the exact same IWebProxy instance.
+        // HttpClient's proxy source is deliberately used here; WebRequest.DefaultWebProxy is
+        // a different (and obsolete) proxy pipeline which can choose a different endpoint.
+        var systemProxy = HttpClient.DefaultProxy;
+        return new SocketsHttpHandler
+        {
+            UseProxy = true,
+            Proxy = systemProxy,
+            AllowAutoRedirect = false,
+            ConnectCallback = (context, cancellationToken) =>
+                Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync(systemProxy, context, cancellationToken),
+        };
+    });
+builder.Services.AddHttpClient("ProxySubscriptionSystemProxyInsecureTls", client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() =>
+    {
+        var systemProxy = HttpClient.DefaultProxy;
+        return new SocketsHttpHandler
+        {
+            UseProxy = true,
+            Proxy = systemProxy,
+            AllowAutoRedirect = false,
+            ConnectCallback = (context, cancellationToken) =>
+                Server.Proxy.ProxySubscriptionNetworkPolicy.ConnectUsingSystemProxyAsync(systemProxy, context, cancellationToken),
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = static (_, _, _, _) => true,
+            },
+        };
+    });
+builder.Services.AddSingleton<Server.Proxy.IProxySubscriptionDownloader, Server.Proxy.ProxySubscriptionDownloader>();
+builder.Services.AddSingleton<Server.Proxy.Platform.IProxyNetworkSafetyPlatform, Server.Proxy.Platform.HostProxyNetworkSafetyPlatform>();
+builder.Services.AddSingleton<Server.Proxy.IProxyTunSafetyService, Server.Proxy.ProxyTunSafetyService>();
+builder.Services.AddSingleton<Server.Proxy.IProxyRecoveryService>(sp => sp.GetRequiredService<Server.Proxy.IProxyTunSafetyService>());
+builder.Services.AddSingleton<Server.Proxy.ProxyOperationStore>();
+builder.Services.AddSingleton<Server.Proxy.ProxyAuditStore>();
+builder.Services.AddSingleton<Server.Proxy.IProxyLifecycleService, Server.Proxy.ProxyLifecycleService>();
+builder.Services.AddHostedService<Server.Proxy.ProxyRecoveryHostedService>();
 
 builder.Services.Configure<AuthSecurityOptions>(builder.Configuration.GetSection("AuthenticationSecurity"));
 var authSecurity = builder.Configuration.GetSection("AuthenticationSecurity").Get<AuthSecurityOptions>() ?? new AuthSecurityOptions();
@@ -194,6 +301,13 @@ builder.Services.AddAuthorization(options =>
         || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "observer")));
     options.AddPolicy("TunnelsManage", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
         context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
+    options.AddPolicy("ProxyRead", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim("role", "observer")
+        || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "observer")));
+    options.AddPolicy("ProxyManage", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
+    options.AddPolicy("ProxyDangerous", policy => policy.RequireAuthenticatedUser().RequireAssertion(context =>
+        context.User.HasClaim("role", "controller") || context.User.HasClaim(System.Security.Claims.ClaimTypes.Role, "controller")));
 });
 
 // 身份认证 Provider（按宿主 OS 平台选择，见 Authentication.md §1.1）
@@ -329,6 +443,12 @@ if (storageProvider == "sqlite")
     builder.Services.AddScoped<Server.Secrets.ISecretStore, Server.Secrets.DataProtectionSecretStore>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelService, Server.Tunnels.TunnelService>();
     builder.Services.AddScoped<Server.Tunnels.ITunnelAudit, Server.Tunnels.TunnelAudit>();
+    builder.Services.AddSingleton<Server.Proxy.IProxyProfileRepository, Server.Proxy.SqliteProxyProfileRepository>();
+    builder.Services.AddSingleton<Server.Proxy.IProxyProfileService, Server.Proxy.ProxyProfileService>();
+    builder.Services.AddSingleton<Server.Proxy.IProxySubscriptionRepository, Server.Proxy.SqliteProxySubscriptionRepository>();
+    builder.Services.AddScoped<Server.Proxy.IProxySubscriptionService, Server.Proxy.ProxySubscriptionService>();
+    builder.Services.AddScoped<Server.Proxy.IProxyConfigurationTransactionService, Server.Proxy.ProxyConfigurationTransactionService>();
+    builder.Services.AddScoped<Server.Proxy.IProxyConfigurationService, Server.Proxy.ProxyConfigurationService>();
 }
 else
 {
@@ -581,6 +701,7 @@ app.MapWebServerEndpoints();
 app.MapCertificateEndpoints();
 app.MapGitEndpoints();
 app.MapTunnelEndpoints();
+app.MapProxyEndpoints();
 if (OperatingSystem.IsLinux())
     app.MapFirewallEndpoints();
 app.MapHub<TerminalHub>("/hubs/terminals");

@@ -15,6 +15,9 @@ public sealed class PreferencesSync : IDisposable
     private readonly ShellSettings _settings;
     private readonly DefaultAppRegistry _registry;
     private readonly WallpaperService _wallpapers;
+    private readonly object _loadGate = new();
+    private Task _currentLoadTask = Task.CompletedTask;
+    private string? _currentLoadScope;
 
     public PreferencesSync(
         IAuthSession session,
@@ -30,13 +33,13 @@ public sealed class PreferencesSync : IDisposable
         _wallpapers = wallpapers;
         _session.StateChanged += OnStateChanged;
         // 桌面外壳可能在登录后才构造本服务——若此时已认证，立即加载。
-        _ = LoadIfAuthenticatedAsync();
+        _ = EnsureCurrentWorkspacePreferencesAsync();
     }
 
     private void OnStateChanged(object? sender, AuthSessionStateChangedEventArgs e)
     {
         if (e.State == AuthSessionState.Authenticated)
-            _ = LoadIfAuthenticatedAsync();
+            _ = EnsureCurrentWorkspacePreferencesAsync();
         else if (e.State == AuthSessionState.Unauthenticated)
         {
             _settings.Apply(WorkspacePreferencesDto.Default);
@@ -44,13 +47,36 @@ public sealed class PreferencesSync : IDisposable
         }
     }
 
-    private async Task LoadIfAuthenticatedAsync()
+    /// <summary>
+    /// Waits for the authenticated workspace preferences to be applied. The desktop uses this
+    /// before opening first-run UI so it is created in the workspace's selected language.
+    /// </summary>
+    public Task EnsureCurrentWorkspacePreferencesAsync()
     {
         if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } ws })
-            return;
+            return Task.CompletedTask;
+
+        var scope = $"{url}\n{ws.Id}\n{tokens.AccessToken}";
+        lock (_loadGate)
+        {
+            if (string.Equals(_currentLoadScope, scope, StringComparison.Ordinal))
+                return _currentLoadTask;
+
+            _currentLoadScope = scope;
+            return _currentLoadTask = LoadAsync(url, tokens.AccessToken, ws.Id);
+        }
+    }
+
+    private async Task LoadAsync(string url, string accessToken, Guid workspaceId)
+    {
         try
         {
-            var prefs = await _client.GetAsync(url, tokens.AccessToken, ws.Id);
+            var prefs = await _client.GetAsync(url, accessToken, workspaceId);
+            if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } currentUrl, CurrentWorkspace: { } currentWorkspace }
+                || !string.Equals(currentUrl, url, StringComparison.Ordinal)
+                || currentWorkspace.Id != workspaceId)
+                return;
+
             _settings.Apply(prefs);
             await _wallpapers.ApplyAsync(prefs);
             _registry.SetMappings(prefs.DefaultApps);

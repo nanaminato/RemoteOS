@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.ViewModels;
@@ -8,6 +9,7 @@ using Client.Apps.WebServers.Views;
 using Client.Apps.Certificates;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -52,6 +54,7 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
                 DataContext = new ExistingNginxInstallationDialogViewModel(action => dialog.Close(action)),
             }, new Size(560, 260));
         viewModel.RequestManagedUninstallConfirmationAsync = () => ConfirmAsync("webservers.managed.uninstall.title", "webservers.managed.uninstall.message", "webservers.managed.uninstall.confirm");
+        viewModel.ShowManagedDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("webservers.managed.download_title"), url);
         viewModel.OpenFileBrowserAtPathAsync = path =>
         {
             var activation = context.Activations.Activate(RemoteOsActivationUris.ExplorerPath(path));
@@ -125,6 +128,17 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
             return confirmed;
         }
         _ = viewModel.StartAsync();
+
+        Task ShowDownloadUrlAsync(string title, string url) => context.ShowDialogAsync<bool?>(window, title, dialog => new DownloadUrlDialogView
+        {
+            DataContext = new DownloadUrlDialogViewModel(url, CopyToClipboardAsync, () => dialog.Close(true)),
+        }, new Size(660, 210));
+
+        async Task CopyToClipboardAsync(string value)
+        {
+            var topLevel = GetTopLevel();
+            if (topLevel?.Clipboard is not null) await topLevel.Clipboard.SetTextAsync(value);
+        }
     }
 
     private static TopLevel? GetTopLevel() => Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop

@@ -30,6 +30,8 @@ public static class WebServerEndpoints
         });
         group.MapGet(WebServerApiRoutes.ManagedVersionsPattern, async (string providerId, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await manager.GetManagedInstallCatalogAsync(providerId, ct) is { } catalog ? Results.Ok(catalog) : Results.NotFound());
+        group.MapGet(WebServerApiRoutes.ManagedDownloadPattern, async (string providerId, string? version, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+            await manager.GetManagedInstallDownloadAsync(providerId, version, ct) is { } download ? Results.Ok(download) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>

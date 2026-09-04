@@ -24,6 +24,8 @@ public static class WebServerApiRoutes
     public const string ManagedPackagePattern = "/managed/{providerId}/package";
     public const string ManagedVersions = $"{WebServers}/managed/{{providerId}}/versions";
     public const string ManagedVersionsPattern = "/managed/{providerId}/versions";
+    public const string ManagedDownload = $"{WebServers}/managed/{{providerId}}/download";
+    public const string ManagedDownloadPattern = "/managed/{providerId}/download";
     public const string Lifecycle = $"{WebServers}/{{id}}/lifecycle/{{action}}";
     public const string LifecyclePattern = "/{id}/lifecycle/{action}";
     public const string ManagedUninstall = $"{WebServers}/{{id}}/managed/uninstall";

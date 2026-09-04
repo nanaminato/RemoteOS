@@ -48,6 +48,7 @@
                             <ComboBox ItemsSource="{Binding AvailableWindowsVersions}" Text="{Binding InstallVersion, Mode=TwoWay}" IsEditable="True" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="{loc:Loc webservers.managed.refresh_versions}" Command="{Binding RefreshWindowsVersionsCommand}" />
+                                <Button Content="{loc:Loc webservers.managed.download}" Command="{Binding ShowManagedDownloadCommand}" />
                                 <Button Content="{loc:Loc webservers.managed.select_package}" Command="{Binding SelectLocalPackageCommand}" />
                             </StackPanel>
                             <TextBlock Text="{Binding LocalPackageName}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -98,7 +99,9 @@
                                         <Border Background="{DynamicResource WarningMutedBrush}" CornerRadius="46" IsVisible="{Binding !IsManagedServerRunning}" Opacity="0.55" />
                                         <Border Background="{DynamicResource SuccessBrush}" CornerRadius="37" Margin="9" IsVisible="{Binding IsManagedServerRunning}" />
                                         <Border Background="{DynamicResource WarningBrush}" CornerRadius="37" Margin="9" IsVisible="{Binding !IsManagedServerRunning}" />
-                                        <TextBlock Text="⏻" FontSize="34" Foreground="{DynamicResource TextOnAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Path Data="M13,3 H11 V13 H13 Z M17.83,5.17 L16.41,6.59 A7,7 0 1,1 7.59,6.59 L6.17,5.17 A9,9 0 1,0 17.83,5.17 Z"
+                                              Width="34" Height="34" Stretch="Uniform" Fill="{DynamicResource TextOnAccentBrush}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Grid>
                                 </Button>
                                 <StackPanel Grid.Column="1" Spacing="5" VerticalAlignment="Center">

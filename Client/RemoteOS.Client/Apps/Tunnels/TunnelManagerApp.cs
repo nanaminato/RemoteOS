@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using Client.Apps.Tunnels.Views;
 using Client.Apps.Explorer;
 using Client.Apps.Explorer.Dialogs;
@@ -5,6 +6,7 @@ using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Explorer.Views;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -52,11 +54,7 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
                 return new ExplorerMainView { DataContext = picker };
             }, new Size(720, 520));
         };
-        vm.ShowOfficialRuntimeDownloadPageAsync = () =>
-        {
-            context.Activations.Activate(new Uri("https://github.com/fatedier/frp/releases"));
-            return Task.CompletedTask;
-        };
+        vm.ShowRuntimeDownloadUrlAsync = url => ShowDownloadUrlAsync(LocalizedText.Get("tunnels.runtime_download_title"), url);
         vm.ShowManagedFrpsConfigurationAsync = async () =>
         {
             await vm.LoadManagedFrpsForEditingAsync();
@@ -72,7 +70,7 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         {
             var editableProfile = profile is null ? null : await client.GetProfileAsync(profile.Id);
             if (profile is not null && editableProfile is null) return;
-            var editor = new TunnelProfileEditorViewModel(client, editableProfile, editableProfile?.Token)
+            var editor = new TunnelProfileEditorViewModel(client, editableProfile, null)
             {
                 SavedAsync = vm.RefreshAfterChildAsync,
                 RequestDeletionConfirmationAsync = () => ConfirmAsync(LocalizedText.Get("common.delete"), LocalizedText.Get("tunnels.server.delete_confirmation"), LocalizedText.Get("common.delete")),
@@ -117,5 +115,18 @@ public sealed class TunnelManagerApp : RemoteApplicationBase
         EventHandler<RemoteOS.WindowManager.ManagedWindow>? closed = null;
         closed = (_, item) => { if (!ReferenceEquals(item, window)) return; context.WindowManager.WindowClosed -= closed; vm.Dispose(); };
         context.WindowManager.WindowClosed += closed; _ = vm.StartAsync();
+
+        Task ShowDownloadUrlAsync(string title, string url) => context.ShowDialogAsync<bool?>(window, title, dialog => new DownloadUrlDialogView
+        {
+            DataContext = new DownloadUrlDialogViewModel(url, CopyToClipboardAsync, () => dialog.Close(true)),
+        }, new Size(660, 210));
+
+        async Task CopyToClipboardAsync(string value)
+        {
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            if (topLevel?.Clipboard is not null) await topLevel.Clipboard.SetTextAsync(value);
+        }
     }
 }

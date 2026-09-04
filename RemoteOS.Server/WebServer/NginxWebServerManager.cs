@@ -181,6 +181,16 @@ internal sealed partial class NginxWebServerManager(
         }
     }
 
+    public Task<WebServerInstallDownloadDto?> GetManagedInstallDownloadAsync(string? version, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(version))
+            return Task.FromResult<WebServerInstallDownloadDto?>(null);
+        var selected = version.Trim();
+        return Task.FromResult<WebServerInstallDownloadDto?>(WindowsVersionPattern().IsMatch(selected)
+            ? new WebServerInstallDownloadDto(selected, $"https://nginx.org/download/nginx-{selected}.zip")
+            : null);
+    }
+
     public async Task<WebServerOperationDto?> ApplyLifecycleAsync(string instanceId, WebServerLifecycleAction action, string idempotencyKey, string? actor, CancellationToken cancellationToken)
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);

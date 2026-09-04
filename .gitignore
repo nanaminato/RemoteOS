@@ -43,6 +43,7 @@ bld/
 [Ll]ogs/
 wallpapers/
 RemoteOS.Server/data/docker-compose/
+RemoteOS.Server/data/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

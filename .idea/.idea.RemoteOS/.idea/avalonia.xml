@@ -25,6 +25,8 @@
         <entry key="Client/RemoteOS.Client/Apps/Git/Views/GitRemoteBranchPickerDialog.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/ImageViewer/Views/ImageViewerView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/PortForwarding/Views/PortForwardingMainView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Proxy/Views/ProxyNetworkSettingsDialogView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
+        <entry key="Client/RemoteOS.Client/Apps/Proxy/Views/ProxyOverviewView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/AppsPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/NetworkPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />
         <entry key="Client/RemoteOS.Client/Apps/Settings/Views/Pages/PersonalizationPageView.axaml" value="Client/RemoteOS.Client.Desktop/RemoteOS.Client.Desktop.csproj" />

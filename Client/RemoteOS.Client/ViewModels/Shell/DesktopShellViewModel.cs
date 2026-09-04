@@ -39,6 +39,8 @@ public partial class DesktopShellViewModel : ObservableObject
     private readonly ISettingsClient _settingsClient;
     private readonly IAppActivationDiagnostics _activationDiagnostics;
     private readonly ITextFileSniffer _textSniffer;
+    private readonly PreferencesSync _preferencesSync;
+    private readonly DesktopWelcomePreferenceStore _desktopWelcomePreferences;
     private int _desktopFileLoadGeneration;
 
     /// <summary>打开桌面显示配置窗口的回调。由 View 层设置。</summary>
@@ -60,7 +62,9 @@ public partial class DesktopShellViewModel : ObservableObject
         DefaultAppRegistry defaultApps,
         ISettingsClient settingsClient,
         IAppActivationDiagnostics activationDiagnostics,
-        ITextFileSniffer textSniffer)
+        ITextFileSniffer textSniffer,
+        PreferencesSync preferencesSync,
+        DesktopWelcomePreferenceStore desktopWelcomePreferences)
     {
         _windowManager = windowManager;
         _applications = applications;
@@ -75,6 +79,8 @@ public partial class DesktopShellViewModel : ObservableObject
         _settingsClient = settingsClient;
         _activationDiagnostics = activationDiagnostics;
         _textSniffer = textSniffer;
+        _preferencesSync = preferencesSync;
+        _desktopWelcomePreferences = desktopWelcomePreferences;
 
         _windowManager.WindowOpened += (_, _) => RefreshTaskbarGroups();
         _windowManager.WindowClosed += (_, _) => RefreshTaskbarGroups();
@@ -103,15 +109,16 @@ public partial class DesktopShellViewModel : ObservableObject
     public async Task TryTriggerFirstTimeSetupAsync()
     {
         if (_session.State != AuthSessionState.Authenticated) return;
+        await _preferencesSync.EnsureCurrentWorkspacePreferencesAsync();
+        if (_session.State != AuthSessionState.Authenticated) return;
         if (_settings.HasCompletedFirstTimeSetup) return;
+        if (_desktopWelcomePreferences.HasCompleted(_session.ServerUrl, _session.CurrentUser?.Username)) return;
         if (RequestFirstTimeDesktopSetupAsync is null) return;
 
-        var completed = await RequestFirstTimeDesktopSetupAsync();
-        if (completed)
-        {
-            _settings.HasCompletedFirstTimeSetup = true;
-            _ = SavePreferencesFireAndForgetAsync();
-        }
+        await RequestFirstTimeDesktopSetupAsync();
+        _settings.HasCompletedFirstTimeSetup = true;
+        _desktopWelcomePreferences.MarkCompleted(_session.ServerUrl, _session.CurrentUser?.Username);
+        _ = SavePreferencesFireAndForgetAsync();
         Dispatcher.UIThread.Post(PopulateDesktop);
     }
 

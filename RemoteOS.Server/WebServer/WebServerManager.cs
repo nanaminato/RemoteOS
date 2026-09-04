@@ -53,6 +53,12 @@ internal sealed class WebServerManager(IEnumerable<IWebServerProvider> providers
         return provider is null ? null : await provider.GetManagedInstallCatalogAsync(cancellationToken);
     }
 
+    public async Task<WebServerInstallDownloadDto?> GetManagedInstallDownloadAsync(string providerId, string? version, CancellationToken cancellationToken)
+    {
+        var provider = _providers.FirstOrDefault(candidate => string.Equals(candidate.ProviderId, providerId, StringComparison.Ordinal));
+        return provider is null ? null : await provider.GetManagedInstallDownloadAsync(version, cancellationToken);
+    }
+
     public async Task<WebServerOperationDto?> IntegrateAsync(string instanceId, string idempotencyKey, IntegrateWebServerRequest request, string? actor, CancellationToken cancellationToken)
         => await WithProviderAsync(instanceId, (provider, ct) => provider.IntegrateAsync(instanceId, idempotencyKey, request, actor, ct), cancellationToken);
 

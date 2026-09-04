@@ -38,6 +38,8 @@
         "application.remoteos.tunnels.display_name": "トンネル マネージャー",
         "application.remoteos.tunnels.description": "RemoteOS Server 上の FRP トンネルとランタイム状態を管理します",
         "application.remoteos.registry.display_name": "レジストリ",
-        "application.remoteos.registry.description": "サポートされる RemoteOS 構成値を参照します"
+        "application.remoteos.registry.description": "サポートされる RemoteOS 構成値を参照します",
+        "application.remoteos.proxy.display_name": "プロキシ マネージャー",
+        "application.remoteos.proxy.description": "ホストのプロキシ ランタイム、トラフィック、ネットワーク回復状態を管理します"
     }
 }

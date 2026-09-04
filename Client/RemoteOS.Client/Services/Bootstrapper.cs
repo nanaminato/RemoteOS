@@ -41,6 +41,7 @@ public static class Bootstrapper
         services.AddSingleton<IWindowManager>(windowManager);
         services.AddSingleton<LocalLanguageStore>();
         services.AddSingleton<LoginNotificationPreferenceStore>();
+        services.AddSingleton<DesktopWelcomePreferenceStore>();
         services.AddSingleton<ThemeService>();
         services.AddSingleton<ShellSettings>();
         services.AddSingleton<LocalizationService>();
@@ -110,6 +111,10 @@ public static class Bootstrapper
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<Client.Apps.Tunnels.IRemoteTunnelClient, Client.Apps.Tunnels.RemoteTunnelClient>()
             .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "tunnels"))
+            .AddHttpMessageHandler<AcceptLanguageHandler>()
+            .AddRemoteOsAuthentication();
+        services.AddHttpClient<Client.Apps.Proxy.IProxyRepository, Client.Apps.Proxy.RemoteProxyRepository>()
+            .AddHttpMessageHandler(sp => new NetworkDiagnosticsHandler(sp.GetRequiredService<NetworkDiagnosticsService>(), "proxy"))
             .AddHttpMessageHandler<AcceptLanguageHandler>()
             .AddRemoteOsAuthentication();
         services.AddHttpClient<Client.Apps.Git.IRemoteGitClient, Client.Apps.Git.RemoteGitClient>()
@@ -197,6 +202,7 @@ public static class Bootstrapper
         services.AddSingleton<IRemoteApplication, Client.Apps.Certificates.CertificateManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.WebServers.WebServerManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Tunnels.TunnelManagerApp>();
+        services.AddSingleton<IRemoteApplication, Client.Apps.Proxy.ProxyManagerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
         services.AddSingleton<IRemoteApplication, Client.Apps.Registry.RegistryApp>();
@@ -221,7 +227,9 @@ public static class Bootstrapper
                 sp.GetRequiredService<DefaultAppRegistry>(),
                 sp.GetRequiredService<ISettingsClient>(),
                 sp.GetRequiredService<IAppActivationDiagnostics>(),
-                sp.GetRequiredService<ITextFileSniffer>());
+                sp.GetRequiredService<ITextFileSniffer>(),
+                sp.GetRequiredService<PreferencesSync>(),
+                sp.GetRequiredService<DesktopWelcomePreferenceStore>());
         });
 
         services.AddSingleton<DesktopRestoreOrchestrator>();
