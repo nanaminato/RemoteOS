@@ -25,7 +25,7 @@ done
 [[ "$SERVER_PORT" =~ ^[0-9]+$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || { echo "Invalid server port." >&2; exit 1; }
 [[ "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid service user." >&2; exit 1; }
 command -v sudo >/dev/null || { echo "sudo is required for the privileged helper." >&2; exit 1; }
-command -v visudo >/dev/null || { echo "visudo is required for validating the firewall sudoers rule." >&2; exit 1; }
+command -v visudo >/dev/null || { echo "visudo is required for validating the privileged-helper sudoers rule." >&2; exit 1; }
 
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --user-group --home-dir /var/lib/remoteos --shell /usr/sbin/nologin "$SERVICE_USER"

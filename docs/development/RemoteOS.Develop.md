@@ -65,26 +65,39 @@ $ctx.ValidateCredentials("testuser", "Test@123")
 Remove-LocalUser -Name "testuser"
 ```
 
-## Linux 防火墙调试(linux 专用)
+## Linux 特权 Helper 调试
 
-Firewall 不要求以 root 启动 `dotnet run`。若要在 Linux 调试真实 UFW 操作，先由管理员为**实际运行 Rider（或其他 IDE）的 Linux 账户**执行一次开发配置脚本：
+Linux Helper 是按请求启动的 root 进程，不是常驻服务：`RemoteOS.Server` 保持以普通用户运行，
+仅可通过 `sudo -n` 启动一条 sudoers 规则中**精确指定**的 `RemoteOS.PrivilegedHelper`。因此
+Server 不会继承 root 身份，UFW、受保护文件和受限服务操作才会在 Helper 内以 root 执行。
+
+要调试真实 Server → sudo → Helper 路径，先构建 Helper，然后由管理员安装其 root-owned 开发副本：
 
 ```bash
-sudo deployment/linux/install-remoteos-firewall-development.sh "$USER"
+dotnet build RemoteOS.PrivilegedHelper/RemoteOS.PrivilegedHelper.csproj
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 ```
-### 脚本说明：
-- 安装 root-owned 的 helper 程序
-- 为开发账户写入只允许调用此 helper 的受限 sudoers 规则
-- 不会创建或启动 systemd 服务
-- 不会启动 Server、Agent 或 Desktop  
 
-因此可直接在 Rider 中启动这三个项目进行调试。Server 使用以下命令完成经过双重校验的 UFW 操作：  
+该脚本复制完整 Debug 输出（包括 PDB）到
+`/usr/local/lib/remoteos/privileged-helper-development/`，使其归 `root:root` 且开发账户不可写；
+再创建只允许当前 IDE 用户启动该 apphost 的无密码 sudoers 规则。它不会创建或启动 systemd
+服务，也不会启动 Server、Guardian 或 Client。每次改动 Helper 后，重新执行构建和该脚本以部署新副本。
+
+然后选择 Server 的 `http-linux-privileged` 启动配置。该配置的
+`PrivilegedHelper__HelperPath` 指向上述 root-owned 副本；`PrivilegedHelper__SudoPath` 仍必须为
+`/usr/bin/sudo`。普通 `http` 配置不包含此路径，因此适合 UI/API 调试；一旦发起真实 UFW 修改，
+它会稳定返回 `firewall.privileged_proxy_required`。
+
+若只需给 Helper 的 Dispatcher 设断点，可直接以 root 执行构建产物并传入一条结构化请求：
+
 ```bash
-sudo -n /usr/local/lib/remoteos/remoteos-firewall-helper
+printf '%s' '{"operation":"FirewallUfwStatus","operationId":"11111111-1111-1111-1111-111111111111"}' \
+  | sudo ./RemoteOS.PrivilegedHelper/bin/Debug/net10.0/RemoteOS.PrivilegedHelper
 ```
-### 注意事项：
-- ❌ 不要使用 sudo dotnet run
-- 若只调试 UI/API 而未安装 helper，Firewall 会稳定显示 firewall.privileged_proxy_required
+
+不要使用 `sudo dotnet run`，否则构建输出可能被 root 占有。也不要把 sudoers 规则直接指向开发账户
+可写的 `bin/Debug` apphost；那等价于授予该账户 root 能力。旧
+`install-remoteos-firewall-development.sh` 仅保留为兼容转发，实际应使用统一 Helper 脚本。
 
 ## 进程守护
 ### 1. 配置 Agent 环境变量

@@ -20,7 +20,7 @@ Firewall 是 RemoteOS 的内置 Linux Server 防火墙编辑器。它读取并�
 | Protocol | `Firewall*` DTO 与 `/api/v1/firewall/*` 路由，传输结构化策略和规则，不传 shell 命令。 |
 | Client | Avalonia 本地窗口、状态和一次性密码输入；`IRemoteFirewallClient` 带 JWT 调用服务端。 |
 | Server | `IFirewallChangeAuthorizationService` 使用 PAM 验证非 root 的当前登录用户；`IHostFirewallService` 为宿主 UFW 边界。 |
-| Linux Provider | `LinuxUfwFirewallService` 使用 `ProcessStartInfo.ArgumentList` 调用 UFW；规则的动作、方向、协议、端口和 IP/CIDR 均经过白名单/范围校验。 |
+| Linux Provider | `LinuxUfwFirewallService` 经 `IPrivilegedOperationTransport` 发送封闭的 `FirewallUfw*` 请求；Helper 使用固定 UFW 路径，规则的动作、方向、协议、端口和 IP/CIDR 均经过白名单/范围校验。 |
 
 ## 平台与权限
 
@@ -30,7 +30,7 @@ Firewall 是 RemoteOS 的内置 Linux Server 防火墙编辑器。它读取并�
 | Linux Server（无 UFW） | 不支持 | 返回 `firewall.ufw_not_installed`，不会尝试安装或切换后端。 |
 | Windows Server | 不支持 | Manifest 仅声明 Linux + `server.firewall`；图标不显示，防火墙 API 也不会注册。 |
 
-Linux 部署脚本会安装 root:root 的 `remoteos-firewall-helper`，并创建仅允许 Server 服务账户无密码调用它的 `sudoers` 规则。helper 不是常驻进程，只接受固定的状态、启停、默认策略和结构化规则子命令，并再次校验参数后才执行 UFW。应用绝不把用户密码传给 `sudo`，也不接受任意命令。helper 或其权限缺失时返回 `firewall.privileged_proxy_required`。
+Linux 部署脚本会安装 root:root 的统一 `RemoteOS.PrivilegedHelper`，并创建仅允许 Server 服务账户无密码调用该固定 apphost 的 `sudoers` 规则。Helper 不是常驻进程，只接受版本化的封闭 `FirewallUfw*` operation，并再次校验参数后才执行 UFW。应用绝不把用户密码传给 `sudo`，也不接受任意命令。Helper 或其权限缺失时返回 `firewall.privileged_proxy_required`。
 
 安装脚本默认创建 `remoteos-server` 系统账户并以其运行 Server；可用第五个参数指定已有账户（例如开发机上的 `nanami`）。脚本可重复执行：它会修复 helper、sudoers 规则、服务单元和运行数据目录权限，而不会自动启用 UFW。
 

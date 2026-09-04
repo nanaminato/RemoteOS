@@ -13,27 +13,22 @@ Build the helper normally:
 dotnet build RemoteOS.PrivilegedHelper/RemoteOS.PrivilegedHelper.csproj
 ```
 
-To exercise the real Server → sudo → helper path, allow the account running the debug Server to
-invoke the generated apphost without a sudo password, for example with a development-only
-`/etc/sudoers.d/remoteos-privileged-helper-dev` entry:
+For real Server → sudo → Helper integration testing, install the built output into a root-owned
+development directory and create a narrow sudoers rule:
 
-```sudoers
-your-dev-user ALL=(root) NOPASSWD: /absolute/path/to/RemoteOS.PrivilegedHelper/bin/Debug/net10.0/RemoteOS.PrivilegedHelper
+```bash
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 ```
 
-Then set the corresponding development configuration:
+This copies the complete Debug output to
+`/usr/local/lib/remoteos/privileged-helper-development/RemoteOS.PrivilegedHelper`, then grants
+the development account permission to run only that exact apphost as root. Select the Server
+`http-linux-privileged` profile, which sets `PrivilegedHelper__HelperPath` to this copy and
+`PrivilegedHelper__SudoPath` to `/usr/bin/sudo`. Re-run the script after each Helper rebuild.
 
-```json
-{
-  "PrivilegedHelper": {
-    "HelperPath": "/absolute/path/to/RemoteOS.PrivilegedHelper/bin/Debug/net10.0/RemoteOS.PrivilegedHelper",
-    "SudoPath": "/usr/bin/sudo"
-  }
-}
-```
-
-The debug output is writable by the development user, so this sudoers rule intentionally grants
-that user root-equivalent capability. Never use it outside a disposable development machine.
+The Server itself remains unprivileged: sudo starts one Helper process for each structured request,
+and the Helper permits only the closed operation set. Never point a sudoers rule at a development
+account-writable `bin/Debug` executable; that would give the account root-equivalent control.
 
 ## Windows development
 
