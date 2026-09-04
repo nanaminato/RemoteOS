@@ -71,6 +71,7 @@ chmod 0600 /etc/remoteos/privileged-helper-roots
 cat >/etc/remoteos/privileged-services <<EOF
 remoteos-server.service
 remoteos-guardian.service
+remoteos-mihomo.service
 EOF
 chown root:root /etc/remoteos/privileged-services
 chmod 0600 /etc/remoteos/privileged-services

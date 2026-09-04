@@ -812,7 +812,7 @@ internal sealed partial class NginxWebServerManager(
     {
         if (OperatingSystem.IsWindows())
             return await InstallWindowsManagedAsync(layout, request, progress, cancellationToken);
-        await progress.ReportAsync(IsConfiguredInstaller() ? "installer_running" : "installing_package", cancellationToken);
+        await progress.ReportAsync("installing_package", cancellationToken);
         var started = await RunInstallerAsync(layout, request.Version, cancellationToken);
         if (!started) return new WebServerOperationResult("webserver.install_failed");
         await progress.ReportAsync("verifying_layout", cancellationToken);
@@ -1216,7 +1216,7 @@ internal sealed partial class NginxWebServerManager(
         return new ManagedLayout(root, executable, configuration, Path.Combine(root, ManagedMarkerName), InstanceId(executable));
     }
 
-    private bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux() && !IsConfiguredInstaller();
+    private static bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux();
 
     private bool UsesSystemPackageManagedService() => UsesSystemPackageManagedExecutable();
 

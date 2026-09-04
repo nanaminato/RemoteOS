@@ -9,8 +9,10 @@
 | Explorer 受保护文件 | `Files`、`PrivilegedFileService` | 必须 Helper | 已迁移：capability、目标范围、Linux sudo Helper / Windows pipe Helper |
 | Native service start/stop/restart | `ProcessGuardian/NativeServiceAdapter` | 必须 Helper | 已迁移：allowlisted service ID + 枚举 action；读取状态保持非特权 |
 | UFW | `Firewall/LinuxUfwFirewallService` | 必须 Helper | 等价受限 Firewall Helper；不接受任意 firewall 命令 |
-| Nginx 安装、配置写入、生命周期 | `WebServer/NginxWebServerManager` | 必须 Helper | 待迁移；目前仅以 `webserver.*_elevation_required` 拒绝非提升 Server |
-| Mihomo 受保护配置与 systemd | `Proxy/Platform/NativeMihomoPrivilegedOperations` | 必须 Helper | 待迁移；必须替换为 `proxy.mihomo.*` operation，禁止直接 systemctl |
+| Nginx 系统服务生命周期、APT 安装/卸载 | `WebServer/NginxWebServerManager` | 必须 Helper | 已迁移：固定 nginx.service 枚举动作与固定 APT nginx 包操作 |
+| Nginx 集成、站点与 ACME 配置写入 | `WebServer/NginxWebServerManager` | 必须 Helper | 待迁移；受保护配置写入仍不允许以普通 Server 身份执行 |
+| Mihomo systemd unit 与服务生命周期 | `Proxy/Platform/NativeMihomoPrivilegedOperations` | 必须 Helper | 已迁移：固定 unit、daemon-reload 与枚举 service action 均经 Helper |
+| Mihomo 受保护配置与网络恢复 | `Proxy` | 必须 Helper | 待迁移；暂保持 fail-closed，不允许 Server 以特权直写 |
 | ACME / 证书部署与 80/443 绑定 | `Certificate` | 必须 Helper | 待迁移；仅应用私有存储写入保持非特权 |
 | Docker runtime 安装 | `Docker` | 必须 Helper 或手工操作 | 待逐项建模；不能安全结构化时返回 `manual-host-action-required` |
 | Git engine 安装 | `Git/LocalGitRepositoryService` | 必须 Helper 或手工操作 | 待逐项建模；普通 Git 仓库操作是非特权 |

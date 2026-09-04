@@ -39,6 +39,7 @@ using Server.Proxy.Mihomo;
 using Server.Proxy;
 using Server.Proxy.Platform;
 using Server.Privileged;
+using Server.ProcessGuardian;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -46,6 +47,7 @@ var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGui
 Directory.CreateDirectory(root);
 try
 {
+    await VerifyPrivilegedOperationProtocolAsync();
     await VerifyCertificateStoreAndSniAsync(root);
     VerifyCertificateApiRoutes();
     await VerifyRenewalRetryAsync(root);
@@ -148,6 +150,28 @@ static void VerifyHostElevationCapabilityScope(string root)
     var request = new FileElevationRequest(directory, "password", Capability: FileElevationCapability.Copy);
     var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
     Assert(json.Contains("capability", StringComparison.Ordinal), "File elevation request did not serialize its operation capability.");
+}
+
+static async Task VerifyPrivilegedOperationProtocolAsync()
+{
+    var requestProperties = typeof(PrivilegedOperationRequest).GetProperties().Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+    Assert(!requestProperties.Contains("Executable") && !requestProperties.Contains("Arguments") && !requestProperties.Contains("StandardInputBase64"),
+        "The privileged protocol must not expose a generic command-execution surface.");
+    Assert(Enum.IsDefined(PrivilegedOperationKind.ProxyMihomoInstallSystemService)
+        && Enum.IsDefined(PrivilegedOperationKind.NginxPackageInstall), "Dedicated Nginx and Mihomo Helper operations are missing.");
+
+    var transport = new CapturingPrivilegedTransport();
+    var nginx = new PrivilegedNginxOperations(transport);
+    Assert(await nginx.ApplySystemServiceActionAsync(NginxSystemServiceAction.Reload), "Nginx fixed service operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxSystemServiceAction
+        && transport.LastRequest.NginxServiceAction == NginxSystemServiceAction.Reload,
+        "Nginx facade did not preserve its closed lifecycle action.");
+
+    var services = new PrivilegedNativeServiceOperations(transport);
+    Assert(await services.ApplyAsync("remoteos-server.service", PrivilegedServiceAction.Restart), "Native service operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NativeServiceAction
+        && transport.LastRequest.ServiceId == "remoteos-server.service" && transport.LastRequest.ServiceAction == PrivilegedServiceAction.Restart,
+        "Native-service facade did not preserve its allowlisted structured request.");
 }
 
 static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(
@@ -1213,6 +1237,16 @@ static X509Certificate2 CreateX509(string domain)
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+sealed class CapturingPrivilegedTransport : IPrivilegedOperationTransport
+{
+    public PrivilegedOperationRequest? LastRequest { get; private set; }
+    public Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, CancellationToken cancellationToken = default)
+    {
+        LastRequest = request;
+        return Task.FromResult(new PrivilegedOperationResult(true));
+    }
 }
 
 sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory

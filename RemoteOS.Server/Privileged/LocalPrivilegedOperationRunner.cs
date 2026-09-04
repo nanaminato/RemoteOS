@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using RemoteOS.Protocol.Privileged;
 
@@ -50,8 +52,10 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
             var stderr = await error;
             try
             {
-                return JsonSerializer.Deserialize<PrivilegedOperationResult>(response)
-                       ?? new(false, process.ExitCode, Error: "privileged helper returned no result", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+                var result = JsonSerializer.Deserialize<PrivilegedOperationResult>(response)
+                    ?? new(false, process.ExitCode, Error: "privileged helper returned no result", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+                Audit(request, result);
+                return result;
             }
             catch (JsonException)
             {
@@ -62,5 +66,13 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
                 return new(false, 69, Error: "privileged helper failed; check the Server logs and sudoers configuration", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
             }
         }
+    }
+
+    private void Audit(PrivilegedOperationRequest request, PrivilegedOperationResult result)
+    {
+        var resource = string.Join("\n", new[] { request.Path, request.DestinationPath, request.ServiceId }.Where(value => !string.IsNullOrWhiteSpace(value))!);
+        var resourceHash = resource.Length == 0 ? "none" : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(resource)))[..16];
+        logger.LogInformation("Privileged Helper operation completed. OperationId={OperationId} Operation={Operation} ResourceHash={ResourceHash} Success={Success} ProblemCode={ProblemCode}",
+            request.OperationId, request.Operation, resourceHash, result.Success, result.ProblemCode);
     }
 }

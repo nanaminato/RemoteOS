@@ -35,8 +35,10 @@ public sealed class WindowsNamedPipePrivilegedOperationTransport(PrivilegedHelpe
                 logger.LogWarning("Privileged Helper pipe response did not pass authentication.");
                 return Unavailable("privileged helper service authentication failed");
             }
-            return JsonSerializer.Deserialize<PrivilegedOperationResult>(payload)
-                   ?? Unavailable("privileged helper service returned no result");
+            var result = JsonSerializer.Deserialize<PrivilegedOperationResult>(payload)
+                ?? Unavailable("privileged helper service returned no result");
+            Audit(request, result);
+            return result;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -104,5 +106,13 @@ public sealed class WindowsNamedPipePrivilegedOperationTransport(PrivilegedHelpe
     }
 
     private static PrivilegedOperationResult Unavailable(string detail) => new(false, 69, Error: detail, ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+
+    private void Audit(PrivilegedOperationRequest request, PrivilegedOperationResult result)
+    {
+        var resource = string.Join("\n", new[] { request.Path, request.DestinationPath, request.ServiceId }.Where(value => !string.IsNullOrWhiteSpace(value))!);
+        var resourceHash = resource.Length == 0 ? "none" : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(resource)))[..16];
+        logger.LogInformation("Privileged Helper operation completed. OperationId={OperationId} Operation={Operation} ResourceHash={ResourceHash} Success={Success} ProblemCode={ProblemCode}",
+            request.OperationId, request.Operation, resourceHash, result.Success, result.ProblemCode);
+    }
     private sealed record PipeEnvelope(string PayloadBase64, string SignatureBase64);
 }

@@ -30,6 +30,9 @@ public enum PrivilegedOperationKind
     NginxSystemServiceAction,
     NginxPackageInstall,
     NginxPackageUninstall,
+    ProxyMihomoServiceAction,
+    ProxyMihomoInstallSystemService,
+    ProxyMihomoRemoveSystemService,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<PrivilegedServiceAction>))]
@@ -51,6 +54,18 @@ public enum NginxSystemServiceAction
     Disable,
     EnableAndStart,
     DisableAndStop,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ProxyMihomoServiceAction>))]
+public enum ProxyMihomoServiceAction
+{
+    DaemonReload,
+    Enable,
+    Disable,
+    Start,
+    Stop,
+    Restart,
+    TryRestart,
 }
 
 /// <summary>Stable, non-secret failure classifications returned by a local Helper.</summary>
@@ -88,6 +103,7 @@ public sealed record PrivilegedOperationRequest(
     [property: JsonPropertyName("serviceAction")] PrivilegedServiceAction? ServiceAction = null,
     [property: JsonPropertyName("nginxServiceAction")] NginxSystemServiceAction? NginxServiceAction = null,
     [property: JsonPropertyName("packageVersion")] string? PackageVersion = null,
+    [property: JsonPropertyName("proxyMihomoServiceAction")] ProxyMihomoServiceAction? ProxyMihomoServiceAction = null,
     [property: JsonPropertyName("operationId")] Guid? OperationId = null,
     [property: JsonPropertyName("version")] int Version = PrivilegedOperationProtocol.Version);
 

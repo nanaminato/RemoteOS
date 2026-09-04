@@ -62,6 +62,9 @@ static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationReq
             PrivilegedOperationKind.NginxSystemServiceAction => await ApplyNginxSystemServiceActionAsync(request.NginxServiceAction),
             PrivilegedOperationKind.NginxPackageInstall => await InstallNginxPackageAsync(request.PackageVersion),
             PrivilegedOperationKind.NginxPackageUninstall => await UninstallNginxPackageAsync(),
+            PrivilegedOperationKind.ProxyMihomoServiceAction => await ApplyProxyMihomoServiceActionAsync(request.ProxyMihomoServiceAction),
+            PrivilegedOperationKind.ProxyMihomoInstallSystemService => await InstallProxyMihomoSystemServiceAsync(),
+            PrivilegedOperationKind.ProxyMihomoRemoveSystemService => RemoveProxyMihomoSystemService(),
             _ => Fail(64, PrivilegedProblemCode.UnsupportedOperation, "unsupported operation"),
         };
     }
@@ -288,6 +291,52 @@ static async Task<PrivilegedOperationResult> ApplyNginxSystemServiceActionAsync(
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
     return await RunFixedCommandAsync("/usr/bin/systemctl", arguments, TimeSpan.FromSeconds(30), "nginx service operation failed");
+}
+
+static async Task<PrivilegedOperationResult> ApplyProxyMihomoServiceActionAsync(ProxyMihomoServiceAction? action)
+{
+    if (!OperatingSystem.IsLinux() || action is null) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "proxy system service operation is unavailable");
+    var arguments = action.Value switch
+    {
+        ProxyMihomoServiceAction.DaemonReload => new[] { "daemon-reload" },
+        ProxyMihomoServiceAction.Enable => new[] { "enable", "remoteos-mihomo.service" },
+        ProxyMihomoServiceAction.Disable => new[] { "disable", "remoteos-mihomo.service" },
+        ProxyMihomoServiceAction.Start => new[] { "start", "remoteos-mihomo.service" },
+        ProxyMihomoServiceAction.Stop => new[] { "stop", "remoteos-mihomo.service" },
+        ProxyMihomoServiceAction.Restart => new[] { "restart", "remoteos-mihomo.service" },
+        ProxyMihomoServiceAction.TryRestart => new[] { "try-restart", "remoteos-mihomo.service" },
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
+    return await RunFixedCommandAsync("/usr/bin/systemctl", arguments, TimeSpan.FromSeconds(30), "proxy service operation failed");
+}
+
+static async Task<PrivilegedOperationResult> InstallProxyMihomoSystemServiceAsync()
+{
+    if (!OperatingSystem.IsLinux()) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "proxy system service operation is unavailable");
+    const string unitPath = "/etc/systemd/system/remoteos-mihomo.service";
+    const string unit = "[Unit]\nDescription=RemoteOS managed Mihomo\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=simple\nExecStart=/var/lib/remoteos/proxy/engines/mihomo/versions/current/mihomo -d /var/lib/remoteos/proxy/engines/mihomo/data -f /etc/remoteos/proxy/active.yaml\nRestart=on-failure\nRestartSec=3\nNoNewPrivileges=true\nPrivateTmp=true\n\n[Install]\nWantedBy=multi-user.target\n";
+    try
+    {
+        var staging = unitPath + ".new";
+        await File.WriteAllTextAsync(staging, unit);
+        File.Move(staging, unitPath, overwrite: true);
+        return new(true);
+    }
+    catch (IOException) { return Fail(1, PrivilegedProblemCode.InternalError, "proxy service configuration failed"); }
+    catch (UnauthorizedAccessException) { return Fail(77, PrivilegedProblemCode.AccessDenied, "proxy service configuration was denied"); }
+}
+
+static PrivilegedOperationResult RemoveProxyMihomoSystemService()
+{
+    if (!OperatingSystem.IsLinux()) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "proxy system service operation is unavailable");
+    try
+    {
+        const string unitPath = "/etc/systemd/system/remoteos-mihomo.service";
+        if (File.Exists(unitPath)) File.Delete(unitPath);
+        return new(true);
+    }
+    catch (IOException) { return Fail(1, PrivilegedProblemCode.InternalError, "proxy service removal failed"); }
+    catch (UnauthorizedAccessException) { return Fail(77, PrivilegedProblemCode.AccessDenied, "proxy service removal was denied"); }
 }
 
 static async Task<PrivilegedOperationResult> InstallNginxPackageAsync(string? version)
