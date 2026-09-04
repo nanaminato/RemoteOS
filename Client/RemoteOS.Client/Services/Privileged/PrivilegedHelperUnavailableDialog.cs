@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Client.Localization;
 using RemoteOS.AppSDK;
 using RemoteOS.WindowManager;
