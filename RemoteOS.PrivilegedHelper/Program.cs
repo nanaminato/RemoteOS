@@ -431,7 +431,9 @@ static bool TryFirewallRuleArguments(PrivilegedOperationRequest request, out str
     arguments = [FirewallAction(request.FirewallRuleAction.Value), FirewallDirection(request.FirewallRuleDirection.Value)];
     if (request.FirewallRuleProtocol != FirewallRuleProtocol.Any) arguments = [.. arguments, "proto", FirewallProtocol(request.FirewallRuleProtocol.Value)];
     arguments = [.. arguments, "from", source, "to", destination];
-    return port == "any" ? true : (arguments = [.. arguments, "port", port]) is not null;
+    if (port == "any") return true;
+    arguments = [.. arguments, "port", port];
+    return true;
 }
 
 static bool TryFirewallRuleNumber(int? value, out int number) => (number = value ?? 0) is > 0 and <= 10_000;
@@ -448,7 +450,7 @@ static bool TryFirewallPort(string? value, out string port)
     if (!System.Text.RegularExpressions.Regex.IsMatch(port, "^[0-9]+(:[0-9]+)?$", System.Text.RegularExpressions.RegexOptions.CultureInvariant)) return false;
     var parts = port.Split(':');
     return int.TryParse(parts[0], out var first) && first is >= 1 and <= 65535
-        && int.TryParse(parts[^1], out var last) && last is >= first and <= 65535;
+        && int.TryParse(parts[^1], out var last) && last >= first && last <= 65535;
 }
 static string FirewallAction(FirewallRuleAction value) => value.ToString().ToLowerInvariant();
 static string FirewallDirection(FirewallRuleDirection value) => value.ToString().ToLowerInvariant();

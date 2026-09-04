@@ -40,6 +40,7 @@ using Server.Proxy;
 using Server.Proxy.Platform;
 using Server.Privileged;
 using Server.ProcessGuardian;
+using Server.Firewall;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -147,6 +148,11 @@ static void VerifyHostElevationCapabilityScope(string root)
     store.Revoke(principal);
     Assert(!store.IsGranted(principal, HostElevationCapability.FileCopy, nestedFile), "Revoked JWT retained an elevation grant.");
 
+    var nonFileDescendantRejected = false;
+    try { store.Grant(principal, HostElevationCapability.NativeServiceAction, "remoteos-server.service", includeDescendants: true, "test"); }
+    catch (ArgumentException) { nonFileDescendantRejected = true; }
+    Assert(nonFileDescendantRejected, "A non-file capability must not receive a descendant scope.");
+
     var request = new FileElevationRequest(directory, "password", Capability: FileElevationCapability.Copy);
     var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
     Assert(json.Contains("capability", StringComparison.Ordinal), "File elevation request did not serialize its operation capability.");
@@ -172,6 +178,13 @@ static async Task VerifyPrivilegedOperationProtocolAsync()
     Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NativeServiceAction
         && transport.LastRequest.ServiceId == "remoteos-server.service" && transport.LastRequest.ServiceAction == PrivilegedServiceAction.Restart,
         "Native-service facade did not preserve its allowlisted structured request.");
+
+    var firewall = new LinuxUfwFirewallService(transport, NullLogger<LinuxUfwFirewallService>.Instance);
+    Assert((await firewall.SetEnabledAsync(true, CancellationToken.None)).Success,
+        "Firewall operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.FirewallUfwSetEnabled
+        && transport.LastRequest.FirewallEnabled == true,
+        "Firewall facade did not preserve its closed enabled-state request.");
 }
 
 static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(

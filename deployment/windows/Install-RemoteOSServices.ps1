@@ -109,6 +109,7 @@ $helperSettings = [ordered]@{
     serverServiceSid = $serverServiceSid
     fileAllowedRoots = @($env:ProgramData + '\RemoteOS')
     allowedServiceIds = @($ServerServiceName, $GuardianServiceName)
+    helperExecutableSha256 = (Get-FileHash -LiteralPath $PrivilegedHelperExecutable -Algorithm SHA256).Hash
 }
 [IO.File]::WriteAllText($serverHostConfig, ($serverSettings | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText($privilegedConfig, ($helperSettings | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))

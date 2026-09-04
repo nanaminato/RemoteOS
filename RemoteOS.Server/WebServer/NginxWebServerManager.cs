@@ -20,6 +20,7 @@ namespace Server.WebServer;
 /// an optional host integration.
 /// </summary>
 internal sealed partial class NginxWebServerManager(
+    IHostPrivilegeService privileges,
     IPrivilegedNginxOperations privilegedNginx,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
@@ -96,6 +97,8 @@ internal sealed partial class NginxWebServerManager(
         if (detected is null || detected.Id != instanceId) return null;
         if (!request.Confirmed)
             return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "validation", "webserver.confirmation_required", null, null, DateTimeOffset.UtcNow);
+        if (!privileges.IsAdministrator)
+            return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "authorization", "webserver.configuration_helper_unavailable", null, null, DateTimeOffset.UtcNow);
         return await operations.StartAsync(idempotencyKey, instanceId, "integrate", actor, ct => IntegrateCoreAsync(detected, ct), lifetime.ApplicationStopping);
     }
 
@@ -131,6 +134,8 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.version_invalid");
         if (!OperatingSystem.IsWindows() && !CanUseBuiltInInstaller())
             return Rejected(layout.InstanceId, "install", "webserver.install_unsupported_platform");
+        if (OperatingSystem.IsWindows())
+            return Rejected(layout.InstanceId, "install", "webserver.install_manual_host_action_required");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
             (progress, ct) => InstallManagedCoreAsync(layout, request, progress, ct), lifetime.ApplicationStopping);
     }
@@ -208,6 +213,8 @@ internal sealed partial class NginxWebServerManager(
         }
         if (action == WebServerLifecycleAction.EnableAcmeHttp01)
         {
+            if (!privileges.IsAdministrator)
+                return Rejected(instanceId, "enable-acme-http01", "webserver.configuration_helper_unavailable");
             if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
                 return Rejected(instanceId, "enable-acme-http01", "webserver.acme_integration_required");
             return await operations.StartAsync(idempotencyKey, instanceId, "enable-acme-http01", actor,
@@ -246,6 +253,8 @@ internal sealed partial class NginxWebServerManager(
             logger.LogWarning("Nginx site save rejected because the requested instance was not found. InstanceId={InstanceId}", instanceId);
             return null;
         }
+        if (!privileges.IsAdministrator)
+            throw new WebServerSiteApplyException("webserver.configuration_helper_unavailable");
         if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
         {
             logger.LogWarning("Nginx site save rejected because the instance is not integrated or managed. InstanceId={InstanceId}, ManagementMode={ManagementMode}, Configuration={Configuration}", instance.Id, instance.ManagementMode, instance.ConfigurationPath);
@@ -310,7 +319,7 @@ internal sealed partial class NginxWebServerManager(
     public async Task<bool?> DeleteSiteAsync(string instanceId, string siteId, CancellationToken cancellationToken)
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
-        if (instance is null || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed) || !SiteIdPattern().IsMatch(siteId)) return null;
+        if (instance is null || !privileges.IsAdministrator || instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed) || !SiteIdPattern().IsMatch(siteId)) return null;
         var directory = GetSitesDirectory(instance);
         if (directory is null) return null;
         await IntegrationGate.WaitAsync(cancellationToken);
@@ -679,7 +688,7 @@ internal sealed partial class NginxWebServerManager(
         var capabilities = new WebServerCapabilities(
             CanRead: true,
             CanTestConfiguration: true,
-            CanIntegrate: !isManaged && !integrated && includeDirectory is not null,
+            CanIntegrate: !isManaged && !integrated && privileges.IsAdministrator && includeDirectory is not null,
             CanReload: integrated || isManaged,
             CanStart: isManaged,
             CanStop: isManaged,

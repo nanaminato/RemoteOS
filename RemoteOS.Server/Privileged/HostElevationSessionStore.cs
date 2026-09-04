@@ -29,6 +29,10 @@ public sealed class HostElevationSessionStore : IHostElevationSessionStore
     {
         if (!TryIdentity(principal, out var tokenId, out var subject))
             throw new InvalidOperationException("The access token has no id or subject.");
+        // Service, package, certificate and network capabilities are always exact-resource
+        // grants.  Only explicitly file-scoped capabilities can cover descendants.
+        if (!IsFileCapability(capability) && includeDescendants)
+            throw new ArgumentException("Only file capabilities may include descendants.", nameof(includeDescendants));
         var expiresAt = DateTimeOffset.UtcNow.Add(Lifetime);
         var canonical = CanonicalTarget(capability, target);
         _grants[Key(tokenId, capability, canonical)] = new ElevationGrant(subject, capability, canonical, includeDescendants,

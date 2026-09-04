@@ -15,10 +15,9 @@ public sealed class WindowsNamedPipePrivilegedOperationTransport(PrivilegedHelpe
 {
     public async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, CancellationToken cancellationToken = default)
     {
-        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(options.PipeName) || !TryGetSecret(out var secret))
-            return Unavailable("privileged helper service is not configured");
-
         request = request with { OperationId = request.OperationId is { } id && id != Guid.Empty ? id : Guid.NewGuid(), Version = PrivilegedOperationProtocol.Version };
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(options.PipeName) || !TryGetSecret(out var secret))
+            return Complete(request, Unavailable("privileged helper service is not configured"));
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 1, 120)));
         try
@@ -33,21 +32,20 @@ public sealed class WindowsNamedPipePrivilegedOperationTransport(PrivilegedHelpe
             if (response is null || !TryDecodeAndVerify(secret, response, out var payload))
             {
                 logger.LogWarning("Privileged Helper pipe response did not pass authentication.");
-                return Unavailable("privileged helper service authentication failed");
+                return Complete(request, Unavailable("privileged helper service authentication failed"));
             }
             var result = JsonSerializer.Deserialize<PrivilegedOperationResult>(payload)
                 ?? Unavailable("privileged helper service returned no result");
-            Audit(request, result);
-            return result;
+            return Complete(request, result);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new(false, 124, Error: "privileged helper service timed out", ProblemCode: PrivilegedProblemCode.TimedOut);
+            return Complete(request, new(false, 124, Error: "privileged helper service timed out", ProblemCode: PrivilegedProblemCode.TimedOut));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
             logger.LogWarning(exception, "Could not communicate with the local privileged Helper service.");
-            return Unavailable("privileged helper service is unavailable");
+            return Complete(request, Unavailable("privileged helper service is unavailable"));
         }
     }
 
@@ -106,6 +104,12 @@ public sealed class WindowsNamedPipePrivilegedOperationTransport(PrivilegedHelpe
     }
 
     private static PrivilegedOperationResult Unavailable(string detail) => new(false, 69, Error: detail, ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+
+    private PrivilegedOperationResult Complete(PrivilegedOperationRequest request, PrivilegedOperationResult result)
+    {
+        Audit(request, result);
+        return result;
+    }
 
     private void Audit(PrivilegedOperationRequest request, PrivilegedOperationResult result)
     {

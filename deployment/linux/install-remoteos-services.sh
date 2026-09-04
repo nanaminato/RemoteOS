@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Called by the signed package installer, not by RemoteOS HTTP endpoints. It registers
 # both units, generates the local IPC secret, and leaves end users no Agent setup step.
-# It also installs the one-shot firewall helper; that helper is not a daemon.
 if [[ ${EUID} -ne 0 ]]; then
   echo "Run as root through the host's approved elevation flow." >&2
   exit 1
@@ -15,20 +14,17 @@ GUARDIAN_EXECUTABLE="${3:?missing GUARDIAN_EXECUTABLE}"
 PRIVILEGED_HELPER_EXECUTABLE="${4:?missing PRIVILEGED_HELPER_EXECUTABLE}"
 SERVER_PORT="${5:?missing SERVER_PORT}"
 SERVICE_USER="${6:-remoteos-server}"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-FIREWALL_HELPER_SOURCE="$SCRIPT_DIR/remoteos-firewall-helper"
-FIREWALL_HELPER=/usr/local/lib/remoteos/remoteos-firewall-helper
 PRIVILEGED_HELPER_SOURCE_DIR="$(dirname -- "$PRIVILEGED_HELPER_EXECUTABLE")"
 PRIVILEGED_HELPER_INSTALL_DIR=/usr/local/lib/remoteos/privileged-helper
 PRIVILEGED_HELPER="$PRIVILEGED_HELPER_INSTALL_DIR/$(basename -- "$PRIVILEGED_HELPER_EXECUTABLE")"
 SUDOERS_FILE=/etc/sudoers.d/remoteos-helpers
 
-for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE" "$PRIVILEGED_HELPER_EXECUTABLE" "$FIREWALL_HELPER_SOURCE"; do
+for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE" "$PRIVILEGED_HELPER_EXECUTABLE"; do
   [[ -f "$file" ]] || { echo "Missing executable: $file" >&2; exit 1; }
 done
 [[ "$SERVER_PORT" =~ ^[0-9]+$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || { echo "Invalid server port." >&2; exit 1; }
 [[ "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid service user." >&2; exit 1; }
-command -v sudo >/dev/null || { echo "sudo is required for the firewall helper." >&2; exit 1; }
+command -v sudo >/dev/null || { echo "sudo is required for the privileged helper." >&2; exit 1; }
 command -v visudo >/dev/null || { echo "visudo is required for validating the firewall sudoers rule." >&2; exit 1; }
 
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
@@ -53,8 +49,6 @@ GuardianAgent__SharedSecret=$SECRET
 GuardianAgent__PipeName=remoteos-guardian
 Storage__DatabasePath=$INSTALL_ROOT/data/remoteos.db
 DockerCompose__DataDirectory=/var/lib/remoteos/docker-compose
-Firewall__HelperPath=$FIREWALL_HELPER
-Firewall__SudoPath=$(command -v sudo)
 PrivilegedHelper__HelperPath=$PRIVILEGED_HELPER
 PrivilegedHelper__SudoPath=$(command -v sudo)
 EOF
@@ -80,7 +74,6 @@ chmod 0600 /etc/remoteos/privileged-services
 # sudo rule permits the published apphost with no caller-supplied arguments; the .NET Helper
 # independently accepts only its versioned, structured operation protocol.
 install -d -o root -g root -m 0755 /usr/local/lib/remoteos
-install -o root -g root -m 0755 "$FIREWALL_HELPER_SOURCE" "$FIREWALL_HELPER"
 # The published .NET helper has a companion runtimeconfig/deps file (and may have managed
 # assemblies). Copy its whole publish directory, then make it root-owned and immutable to the
 # Server account. The fourth installer argument must therefore point at the helper apphost from
@@ -94,20 +87,13 @@ SUDOERS_TEMP="$(mktemp /etc/sudoers.d/remoteos-helpers.XXXXXX)"
 trap 'rm -f "$SUDOERS_TEMP"' EXIT
 cat >"$SUDOERS_TEMP" <<EOF
 # Managed by RemoteOS. Do not edit: reinstall to regenerate.
-$SERVICE_USER ALL=(root) NOPASSWD: $FIREWALL_HELPER *, $PRIVILEGED_HELPER
+$SERVICE_USER ALL=(root) NOPASSWD: $PRIVILEGED_HELPER
 EOF
 chmod 0440 "$SUDOERS_TEMP"
 visudo -cf "$SUDOERS_TEMP"
 install -o root -g root -m 0440 "$SUDOERS_TEMP" "$SUDOERS_FILE"
 rm -f "$SUDOERS_TEMP"
 trap - EXIT
-
-if [[ -x /usr/sbin/ufw ]]; then
-  "$FIREWALL_HELPER" verify >/dev/null
-  sudo -u "$SERVICE_USER" "$(command -v sudo)" -n "$FIREWALL_HELPER" verify >/dev/null
-else
-  echo "UFW is not installed; Firewall will remain unavailable until UFW is installed."
-fi
 
 cat >/etc/systemd/system/remoteos-guardian.service <<EOF
 [Unit]

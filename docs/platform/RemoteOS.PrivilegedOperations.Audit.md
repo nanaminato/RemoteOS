@@ -8,9 +8,9 @@
 | --- | --- | --- | --- |
 | Explorer 受保护文件 | `Files`、`PrivilegedFileService` | 必须 Helper | 已迁移：capability、目标范围、Linux sudo Helper / Windows pipe Helper |
 | Native service start/stop/restart | `ProcessGuardian/NativeServiceAdapter` | 必须 Helper | 已迁移：allowlisted service ID + 枚举 action；读取状态保持非特权 |
-| UFW | `Firewall/LinuxUfwFirewallService` | 必须 Helper | 等价受限 Firewall Helper；不接受任意 firewall 命令 |
+| UFW | `Firewall/LinuxUfwFirewallService` | 必须 Helper | 统一 `IPrivilegedOperationTransport` 的封闭 UFW operation；不接受任意 firewall 命令 |
 | Nginx 系统服务生命周期、APT 安装/卸载 | `WebServer/NginxWebServerManager` | 必须 Helper | 已迁移：固定 nginx.service 枚举动作与固定 APT nginx 包操作 |
-| Nginx 集成、站点与 ACME 配置写入 | `WebServer/NginxWebServerManager` | 必须 Helper | 待迁移；受保护配置写入仍不允许以普通 Server 身份执行 |
+| Nginx 集成、站点与 ACME 配置写入 | `WebServer/NginxWebServerManager` | 必须 Helper | 待迁移；当前明确 `configuration_helper_unavailable`，不以 Server 身份写入 |
 | Mihomo systemd unit 与服务生命周期 | `Proxy/Platform/NativeMihomoPrivilegedOperations` | 必须 Helper | 已迁移：固定 unit、daemon-reload 与枚举 service action 均经 Helper |
 | Mihomo 受保护配置与网络恢复 | `Proxy` | 必须 Helper | 待迁移；暂保持 fail-closed，不允许 Server 以特权直写 |
 | ACME / 证书部署与 80/443 绑定 | `Certificate` | 必须 Helper | 待迁移且已 fail-closed；Server 进程即使为 root/Admin 也不能直接绕过 Helper |
@@ -25,7 +25,7 @@
 - Windows Helper 运行账户：`LocalSystem`；Server：`NT AUTHORITY\\LocalService` 加服务 SID。
 - Windows 管理员认证允许输入不同的宿主管理员用户名；通过 `LogonUser` 获取临时 token 后检查 Administrators 成员资格。
 - Linux 仅验证当前 RemoteOS 宿主用户的 PAM 密码，不接受隐式的另一 sudo 管理员身份。
-- Linux Firewall Helper 保持独立等价受限实现，后续增加统一审计关联。
+- Linux Firewall 已迁入统一 Helper transport；安装脚本不再部署或授予独立 firewall helper 的 sudo 权限。
 - 不能建模为封闭结构化能力的安装器操作必须安全拒绝，不能退回到通用命令执行。
 
 ## 尚未完成的迁移门槛

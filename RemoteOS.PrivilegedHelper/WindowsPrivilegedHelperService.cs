@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
@@ -19,6 +20,7 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
 {
     private readonly WindowsHelperServiceConfiguration _configuration;
     private readonly CancellationTokenSource _stopping = new();
+    private readonly ConcurrentDictionary<Guid, DateTimeOffset> _recentOperationIds = new();
     private Task? _listener;
 
     private WindowsPrivilegedHelperService(WindowsHelperServiceConfiguration configuration)
@@ -38,6 +40,7 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new InvalidOperationException("Windows Helper configuration is invalid.");
         configuration.Validate();
+        configuration.VerifyCurrentExecutable();
         Environment.SetEnvironmentVariable("REMOTEOS_PRIVILEGED_FILE_ROOTS", string.Join(Path.PathSeparator, configuration.FileAllowedRoots));
         Environment.SetEnvironmentVariable("REMOTEOS_PRIVILEGED_SERVICE_IDS", string.Join(Path.PathSeparator, configuration.AllowedServiceIds));
         ServiceBase.Run(new WindowsPrivilegedHelperService(configuration));
@@ -99,8 +102,26 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
             await WriteResultAsync(pipe, secret, new(false, 64, Error: "unsupported protocol version", ProblemCode: PrivilegedProblemCode.InvalidProtocol), cancellationToken);
             return;
         }
+        if (request.OperationId is not { } operationId || operationId == Guid.Empty)
+        {
+            await WriteResultAsync(pipe, secret, new(false, 64, Error: "operation id is required", ProblemCode: PrivilegedProblemCode.InvalidRequest), cancellationToken);
+            return;
+        }
+        PruneRecentOperationIds();
+        if (!_recentOperationIds.TryAdd(operationId, DateTimeOffset.UtcNow.AddMinutes(10)))
+        {
+            await WriteResultAsync(pipe, secret, new(false, 17, Error: "operation id was already processed", ProblemCode: PrivilegedProblemCode.Conflict), cancellationToken);
+            return;
+        }
         var result = await RunWorkerAsync(requestJson, cancellationToken);
         await WriteResultAsync(pipe, secret, result, cancellationToken);
+    }
+
+    private void PruneRecentOperationIds()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var pair in _recentOperationIds.Where(pair => pair.Value <= now))
+            _recentOperationIds.TryRemove(pair.Key, out _);
     }
 
     private static async Task<PrivilegedOperationResult> RunWorkerAsync(byte[] requestJson, CancellationToken cancellationToken)
@@ -115,10 +136,17 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
         };
         using var worker = Process.Start(start);
         if (worker is null) return new(false, 69, Error: "Helper worker could not start", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
-        await worker.StandardInput.BaseStream.WriteAsync(requestJson, cancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(120));
+        await worker.StandardInput.BaseStream.WriteAsync(requestJson, timeout.Token);
         await worker.StandardInput.DisposeAsync();
-        var output = worker.StandardOutput.ReadToEndAsync(cancellationToken);
-        await worker.WaitForExitAsync(cancellationToken);
+        var output = worker.StandardOutput.ReadToEndAsync(timeout.Token);
+        try { await worker.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            try { worker.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            return new(false, 124, Error: "Helper worker timed out", ProblemCode: PrivilegedProblemCode.TimedOut);
+        }
         try
         {
             return JsonSerializer.Deserialize<PrivilegedOperationResult>(await output)
@@ -182,15 +210,28 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
 
 [SupportedOSPlatform("windows")]
 public sealed record WindowsHelperServiceConfiguration(string PipeName, string SharedSecret, string ServerServiceSid,
-    IReadOnlyList<string> FileAllowedRoots, IReadOnlyList<string> AllowedServiceIds)
+    IReadOnlyList<string> FileAllowedRoots, IReadOnlyList<string> AllowedServiceIds, string HelperExecutableSha256)
 {
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(PipeName) || PipeName.Length > 128 || string.IsNullOrWhiteSpace(ServerServiceSid)
             || FileAllowedRoots.Count == 0 || FileAllowedRoots.Any(root => string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
-            || AllowedServiceIds.Count == 0 || AllowedServiceIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 256))
+            || AllowedServiceIds.Count == 0 || AllowedServiceIds.Any(id => string.IsNullOrWhiteSpace(id) || id.Length > 256)
+            || string.IsNullOrWhiteSpace(HelperExecutableSha256) || !System.Text.RegularExpressions.Regex.IsMatch(HelperExecutableSha256, "^[0-9a-fA-F]{64}$"))
             throw new InvalidOperationException("Windows Helper configuration is incomplete.");
         if (Convert.FromBase64String(SharedSecret).Length < 32) throw new InvalidOperationException("Windows Helper secret is too short.");
         _ = new SecurityIdentifier(ServerServiceSid);
+    }
+
+    public void VerifyCurrentExecutable()
+    {
+        var executable = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
+            throw new InvalidOperationException("Windows Helper executable is unavailable.");
+        var expected = Convert.FromHexString(HelperExecutableSha256);
+        using var stream = File.OpenRead(executable);
+        var actual = SHA256.HashData(stream);
+        if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+            throw new InvalidOperationException("Windows Helper executable integrity verification failed.");
     }
 }

@@ -11,12 +11,11 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
 {
     public async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, CancellationToken cancellationToken = default)
     {
-        if (!OperatingSystem.IsLinux())
-            return new(false, 69, Error: "the Linux privileged transport is unavailable on this platform", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
-        if (string.IsNullOrWhiteSpace(options.HelperPath) || !File.Exists(options.HelperPath))
-            return new(false, 69, Error: "privileged helper is not installed", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
-
         request = request with { OperationId = request.OperationId is { } id && id != Guid.Empty ? id : Guid.NewGuid(), Version = PrivilegedOperationProtocol.Version };
+        if (!OperatingSystem.IsLinux())
+            return Complete(request, new(false, 69, Error: "the Linux privileged transport is unavailable on this platform", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
+        if (string.IsNullOrWhiteSpace(options.HelperPath) || !File.Exists(options.HelperPath))
+            return Complete(request, new(false, 69, Error: "privileged helper is not installed", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
 
         var start = new ProcessStartInfo(options.SudoPath) { ArgumentList = { "-n", options.HelperPath } };
         start.RedirectStandardInput = true;
@@ -30,9 +29,9 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not start the privileged helper.");
-            return new(false, 69, Error: "privileged helper could not be started", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+            return Complete(request, new(false, 69, Error: "privileged helper could not be started", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
         }
-        if (process is null) return new(false, 69, Error: "privileged helper could not be started", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+        if (process is null) return Complete(request, new(false, 69, Error: "privileged helper could not be started", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
         using (process)
         {
             await JsonSerializer.SerializeAsync(process.StandardInput.BaseStream, request, cancellationToken: cancellationToken);
@@ -45,7 +44,7 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 process.Kill(entireProcessTree: true);
-                return new(false, 124, Error: "privileged helper timed out", ProblemCode: PrivilegedProblemCode.TimedOut);
+                return Complete(request, new(false, 124, Error: "privileged helper timed out", ProblemCode: PrivilegedProblemCode.TimedOut));
             }
 
             var response = await output;
@@ -54,8 +53,7 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
             {
                 var result = JsonSerializer.Deserialize<PrivilegedOperationResult>(response)
                     ?? new(false, process.ExitCode, Error: "privileged helper returned no result", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
-                Audit(request, result);
-                return result;
+                return Complete(request, result);
             }
             catch (JsonException)
             {
@@ -63,9 +61,15 @@ public sealed class LocalPrivilegedOperationRunner(PrivilegedHelperOptions optio
                 // availability problem, not a file I/O failure. Keep stderr out of the HTTP response.
                 logger.LogWarning("Privileged helper returned invalid output. ExitCode={ExitCode}; Stderr={Stderr}",
                     process.ExitCode, string.IsNullOrWhiteSpace(stderr) ? "(empty)" : stderr);
-                return new(false, 69, Error: "privileged helper failed; check the Server logs and sudoers configuration", ProblemCode: PrivilegedProblemCode.HelperUnavailable);
+                return Complete(request, new(false, 69, Error: "privileged helper failed; check the Server logs and sudoers configuration", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
             }
         }
+    }
+
+    private PrivilegedOperationResult Complete(PrivilegedOperationRequest request, PrivilegedOperationResult result)
+    {
+        Audit(request, result);
+        return result;
     }
 
     private void Audit(PrivilegedOperationRequest request, PrivilegedOperationResult result)
