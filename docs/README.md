@@ -422,6 +422,7 @@ RemoteOS.Server     = Cloud Backend
 | [`Authentication`](./platform/RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
 | [`Login`](./platform/RemoteOS.Login.md) | 登录窗口、auth 端点、JWT 与错误处理 |
 | [`Security`](./platform/RemoteOS.Security.md) | 安全设计、权限提升与危险操作确认 |
+| [`PrivilegedOperations Goal`](./platform/RemoteOS.PrivilegedOperations.Goal.md) | 跨平台受限 Helper、Windows Server LocalSystem 服务与特权操作迁移执行计划 |
 | [`Storage`](./platform/RemoteOS.Storage.md) | EF Core + SQLite、持久化范围与表结构 |
 
 ### 桌面体验

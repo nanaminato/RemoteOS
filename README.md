@@ -269,6 +269,7 @@ dotnet run
 | [RemoteOS.Authentication.md](./docs/platform/RemoteOS.Authentication.md) | 登录系统、身份模型、OS 用户集成 |
 | [RemoteOS.Login.md](./docs/platform/RemoteOS.Login.md) | 登录模块实现细节、mstsc 风格登录窗 |
 | [RemoteOS.Security.md](./docs/platform/RemoteOS.Security.md) | 安全设计、权限提升、危险操作 |
+| [RemoteOS.PrivilegedOperations.Goal.md](./docs/platform/RemoteOS.PrivilegedOperations.Goal.md) | 跨平台受限 Helper、Windows Server 支持与特权操作迁移执行计划 |
 | [RemoteOS.Storage.md](./docs/platform/RemoteOS.Storage.md) | 服务端持久化、EF Core + SQLite |
 
 ### 桌面体验
