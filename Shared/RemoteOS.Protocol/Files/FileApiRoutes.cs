@@ -27,6 +27,9 @@ public static class FileApiRoutes
     /// <summary>读取或覆盖保存单个文件内容（GET/PUT，需 JWT）。Query: path。</summary>
     public const string Content = $"/{V1}/files/content";
 
+    /// <summary>Tests direct file access and, when needed, establishes a short-lived elevated file session.</summary>
+    public const string Elevation = $"/{V1}/files/elevation";
+
     /// <summary>获取文件或目录的属性与宿主 OS 权限摘要（GET，需 JWT）。Query: path。</summary>
     public const string Properties = $"/{V1}/files/properties";
 

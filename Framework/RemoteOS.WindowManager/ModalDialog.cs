@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Media;
-using RemoteOS.UI.Themes;
 using RemoteOS.Core.Primitives;
 using Rect = RemoteOS.Core.Primitives.Rect;
 
@@ -58,6 +57,7 @@ internal interface IShellModalSession
     ManagedWindow DialogWindow { get; }
     ModalBlocker Blocker { get; }
     Canvas Host { get; }
+    bool CoversFullDesktop { get; }
     void Cancel();
 }
 
@@ -79,11 +79,13 @@ internal sealed class ShellModalSession<TResult>(
     ManagedWindow dialogWindow,
     ModalBlocker blocker,
     Canvas host,
-    ModalDialog<TResult> dialog) : IShellModalSession
+    ModalDialog<TResult> dialog,
+    bool coversFullDesktop = false) : IShellModalSession
 {
     public ManagedWindow DialogWindow { get; } = dialogWindow;
     public ModalBlocker Blocker { get; } = blocker;
     public Canvas Host { get; } = host;
+    public bool CoversFullDesktop { get; } = coversFullDesktop;
     public void Cancel() => dialog.Cancel();
 }
 
@@ -92,7 +94,10 @@ internal sealed class ModalBlocker : Border
 {
     public ModalBlocker()
     {
-        Background = ThemeResources.Brush("DialogScrimBrush");
+        // The brush lives in Application.Styles, so resolving it once through
+        // Application.Resources falls back to transparent. A dynamic resource binding also
+        // keeps an already-open modal in sync when the workspace theme changes.
+        Bind(BackgroundProperty, this.GetResourceObservable("DialogScrimBrush"));
     }
 
     public void ApplyBounds(Rect bounds)

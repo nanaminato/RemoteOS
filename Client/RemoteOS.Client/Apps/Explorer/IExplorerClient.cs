@@ -26,6 +26,9 @@ public interface IExplorerClient
     /// <summary>读取远程文件的原始字节；文件不存在时返回 null。</summary>
     Task<byte[]?> ReadFileAsync(string path, CancellationToken ct = default);
 
+    /// <summary>Tests direct access and, after host password confirmation, authorizes short-lived elevated access to one path.</summary>
+    Task<FileElevationResult> ElevateFileAccessAsync(string path, string? password = null, CancellationToken ct = default);
+
     /// <summary>以原始字节覆盖保存远程文件。</summary>
     Task<FileEntryDto> WriteFileAsync(string path, byte[] content, CancellationToken ct = default);
 

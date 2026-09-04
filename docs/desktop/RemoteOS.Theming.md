@@ -132,7 +132,7 @@ Client/RemoteOS.Client/
 | 强调与选择 | `Accent`、`AccentHover`、`AccentPressed`、`AccentMuted`、`SelectionBackground`、`SelectionForeground` |
 | 状态 | `Success`、`SuccessMuted`、`Warning`、`WarningMuted`、`Danger`、`DangerHover`、`DangerPressed`、`Info` |
 | 桌面与窗口 | `TaskbarBackground`、`TaskbarForeground`、`StartMenuBackground`、`WindowFrameBackground`、`WindowTitleBarBackground`、`WindowTitleForeground`、`WindowInactiveTitleForeground` |
-| 透明层 | `OverlayScrim`、`ShadowColor`、`DesktopIconHover`、`DesktopIconSelected` |
+| 透明层 | `OverlayScrim`、`DialogScrim`、`ShadowColor`、`DesktopIconHover`、`DesktopIconSelected` |
 
 还应提供这些非颜色令牌：`ControlCornerRadius`、`OverlayCornerRadius`、`WindowCornerRadius`、`ControlHeight`、`ControlPadding`、`ContentFont`、`ContentFontSize`、`ElevationLow`、`ElevationMedium`、`TransitionFast`。v1 可以让所有调色板共享这些数值，但必须通过动态资源引用，以便未来 `StyleId` 能接管它们。
 

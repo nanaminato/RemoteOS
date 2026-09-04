@@ -314,9 +314,18 @@ builder.Services.AddAuthorization(options =>
 if (OperatingSystem.IsWindows())
     builder.Services.AddSingleton<IIdentityProvider, WindowsLogonProvider>();
 else if (OperatingSystem.IsLinux())
-    builder.Services.AddSingleton<IIdentityProvider, LinuxPamProvider>();
+builder.Services.AddSingleton<IIdentityProvider, LinuxPamProvider>();
 else
     throw new PlatformNotSupportedException("RemoteOS Server identity authentication supports Windows and Linux hosts only.");
+
+// The Server normally remains an unprivileged service. The optional helper is a root-owned
+// local executable invoked only after FileEndpoints has granted a short-lived file elevation.
+var privilegedHelperOptions = builder.Configuration.GetSection("PrivilegedHelper").Get<Server.Privileged.PrivilegedHelperOptions>()
+                             ?? new Server.Privileged.PrivilegedHelperOptions();
+builder.Services.AddSingleton(privilegedHelperOptions);
+builder.Services.AddSingleton<Server.Privileged.IPrivilegedOperationRunner, Server.Privileged.LocalPrivilegedOperationRunner>();
+builder.Services.AddSingleton<Server.Privileged.IPrivilegedFileService, Server.Privileged.PrivilegedFileService>();
+builder.Services.AddSingleton<Server.Privileged.IFileElevationSessionStore, Server.Privileged.FileElevationSessionStore>();
 
 // 任务管理器：系统指标采集 Provider（按宿主 OS 平台选择，与 IIdentityProvider 同模式）。
 // CPU/内存平台特定（Linux 读 /proc；Windows 走 P/Invoke），磁盘/网络/GPU/进程跨平台共享。

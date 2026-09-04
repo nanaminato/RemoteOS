@@ -61,9 +61,14 @@
                             <TextBlock Text="{loc:Loc explorer.properties.linux_permissions}" FontSize="15" FontWeight="SemiBold" />
                             <TextBlock Text="{loc:Loc explorer.properties.permissions_note}" FontSize="12" Opacity="0.62" />
                         </StackPanel>
-                        <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="10,4" VerticalAlignment="Top">
-                            <TextBlock Text="{Binding PermissionOctal}" FontFamily="Consolas" FontWeight="SemiBold" />
-                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Top">
+                            <TextBlock Text="{loc:Loc explorer.permissions.octal_label}" FontSize="12" Opacity="0.62" />
+                            <TextBox Text="{Binding PermissionOctalInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding !IsSavingPermissions}" Width="76" HorizontalContentAlignment="Center"
+                                     FontFamily="Consolas" FontWeight="SemiBold" MaxLength="4" />
+                            <TextBlock Text="{Binding PermissionOctalError}" IsVisible="{Binding HasPermissionOctalError}"
+                                       Foreground="{DynamicResource DangerBrush}" FontSize="11" TextWrapping="Wrap" MaxWidth="180" />
+                        </StackPanel>
                     </Grid>
 
                     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">

@@ -93,6 +93,8 @@
         "explorer.properties.permissions_unsupported": "This server does not support editing POSIX permissions. Windows hosts still show their ACL permission summary.",
         "explorer.properties.size_bytes": "{0:N0} bytes",
         "explorer.permissions.select_then_save": "Select permissions, then save the changes to the server.",
+        "explorer.permissions.octal_label": "Octal permission value",
+        "explorer.permissions.invalid_octal": "Enter 3 or 4 octal digits (0–7).",
         "explorer.permissions.saving": "Saving permissions…",
         "explorer.permissions.saved": "Saved as {0}.",
         "explorer.permissions.save_failed": "Could not save permissions: {0}",

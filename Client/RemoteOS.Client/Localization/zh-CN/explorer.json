@@ -93,6 +93,8 @@
         "explorer.properties.permissions_unsupported": "此服务器不支持编辑 POSIX 权限。Windows 主机仍会显示其 ACL 权限摘要。",
         "explorer.properties.size_bytes": "{0:N0} 字节",
         "explorer.permissions.select_then_save": "选择权限，然后将更改保存到服务器。",
+        "explorer.permissions.octal_label": "八进制权限值",
+        "explorer.permissions.invalid_octal": "请输入 3 或 4 位八进制数字（0–7）。",
         "explorer.permissions.saving": "正在保存权限…",
         "explorer.permissions.saved": "已保存为 {0}。",
         "explorer.permissions.save_failed": "无法保存权限：{0}",

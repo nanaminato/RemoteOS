@@ -59,6 +59,15 @@ public interface IWindowManager
         Func<ModalDialog<TResult>, Control> contentFactory,
         Size preferredSize);
 
+    /// <summary>
+    /// Shows a system-owned modal above every shell surface, including the taskbar. Use this
+    /// only for security-sensitive flows that must prevent desktop interaction until resolved.
+    /// </summary>
+    Task<TResult?> ShowSystemDialogAsync<TResult>(
+        string title,
+        Func<ModalDialog<TResult>, Control> contentFactory,
+        Size preferredSize);
+
     void Close(ManagedWindow window);
     void Focus(ManagedWindow window);
     void Minimize(ManagedWindow window);

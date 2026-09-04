@@ -93,6 +93,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
     public Func<Task<IReadOnlyList<LocalUploadSource>>>? RequestClipboardUploadSourcesAsync { get; set; }
     /// <summary>请求本地保存路径（用于下载目标）。参数：默认文件名。返回本地路径或 null。</summary>
     public Func<string, Task<string?>>? RequestLocalSaveFileAsync { get; set; }
+    /// <summary>Ensures direct or short-lived elevated access before a protected file is opened or downloaded.</summary>
+    public Func<string, Task<bool>>? RequestFileElevationAsync { get; set; }
     /// <summary>使用默认程序打开一个远程文件。</summary>
     public Func<FileSystemEntryDto, Task>? OpenFileAsync { get; set; }
     /// <summary>选择程序后打开一个远程文件。</summary>
@@ -708,6 +710,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         try
         {
+            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path)) return;
             if (OpenFileAsync is null) { StatusText = LocalizedText.Get("explorer.status.no_file_opener"); return; }
             await OpenFileAsync(entry);
         }
@@ -920,6 +923,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(localPath)) return;
         try
         {
+            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path)) return;
             var r = await _client.DownloadAsync(entry.Path);
             if (r is not (var stream, _))
             {
