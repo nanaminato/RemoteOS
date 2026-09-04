@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.WebServers;
+using RemoteOS.Protocol.Privileged;
 using Server.Certificate;
 
 namespace Server.WebServer;
@@ -20,6 +21,7 @@ namespace Server.WebServer;
 /// </summary>
 internal sealed partial class NginxWebServerManager(
     IHostPrivilegeService privileges,
+    IPrivilegedNginxOperations privilegedNginx,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
     IHostApplicationLifetime lifetime,
@@ -134,7 +136,7 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.managed_installation_exists");
         if (!OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(request.Version) && !LinuxPackageVersionPattern().IsMatch(request.Version.Trim()))
             return Rejected(layout.InstanceId, "install", "webserver.version_invalid");
-        if (!OperatingSystem.IsWindows() && !IsConfiguredInstaller() && !CanUseBuiltInInstaller())
+        if (!OperatingSystem.IsWindows() && !CanUseBuiltInInstaller())
             return Rejected(layout.InstanceId, "install", "webserver.install_unsupported_platform");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
             (progress, ct) => InstallManagedCoreAsync(layout, request, progress, ct), lifetime.ApplicationStopping);
@@ -195,7 +197,10 @@ internal sealed partial class NginxWebServerManager(
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null) return null;
-        if (!privileges.IsAdministrator)
+        // The system-package lifecycle is delegated to IPrivilegedNginxOperations. ACME
+        // integration still writes protected configuration and remains unavailable until its
+        // file operation is migrated to the same Helper boundary.
+        if (!privileges.IsAdministrator && action == WebServerLifecycleAction.EnableAcmeHttp01)
             return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.lifecycle_elevation_required");
         if (action == WebServerLifecycleAction.Reload)
         {
@@ -1095,7 +1100,7 @@ internal sealed partial class NginxWebServerManager(
         try
         {
             if (UsesSystemPackageManagedExecutable()
-                && !await RunProcessAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], cancellationToken))
+                && !await privilegedNginx.UninstallPackageAsync(cancellationToken))
             {
                 logger.LogWarning("Could not remove the APT-installed Nginx package for a managed installation. Executable={Executable}", layout.ExecutablePath);
                 return new WebServerOperationResult("webserver.uninstall_failed");
@@ -1123,37 +1128,17 @@ internal sealed partial class NginxWebServerManager(
         return await StartManagedAsync(layout, cancellationToken);
     }
 
-    private bool IsConfiguredInstaller() => Path.IsPathFullyQualified(managedOptions.InstallerCommand) && File.Exists(managedOptions.InstallerCommand);
-
     private static bool CanUseBuiltInInstaller() => OperatingSystem.IsLinux() && File.Exists("/usr/bin/apt-get");
 
+    // Arbitrary host-configured installers are deliberately not supported. Package installation
+    // uses the fixed, Helper-owned apt operation; other platforms report not-supported.
     private Task<bool> RunInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken) =>
-        IsConfiguredInstaller()
-            ? RunConfiguredInstallerAsync(cancellationToken)
-            : RunBuiltInLinuxInstallerAsync(layout, version, cancellationToken);
-
-    private async Task<bool> RunConfiguredInstallerAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var process = new Process { StartInfo = new ProcessStartInfo(managedOptions.InstallerCommand) { UseShellExecute = false, CreateNoWindow = true } };
-            foreach (var argument in managedOptions.InstallerArguments) process.StartInfo.ArgumentList.Add(argument);
-            if (!process.Start()) return false;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromMinutes(10));
-            await process.WaitForExitAsync(timeout.Token);
-            return process.ExitCode == 0;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
-        catch { return false; }
-    }
+        RunBuiltInLinuxInstallerAsync(layout, version, cancellationToken);
 
     private async Task<bool> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken)
     {
         if (!CanUseBuiltInInstaller()) return false;
-        if (!await RunProcessAsync("/usr/bin/apt-get", ["update"], cancellationToken)) return false;
-        var package = string.IsNullOrWhiteSpace(version) ? "nginx" : $"nginx={version.Trim()}";
-        if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", package], cancellationToken)) return false;
+        if (!await privilegedNginx.InstallPackageAsync(version, cancellationToken)) return false;
         if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath)) return false;
         try
         {
@@ -1170,15 +1155,26 @@ internal sealed partial class NginxWebServerManager(
 
     private async Task<bool> RunSystemdNginxAsync(string command, CancellationToken cancellationToken, params string[] additionalArguments)
     {
-        if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/systemctl")) return false;
-        var arguments = new List<string> { command };
-        arguments.AddRange(additionalArguments);
-        arguments.Add("nginx.service");
-        return await RunProcessAsync("/usr/bin/systemctl", arguments, cancellationToken);
+        var action = (command, additionalArguments) switch
+        {
+            ("start", []) => NginxSystemServiceAction.Start,
+            ("stop", []) => NginxSystemServiceAction.Stop,
+            ("restart", []) => NginxSystemServiceAction.Restart,
+            ("reload", []) => NginxSystemServiceAction.Reload,
+            ("enable", []) => NginxSystemServiceAction.Enable,
+            ("disable", []) => NginxSystemServiceAction.Disable,
+            ("enable", ["--now"]) => NginxSystemServiceAction.EnableAndStart,
+            ("disable", ["--now"]) => NginxSystemServiceAction.DisableAndStop,
+            _ => throw new InvalidOperationException("Unsupported fixed Nginx systemd action."),
+        };
+        return await privilegedNginx.ApplySystemServiceActionAsync(action, cancellationToken);
     }
 
-    private Task<bool> IsSystemdNginxActiveAsync(CancellationToken cancellationToken) =>
-        RunSystemdNginxAsync("is-active", cancellationToken, "--quiet");
+    private static async Task<bool> IsSystemdNginxActiveAsync(CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/systemctl")) return false;
+        return await RunProcessAsync("/usr/bin/systemctl", ["is-active", "--quiet", "nginx.service"], cancellationToken);
+    }
 
     private async Task StopLegacyCustomManagedInstanceAsync(ManagedLayout layout, CancellationToken cancellationToken)
     {

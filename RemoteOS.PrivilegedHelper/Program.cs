@@ -1,184 +1,341 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using RemoteOS.Protocol.Privileged;
+using RemoteOS.PrivilegedHelper;
+
+if (OperatingSystem.IsWindows() && args.Contains("--windows-service", StringComparer.Ordinal))
+{
+    WindowsPrivilegedHelperService.Run(args);
+    return 0;
+}
 
 if (OperatingSystem.IsLinux() && geteuid() != 0)
 {
-    await WriteResultAsync(new(false, 77, Error: "root is required"));
+    await WriteResultAsync(Fail(77, PrivilegedProblemCode.AccessDenied, "root is required"));
     return 77;
 }
 
+// A root-owned installation configures this list. An empty list deliberately fails closed: a
+// compromised Server account must not turn the file explorer into arbitrary root file I/O.
+var allowedRoots = LoadAllowedRoots();
 PrivilegedOperationRequest? request;
 try
 {
-    request = await JsonSerializer.DeserializeAsync<PrivilegedOperationRequest>(Console.OpenStandardInput());
+    request = await ReadRequestAsync(Console.OpenStandardInput());
 }
-catch (JsonException)
+catch (Exception exception) when (exception is JsonException or InvalidDataException)
 {
-    await WriteResultAsync(new(false, 64, Error: "invalid request"));
+    await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid request"));
     return 64;
 }
 
 if (request is null)
 {
-    await WriteResultAsync(new(false, 64, Error: "missing request"));
+    await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "missing request"));
     return 64;
 }
 
-var result = await ExecuteAsync(request);
+var result = await ExecuteAsync(request, allowedRoots);
 await WriteResultAsync(result);
 return result.ExitCode;
 
-static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request)
+static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, IReadOnlyList<string> allowedRoots)
 {
+    if (request.Version != PrivilegedOperationProtocol.Version)
+        return Fail(64, PrivilegedProblemCode.InvalidProtocol, "unsupported protocol version");
+    if (request.OperationId is not { } operationId || operationId == Guid.Empty)
+        return Fail(64, PrivilegedProblemCode.InvalidRequest, "operation id is required");
+
     try
     {
         return request.Operation switch
         {
-            "read-file" => await ReadFileAsync(request.Path),
-            "write-file" => await WriteFileAsync(request.Path, request.ContentBase64),
-            "delete" => Delete(request.Path),
-            "rename" => Rename(request.Path, request.NewName),
-            "move" => Move(request.Path, request.DestinationPath, request.Overwrite),
-            "copy" => Copy(request.Path, request.DestinationPath, request.Overwrite),
-            "upload" => await UploadAsync(request.Path, request.FileName, request.ContentBase64),
-            "create-directory" => CreateDirectory(request.Path),
-            "run" => await RunAsync(request),
-            _ => new(false, 64, Error: "unknown operation"),
+            PrivilegedOperationKind.FileRead => await ReadFileAsync(request.Path, allowedRoots),
+            PrivilegedOperationKind.FileWrite => await WriteFileAsync(request.Path, request.ContentBase64, allowedRoots),
+            PrivilegedOperationKind.FileDelete => Delete(request.Path, allowedRoots),
+            PrivilegedOperationKind.FileRename => Rename(request.Path, request.NewName, allowedRoots),
+            PrivilegedOperationKind.FileMove => Move(request.Path, request.DestinationPath, request.Overwrite, allowedRoots),
+            PrivilegedOperationKind.FileCopy => Copy(request.Path, request.DestinationPath, request.Overwrite, allowedRoots),
+            PrivilegedOperationKind.FileUpload => await UploadAsync(request.Path, request.FileName, request.ContentBase64, allowedRoots),
+            PrivilegedOperationKind.FileCreateDirectory => CreateDirectory(request.Path, allowedRoots),
+            PrivilegedOperationKind.NativeServiceAction => await ApplyNativeServiceActionAsync(request.ServiceId, request.ServiceAction),
+            PrivilegedOperationKind.NginxSystemServiceAction => await ApplyNginxSystemServiceActionAsync(request.NginxServiceAction),
+            PrivilegedOperationKind.NginxPackageInstall => await InstallNginxPackageAsync(request.PackageVersion),
+            PrivilegedOperationKind.NginxPackageUninstall => await UninstallNginxPackageAsync(),
+            _ => Fail(64, PrivilegedProblemCode.UnsupportedOperation, "unsupported operation"),
         };
     }
-    catch (UnauthorizedAccessException ex) { return new(false, 77, Error: ex.Message); }
-    catch (DirectoryNotFoundException ex) { return new(false, 2, Error: ex.Message); }
-    catch (FileNotFoundException ex) { return new(false, 2, Error: ex.Message); }
-    catch (ArgumentException ex) { return new(false, 64, Error: ex.Message); }
-    catch (Exception ex) { return new(false, 1, Error: ex.Message); }
+    catch (UnauthorizedAccessException) { return Fail(77, PrivilegedProblemCode.AccessDenied, "access denied"); }
+    catch (DirectoryNotFoundException) { return Fail(2, PrivilegedProblemCode.NotFound, "target directory does not exist"); }
+    catch (FileNotFoundException) { return Fail(2, PrivilegedProblemCode.NotFound, "path does not exist"); }
+    catch (IOException) { return Fail(1, PrivilegedProblemCode.Conflict, "file operation failed"); }
+    catch (ArgumentException) { return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid request"); }
+    catch { return Fail(1, PrivilegedProblemCode.InternalError, "helper operation failed"); }
 }
 
-static async Task<PrivilegedOperationResult> ReadFileAsync(string? path)
+static async Task<PrivilegedOperationResult> ReadFileAsync(string? path, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(path)) return new(false, 64, Error: "path is required");
-    var bytes = await File.ReadAllBytesAsync(path);
+    var canonical = ValidatePath(path, roots);
+    var bytes = await File.ReadAllBytesAsync(canonical);
+    if (bytes.Length > PrivilegedOperationProtocol.MaximumFileContentBytes)
+        return Fail(75, PrivilegedProblemCode.ContentTooLarge, "file content is too large");
     return new(true, OutputBase64: Convert.ToBase64String(bytes));
 }
 
-static async Task<PrivilegedOperationResult> WriteFileAsync(string? path, string? contentBase64)
+static async Task<PrivilegedOperationResult> WriteFileAsync(string? path, string? contentBase64, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(path) || contentBase64 is null) return new(false, 64, Error: "path and content are required");
-    var directory = Path.GetDirectoryName(path);
-    if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
-        throw new DirectoryNotFoundException($"Target directory does not exist: {directory}");
-    await File.WriteAllBytesAsync(path, Convert.FromBase64String(contentBase64));
+    var canonical = ValidatePath(path, roots);
+    var content = DecodeContent(contentBase64);
+    var directory = Path.GetDirectoryName(canonical);
+    if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) throw new DirectoryNotFoundException();
+    await File.WriteAllBytesAsync(canonical, content);
     return new(true);
 }
 
-static PrivilegedOperationResult Delete(string? path)
+static PrivilegedOperationResult Delete(string? path, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(path)) return new(false, 64, Error: "path is required");
-    if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-    else if (File.Exists(path)) File.Delete(path);
-    else throw new FileNotFoundException("Path does not exist.", path);
+    var canonical = ValidatePath(path, roots);
+    if (Directory.Exists(canonical)) Directory.Delete(canonical, recursive: true);
+    else if (File.Exists(canonical)) File.Delete(canonical);
+    else throw new FileNotFoundException();
     return new(true);
 }
 
-static PrivilegedOperationResult Rename(string? sourcePath, string? newName)
+static PrivilegedOperationResult Rename(string? sourcePath, string? newName, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(newName)) return new(false, 64, Error: "path and newName are required");
-    var parent = Path.GetDirectoryName(sourcePath);
-    var destination = Path.Combine(parent ?? string.Empty, newName);
-    if (Directory.Exists(sourcePath)) new DirectoryInfo(sourcePath).MoveTo(destination);
-    else if (File.Exists(sourcePath)) File.Move(sourcePath, destination);
-    else throw new FileNotFoundException("Path does not exist.", sourcePath);
+    var source = ValidatePath(sourcePath, roots);
+    if (string.IsNullOrWhiteSpace(newName) || newName is "." or ".." || newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+        || newName.Contains(Path.DirectorySeparatorChar) || newName.Contains(Path.AltDirectorySeparatorChar))
+        throw new ArgumentException("invalid file name");
+    var destination = ValidatePath(Path.Combine(Path.GetDirectoryName(source)!, newName), roots);
+    if (Directory.Exists(source)) new DirectoryInfo(source).MoveTo(destination);
+    else if (File.Exists(source)) File.Move(source, destination);
+    else throw new FileNotFoundException();
     return new(true);
 }
 
-static PrivilegedOperationResult Move(string? sourcePath, string? destinationPath, bool overwrite)
+static PrivilegedOperationResult Move(string? sourcePath, string? destinationPath, bool overwrite, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(destinationPath)) return new(false, 64, Error: "path and destinationPath are required");
-    if (Directory.Exists(sourcePath))
+    var source = ValidatePath(sourcePath, roots);
+    var destination = ValidatePath(destinationPath, roots);
+    if (Directory.Exists(source))
     {
-        if (Directory.Exists(destinationPath) && overwrite) Directory.Delete(destinationPath, recursive: true);
-        Directory.Move(sourcePath, destinationPath);
+        if (Directory.Exists(destination) && overwrite) Directory.Delete(destination, recursive: true);
+        Directory.Move(source, destination);
     }
-    else if (File.Exists(sourcePath)) File.Move(sourcePath, destinationPath, overwrite);
-    else throw new FileNotFoundException("Path does not exist.", sourcePath);
+    else if (File.Exists(source)) File.Move(source, destination, overwrite);
+    else throw new FileNotFoundException();
     return new(true);
 }
 
-static PrivilegedOperationResult Copy(string? sourcePath, string? destinationPath, bool overwrite)
+static PrivilegedOperationResult Copy(string? sourcePath, string? destinationPath, bool overwrite, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(destinationPath)) return new(false, 64, Error: "path and destinationPath are required");
-    if (Directory.Exists(sourcePath))
+    var source = ValidatePath(sourcePath, roots);
+    var destination = ValidatePath(destinationPath, roots);
+    if (Directory.Exists(source))
     {
-        if (Directory.Exists(destinationPath) && overwrite) Directory.Delete(destinationPath, recursive: true);
-        CopyDirectory(sourcePath, destinationPath);
+        if (Directory.Exists(destination) && overwrite) Directory.Delete(destination, recursive: true);
+        CopyDirectory(source, destination, roots);
     }
-    else if (File.Exists(sourcePath)) File.Copy(sourcePath, destinationPath, overwrite);
-    else throw new FileNotFoundException("Path does not exist.", sourcePath);
+    else if (File.Exists(source)) File.Copy(source, destination, overwrite);
+    else throw new FileNotFoundException();
     return new(true);
 }
 
-static async Task<PrivilegedOperationResult> UploadAsync(string? targetDirectoryPath, string? fileName, string? contentBase64)
+static async Task<PrivilegedOperationResult> UploadAsync(string? targetDirectoryPath, string? fileName, string? contentBase64, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(targetDirectoryPath) || string.IsNullOrWhiteSpace(fileName) || contentBase64 is null)
-        return new(false, 64, Error: "path, fileName and content are required");
-    if (!Directory.Exists(targetDirectoryPath)) throw new DirectoryNotFoundException($"Target directory does not exist: {targetDirectoryPath}");
-    await File.WriteAllBytesAsync(Path.Combine(targetDirectoryPath, fileName), Convert.FromBase64String(contentBase64));
+    var directory = ValidatePath(targetDirectoryPath, roots);
+    if (string.IsNullOrWhiteSpace(fileName) || fileName is "." or ".." || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+        || fileName.Contains(Path.DirectorySeparatorChar) || fileName.Contains(Path.AltDirectorySeparatorChar))
+        throw new ArgumentException("invalid file name");
+    if (!Directory.Exists(directory)) throw new DirectoryNotFoundException();
+    await File.WriteAllBytesAsync(ValidatePath(Path.Combine(directory, fileName), roots), DecodeContent(contentBase64));
     return new(true);
 }
 
-static PrivilegedOperationResult CreateDirectory(string? path)
+static PrivilegedOperationResult CreateDirectory(string? path, IReadOnlyList<string> roots)
 {
-    if (string.IsNullOrWhiteSpace(path)) return new(false, 64, Error: "path is required");
-    if (Directory.Exists(path)) return new(false, 17, Error: "directory already exists");
-    Directory.CreateDirectory(path);
+    var canonical = ValidatePath(path, roots);
+    if (Directory.Exists(canonical)) return Fail(17, PrivilegedProblemCode.Conflict, "directory already exists");
+    Directory.CreateDirectory(canonical);
     return new(true);
 }
 
-static void CopyDirectory(string source, string destination)
+static byte[] DecodeContent(string? contentBase64)
+{
+    if (contentBase64 is null) throw new ArgumentException("content is required");
+    if (contentBase64.Length > ((PrivilegedOperationProtocol.MaximumFileContentBytes + 2) / 3 * 4))
+        throw new ArgumentException("content too large");
+    var content = Convert.FromBase64String(contentBase64);
+    if (content.Length > PrivilegedOperationProtocol.MaximumFileContentBytes) throw new ArgumentException("content too large");
+    return content;
+}
+
+static string ValidatePath(string? path, IReadOnlyList<string> roots)
+{
+    if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path)) throw new ArgumentException("absolute path is required");
+    var canonical = Path.GetFullPath(path);
+    var root = roots.FirstOrDefault(candidate => IsWithin(canonical, candidate));
+    if (root is null) throw new UnauthorizedAccessException();
+    EnsureNoReparsePoints(root, canonical);
+    return canonical;
+}
+
+static void EnsureNoReparsePoints(string root, string path)
+{
+    // Existing path components must all be real directories/files. This closes the common
+    // "approved root/subdir -> symlink -> /etc" traversal before performing the mutation.
+    var current = root;
+    ThrowIfReparsePoint(current);
+    var relative = Path.GetRelativePath(root, path);
+    foreach (var segment in relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries))
+    {
+        current = Path.Combine(current, segment);
+        if (!File.Exists(current) && !Directory.Exists(current)) break;
+        ThrowIfReparsePoint(current);
+    }
+}
+
+static void ThrowIfReparsePoint(string path)
+{
+    if ((File.Exists(path) || Directory.Exists(path)) && File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint))
+        throw new UnauthorizedAccessException();
+}
+
+static bool IsWithin(string path, string root) => string.Equals(path, root, GetPathComparison())
+    || path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar, GetPathComparison());
+
+static IReadOnlyList<string> LoadAllowedRoots()
+{
+    // The policy file is installed root-owned beside the service configuration. Environment
+    // fallback is solely for isolated Helper tests; sudo's default env_reset excludes it.
+    const string policyPath = "/etc/remoteos/privileged-helper-roots";
+    var configured = File.Exists(policyPath)
+        ? File.ReadAllText(policyPath)
+        : Environment.GetEnvironmentVariable("REMOTEOS_PRIVILEGED_FILE_ROOTS") ?? string.Empty;
+    return configured.Split([Path.PathSeparator, '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).Distinct(GetPathComparer()).ToArray();
+}
+
+static void CopyDirectory(string source, string destination, IReadOnlyList<string> roots)
 {
     Directory.CreateDirectory(destination);
-    foreach (var file in Directory.EnumerateFiles(source)) File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: false);
-    foreach (var directory in Directory.EnumerateDirectories(source)) CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
-}
-
-static async Task<PrivilegedOperationResult> RunAsync(PrivilegedOperationRequest request)
-{
-    if (string.IsNullOrWhiteSpace(request.Executable)) return new(false, 64, Error: "executable is required");
-    var start = new ProcessStartInfo(request.Executable)
+    foreach (var file in Directory.EnumerateFiles(source))
     {
-        RedirectStandardInput = request.StandardInputBase64 is not null,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        UseShellExecute = false,
-        CreateNoWindow = true,
-    };
-    foreach (var argument in request.Arguments ?? []) start.ArgumentList.Add(argument);
-    using var process = Process.Start(start);
-    if (process is null) return new(false, 1, Error: "process could not be started");
-    if (request.StandardInputBase64 is not null)
-    {
-        var input = Convert.FromBase64String(request.StandardInputBase64);
-        await process.StandardInput.BaseStream.WriteAsync(input);
-        await process.StandardInput.DisposeAsync();
+        var target = ValidatePath(Path.Combine(destination, Path.GetFileName(file)), roots);
+        if (File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint)) throw new UnauthorizedAccessException();
+        File.Copy(file, target, overwrite: false);
     }
-    var output = ReadAllBytesAsync(process.StandardOutput.BaseStream);
-    var error = process.StandardError.ReadToEndAsync();
-    await process.WaitForExitAsync();
-    var outputBytes = await output;
-    var errorText = await error;
-    return new(process.ExitCode == 0, process.ExitCode, Convert.ToBase64String(outputBytes), string.IsNullOrWhiteSpace(errorText) ? null : errorText);
+    foreach (var directory in Directory.EnumerateDirectories(source))
+    {
+        if (File.GetAttributes(directory).HasFlag(FileAttributes.ReparsePoint)) throw new UnauthorizedAccessException();
+        CopyDirectory(directory, ValidatePath(Path.Combine(destination, Path.GetFileName(directory)), roots), roots);
+    }
 }
 
-static Task WriteResultAsync(PrivilegedOperationResult result) =>
-    JsonSerializer.SerializeAsync(Console.OpenStandardOutput(), result);
+static async Task<PrivilegedOperationResult> ApplyNativeServiceActionAsync(string? serviceId, PrivilegedServiceAction? action)
+{
+    if (string.IsNullOrWhiteSpace(serviceId) || action is null || !IsServiceId(serviceId) || !LoadAllowedServices().Contains(serviceId, StringComparer.OrdinalIgnoreCase))
+        return Fail(64, PrivilegedProblemCode.ResourceNotAllowed, "service action is not allowed");
+    var command = action.Value switch
+    {
+        PrivilegedServiceAction.Start => "start",
+        PrivilegedServiceAction.Stop => "stop",
+        PrivilegedServiceAction.Restart => "restart",
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
+    var fileName = OperatingSystem.IsWindows() ? "sc.exe" : "systemctl";
+    var arguments = OperatingSystem.IsWindows() ? new[] { command, serviceId } : new[] { command, serviceId };
+    using var process = new System.Diagnostics.Process
+    {
+        StartInfo = new System.Diagnostics.ProcessStartInfo(fileName)
+        {
+            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true,
+        },
+    };
+    foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+    if (!process.Start()) return Fail(69, PrivilegedProblemCode.HelperUnavailable, "service manager could not start");
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+    await process.WaitForExitAsync(timeout.Token);
+    return process.ExitCode == 0 ? new(true) : Fail(1, PrivilegedProblemCode.InternalError, "service action failed");
+}
 
-static async Task<byte[]> ReadAllBytesAsync(Stream stream)
+static bool IsServiceId(string serviceId) => serviceId.Length is > 0 and <= 256
+    && serviceId.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-' or '@');
+
+static IReadOnlyList<string> LoadAllowedServices()
+{
+    const string policyPath = "/etc/remoteos/privileged-services";
+    var configured = File.Exists(policyPath) ? File.ReadAllText(policyPath)
+        : Environment.GetEnvironmentVariable("REMOTEOS_PRIVILEGED_SERVICE_IDS") ?? string.Empty;
+    return configured.Split(['\r', '\n', Path.PathSeparator], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Where(IsServiceId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+}
+
+static async Task<PrivilegedOperationResult> ApplyNginxSystemServiceActionAsync(NginxSystemServiceAction? action)
+{
+    if (!OperatingSystem.IsLinux() || action is null) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "nginx system service operation is unavailable");
+    var arguments = action.Value switch
+    {
+        NginxSystemServiceAction.Start => new[] { "start", "nginx.service" },
+        NginxSystemServiceAction.Stop => new[] { "stop", "nginx.service" },
+        NginxSystemServiceAction.Restart => new[] { "restart", "nginx.service" },
+        NginxSystemServiceAction.Reload => new[] { "reload", "nginx.service" },
+        NginxSystemServiceAction.Enable => new[] { "enable", "nginx.service" },
+        NginxSystemServiceAction.Disable => new[] { "disable", "nginx.service" },
+        NginxSystemServiceAction.EnableAndStart => new[] { "enable", "--now", "nginx.service" },
+        NginxSystemServiceAction.DisableAndStop => new[] { "disable", "--now", "nginx.service" },
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
+    return await RunFixedCommandAsync("/usr/bin/systemctl", arguments, TimeSpan.FromSeconds(30), "nginx service operation failed");
+}
+
+static async Task<PrivilegedOperationResult> InstallNginxPackageAsync(string? version)
+{
+    if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get")) return Fail(64, PrivilegedProblemCode.UnsupportedOperation, "nginx package operation is unavailable");
+    if (!string.IsNullOrWhiteSpace(version) && !System.Text.RegularExpressions.Regex.IsMatch(version, "^[0-9][0-9A-Za-z.+:~\\-]{0,127}$"))
+        return Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid nginx package version");
+    var update = await RunFixedCommandAsync("/usr/bin/apt-get", ["update"], TimeSpan.FromMinutes(10), "nginx package update failed");
+    if (!update.Success) return update;
+    var package = string.IsNullOrWhiteSpace(version) ? "nginx" : "nginx=" + version.Trim();
+    return await RunFixedCommandAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", package], TimeSpan.FromMinutes(10), "nginx package install failed");
+}
+
+static Task<PrivilegedOperationResult> UninstallNginxPackageAsync() => !OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get")
+    ? Task.FromResult(Fail(64, PrivilegedProblemCode.UnsupportedOperation, "nginx package operation is unavailable"))
+    : RunFixedCommandAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], TimeSpan.FromMinutes(10), "nginx package uninstall failed");
+
+static async Task<PrivilegedOperationResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, TimeSpan timeout, string failure)
+{
+    using var process = new System.Diagnostics.Process { StartInfo = new System.Diagnostics.ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true } };
+    process.StartInfo.Environment["DEBIAN_FRONTEND"] = "noninteractive";
+    foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+    if (!process.Start()) return Fail(69, PrivilegedProblemCode.HelperUnavailable, "host operation could not start");
+    using var cancellation = new CancellationTokenSource(timeout);
+    try { await process.WaitForExitAsync(cancellation.Token); }
+    catch (OperationCanceledException) { return Fail(124, PrivilegedProblemCode.TimedOut, "host operation timed out"); }
+    return process.ExitCode == 0 ? new(true) : Fail(1, PrivilegedProblemCode.InternalError, failure);
+}
+
+static PrivilegedOperationResult Fail(int exitCode, PrivilegedProblemCode code, string error) => new(false, exitCode, Error: error, ProblemCode: code);
+static Task WriteResultAsync(PrivilegedOperationResult result) => JsonSerializer.SerializeAsync(Console.OpenStandardOutput(), result);
+static async Task<PrivilegedOperationRequest?> ReadRequestAsync(Stream input)
 {
     await using var buffer = new MemoryStream();
-    await stream.CopyToAsync(buffer);
-    return buffer.ToArray();
+    var chunk = new byte[16 * 1024];
+    while (true)
+    {
+        var read = await input.ReadAsync(chunk);
+        if (read == 0) break;
+        if (buffer.Length + read > PrivilegedOperationProtocol.MaximumRequestBytes)
+            throw new InvalidDataException("request too large");
+        await buffer.WriteAsync(chunk.AsMemory(0, read));
+    }
+    buffer.Position = 0;
+    return await JsonSerializer.DeserializeAsync<PrivilegedOperationRequest>(buffer);
 }
+static StringComparison GetPathComparison() => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+static StringComparer GetPathComparer() => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
 [DllImport("libc")]
 static extern uint geteuid();

@@ -74,7 +74,7 @@ public static class FileEndpoints
             }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Read, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try
                 {
                     var r = await privileged.OpenReadAsync(path, ct);
@@ -101,7 +101,7 @@ public static class FileEndpoints
             }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Read, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try
                 {
                     var r = await privileged.OpenReadAsync(path, ct);
@@ -128,7 +128,7 @@ public static class FileEndpoints
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "Target directory not found", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(request.HttpContext.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(request.HttpContext.User, FileElevationCapability.Write, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try
                 {
                     content.Position = 0;
@@ -149,7 +149,7 @@ public static class FileEndpoints
         // desktop prompts and repeats with the login user's host password. A successful grant
         // is constrained to this JWT and exact path for five minutes.
         app.MapPost(FileApiRoutes.Elevation, (FileElevationRequest request, HttpContext http, IFileService fs,
-            IIdentityProvider identities, IFileElevationSessionStore elevations) =>
+            IHostAdministratorAuthenticator administrators, IFileElevationSessionStore elevations) =>
         {
             if (string.IsNullOrWhiteSpace(request.Path))
                 return Problem(400, "invalid-path", "Invalid path", "Path cannot be empty.");
@@ -160,7 +160,7 @@ public static class FileEndpoints
                 // grant their requested directory scope after host authentication instead of
                 // probing it with OpenRead.
                 if (request.IncludeDescendants)
-                    return GrantElevation(request, http, identities, elevations);
+                    return GrantElevation(request, http, administrators, elevations);
                 var direct = fs.OpenRead(request.Path);
                 if (direct is null) return Problem(404, "not-found", "Not found", $"Cannot find {request.Path}");
                 using var stream = direct.Value.Stream;
@@ -170,7 +170,7 @@ public static class FileEndpoints
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "Not found", ex.Message); }
             catch (UnauthorizedAccessException)
             {
-                return GrantElevation(request, http, identities, elevations);
+                return GrantElevation(request, http, administrators, elevations);
             }
             catch (ArgumentException ex) { return Problem(400, "invalid-path", "Invalid path", ex.Message); }
         })
@@ -215,7 +215,7 @@ public static class FileEndpoints
             catch (IOException ex) { return Problem(409, "already-exists", "已存在", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.CreateDirectory, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try
                 {
                     await privileged.CreateDirectoryAsync(path, ct);
@@ -242,7 +242,7 @@ public static class FileEndpoints
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "路径不存在", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Delete, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try { await privileged.DeleteAsync(path, ct); return Results.NoContent(); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "访问被拒", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "特权助手不可用", helperEx.Message); }
@@ -264,7 +264,7 @@ public static class FileEndpoints
             catch (UnauthorizedAccessException ex)
             {
                 var target = RenameTarget(req.SourcePath, req.NewName);
-                if (!elevations.IsElevated(http.User, req.SourcePath, target)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Rename, req.SourcePath, target)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try { return Results.Ok(await privileged.RenameAsync(req.SourcePath, req.NewName, ct)); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "访问被拒", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "特权助手不可用", helperEx.Message); }
@@ -285,7 +285,7 @@ public static class FileEndpoints
             catch (FileNotFoundException ex) { return Problem(404, "not-found", "源路径不存在", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, req.SourcePath, req.DestinationPath)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Move, req.SourcePath, req.DestinationPath)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try { return Results.Ok(await privileged.MoveAsync(req.SourcePath, req.DestinationPath, req.Overwrite, ct)); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "访问被拒", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "特权助手不可用", helperEx.Message); }
@@ -306,7 +306,7 @@ public static class FileEndpoints
             catch (FileNotFoundException ex) { return Problem(404, "not-found", "源路径不存在", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(http.User, req.SourcePath, req.DestinationPath)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(http.User, FileElevationCapability.Copy, req.SourcePath, req.DestinationPath)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try { return Results.Ok(await privileged.CopyAsync(req.SourcePath, req.DestinationPath, req.Overwrite, ct)); }
                 catch (UnauthorizedAccessException privilegedEx) { return Problem(403, "access-denied", "访问被拒", privilegedEx.Message); }
                 catch (InvalidOperationException helperEx) { return Problem(503, "privileged-helper-unavailable", "特权助手不可用", helperEx.Message); }
@@ -341,7 +341,7 @@ public static class FileEndpoints
             catch (DirectoryNotFoundException ex) { return Problem(404, "not-found", "目标目录不存在", ex.Message); }
             catch (UnauthorizedAccessException ex)
             {
-                if (!elevations.IsElevated(ctx.User, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
+                if (!elevations.IsElevated(ctx.User, FileElevationCapability.Upload, path)) return Problem(403, "elevation-required", "需要管理员权限", ex.Message);
                 try
                 {
                     await using var retryStream = file.OpenReadStream();
@@ -365,19 +365,18 @@ public static class FileEndpoints
     private static IResult Problem(int status, string typeSuffix, string title, string detail)
         => Results.Problem(detail: detail, statusCode: status, title: title, type: ProblemBase + typeSuffix);
 
-    private static IResult GrantElevation(FileElevationRequest request, HttpContext http, IIdentityProvider identities, IFileElevationSessionStore elevations)
+    private static IResult GrantElevation(FileElevationRequest request, HttpContext http, IHostAdministratorAuthenticator administrators, IFileElevationSessionStore elevations)
     {
         var username = http.User.FindFirstValue(JwtRegisteredClaimNames.Name);
         if (string.IsNullOrWhiteSpace(username)) return Results.Unauthorized();
-        if (!string.Equals(username, "root", StringComparison.Ordinal))
-        {
-            if (string.IsNullOrEmpty(request.Password))
-                return Problem(403, "elevation-password-required", "需要管理员认证", "请输入管理员密码以继续。");
-            if (!identities.Verify(username, request.Password).Success)
-                return Problem(403, "elevation-password-invalid", "管理员认证失败", "密码不正确。");
-        }
+        var authentication = administrators.Authenticate(username, request.AdministratorUsername, request.Password);
+        if (!authentication.Succeeded)
+            return Problem(403, authentication.ProblemCode, "管理员认证失败", "宿主管理员认证未通过，未执行操作。");
+        if (request.Capability is not { } capability)
+            return Problem(400, "elevation-capability-required", "需要操作能力", "请选择需要授权的文件操作。");
         var paths = new[] { request.Path }.Concat(request.RelatedPaths ?? []).Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.Ordinal).ToArray();
-        var expires = paths.Select(path => elevations.Grant(http.User, path, request.IncludeDescendants)).Max();
+        var expires = paths.Select(path => elevations.Grant(http.User, capability, path, request.IncludeDescendants,
+            authentication.AuthenticationMethod, http.TraceIdentifier)).Max();
         return Results.Ok(new FileElevationResult(true, true, expires));
     }
 

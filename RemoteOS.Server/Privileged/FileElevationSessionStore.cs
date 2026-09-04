@@ -1,62 +1,39 @@
-using System.Collections.Concurrent;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Privileged;
 
 namespace Server.Privileged;
 
-/// <summary>Short-lived in-memory file elevation grants, scoped to one JWT and canonical path.</summary>
-public sealed class FileElevationSessionStore : IFileElevationSessionStore
+/// <summary>Explorer compatibility facade over the capability-scoped host elevation store.</summary>
+public sealed class FileElevationSessionStore(IHostElevationSessionStore elevations) : IFileElevationSessionStore
 {
-    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
-    private readonly ConcurrentDictionary<string, ElevationGrant> _grants = new(StringComparer.Ordinal);
+    // Retained only for older callers. Endpoint code must use an explicit operation capability.
+    private const HostElevationCapability LegacyCapability = HostElevationCapability.FileWrite;
 
-    public bool IsElevated(ClaimsPrincipal principal, string path)
-    {
-        if (string.Equals(principal.FindFirstValue(JwtRegisteredClaimNames.Name), "root", StringComparison.Ordinal)) return true;
-        var tokenId = TokenId(principal);
-        if (tokenId is null) return false;
-        var canonicalPath = CanonicalPath(path);
-        return _grants.TryGetValue(Key(tokenId, canonicalPath), out var exact) && exact.ExpiresAt > DateTimeOffset.UtcNow
-            || _grants.Any(pair => pair.Value.IncludeDescendants
-                && pair.Value.ExpiresAt > DateTimeOffset.UtcNow
-                && IsDescendantKey(tokenId, canonicalPath, pair.Key));
-    }
+    public FileElevationSessionStore() : this(new HostElevationSessionStore()) { }
 
-    public bool IsElevated(ClaimsPrincipal principal, params string[] paths)
-        => paths.All(path => IsElevated(principal, path));
-
+    public bool IsElevated(ClaimsPrincipal principal, string path) => elevations.IsGranted(principal, LegacyCapability, path);
+    public bool IsElevated(ClaimsPrincipal principal, params string[] paths) => paths.All(path => IsElevated(principal, path));
     public DateTimeOffset Grant(ClaimsPrincipal principal, string path, bool includeDescendants = false)
+        => elevations.Grant(principal, LegacyCapability, path, includeDescendants, "legacy-file-elevation");
+
+    public bool IsElevated(ClaimsPrincipal principal, FileElevationCapability capability, params string[] paths)
+        => paths.All(path => elevations.IsGranted(principal, ToHostCapability(capability), path));
+
+    public DateTimeOffset Grant(ClaimsPrincipal principal, FileElevationCapability capability, string path, bool includeDescendants = false,
+        string authenticationMethod = "host-password", string? correlationId = null)
+        => elevations.Grant(principal, ToHostCapability(capability), path, includeDescendants, authenticationMethod, correlationId);
+
+    private static HostElevationCapability ToHostCapability(FileElevationCapability capability) => capability switch
     {
-        var expires = DateTimeOffset.UtcNow.Add(Lifetime);
-        var tokenId = TokenId(principal) ?? throw new InvalidOperationException("The access token has no id.");
-        _grants[Key(tokenId, CanonicalPath(path))] = new ElevationGrant(expires, includeDescendants);
-        return expires;
-    }
-
-    private static bool IsDescendantKey(string tokenId, string path, string grantKey)
-    {
-        var prefix = tokenId + "\n";
-        if (!grantKey.StartsWith(prefix, StringComparison.Ordinal)) return false;
-        var directory = grantKey[prefix.Length..];
-        return string.Equals(path, directory, PathComparison)
-            || path.StartsWith(EnsureTrailingSeparator(directory), PathComparison);
-    }
-
-    private static string? TokenId(ClaimsPrincipal principal)
-        => principal.FindFirstValue(JwtRegisteredClaimNames.Jti) is { Length: > 0 } tokenId ? tokenId : null;
-
-    private static string CanonicalPath(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        var root = Path.GetPathRoot(fullPath);
-        return string.Equals(fullPath, root, PathComparison)
-            ? fullPath
-            : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-    }
-
-    private static string Key(string tokenId, string path) => tokenId + "\n" + path;
-    private static string EnsureTrailingSeparator(string path) => path.EndsWith(Path.DirectorySeparatorChar) || path.EndsWith(Path.AltDirectorySeparatorChar)
-        ? path : path + Path.DirectorySeparatorChar;
-    private static StringComparison PathComparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-    private sealed record ElevationGrant(DateTimeOffset ExpiresAt, bool IncludeDescendants);
+        FileElevationCapability.Read => HostElevationCapability.FileRead,
+        FileElevationCapability.Write => HostElevationCapability.FileWrite,
+        FileElevationCapability.CreateDirectory => HostElevationCapability.FileCreateDirectory,
+        FileElevationCapability.Delete => HostElevationCapability.FileDelete,
+        FileElevationCapability.Rename => HostElevationCapability.FileRename,
+        FileElevationCapability.Move => HostElevationCapability.FileMove,
+        FileElevationCapability.Copy => HostElevationCapability.FileCopy,
+        FileElevationCapability.Upload => HostElevationCapability.FileUpload,
+        _ => throw new ArgumentOutOfRangeException(nameof(capability)),
+    };
 }

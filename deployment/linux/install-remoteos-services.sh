@@ -60,9 +60,24 @@ PrivilegedHelper__SudoPath=$(command -v sudo)
 EOF
 chmod 0600 /etc/remoteos/guardian.env /etc/remoteos/server.env
 
-# The helper is root-owned and has no writable parent for the service account.
-# sudoers may pass arbitrary arguments, but the helper independently accepts only
-# its small, structured UFW command grammar.
+# This is a Helper policy, not Server configuration. Keep the first deployment scope small;
+# additional protected Explorer roots must be explicitly reviewed and added by the installer.
+cat >/etc/remoteos/privileged-helper-roots <<EOF
+/etc/remoteos
+/var/lib/remoteos
+EOF
+chown root:root /etc/remoteos/privileged-helper-roots
+chmod 0600 /etc/remoteos/privileged-helper-roots
+cat >/etc/remoteos/privileged-services <<EOF
+remoteos-server.service
+remoteos-guardian.service
+EOF
+chown root:root /etc/remoteos/privileged-services
+chmod 0600 /etc/remoteos/privileged-services
+
+# Helpers are root-owned and have no writable parent for the service account. The only
+# sudo rule permits the published apphost with no caller-supplied arguments; the .NET Helper
+# independently accepts only its versioned, structured operation protocol.
 install -d -o root -g root -m 0755 /usr/local/lib/remoteos
 install -o root -g root -m 0755 "$FIREWALL_HELPER_SOURCE" "$FIREWALL_HELPER"
 # The published .NET helper has a companion runtimeconfig/deps file (and may have managed

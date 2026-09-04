@@ -8,6 +8,7 @@ using Server.Domain;
 using Server.Identity;
 using Server.ConfigurationRegistry;
 using Server.Storage;
+using Server.Privileged;
 
 namespace Server.Endpoints;
 
@@ -153,10 +154,11 @@ public static class AuthEndpoints
             })
             .WithTags("Auth");
 
-        app.MapPost(AuthApiRoutes.Logout, (LogoutRequest? req, AuthSessionStore sessions) =>
+        app.MapPost(AuthApiRoutes.Logout, (LogoutRequest? req, HttpContext http, AuthSessionStore sessions, IHostElevationSessionStore elevations) =>
             {
                 if (!string.IsNullOrEmpty(req?.RefreshToken))
                     sessions.Revoke(req.RefreshToken);
+                elevations.Revoke(http.User);
                 return Results.NoContent();
             })
             .RequireAuthorization()

@@ -1,4 +1,6 @@
 using RemoteOS.Protocol.WebServers;
+using RemoteOS.Protocol.Privileged;
+using Server.Privileged;
 
 namespace Server.Endpoints;
 
@@ -34,10 +36,16 @@ public static class WebServerEndpoints
             await manager.GetManagedInstallDownloadAsync(providerId, version, ct) is { } download ? Results.Ok(download) : Results.NotFound());
         group.MapPost(WebServerApiRoutes.IntegratePattern, async (string id, IntegrateWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.IntegrateAsync(id, key, request, Actor(context), ct)));
-        group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
-            Enum.TryParse<WebServerLifecycleAction>(action, ignoreCase: true, out var lifecycle)
-                ? await StartAsync(context.Request, key => manager.ApplyLifecycleAsync(id, lifecycle, key, Actor(context), ct))
-                : Results.BadRequest(new { problemCode = "webserver.lifecycle_action_invalid" }));
+        group.MapPost(WebServerApiRoutes.LifecyclePattern, async (string id, string action, HttpContext context,
+            IHostElevationSessionStore elevations, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
+        {
+            if (!Enum.TryParse<WebServerLifecycleAction>(action, ignoreCase: true, out var lifecycle))
+                return Results.BadRequest(new { problemCode = "webserver.lifecycle_action_invalid" });
+            if (!elevations.IsGranted(context.User, HostElevationCapability.NginxLifecycle, id))
+                return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "需要管理员权限",
+                    detail: "此 Nginx 生命周期操作需要当前会话的管理员授权。", type: "https://remoteos.app/problems/elevation-required");
+            return await StartAsync(context.Request, key => manager.ApplyLifecycleAsync(id, lifecycle, key, Actor(context), ct));
+        });
         group.MapPost(WebServerApiRoutes.ManagedUninstallPattern, async (string id, UninstallManagedWebServerRequest request, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>
             await StartAsync(context.Request, key => manager.UninstallManagedAsync(id, key, request, Actor(context), ct)));
         group.MapPost(WebServerApiRoutes.ReloadPattern, async (string id, HttpContext context, Server.WebServer.IWebServerManager manager, CancellationToken ct) =>

@@ -33,6 +33,8 @@ using Server.WebServer;
 using Server.ConfigurationRegistry;
 using RemoteOS.Protocol.Registry;
 using RemoteOS.Protocol.Proxy;
+using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Privileged;
 using Server.Proxy.Mihomo;
 using Server.Proxy;
 using Server.Proxy.Platform;
@@ -74,6 +76,7 @@ try
     await VerifyRegistryRuntimeCacheAsync(root);
     await VerifyPerformanceSamplerAsync();
     VerifyFileElevationSessionScope(root);
+    VerifyHostElevationCapabilityScope(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 
@@ -127,9 +130,30 @@ static void VerifyFileElevationSessionScope(string root)
         "File elevation request lost its multi-directory grant contract.");
 }
 
+static void VerifyHostElevationCapabilityScope(string root)
+{
+    var directory = Path.Combine(root, "capability-protected");
+    var nestedFile = Path.Combine(directory, "nested", "file.txt");
+    var principal = Principal("capability-jwt");
+    var otherPrincipal = Principal("capability-other-jwt");
+    var store = new HostElevationSessionStore();
+
+    store.Grant(principal, HostElevationCapability.FileCopy, directory, includeDescendants: true, "test");
+    Assert(store.IsGranted(principal, HostElevationCapability.FileCopy, nestedFile), "Capability grant did not cover its descendant scope.");
+    Assert(!store.IsGranted(principal, HostElevationCapability.FileDelete, nestedFile), "File copy grant leaked to file delete.");
+    Assert(!store.IsGranted(otherPrincipal, HostElevationCapability.FileCopy, nestedFile), "Capability grant leaked to a different JWT.");
+    store.Revoke(principal);
+    Assert(!store.IsGranted(principal, HostElevationCapability.FileCopy, nestedFile), "Revoked JWT retained an elevation grant.");
+
+    var request = new FileElevationRequest(directory, "password", Capability: FileElevationCapability.Copy);
+    var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(json.Contains("capability", StringComparison.Ordinal), "File elevation request did not serialize its operation capability.");
+}
+
 static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(
 [
     new Claim(JwtRegisteredClaimNames.Jti, tokenId),
+    new Claim(JwtRegisteredClaimNames.Sub, "test-subject"),
     new Claim(JwtRegisteredClaimNames.Name, "test-user"),
 ], "test"));
 

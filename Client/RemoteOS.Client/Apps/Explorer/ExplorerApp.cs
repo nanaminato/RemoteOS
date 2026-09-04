@@ -248,11 +248,11 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             return file?.TryGetLocalPath();
         };
 
-        vm.RequestFileElevationAsync = async path =>
+        vm.RequestFileElevationAsync = async (path, capability) =>
         {
             try
             {
-                await client.ElevateFileAccessAsync(path);
+                await client.ElevateFileAccessAsync(path, capability);
                 return true;
             }
             catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
@@ -278,7 +278,7 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
                 if (password is null) return false;
                 try
                 {
-                    await client.ElevateFileAccessAsync(path, password);
+                    await client.ElevateFileAccessAsync(path, capability, password);
                     return true;
                 }
                 catch (RemoteOsAuthException retry) when (retry.Type.EndsWith("/elevation-password-invalid", StringComparison.Ordinal))
@@ -289,11 +289,11 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             }
         };
 
-        vm.RequestFileOperationElevationAsync = async paths =>
+        vm.RequestFileOperationElevationAsync = async (paths, capability) =>
         {
             try
             {
-                await client.ElevateFileOperationAsync(paths);
+                await client.ElevateFileOperationAsync(paths, capability);
                 return true;
             }
             catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
@@ -319,7 +319,7 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
                 if (password is null) return false;
                 try
                 {
-                    await client.ElevateFileOperationAsync(paths, password);
+                    await client.ElevateFileOperationAsync(paths, capability, password);
                     return true;
                 }
                 catch (RemoteOsAuthException retry) when (retry.Type.EndsWith("/elevation-password-invalid", StringComparison.Ordinal))
