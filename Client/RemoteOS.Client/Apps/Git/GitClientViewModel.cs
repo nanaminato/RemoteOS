@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Threading;
 using Client.Localization;
+using Client.Services.Privileged;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Git;
@@ -360,7 +361,11 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.InstallEngineAsync();
-            InstallMessage = result.Success ? LocalizedText.Get("git.vm.install_verifying") : (result.Message ?? LocalizedText.Get("git.vm.install_failed"));
+            InstallMessage = result.Success
+                ? LocalizedText.Get("git.vm.install_verifying")
+                : PrivilegedHelperProblemText.TryFormat(result.ProblemCode, out var helperMessage)
+                    ? helperMessage
+                    : result.Message ?? LocalizedText.Get("git.vm.install_failed");
             await RefreshEngineStatusAsync();
             if (result.Success && IsGitAvailable)
             {

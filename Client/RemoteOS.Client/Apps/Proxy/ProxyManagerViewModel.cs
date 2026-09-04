@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Client.Apps.TaskManager;
 using Client.Localization;
+using Client.Services.Privileged;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Proxy;
@@ -781,6 +782,7 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));
     private static string FormatProblemCode(string? problemCode)
     {
+        if (PrivilegedHelperProblemText.TryFormat(problemCode, out var helperMessage)) return helperMessage;
         if (string.IsNullOrWhiteSpace(problemCode)) return LocalizedText.Get("proxy.problem.unknown");
         var key = "proxy.problem." + problemCode.Replace("proxy.", string.Empty, StringComparison.Ordinal).Replace('.', '_');
         var localized = LocalizedText.Get(key);

@@ -168,11 +168,11 @@ static async Task VerifyPrivilegedOperationProtocolAsync()
 
     var transport = new CapturingPrivilegedTransport();
     var nginx = new PrivilegedNginxOperations(transport);
-    Assert(await nginx.ApplySystemServiceActionAsync(NginxSystemServiceAction.Reload), "Nginx fixed service operation was not accepted by the transport facade.");
+    Assert((await nginx.ApplySystemServiceActionAsync(NginxSystemServiceAction.Reload)).Success, "Nginx fixed service operation was not accepted by the transport facade.");
     Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxSystemServiceAction
         && transport.LastRequest.NginxServiceAction == NginxSystemServiceAction.Reload,
         "Nginx facade did not preserve its closed lifecycle action.");
-    Assert(await nginx.WriteManagedFileAsync("/etc/nginx/conf.d/remoteos.d/example.conf", Encoding.UTF8.GetBytes("server {}\n")),
+    Assert((await nginx.WriteManagedFileAsync("/etc/nginx/conf.d/remoteos.d/example.conf", Encoding.UTF8.GetBytes("server {}\n"))).Success,
         "Nginx managed-file write was not accepted by the transport facade.");
     Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxWriteManagedFile
         && transport.LastRequest.Path == "/etc/nginx/conf.d/remoteos.d/example.conf"
@@ -180,7 +180,7 @@ static async Task VerifyPrivilegedOperationProtocolAsync()
         "Nginx facade did not preserve its closed managed-file write request.");
 
     var services = new PrivilegedNativeServiceOperations(transport);
-    Assert(await services.ApplyAsync("remoteos-server.service", PrivilegedServiceAction.Restart), "Native service operation was not accepted by the transport facade.");
+    Assert((await services.ApplyAsync("remoteos-server.service", PrivilegedServiceAction.Restart)).Success, "Native service operation was not accepted by the transport facade.");
     Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NativeServiceAction
         && transport.LastRequest.ServiceId == "remoteos-server.service" && transport.LastRequest.ServiceAction == PrivilegedServiceAction.Restart,
         "Native-service facade did not preserve its allowlisted structured request.");

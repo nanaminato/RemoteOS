@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Client.Apps.Certificates;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -778,6 +779,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     private static string ProblemText(string? problemCode)
     {
+        if (PrivilegedHelperProblemText.TryFormat(problemCode, out var helperMessage)) return helperMessage;
         if (string.IsNullOrWhiteSpace(problemCode) || !problemCode.StartsWith("webserver.", StringComparison.Ordinal))
             return LocalizedText.Get("webservers.problem.unknown");
         return LocalizedText.Get($"webservers.problem.{problemCode["webserver.".Length..]}", LocalizedText.Get("webservers.problem.unknown"));

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -98,7 +99,7 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         try
         {
             var result = await client.DeleteAsync(workload.Id);
-            StatusText = result.Success ? LocalizedText.Format("guardian.delete.succeeded", workload.Name) : LocalizedText.Format("guardian.delete.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Format("guardian.delete.succeeded", workload.Name) : LocalizedText.Format("guardian.delete.failed", ProblemText(result.ProblemCode));
             if (result.Success) ClearDefinition();
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.delete.failed", exception.Message); }
@@ -121,7 +122,7 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     private async Task ApplyActionAsync(string action, GuardianWorkloadDto? workload)
     {
         if (workload is null) return; IsLoading = true;
-        try { var result = await client.ApplyActionAsync(workload.Id, action); StatusText = result.Success ? LocalizedText.Format("guardian.action.succeeded", action, workload.Name) : LocalizedText.Format("guardian.action.failed", action, result.ProblemCode); }
+        try { var result = await client.ApplyActionAsync(workload.Id, action); StatusText = result.Success ? LocalizedText.Format("guardian.action.succeeded", action, workload.Name) : LocalizedText.Format("guardian.action.failed", action, ProblemText(result.ProblemCode)); }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.action.failed", action, exception.Message); }
         finally { IsLoading = false; }
         await RefreshAsync();
@@ -148,7 +149,7 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             var arguments = ArgumentsText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var definition = new ProcessDefinitionDto(DefinitionId.Trim(), DefinitionName.Trim(), ExecutablePath.Trim(), arguments, WorkingDirectory.Trim(), EnabledOnBoot, RunAs: RunAs.Trim());
             var result = await client.UpsertAsync(new UpsertGuardianWorkloadRequest(definition, approval));
-            StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", ProblemText(result.ProblemCode));
             saved = result.Success;
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.create.failed", exception.Message); }
@@ -160,6 +161,8 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         await RefreshAsync();
         if (CloseEditorAsync is not null) await CloseEditorAsync();
     }
+
+    private static string ProblemText(string? problemCode) => PrivilegedHelperProblemText.FormatOrFallback(problemCode, "unknown error");
 
     /// <summary>
     /// Loads a definition only if it is still the current editor target. Selection changes

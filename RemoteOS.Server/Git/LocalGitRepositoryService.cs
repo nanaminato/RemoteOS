@@ -46,18 +46,19 @@ public sealed class LocalGitRepositoryService(
         try
         {
             if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get"))
-                return new GitEngineInstallResult(false, "此主机需要手动安装 Git；RemoteOS 仅支持受限的 Linux APT Helper 安装。");
+                return new GitEngineInstallResult(false, "此主机需要手动安装 Git；RemoteOS 仅支持受限的 Linux APT Helper 安装。", "git.install_not_supported");
             var result = await transport.ExecuteAsync(new PrivilegedOperationRequest(PrivilegedOperationKind.GitPackageInstall), cancellationToken);
             if (!result.Success && gitCli.ResolveGitPath() is null)
-                return new GitEngineInstallResult(false, "Git 安装未完成；请检查特权 Helper 与主机包源配置。");
+                return new GitEngineInstallResult(false, null,
+                    result.ProblemCode == PrivilegedProblemCode.HelperUnavailable ? "git.privileged_helper_unavailable" : "git.install_failed");
 
             return gitCli.ResolveGitPath() is not null
                 ? new GitEngineInstallResult(true, "Git 安装成功。")
-                : new GitEngineInstallResult(false, "安装命令执行成功，但仍未检测到 git 可执行文件，请检查 PATH 配置或重启服务。");
+                : new GitEngineInstallResult(false, "安装命令执行成功，但仍未检测到 git 可执行文件，请检查 PATH 配置或重启服务。", "git.install_verification_failed");
         }
         catch (Exception ex)
         {
-            return new GitEngineInstallResult(false, $"安装过程中出错：{ex.Message}");
+            return new GitEngineInstallResult(false, $"安装过程中出错：{ex.Message}", "git.install_failed");
         }
     }
 

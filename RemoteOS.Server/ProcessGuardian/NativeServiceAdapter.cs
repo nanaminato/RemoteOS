@@ -37,8 +37,11 @@ public sealed class NativeServiceAdapter(NativeServiceAdapterOptions options, IP
             "restart" => RemoteOS.Protocol.Privileged.PrivilegedServiceAction.Restart,
             _ => throw new InvalidOperationException("Validated service action was not mapped."),
         };
-        var succeeded = await privileged.ApplyAsync(id, privilegedAction, cancellationToken);
-        return new GuardianOperationResult(succeeded, succeeded ? string.Empty : "guardian.service_action_failed");
+        var result = await privileged.ApplyAsync(id, privilegedAction, cancellationToken);
+        return new GuardianOperationResult(result.Success, result.Success ? string.Empty
+            : result.ProblemCode == RemoteOS.Protocol.Privileged.PrivilegedProblemCode.HelperUnavailable
+                ? "guardian.privileged_helper_unavailable"
+                : "guardian.service_action_failed");
     }
 
     private static async Task<string> RunAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)

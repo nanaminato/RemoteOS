@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Net;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Privileged;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
@@ -88,7 +89,7 @@ public sealed partial class FirewallViewModel : ObservableObject
             IsEnabled = status.IsEnabled;
             if (!status.IsAvailable)
             {
-                StatusText = LocalizedText.Format("firewall.status.unavailable", status.ProblemCode);
+                StatusText = LocalizedText.Format("firewall.status.unavailable", ProblemText(status.ProblemCode));
                 return;
             }
 
@@ -229,7 +230,7 @@ public sealed partial class FirewallViewModel : ObservableObject
         try
         {
             var result = await operation(confirmation);
-            StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", ProblemText(result.ProblemCode));
             success = result.Success;
         }
         catch (Exception exception)
@@ -242,6 +243,9 @@ public sealed partial class FirewallViewModel : ObservableObject
         if (success) await RefreshAsync();
         return success;
     }
+
+    private static string ProblemText(string? problemCode) =>
+        PrivilegedHelperProblemText.FormatOrFallback(problemCode, "unknown error");
 
     private bool HasReadPermission => _permissions.IsGranted(AppPermissions.ServerFirewallRead);
     private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerFirewallManage);

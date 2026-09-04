@@ -1,4 +1,5 @@
 using RemoteOS.Protocol.Common;
+using Client.Services.Privileged;
 
 namespace Client.Services.Auth;
 
@@ -19,4 +20,7 @@ public sealed class RemoteOsAuthException : Exception
     public string Title { get; }
     public int Status { get; }
     public string? Detail { get; }
+
+    /// <summary>Uses repair guidance for a missing local privilege boundary while preserving all other server details.</summary>
+    public override string Message => PrivilegedHelperProblemText.TryFormat(Type, out var message) ? message : base.Message;
 }
