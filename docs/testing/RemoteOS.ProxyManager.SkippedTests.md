@@ -1,35 +1,26 @@
-# RemoteOS Proxy Manager — skipped platform tests
+# RemoteOS 代理管理器——跳过的平台测试
 
-Updated: 2026-08-31
+更新日期：2026-08-31
 
-The current implementation has only been compiled on the active development
-host.  The tests below are deliberately **not** run here: they require a
-dedicated, privileged, disposable Windows or Ubuntu host with an isolated
-management connection.  They must be completed individually before Proxy
-Manager V1 is released.
+当前实现仅在活动开发主机上完成编译。以下测试被刻意**不**在此运行：它们需要具备特权、可丢弃的专用 Windows 或 Ubuntu 主机，以及隔离的管理连接。Proxy Manager V1 发布前，必须逐项完成这些测试。
 
-| ID | Platform | Test to run | Required verification | Why skipped now |
+| ID | 平台 | 要运行的测试 | 必需验证 | 当前跳过原因 |
 |---|---|---|---|---|
-| PM-G5-WIN-01 | Windows / Windows Server | Managed Mihomo child-process start, stop, restart, update and uninstall | Server-owned process tree is cleaned up on shutdown; protected paths and restart behavior work; no Defender or firewall changes | No isolated, privileged Windows test host or approved Mihomo runtime is available. |
-| PM-G5-WIN-02 | Windows / Windows Server | TUN enable, disable and emergency restore | Current RemoteOS session, listener, gateway, LAN, SSH/RDP routes and DNS remain reachable; recovery restores the original network state | This changes host routing/DNS and must not be first exercised on the development host. |
-| PM-G5-WIN-03 | Windows / Windows Server | Crash and reboot recovery during TUN activation | Durable marker is discovered and restores a safe route/DNS state after Mihomo, Server and OS restart | Requires a disposable VM and a second management client. |
-| PM-G5-UBU-01 | Ubuntu / Ubuntu Server | Managed Mihomo systemd lifecycle | Service installation, startup, update/rollback and headless operation | No Ubuntu/systemd host is available in this run. |
-| PM-G5-UBU-02 | Ubuntu / Ubuntu Server | `/dev/net/tun` enable, disable and emergency restore | Egress interface, route/DNS snapshot, system bypass and management connectivity stay valid | Requires `/dev/net/tun`, root-level service operations and an isolated management path. |
-| PM-G5-UBU-03 | Ubuntu / Ubuntu Server | Crash and reboot recovery during TUN activation | Marker-driven recovery works after Mihomo, Server and OS restart without a desktop session | Requires a disposable Ubuntu Server VM and a second management client. |
+| PM-G5-WIN-01 | Windows / Windows Server | 托管 Mihomo 子进程启动、停止、重启、更新与卸载 | 关闭时清理 Server 拥有的进程树；受保护路径和重启行为有效；不修改 Defender 或防火墙 | 没有隔离的特权 Windows 测试主机，也没有获批准的 Mihomo 运行时。 |
+| PM-G5-WIN-02 | Windows / Windows Server | 启用、禁用 TUN 与紧急恢复 | 当前 RemoteOS 会话、监听器、网关、局域网、SSH/RDP 路由和 DNS 保持可达；恢复原始网络状态 | 会改变主机路由/DNS，不能首次在开发主机上执行。 |
+| PM-G5-WIN-03 | Windows / Windows Server | TUN 激活期间崩溃和重启恢复 | Mihomo、Server 和 OS 重启后发现持久标记并恢复安全路由/DNS 状态 | 需要一次性 VM 和第二个管理客户端。 |
+| PM-G5-UBU-01 | Ubuntu / Ubuntu Server | 托管 Mihomo systemd 生命周期 | 服务安装、启动、更新/回滚和无头运行 | 当前运行中没有 Ubuntu/systemd 主机。 |
+| PM-G5-UBU-02 | Ubuntu / Ubuntu Server | `/dev/net/tun` 启用、禁用和紧急恢复 | 出站接口、路由/DNS 快照、系统绕过与管理连接保持有效 | 需要 `/dev/net/tun`、根级服务操作和隔离管理路径。 |
+| PM-G5-UBU-03 | Ubuntu / Ubuntu Server | TUN 激活期间崩溃和重启恢复 | Mihomo、Server 和 OS 重启后，标记驱动的恢复在无桌面会话时仍可工作 | 需要一次性 Ubuntu Server VM 和第二个管理客户端。 |
 
-## Execution order
+## 执行顺序
 
-Run the automated Server suite first, then execute the platform cases in the
-listed order on disposable VMs.  Do not enable TUN on a production host for
-initial verification.  Record the environment, Mihomo artifact hash, RemoteOS
-revision, result and any problem code beside each case when it is executed.
+先运行自动化 Server 测试套件，再按所列顺序在一次性 VM 上执行平台用例。初始验证时切勿在生产主机上启用 TUN。每个用例执行时，都应记录环境、Mihomo 资产哈希、RemoteOS 修订版本、结果和问题代码。
 
-The in-process coverage in `RemoteOS.Server.Tests` exercises the fail-closed
-TUN transaction, marker persistence, rollback and emergency-disable paths
-using a fake network platform.  It does not replace the cases above.
+`RemoteOS.Server.Tests` 的进程内覆盖通过模拟网络平台验证故障关闭的 TUN 事务、标记持久化、回滚和紧急禁用路径；它不能替代上述用例。
 
-## Deferred non-platform verification
+## 延后的非平台验证
 
-| ID | Test to run | Why skipped now |
+| ID | 要运行的测试 | 当前跳过原因 |
 |---|---|---|
-| PM-G6-G8-API-01 | Run `RemoteOS.Server.Tests` after API host fixture coverage for Proxy authorization, idempotency, operation recovery and audit output is provisioned. | This implementation pass is compile-only; no Server process or test suite was started. |
+| PM-G6-G8-API-01 | 在为代理授权、幂等性、操作恢复和审计输出提供 API 主机夹具覆盖后，运行 `RemoteOS.Server.Tests`。 | 本次实现仅完成编译；未启动 Server 进程或测试套件。 |

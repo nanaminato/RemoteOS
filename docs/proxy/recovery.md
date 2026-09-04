@@ -1,5 +1,5 @@
-# Proxy network recovery
+# 代理网络恢复
 
-On startup, RemoteOS evaluates any durable TUN recovery marker before allowing another activation. `Emergency disable TUN` restores the captured network state independently of runtime uninstall and leaves the marker in place if restoration fails.
+启动时，RemoteOS 会先评估任何持久化的 TUN 恢复标记，随后才允许再次激活。“紧急禁用 TUN”会独立于运行时卸载恢复已捕获的网络状态；若恢复失败，标记会保留。
 
-Use a second management connection on a disposable VM for the first platform validation. See the skipped-test register before attempting Windows or Ubuntu recovery drills.
+首次平台验证应在带有第二条管理连接的一次性 VM 上进行。尝试 Windows 或 Ubuntu 恢复演练前，请先查看跳过测试登记表。

@@ -1,5 +1,5 @@
-# TUN safety
+# TUN 安全性
 
-TUN is a host-wide operation, not an ordinary UI toggle. RemoteOS writes a recovery marker before a network change, captures the management-route plan and refuses activation when the platform cannot establish a safe management path.
+TUN 是主机范围操作，而非普通 UI 开关。网络变更前，RemoteOS 会写入恢复标记、捕获管理路由方案；当平台无法建立安全的管理路径时会拒绝激活。
 
-The mandatory system bypass covers loopback, RemoteOS listeners, the active management session, default gateway, LAN, SSH and RDP. Platform verification remains required before enabling TUN on a production host.
+强制的系统绕过范围包括回环、RemoteOS 监听器、当前管理会话、默认网关、局域网、SSH 和 RDP。生产主机启用 TUN 前仍须完成平台验证。

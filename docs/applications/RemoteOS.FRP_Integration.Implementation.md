@@ -1,34 +1,34 @@
-# RemoteOS FRP integration — current implementation boundary
+# RemoteOS FRP 集成——当前实现边界
 
-This document records the code-level V1 boundary implemented from the FRP integration Goal. It does not change the architecture or security constraints in the Goal document.
+本文记录根据 FRP 集成 Goal 落地的代码级 V1 边界；它不改变 Goal 文档中的架构或安全约束。
 
-## Implemented control plane
+## 已实现的控制平面
 
-- `Shared/RemoteOS.Protocol/Tunnels` owns the JSON contract and route constants. Profile lists and normal FRPS status responses expose only `tokenConfigured`; Controller-authorized profile and FRPS editing endpoints additionally return their Token so the editor can show the current value. Generated TOML and protected-secret payloads are never exposed.
-- The Server persists FRP server profiles and tunnel desired state in SQLite, scoped to the JWT subject, with optimistic revision checks and unique remote-port constraints. Runtime/process state remains host-local and is not a Workspace preference.
-- Tokens enter through `PUT /api/v1/tunnels/profiles/{id}/secret` or the Controller-authorized FRPS configuration update, are protected with ASP.NET Core Data Protection, and are returned only by `GET /api/v1/tunnels/profiles/{id}` or `GET /api/v1/tunnels/frps/editor` to a Controller-authorized editor. Lists, ordinary FRPS status reads, exports, configuration downloads, generated TOML, and protected-secret payloads never expose secrets; each successful Token read is audited.
-- `TunnelsRead` permits Controller and Observer sessions to read safe state; `TunnelsManage` requires a Controller session. The policies recognize both raw JWT `role` and the framework-mapped role claim, while never trusting a client app id. Profile, tunnel, and token mutations write sanitized audit records without request bodies or TOML.
-- External Runtime detection accepts only a canonical absolute file path, checks existence and executable status, and invokes only `<fixed-path> --version` through `ProcessStartInfo.ArgumentList`. It never modifies, starts, upgrades, or kills an external executable while detecting it.
-- Applying a profile serializes work per profile, writes a private temporary TOML, invokes only `<fixed-path> verify -c <fixed-temp-path>`, then replaces the managed configuration and starts a RemoteOS-owned `frpc` child process using an argument list. A failed verification or start returns a stable problem code and keeps/restores the previous configuration. Stop uses the stored process object plus PID/start-time check; it does not search for or kill processes by name.
+- `Shared/RemoteOS.Protocol/Tunnels` 负责 JSON 协议和路由常量。配置文件列表及普通 FRPS 状态响应仅公开 `tokenConfigured`；经 Controller 授权的配置文件和 FRPS 编辑端点会额外返回 Token，供编辑器显示当前值。生成的 TOML 和受保护密钥载荷绝不公开。
+- Server 将 FRP 服务端配置文件和隧道期望状态按 JWT 主体范围持久化至 SQLite，并使用乐观修订检查和唯一远端端口约束。运行时/进程状态保持主机本地，不属于 Workspace 偏好。
+- Token 通过 `PUT /api/v1/tunnels/profiles/{id}/secret` 或经 Controller 授权的 FRPS 配置更新进入，以 ASP.NET Core Data Protection 保护；仅会通过 `GET /api/v1/tunnels/profiles/{id}` 或 `GET /api/v1/tunnels/frps/editor` 返回给经 Controller 授权的编辑器。列表、普通 FRPS 状态读取、导出、配置下载、生成 TOML 和受保护密钥载荷永不公开密钥；每次成功读取 Token 都会审计。
+- `TunnelsRead` 允许 Controller 和 Observer 会话读取安全状态；`TunnelsManage` 需要 Controller 会话。策略同时识别原始 JWT `role` 与框架映射的角色声明，且从不信任客户端 app id。配置文件、隧道和 Token 变更写入不含请求正文或 TOML 的脱敏审计记录。
+- 外部运行时检测只接受规范绝对文件路径，检查存在性和可执行状态，并且只通过 `ProcessStartInfo.ArgumentList` 调用 `<固定路径> --version`。检测期间不会修改、启动、升级或终止外部可执行文件。
+- 应用配置文件会按配置文件串行化工作，写入私有临时 TOML，调用 `<固定路径> verify -c <固定临时路径>`，然后替换托管配置并以参数列表启动 RemoteOS 拥有的 `frpc` 子进程。验证或启动失败会返回稳定问题代码并保留/恢复上一配置。停止操作使用已保存的进程对象及 PID/启动时间检查，绝不按名称查找或终止进程。
 
-## Supported configuration surface
+## 支持的配置范围
 
-Only `tcp`, `udp`, `http`, and `https` desired state is accepted. The generator has a closed schema: server host/port, token authentication, TLS enablement, local host/port, remote port/domain, and per-proxy transport compression/encryption. It emits no `includes`, plugins, environment substitution, arbitrary TOML, arbitrary command arguments, OIDC, STCP, XTCP, visitor, or `frps` settings.
+仅接受 `tcp`、`udp`、`http` 和 `https` 期望状态。生成器使用封闭架构：服务端主机/端口、Token 认证、TLS 启用、本地主机/端口、远端端口/域名以及每个代理的传输压缩/加密。它不会输出 `includes`、插件、环境替换、任意 TOML、任意命令参数、OIDC、STCP、XTCP、visitor 或 `frps` 设置。
 
-The Avalonia Tunnel Manager is a single-window workspace with Overview, Tunnels, FRP Servers, and Runtime pages. Profile and tunnel editors open in their own windows. Each server row opens an independent, auto-refreshing log window, so several server logs can be viewed at once. It uses the authenticated session's absolute Server URL for every request (it never relies on an unset `HttpClient.BaseAddress`), supports Profile/Tunnel Desired State CRUD and explicit External-runtime probing, and shows the existing Token when a Controller opens a profile editor. Runtime installation requires an explicit in-UI confirmation in addition to the Server-side confirmation check.
+Avalonia 隧道管理器是包含“概览、隧道、FRP 服务器、运行时”页面的单窗口工作区。配置文件和隧道编辑器在独立窗口打开；每个服务器行可打开独立的自动刷新日志窗口，因此可同时查看多个服务器日志。它会为每个请求使用已认证会话的绝对 Server URL（从不依赖未设置的 `HttpClient.BaseAddress`），支持配置文件/隧道期望状态 CRUD 和显式外部运行时探测，并在 Controller 打开配置文件编辑器时显示已有 Token。运行时安装除了 Server 端确认检查外还需 UI 中明确确认。
 
-## Runtime trust and release operations
+## 运行时信任与发布操作
 
-Managed Runtime installation is an explicit Controller-only action (`POST /api/v1/tunnels/runtime/managed/install`) requiring a confirmation and a requested **pinned** version. The UI also exposes the official FRP release page and can select an archive that is already present on the RemoteOS Server (`POST /api/v1/tunnels/runtime/managed/install/from-file`). The server accepts either source only when its host-admin configuration supplies the current RID, an HTTPS official GitHub release URL, a fixed 64-character SHA-256 and a recognized archive format. A server-selected archive is copied into a private temporary file and must match that configured SHA-256 before extraction. It never has a “latest” route.
+托管运行时安装是仅 Controller 可执行的显式操作（`POST /api/v1/tunnels/runtime/managed/install`），需要确认和指定的**固定**版本。UI 还公开官方 FRP 发布页，并可选择已存在于 RemoteOS Server 上的归档文件（`POST /api/v1/tunnels/runtime/managed/install/from-file`）。Server 仅在主机管理员配置提供当前 RID、HTTPS 官方 GitHub 发布 URL、固定 64 字符 SHA-256 及受支持归档格式时接受任何来源。Server 选择的归档会先复制到私有临时文件，解压前必须与配置的 SHA-256 匹配；不存在“latest”路由。
 
-The install pipeline downloads to a private temporary file with a bounded stream, verifies the SHA-256 before extraction, rejects path traversal, symlink/device entries, oversized entries and unexpected archive contents, extracts only `frpc` / `frps`, checks `frpc --version`, and then activates the new version by atomically replacing a private `state.json` pointer. Previous versions remain in distinct version directories; rollback verifies the previous `frpc` again before switching the pointer. Failed downloads, checksums, extraction and health checks cannot replace the active version.
+安装管线以有界流下载到私有临时文件，解压前验证 SHA-256，拒绝路径穿越、符号链接/设备条目、过大条目及意外归档内容，只解压 `frpc` / `frps`，检查 `frpc --version`，再以原子替换私有 `state.json` 指针激活新版本。旧版本保留在独立版本目录中；回滚会在切换指针前再次验证旧 `frpc`。下载、校验和、解压或健康检查失败都不能替换当前版本。
 
-The shipped `appsettings.json` freezes FRP `v0.71.0` Linux x64/arm64 and Windows x64/arm64 assets with fixed GitHub-release SHA-256 values. A host without a matching RID entry returns `tunnel.runtime_release_not_configured` rather than downloading an unverified binary; releases must never be selected as “latest”.
+随附的 `appsettings.json` 固定了 FRP `v0.71.0` 的 Linux x64/arm64 与 Windows x64/arm64 资产及 GitHub 发布 SHA-256。主机没有匹配 RID 条目时返回 `tunnel.runtime_release_not_configured`，而不是下载未验证二进制；绝不可将发布版本选为“latest”。
 
-The Server verification suite uses a local `tar.gz` fixture and replaceable HTTP client to cover successful installation, active/previous switching, rollback, wrong checksum rejection, unexpected archive-content rejection, and Desired State → `frpc verify` → process start/stop. It does not require a network download or a locally installed FRP binary.
+Server 验证套件使用本地 `tar.gz` 夹具和可替换 HTTP 客户端，覆盖成功安装、当前/上一版本切换、回滚、错误校验和拒绝、意外归档内容拒绝及“期望状态 → `frpc verify` → 进程启停”。它不需要网络下载或本地安装的 FRP 二进制。
 
-FRP's official configuration reference documents `frpc verify -c <config>` as the validation contract used here. The official release page publishes per-asset SHA-256 values; a release manifest must copy those values before any managed installer is exposed. Current upstream compatibility and lifecycle information must be revalidated during that work; do not infer a version from this document.
+FRP 官方配置参考将 `frpc verify -c <config>` 作为此处使用的验证协议。官方发布页会公布逐项 SHA-256；公开托管安装器前，发布清单必须复制这些值。实际工作时必须重新验证上游兼容性和生命周期信息，不能从本文推断版本。
 
-## Operations
+## 运维
 
-Private generated files are under `data/tunnels/frp/<profile-id>` below the Server content root; Unix modes are tightened to `0700` for the directory and `0600` for TOML and backup files. Runtime versions and their state pointer are likewise private. Windows uses the service account's data directory and must be deployed with an ACL granting only that account access. Defender is never modified. A quarantined or missing Runtime is reported as unavailable; RemoteOS authentication and LAN APIs have no FRP dependency. Runtime stdout/stderr is drained, bounded to 200 sanitized lines per profile, and a dedicated read endpoint never returns generated configuration or credentials. The state transitions to `Connected` only after FRP reports a successful server login; recognized authentication failures are shown as disconnected rather than a synthetic healthy state.
+私有生成文件位于 Server 内容根目录下的 `data/tunnels/frp/<profile-id>`；Unix 上目录权限收紧为 `0700`，TOML 和备份文件为 `0600`。运行时版本和状态指针同样是私有的。Windows 使用服务账户的数据目录，部署时必须以 ACL 只允许该账户访问。绝不修改 Defender。被隔离或缺失的运行时会报告为不可用；RemoteOS 认证和 LAN API 不依赖 FRP。运行时 stdout/stderr 会被读取并限制为每配置文件 200 行脱敏日志，专用读取端点绝不返回生成配置或凭据。只有 FRP 报告成功登录服务器后状态才变为 `Connected`；可识别的认证失败显示为断开，而不会伪造健康状态。

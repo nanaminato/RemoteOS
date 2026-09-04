@@ -1,40 +1,28 @@
 # RemoteOS.PrivilegedHelper
 
-This is the narrow local privileged boundary, not a network service and not the Guardian Agent.
-Linux uses a short-lived root worker over standard input/output. On Windows, both the LocalSystem
-service and the developer console host use the same authenticated named-pipe protocol and the
-same closed-set operation dispatcher. It never accepts an arbitrary command or executable.
+这是受限的本地特权边界，不是网络服务，也不是 Guardian Agent。Linux 通过标准输入/输出使用短生命周期 root 工作进程。Windows 的 LocalSystem 服务和开发者控制台宿主使用同一套经过认证的命名管道协议及封闭操作分派器。它绝不接受任意命令或可执行文件。
 
-## Development
+## 开发
 
-Build the helper normally:
+按常规方式构建 Helper：
 
 ```bash
 dotnet build RemoteOS.PrivilegedHelper/RemoteOS.PrivilegedHelper.csproj
 ```
 
-For real Server → sudo → Helper integration testing, install the built output into a root-owned
-development directory and create a narrow sudoers rule:
+若要进行真实的 Server → sudo → Helper 集成测试，请将构建输出安装到 root 拥有的开发目录，并创建狭窄的 sudoers 规则：
 
 ```bash
 sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 ```
 
-This copies the complete Debug output to
-`/usr/local/lib/remoteos/privileged-helper-development/RemoteOS.PrivilegedHelper`, then grants
-the development account permission to run only that exact apphost as root. Select the Server
-`http-linux-privileged` profile, which sets `PrivilegedHelper__HelperPath` to this copy and
-`PrivilegedHelper__SudoPath` to `/usr/bin/sudo`. Re-run the script after each Helper rebuild.
+该脚本会把完整的 Debug 输出复制到 `/usr/local/lib/remoteos/privileged-helper-development/RemoteOS.PrivilegedHelper`，再只允许开发账户以 root 身份运行该精确的 apphost。选择 Server 的 `http-linux-privileged` 配置，它将 `PrivilegedHelper__HelperPath` 设为该副本、`PrivilegedHelper__SudoPath` 设为 `/usr/bin/sudo`。每次重新构建 Helper 后都要重新运行脚本。
 
-The Server itself remains unprivileged: sudo starts one Helper process for each structured request,
-and the Helper permits only the closed operation set. Never point a sudoers rule at a development
-account-writable `bin/Debug` executable; that would give the account root-equivalent control.
+Server 本身仍是非特权进程：sudo 会针对每个结构化请求启动一个 Helper 进程，且 Helper 只允许封闭操作集。绝不可让 sudoers 规则指向开发账户可写的 `bin/Debug` 可执行文件；这会赋予账户等同 root 的控制权。
 
-## Windows development
+## Windows 开发
 
-Run the Helper directly from the IDE with `--console`; do not install a Windows service for daily
-development. Create a development-only configuration outside the deployment directory, using a
-new random Base64 secret (at least 32 bytes) and only disposable file roots:
+日常开发时，直接在 IDE 中使用 `--console` 运行 Helper，不要安装 Windows 服务。在部署目录外创建仅用于开发的配置，使用新的随机 Base64 密钥（至少 32 字节），并且只允许一次性文件根目录：
 
 ```json
 {
@@ -46,37 +34,27 @@ new random Base64 secret (at least 32 bytes) and only disposable file roots:
 }
 ```
 
-Start it from the IDE or a terminal:
+在 IDE 或终端中启动：
 
 ```powershell
 dotnet run --project RemoteOS.PrivilegedHelper -- --console --config C:\RemoteOS-dev\privileged-helper.debug.json
 ```
 
-Configure the debug Server with the same pipe name and secret:
+为调试 Server 配置相同的管道名和密钥：
 
 ```text
 PrivilegedHelper__PipeName=remoteos-privileged-helper-dev
-PrivilegedHelper__SharedSecret=<same Base64 secret>
+PrivilegedHelper__SharedSecret=<相同的 Base64 密钥>
 ```
 
-The console host grants pipe access only to the interactive developer account (plus SYSTEM and
-Administrators), which lets a Server launched by that account use the production IPC path. Run
-the IDE elevated only when testing operations that genuinely require Administrator rights. The
-configuration requires `allowConsoleDebug: true`; the production `helper.json` does not use this
-schema and cannot enable console mode accidentally. Before release, test once through the
-LocalSystem service to cover Session 0, profile, DPAPI, network-credential and mapped-drive
-differences.
+控制台宿主只向交互式开发账户（以及 SYSTEM 和 Administrators）授予管道访问权限，使由该账户启动的 Server 可走生产 IPC 路径。仅在测试确实需要管理员权限的操作时，以提升权限运行 IDE。配置要求 `allowConsoleDebug: true`；生产 `helper.json` 不使用此架构，因而不会意外启用控制台模式。发布前应通过 LocalSystem 服务测试一次，以覆盖 Session 0、用户配置文件、DPAPI、网络凭据和映射驱动器差异。
 
-## Linux release installation
+## Linux 发布安装
 
-Publish the project first (the helper needs its `.runtimeconfig.json`, `.deps.json`, and any
-managed assemblies next to the executable):
+先发布项目（Helper 需要与可执行文件并列的 `.runtimeconfig.json`、`.deps.json` 及所有托管程序集）：
 
 ```bash
 dotnet publish RemoteOS.PrivilegedHelper/RemoteOS.PrivilegedHelper.csproj -c Release -r linux-x64 --self-contained false
 ```
 
-Pass the published apphost as the fourth argument of
-[`install-remoteos-services.sh`](../deployment/linux/install-remoteos-services.sh). The installer
-copies the whole publish directory into a root-owned location and creates the narrow sudoers rule
-for the Server service account.
+将发布的 apphost 作为 [`install-remoteos-services.sh`](../deployment/linux/install-remoteos-services.sh) 的第四个参数传入。安装程序会将完整发布目录复制到 root 拥有的位置，并为 Server 服务账户创建狭窄的 sudoers 规则。
