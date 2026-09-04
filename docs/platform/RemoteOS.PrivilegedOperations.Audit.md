@@ -30,6 +30,7 @@
 
 ## 尚未完成的迁移门槛
 
-`NginxWebServerManager`、Mihomo、证书、Docker 和 Git 安装相关的写入/进程调用尚未
-迁入对应 Helper capability。它们不能被视为已完成，后续 Goal 4/5 必须以 operation-specific
-接口替换这些路径，并在隔离 Ubuntu 与 Windows Server VM 中执行实机验证。
+Nginx 配置事务、Mihomo 受保护配置/网络恢复与证书部署尚未迁入对应 Helper capability。
+它们不能被视为已完成，后续 Goal 4/5 必须以 operation-specific 接口替换这些路径，并在隔离
+Ubuntu 与 Windows Server VM 中执行实机验证。Docker runtime 和 Guardian 安装器已明确降级为
+手工宿主操作；Git 的 Linux APT 安装已迁移至 Helper。

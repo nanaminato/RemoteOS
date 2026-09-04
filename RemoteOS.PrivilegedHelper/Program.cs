@@ -62,6 +62,9 @@ static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationReq
             PrivilegedOperationKind.NginxSystemServiceAction => await ApplyNginxSystemServiceActionAsync(request.NginxServiceAction),
             PrivilegedOperationKind.NginxPackageInstall => await InstallNginxPackageAsync(request.PackageVersion),
             PrivilegedOperationKind.NginxPackageUninstall => await UninstallNginxPackageAsync(),
+            PrivilegedOperationKind.NginxWriteManagedFile => await WriteNginxManagedFileAsync(request.Path, request.ContentBase64),
+            PrivilegedOperationKind.NginxMoveManagedFile => MoveNginxManagedFile(request.Path, request.DestinationPath, request.Overwrite),
+            PrivilegedOperationKind.NginxDeleteManagedFile => DeleteNginxManagedFile(request.Path),
             PrivilegedOperationKind.ProxyMihomoServiceAction => await ApplyProxyMihomoServiceActionAsync(request.ProxyMihomoServiceAction),
             PrivilegedOperationKind.ProxyMihomoInstallSystemService => await InstallProxyMihomoSystemServiceAsync(),
             PrivilegedOperationKind.ProxyMihomoRemoveSystemService => RemoveProxyMihomoSystemService(),
@@ -360,6 +363,55 @@ static async Task<PrivilegedOperationResult> InstallNginxPackageAsync(string? ve
 static Task<PrivilegedOperationResult> UninstallNginxPackageAsync() => !OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get")
     ? Task.FromResult(Fail(64, PrivilegedProblemCode.UnsupportedOperation, "nginx package operation is unavailable"))
     : RunFixedCommandAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], TimeSpan.FromMinutes(10), "nginx package uninstall failed");
+
+static async Task<PrivilegedOperationResult> WriteNginxManagedFileAsync(string? path, string? contentBase64)
+{
+    var destination = ValidateNginxManagedFile(path);
+    var content = DecodeContent(contentBase64);
+    var directory = Path.GetDirectoryName(destination)!;
+    Directory.CreateDirectory(directory);
+    var temporary = Path.Combine(directory, ".remoteos-write-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        await File.WriteAllBytesAsync(temporary, content);
+        File.Move(temporary, destination, overwrite: true);
+        return new(true);
+    }
+    finally { if (File.Exists(temporary)) File.Delete(temporary); }
+}
+
+static PrivilegedOperationResult MoveNginxManagedFile(string? sourcePath, string? destinationPath, bool overwrite)
+{
+    var source = ValidateNginxManagedFile(sourcePath);
+    var destination = ValidateNginxManagedFile(destinationPath);
+    if (!File.Exists(source)) throw new FileNotFoundException();
+    File.Move(source, destination, overwrite);
+    return new(true);
+}
+
+static PrivilegedOperationResult DeleteNginxManagedFile(string? path)
+{
+    var canonical = ValidateNginxManagedFile(path);
+    if (!File.Exists(canonical)) throw new FileNotFoundException();
+    File.Delete(canonical);
+    return new(true);
+}
+
+static string ValidateNginxManagedFile(string? path)
+{
+    if (!OperatingSystem.IsLinux() || string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+        throw new UnauthorizedAccessException();
+    var canonical = Path.GetFullPath(path);
+    const string includeRoot = "/etc/nginx/conf.d";
+    var remoteosDirectory = Path.Combine(includeRoot, "remoteos.d");
+    var allowed = string.Equals(canonical, Path.Combine(includeRoot, "remoteos.conf"), StringComparison.Ordinal)
+        || IsWithin(canonical, remoteosDirectory)
+        || Path.GetFileName(canonical).StartsWith("remoteos.", StringComparison.Ordinal) && IsWithin(canonical, includeRoot);
+    if (!allowed || Path.GetExtension(canonical) is not (".conf" or ".json" or ".stage" or ".rollback"))
+        throw new UnauthorizedAccessException();
+    EnsureNoReparsePoints(includeRoot, canonical);
+    return canonical;
+}
 
 static async Task<PrivilegedOperationResult> InstallGitPackageAsync()
 {

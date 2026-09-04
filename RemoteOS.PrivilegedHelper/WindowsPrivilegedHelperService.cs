@@ -18,6 +18,7 @@ namespace RemoteOS.PrivilegedHelper;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsPrivilegedHelperService : ServiceBase
 {
+    private const int MaximumRecentOperationIds = 10_000;
     private readonly WindowsHelperServiceConfiguration _configuration;
     private readonly CancellationTokenSource _stopping = new();
     private readonly ConcurrentDictionary<Guid, DateTimeOffset> _recentOperationIds = new();
@@ -108,6 +109,11 @@ public sealed class WindowsPrivilegedHelperService : ServiceBase
             return;
         }
         PruneRecentOperationIds();
+        if (_recentOperationIds.Count >= MaximumRecentOperationIds)
+        {
+            await WriteResultAsync(pipe, secret, new(false, 69, Error: "operation replay cache is full", ProblemCode: PrivilegedProblemCode.HelperUnavailable), cancellationToken);
+            return;
+        }
         if (!_recentOperationIds.TryAdd(operationId, DateTimeOffset.UtcNow.AddMinutes(10)))
         {
             await WriteResultAsync(pipe, secret, new(false, 17, Error: "operation id was already processed", ProblemCode: PrivilegedProblemCode.Conflict), cancellationToken);

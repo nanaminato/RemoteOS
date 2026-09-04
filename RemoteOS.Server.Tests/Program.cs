@@ -172,6 +172,12 @@ static async Task VerifyPrivilegedOperationProtocolAsync()
     Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxSystemServiceAction
         && transport.LastRequest.NginxServiceAction == NginxSystemServiceAction.Reload,
         "Nginx facade did not preserve its closed lifecycle action.");
+    Assert(await nginx.WriteManagedFileAsync("/etc/nginx/conf.d/remoteos.d/example.conf", Encoding.UTF8.GetBytes("server {}\n")),
+        "Nginx managed-file write was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxWriteManagedFile
+        && transport.LastRequest.Path == "/etc/nginx/conf.d/remoteos.d/example.conf"
+        && !string.IsNullOrWhiteSpace(transport.LastRequest.ContentBase64),
+        "Nginx facade did not preserve its closed managed-file write request.");
 
     var services = new PrivilegedNativeServiceOperations(transport);
     Assert(await services.ApplyAsync("remoteos-server.service", PrivilegedServiceAction.Restart), "Native service operation was not accepted by the transport facade.");

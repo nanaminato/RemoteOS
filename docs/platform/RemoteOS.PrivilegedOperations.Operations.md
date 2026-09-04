@@ -38,6 +38,8 @@ sudo -u remoteos-server sudo -n /usr/local/lib/remoteos/privileged-helper/<appho
 Helper 仅监听本机命名管道。管道 ACL 仅包含 LocalSystem、Administrators 和 Server
 service SID；每条消息还必须通过安装时生成的共享密钥 HMAC 验证。`helper.json` 只能由
 LocalSystem 与 Administrators 读取；Server 仅能读取自身 `appsettings.host.json` 中的密钥。
+同一 operation ID 在十分钟内只能处理一次；客户端必须为新的操作生成新 ID，重复 ID 会被
+Helper 以冲突结果拒绝而不会再次执行。
 安装脚本还会把 Helper apphost 的 SHA-256 写入该受保护配置；Helper 启动时必须匹配该
 清单，完整性不匹配时不会监听管道。升级或修复 Helper 必须重新运行安装脚本，不能直接
 替换可执行文件。
