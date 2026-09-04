@@ -9,7 +9,20 @@
 ### 特权 Helper 日常调试
 
 不要为日常断点调试安装 `RemoteOSPrivilegedHelper` 服务。创建开发专用配置（不可放在
-`ProgramData\RemoteOS\privileged-helper`，且仅允许测试目录），然后直接从 IDE 启动：
+`ProgramData\RemoteOS\privileged-helper`，且仅允许测试目录）。例如
+`C:\RemoteOS-dev\privileged-helper.debug.json`：
+
+```json
+{
+  "pipeName": "remoteos-privileged-helper-dev",
+  "sharedSecret": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  "fileAllowedRoots": ["C:\\RemoteOS-dev"],
+  "allowedServiceIds": ["RemoteOSServer-dev"],
+  "allowConsoleDebug": true
+}
+```
+
+示例密钥仅用于展示；请替换为新的、至少 32 字节的随机 Base64 密钥。然后直接从 IDE 启动：
 
 ```powershell
 dotnet run --project RemoteOS.PrivilegedHelper -- --console --config C:\RemoteOS-dev\privileged-helper.debug.json
