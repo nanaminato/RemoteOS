@@ -161,6 +161,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Displays a modal message box with a single OK button. Used for error/validation
     /// reminders that must grab the user's attention (rather than being silently tucked into StatusText).</summary>
     public Func<string, Task>? ShowMessageAsync { get; set; }
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
 
     /// <summary>Shows the push preview dialog with commit list and file changes.
     /// Returns true if user confirms push, false if cancelled.</summary>
@@ -366,6 +368,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
                 : PrivilegedHelperProblemText.TryFormat(result.ProblemCode, out var helperMessage)
                     ? helperMessage
                     : result.Message ?? LocalizedText.Get("git.vm.install_failed");
+            if (!result.Success && PrivilegedHelperProblemText.TryFormat(result.ProblemCode, out _))
+                await (ShowPrivilegedHelperUnavailableAsync?.Invoke(result.ProblemCode) ?? Task.CompletedTask);
             await RefreshEngineStatusAsync();
             if (result.Success && IsGitAvailable)
             {

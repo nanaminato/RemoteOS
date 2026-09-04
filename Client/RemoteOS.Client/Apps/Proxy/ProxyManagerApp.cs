@@ -9,6 +9,7 @@ using Client.Apps.Proxy.Views;
 using Client.Apps.TaskManager;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Privileged;
 using Client.Views;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
@@ -39,6 +40,7 @@ public sealed class ProxyManagerApp : RemoteApplicationBase
         // the first request and waits for its decision before enabling server actions.
         var vm = new ProxyManagerViewModel(repository, canManage: false, canManageTun: false, systemMonitor);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.proxy.display_name"), new ProxyManagerWorkspace(vm), new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
+        vm.ShowPrivilegedHelperUnavailableAsync = problemCode => PrivilegedHelperUnavailableDialog.ShowAsync(context, window, problemCode);
         vm.SetServerRuntimePackageRequest(async () =>
         {
             if (files is null) return null;

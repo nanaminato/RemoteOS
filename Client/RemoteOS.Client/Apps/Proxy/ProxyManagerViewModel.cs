@@ -63,6 +63,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
     public Func<string, Task>? ShowRuntimeDownloadUrlAsync { get; set; }
     public Func<Task<bool>>? RequestSystemProxySubscriptionDownloadAsync { get; set; }
     public Action? ShowRuntimeSubscriptionWindow { get; set; }
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
     /// <summary>Opens the settings dialog for one concrete network mode; the two modes never share an ambiguous entry point.</summary>
     public Func<bool, Task>? OpenNetworkSettingsDialogAsync { get; set; }
     /// <summary>Owned by the workspace so overview cards can navigate without reaching into view code.</summary>
@@ -562,6 +564,8 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
             StatusText = FormatOperation(operation);
             if (operation.State is ProxyOperationState.Succeeded or ProxyOperationState.Failed or ProxyOperationState.Cancelled or ProxyOperationState.Interrupted)
             {
+                if (operation.State is ProxyOperationState.Failed or ProxyOperationState.Interrupted)
+                    _ = ShowPrivilegedHelperUnavailableAsyncIfNeeded(operation.ProblemCode);
                 if (operation.State == ProxyOperationState.Succeeded) await RefreshAsync();
                 else await LoadLogsAsync();
                 return;
@@ -778,8 +782,12 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         var stage = LocalizedText.Get(key);
         return stage == key ? LocalizedText.Get("proxy.operation.running") : stage;
     }
-    private void SetFailureStatus(Exception exception) =>
-        StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(exception is ProxyRequestException request ? request.ProblemCode : exception.Message));
+    private void SetFailureStatus(Exception exception)
+    {
+        var problemCode = exception is ProxyRequestException request ? request.ProblemCode : exception.Message;
+        StatusText = LocalizedText.Format("proxy.status.failed", FormatProblemCode(problemCode));
+        _ = ShowPrivilegedHelperUnavailableAsyncIfNeeded(problemCode);
+    }
     private static string FormatProblemCode(string? problemCode)
     {
         if (PrivilegedHelperProblemText.TryFormat(problemCode, out var helperMessage)) return helperMessage;
@@ -788,6 +796,10 @@ public sealed partial class ProxyManagerViewModel : ObservableObject
         var localized = LocalizedText.Get(key);
         return localized == key ? problemCode : localized;
     }
+    private Task ShowPrivilegedHelperUnavailableAsyncIfNeeded(string? problemCode) =>
+        PrivilegedHelperProblemText.TryFormat(problemCode, out _)
+            ? ShowPrivilegedHelperUnavailableAsync?.Invoke(problemCode) ?? Task.CompletedTask
+            : Task.CompletedTask;
     private static string LocalizeEnum(string prefix, Enum value)
     {
         var name = value.ToString();
