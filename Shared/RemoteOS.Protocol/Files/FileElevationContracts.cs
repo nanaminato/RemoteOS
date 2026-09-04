@@ -5,7 +5,9 @@ namespace RemoteOS.Protocol.Files;
 /// <summary>One-shot request to prepare privileged file access for the current RemoteOS session.</summary>
 public sealed record FileElevationRequest(
     [property: JsonPropertyName("path")] string Path,
-    [property: JsonPropertyName("password")] string? Password = null);
+    [property: JsonPropertyName("password")] string? Password = null,
+    [property: JsonPropertyName("relatedPaths")] IReadOnlyList<string>? RelatedPaths = null,
+    [property: JsonPropertyName("includeDescendants")] bool IncludeDescendants = false);
 
 /// <summary>Result of testing or granting elevated access for a single file path.</summary>
 public sealed record FileElevationResult(

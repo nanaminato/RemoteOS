@@ -127,7 +127,7 @@ Jaya 原架构通过 `ServiceLocator` 反射扫描 `Jaya.Provider.*.dll` 加载�
   - **全部经 `Directory.Exists` 过滤**——headless Linux 上 Downloads/Pictures 等可能缺失，过滤后不返回失效快捷入口。
 - **UnauthorizedAccessException 吞并**：列举时部分子目录不可访问不应导致整列失败（与 Jaya 一致）。
 - **新增操作**（Jaya 原本 NotImplemented）：`CreateDirectory` / `Delete`（递归）/ `Rename` / `Move` / `Copy` / `Upload` / `OpenRead`（下载）。
-- **以宿主 OS 进程身份运行**：Server 进程的权限即文件操作权限（复用宿主用户/权限，不另建 ACL——project_memory 硬约束）。
+- **以宿主 OS 进程身份运行**：Server 进程的权限即文件操作权限（复用宿主用户/权限，不另建 ACL——project_memory 硬约束）。复制、移动、删除、重命名和上传若被宿主 OS 拒绝，客户端才调用既有系统管理员认证窗口；认证成功后，对当前 JWT 的受影响目录授予 5 分钟（含子目录）权限并通过本地特权 helper 重试。取消或认证失败不会执行写操作。
 
 ### 4.2 FileEndpoints
 

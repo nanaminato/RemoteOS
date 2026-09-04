@@ -36,6 +36,9 @@ using RemoteOS.Protocol.Proxy;
 using Server.Proxy.Mihomo;
 using Server.Proxy;
 using Server.Proxy.Platform;
+using Server.Privileged;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -70,6 +73,7 @@ try
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
     await VerifyRegistryRuntimeCacheAsync(root);
     await VerifyPerformanceSamplerAsync();
+    VerifyFileElevationSessionScope(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 
@@ -96,6 +100,38 @@ static void VerifyWorkspacePreferencesJsonContract()
     Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
     Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
 }
+
+static void VerifyFileElevationSessionScope(string root)
+{
+    var directory = Path.Combine(root, "protected");
+    var nestedFile = Path.Combine(directory, "nested", "file.txt");
+    var sibling = Path.Combine(root, "unrelated", "file.txt");
+    var principal = Principal("jwt-one");
+    var otherPrincipal = Principal("jwt-two");
+    var store = new FileElevationSessionStore();
+
+    var expiry = store.Grant(principal, directory, includeDescendants: true);
+    Assert(expiry > DateTimeOffset.UtcNow.AddMinutes(4), "File elevation grant did not retain the five-minute lifetime.");
+    Assert(store.IsElevated(principal, directory, nestedFile), "A directory elevation grant did not cover a nested mutation target.");
+    Assert(!store.IsElevated(principal, sibling), "A directory elevation grant leaked to a sibling path.");
+    Assert(!store.IsElevated(otherPrincipal, nestedFile), "A directory elevation grant leaked to a different JWT.");
+
+    var exactFile = Path.Combine(root, "exact", "file.txt");
+    store.Grant(principal, exactFile);
+    Assert(store.IsElevated(principal, exactFile), "An exact file elevation grant was not recognized.");
+    Assert(!store.IsElevated(principal, Path.Combine(exactFile, "child")), "An exact file elevation grant unexpectedly covered descendants.");
+
+    var request = new RemoteOS.Protocol.Files.FileElevationRequest(directory, "password", [Path.Combine(root, "second")], IncludeDescendants: true);
+    var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(json.Contains("includeDescendants", StringComparison.Ordinal) && json.Contains("relatedPaths", StringComparison.Ordinal),
+        "File elevation request lost its multi-directory grant contract.");
+}
+
+static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(
+[
+    new Claim(JwtRegisteredClaimNames.Jti, tokenId),
+    new Claim(JwtRegisteredClaimNames.Name, "test-user"),
+], "test"));
 
 static async Task VerifyRegistryRuntimeCacheAsync(string root)
 {

@@ -9,6 +9,10 @@ namespace RemoteOS.Protocol.Privileged;
 public sealed record PrivilegedOperationRequest(
     [property: JsonPropertyName("operation")] string Operation,
     [property: JsonPropertyName("path")] string? Path = null,
+    [property: JsonPropertyName("destinationPath")] string? DestinationPath = null,
+    [property: JsonPropertyName("newName")] string? NewName = null,
+    [property: JsonPropertyName("fileName")] string? FileName = null,
+    [property: JsonPropertyName("overwrite")] bool Overwrite = false,
     [property: JsonPropertyName("contentBase64")] string? ContentBase64 = null,
     [property: JsonPropertyName("executable")] string? Executable = null,
     [property: JsonPropertyName("arguments")] IReadOnlyList<string>? Arguments = null,

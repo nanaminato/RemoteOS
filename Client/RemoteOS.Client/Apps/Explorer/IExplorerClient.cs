@@ -29,6 +29,9 @@ public interface IExplorerClient
     /// <summary>Tests direct access and, after host password confirmation, authorizes short-lived elevated access to one path.</summary>
     Task<FileElevationResult> ElevateFileAccessAsync(string path, string? password = null, CancellationToken ct = default);
 
+    /// <summary>Authorizes the containing protected directories for a failed mutating operation.</summary>
+    Task<FileElevationResult> ElevateFileOperationAsync(IReadOnlyList<string> directoryPaths, string? password = null, CancellationToken ct = default);
+
     /// <summary>以原始字节覆盖保存远程文件。</summary>
     Task<FileEntryDto> WriteFileAsync(string path, byte[] content, CancellationToken ct = default);
 

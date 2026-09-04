@@ -69,6 +69,13 @@ public sealed class ExplorerClient : IExplorerClient
         => SendAsync<FileElevationResult>(HttpMethod.Post, FileApiRoutes.Elevation,
             body: new FileElevationRequest(path, password), ct: ct);
 
+    public Task<FileElevationResult> ElevateFileOperationAsync(IReadOnlyList<string> directoryPaths, string? password = null, CancellationToken ct = default)
+    {
+        if (directoryPaths.Count == 0) throw new ArgumentException("At least one directory path is required.", nameof(directoryPaths));
+        return SendAsync<FileElevationResult>(HttpMethod.Post, FileApiRoutes.Elevation,
+            body: new FileElevationRequest(directoryPaths[0], password, directoryPaths.Skip(1).ToArray(), IncludeDescendants: true), ct: ct);
+    }
+
     public async Task<FileEntryDto> WriteFileAsync(string path, byte[] content, CancellationToken ct = default)
     {
         var serverUrl = RequireSession();

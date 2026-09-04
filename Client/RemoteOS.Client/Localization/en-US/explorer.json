@@ -57,6 +57,7 @@
         "explorer.status.enter_target_directory_first": "Enter a target folder first",
         "explorer.status.uploaded": "Uploaded: {0}",
         "explorer.status.upload_failed": "Upload failed: {0}",
+        "explorer.status.elevation_required": "Administrator authentication is required; no changes were made.",
         "explorer.status.copied_to_clipboard": "Copied {0} item(s).",
         "explorer.status.cut_to_clipboard": "Cut {0} item(s).",
         "explorer.status.pasting": "Pasting 0/{1}…",
