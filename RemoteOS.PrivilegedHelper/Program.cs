@@ -9,37 +9,54 @@ if (OperatingSystem.IsWindows() && args.Contains("--windows-service", StringComp
     return 0;
 }
 
-if (OperatingSystem.IsLinux() && geteuid() != 0)
+if (OperatingSystem.IsWindows() && args.Contains("--console", StringComparer.Ordinal))
 {
-    await WriteResultAsync(Fail(77, PrivilegedProblemCode.AccessDenied, "root is required"));
-    return 77;
+    await WindowsPrivilegedHelperConsoleHost.RunAsync(args);
+    return 0;
 }
 
-// A root-owned installation configures this list. An empty list deliberately fails closed: a
-// compromised Server account must not turn the file explorer into arbitrary root file I/O.
-var allowedRoots = LoadAllowedRoots();
-PrivilegedOperationRequest? request;
-try
+return await PrivilegedOperationExecutor.RunOneShotAsync();
+
+/// <summary>
+/// Closed-set privileged operations shared by the Linux one-shot worker and both Windows hosts.
+/// Host code owns transport, identity and lifecycle; this type never does.
+/// </summary>
+public static class PrivilegedOperationExecutor
 {
-    request = await ReadRequestAsync(Console.OpenStandardInput());
-}
-catch (Exception exception) when (exception is JsonException or InvalidDataException)
+public static async Task<int> RunOneShotAsync()
 {
-    await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid request"));
-    return 64;
+    if (OperatingSystem.IsLinux() && geteuid() != 0)
+    {
+        await WriteResultAsync(Fail(77, PrivilegedProblemCode.AccessDenied, "root is required"));
+        return 77;
+    }
+
+    // A root-owned installation configures this list. An empty list deliberately fails closed: a
+    // compromised Server account must not turn the file explorer into arbitrary root file I/O.
+    var policy = new PrivilegedOperationPolicy(LoadAllowedRoots(), LoadAllowedServices());
+    PrivilegedOperationRequest? request;
+    try
+    {
+        request = await ReadRequestAsync(Console.OpenStandardInput());
+    }
+    catch (Exception exception) when (exception is JsonException or InvalidDataException)
+    {
+        await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "invalid request"));
+        return 64;
+    }
+
+    if (request is null)
+    {
+        await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "missing request"));
+        return 64;
+    }
+
+    var result = await ExecuteAsync(request, policy);
+    await WriteResultAsync(result);
+    return result.ExitCode;
 }
 
-if (request is null)
-{
-    await WriteResultAsync(Fail(64, PrivilegedProblemCode.InvalidRequest, "missing request"));
-    return 64;
-}
-
-var result = await ExecuteAsync(request, allowedRoots);
-await WriteResultAsync(result);
-return result.ExitCode;
-
-static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, IReadOnlyList<string> allowedRoots)
+public static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, PrivilegedOperationPolicy policy)
 {
     if (request.Version != PrivilegedOperationProtocol.Version)
         return Fail(64, PrivilegedProblemCode.InvalidProtocol, "unsupported protocol version");
@@ -50,15 +67,15 @@ static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationReq
     {
         return request.Operation switch
         {
-            PrivilegedOperationKind.FileRead => await ReadFileAsync(request.Path, allowedRoots),
-            PrivilegedOperationKind.FileWrite => await WriteFileAsync(request.Path, request.ContentBase64, allowedRoots),
-            PrivilegedOperationKind.FileDelete => Delete(request.Path, allowedRoots),
-            PrivilegedOperationKind.FileRename => Rename(request.Path, request.NewName, allowedRoots),
-            PrivilegedOperationKind.FileMove => Move(request.Path, request.DestinationPath, request.Overwrite, allowedRoots),
-            PrivilegedOperationKind.FileCopy => Copy(request.Path, request.DestinationPath, request.Overwrite, allowedRoots),
-            PrivilegedOperationKind.FileUpload => await UploadAsync(request.Path, request.FileName, request.ContentBase64, allowedRoots),
-            PrivilegedOperationKind.FileCreateDirectory => CreateDirectory(request.Path, allowedRoots),
-            PrivilegedOperationKind.NativeServiceAction => await ApplyNativeServiceActionAsync(request.ServiceId, request.ServiceAction),
+            PrivilegedOperationKind.FileRead => await ReadFileAsync(request.Path, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileWrite => await WriteFileAsync(request.Path, request.ContentBase64, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileDelete => Delete(request.Path, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileRename => Rename(request.Path, request.NewName, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileMove => Move(request.Path, request.DestinationPath, request.Overwrite, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileCopy => Copy(request.Path, request.DestinationPath, request.Overwrite, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileUpload => await UploadAsync(request.Path, request.FileName, request.ContentBase64, policy.FileAllowedRoots),
+            PrivilegedOperationKind.FileCreateDirectory => CreateDirectory(request.Path, policy.FileAllowedRoots),
+            PrivilegedOperationKind.NativeServiceAction => await ApplyNativeServiceActionAsync(request.ServiceId, request.ServiceAction, policy.AllowedServiceIds),
             PrivilegedOperationKind.NginxSystemServiceAction => await ApplyNginxSystemServiceActionAsync(request.NginxServiceAction),
             PrivilegedOperationKind.NginxPackageInstall => await InstallNginxPackageAsync(request.PackageVersion),
             PrivilegedOperationKind.NginxPackageUninstall => await UninstallNginxPackageAsync(),
@@ -246,9 +263,9 @@ static void CopyDirectory(string source, string destination, IReadOnlyList<strin
     }
 }
 
-static async Task<PrivilegedOperationResult> ApplyNativeServiceActionAsync(string? serviceId, PrivilegedServiceAction? action)
+static async Task<PrivilegedOperationResult> ApplyNativeServiceActionAsync(string? serviceId, PrivilegedServiceAction? action, IReadOnlyList<string> allowedServiceIds)
 {
-    if (string.IsNullOrWhiteSpace(serviceId) || action is null || !IsServiceId(serviceId) || !LoadAllowedServices().Contains(serviceId, StringComparer.OrdinalIgnoreCase))
+    if (string.IsNullOrWhiteSpace(serviceId) || action is null || !IsServiceId(serviceId) || !allowedServiceIds.Contains(serviceId, StringComparer.OrdinalIgnoreCase))
         return Fail(64, PrivilegedProblemCode.ResourceNotAllowed, "service action is not allowed");
     var command = action.Value switch
     {
@@ -559,3 +576,7 @@ static StringComparer GetPathComparer() => OperatingSystem.IsWindows() ? StringC
 
 [DllImport("libc")]
 static extern uint geteuid();
+}
+
+/// <summary>Host-supplied allowlists for the closed-set privileged operation dispatcher.</summary>
+public sealed record PrivilegedOperationPolicy(IReadOnlyList<string> FileAllowedRoots, IReadOnlyList<string> AllowedServiceIds);

@@ -6,6 +6,25 @@
 
 ## 常规桌面系统（Windows 10/11）
 
+### 特权 Helper 日常调试
+
+不要为日常断点调试安装 `RemoteOSPrivilegedHelper` 服务。创建开发专用配置（不可放在
+`ProgramData\RemoteOS\privileged-helper`，且仅允许测试目录），然后直接从 IDE 启动：
+
+```powershell
+dotnet run --project RemoteOS.PrivilegedHelper -- --console --config C:\RemoteOS-dev\privileged-helper.debug.json
+```
+
+配置必须显式包含 `allowConsoleDebug: true`，并配置与 Server 完全相同的
+`pipeName`、随机 Base64 `sharedSecret`、`fileAllowedRoots` 与 `allowedServiceIds`。Server 启动
+配置中分别设置 `PrivilegedHelper__PipeName` 和 `PrivilegedHelper__SharedSecret`。这样 Server
+仍通过正式的命名管道、HMAC、重放保护和固定请求协议调用 Helper，断点则直接命中同一进程中的
+执行器。只有需要验证真实管理员行为时才以管理员身份启动 IDE。
+
+`--console` 不能读取并启用生产 `helper.json`：它使用独立配置结构，并要求显式开发开关。发布前
+仍必须在隔离 Windows VM 以 LocalSystem 服务模式至少验证一次，以覆盖 Session 0、HKCU、用户
+profile、DPAPI、网络凭据、映射盘和环境变量差异。
+
 ### 1. 创建调试用户
 
 以**管理员身份**打开 PowerShell，创建用于调试的本地用户：
