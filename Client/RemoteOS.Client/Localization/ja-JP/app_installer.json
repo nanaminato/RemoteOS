@@ -3,6 +3,7 @@
     "Strings": {
         "app_installer.title": "アプリ インストーラー",
         "app_installer.description": "インストールする前に、アプリケーション情報と要求されている RemoteOS のアクセス許可を確認してください。",
+        "app_installer.security_warning": "パッケージの出所は検証されていません。アクセス許可は通常の SDK 呼び出しを管理するだけで、悪意のあるコードをサンドボックス化しません。出所とコードを確認したパッケージだけをインストールしてください。",
         "app_installer.choose_local": "このコンピューターから選択",
         "app_installer.choose_server": "サーバーから選択",
         "app_installer.source": "ソース:",

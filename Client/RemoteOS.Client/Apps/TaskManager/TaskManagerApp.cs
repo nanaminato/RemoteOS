@@ -29,6 +29,7 @@ public sealed class TaskManagerApp : RemoteApplicationBase
         Version: "1.0.0",
         IconGlyph: "📊",
         Description: "查看 CPU/内存/磁盘/网络/GPU 占用与进程，可结束任务",
+        RequestedPermissions: [AppPermissions.ServerMetricsRead, AppPermissions.ServerProcessesManage],
         InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)

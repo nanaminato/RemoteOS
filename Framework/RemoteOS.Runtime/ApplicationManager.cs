@@ -12,6 +12,7 @@ namespace RemoteOS.Runtime;
 public sealed class ApplicationManager : IAppActivationService
 {
     private readonly Dictionary<AppId, IRemoteApplication> _apps = new();
+    private readonly HashSet<AppId> _builtInApps = [];
     private readonly IWindowManager _windowManager;
     private readonly IServiceProvider _services;
 
@@ -95,6 +96,15 @@ public sealed class ApplicationManager : IAppActivationService
     public void Register(IRemoteApplication application)
     {
         _apps[application.Manifest.Id] = application;
+        _builtInApps.Remove(application.Manifest.Id);
+        RegistryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Registers a Host-shipped app. Package manifests cannot self-assign this origin.</summary>
+    public void RegisterBuiltIn(IRemoteApplication application)
+    {
+        _apps[application.Manifest.Id] = application;
+        _builtInApps.Add(application.Manifest.Id);
         RegistryChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -102,12 +112,15 @@ public sealed class ApplicationManager : IAppActivationService
     public bool Unregister(AppId id)
     {
         var removed = _apps.Remove(id);
+        _builtInApps.Remove(id);
         if (removed)
             RegistryChanged?.Invoke(this, EventArgs.Empty);
         return removed;
     }
 
     public bool IsRegistered(AppId id) => _apps.ContainsKey(id);
+    /// <summary>Returns whether the Host registered this app as built-in, rather than inferring it from its id.</summary>
+    public bool IsBuiltIn(AppId id) => _builtInApps.Contains(id);
     public IRemoteApplication? Get(AppId id) => _apps.GetValueOrDefault(id);
     public ApplicationManifest? GetManifest(AppId id) => _apps.GetValueOrDefault(id)?.Manifest;
 

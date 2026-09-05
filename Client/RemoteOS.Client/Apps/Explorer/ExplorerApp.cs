@@ -38,7 +38,8 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
         DisplayName: "RemoteExplorer",
         Version: "1.0.0",
         IconGlyph: "📁",
-        Description: "远端文件管理器");
+        Description: "远端文件管理器",
+        RequestedPermissions: [AppPermissions.ServerFilesRead, AppPermissions.ServerFilesWrite]);
 
     public override void Activate(AppContext context) => OpenExplorer(context, null);
 

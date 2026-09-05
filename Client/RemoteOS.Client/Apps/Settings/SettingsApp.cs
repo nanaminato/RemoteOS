@@ -40,6 +40,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
         Version: "1.0.0",
         IconGlyph: "⚙️",
         Description: "个性化与系统设置",
+        RequestedPermissions: [AppPermissions.DesktopWallpaperWrite],
         InstancePolicy: ApplicationInstancePolicy.SingleWindow);
 
     public override void Activate(AppContext context)

@@ -43,6 +43,7 @@ using Server.ProcessGuardian;
 using Server.Firewall;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using RemoteOS.Core.Applications;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
@@ -80,6 +81,7 @@ try
     await VerifyPerformanceSamplerAsync();
     VerifyFileElevationSessionScope(root);
     VerifyHostElevationCapabilityScope(root);
+    VerifyAppPermissionEvaluator();
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 
@@ -199,6 +201,40 @@ static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(
     new Claim(JwtRegisteredClaimNames.Sub, "test-subject"),
     new Claim(JwtRegisteredClaimNames.Name, "test-user"),
 ], "test"));
+
+static void VerifyAppPermissionEvaluator()
+{
+    var appId = new AppId("com.remoteos.tests.permissions");
+    var manifest = new ApplicationManifest(appId, "Permission tests", RequestedPermissions: [AppPermissions.ServerFilesRead]);
+    var store = new MemoryPermissionStore();
+    var evaluator = new AppPermissionEvaluator(new TestPolicyProvider(), store);
+    var development = new AppIdentity(appId, AppTrustLevel.Development, "test package");
+    var builtIn = new AppIdentity(appId, AppTrustLevel.BuiltIn, "test host");
+
+    Assert(evaluator.Evaluate(development, manifest, "unknown.capability") == PermissionDecision.Deny,
+        "Unknown capability was not denied.");
+    Assert(evaluator.Evaluate(development, manifest, AppPermissions.ServerFilesWrite) == PermissionDecision.Deny,
+        "A capability absent from the manifest was not denied.");
+    Assert(evaluator.Evaluate(development, manifest, AppPermissions.ServerFilesRead) == PermissionDecision.Prompt,
+        "A declared third-party capability should prompt by default.");
+    Assert(evaluator.Evaluate(builtIn, manifest, AppPermissions.ServerFilesRead) == PermissionDecision.Allow,
+        "A declared built-in policy capability was not allowed.");
+
+    store.Replace(appId, AppPermissions.ServerFilesRead,
+        [new PermissionGrant(appId, AppPermissions.ServerFilesRead, PermissionScope.None, GrantSource.ExplicitDeny)]);
+    Assert(evaluator.Evaluate(builtIn, manifest, AppPermissions.ServerFilesRead) == PermissionDecision.Deny,
+        "Explicit deny did not override the built-in default.");
+    store.Replace(appId, AppPermissions.ServerFilesRead,
+        [new PermissionGrant(appId, AppPermissions.ServerFilesRead, PermissionScope.None, GrantSource.Temporary, DateTimeOffset.UtcNow.AddSeconds(-1))]);
+    Assert(evaluator.Evaluate(development, manifest, AppPermissions.ServerFilesRead) == PermissionDecision.Prompt,
+        "Expired temporary grant was treated as active.");
+
+    var scope = PermissionScope.Path(Path.Combine(Path.GetTempPath(), "remoteos-permission-root"));
+    Assert(scope.Matches(PermissionScope.Path(Path.Combine(Path.GetTempPath(), "remoteos-permission-root", "nested", "file.txt"))),
+        "Path scope did not match a descendant.");
+    Assert(!scope.Matches(PermissionScope.Path(Path.Combine(Path.GetTempPath(), "remoteos-permission-root-other", "file.txt"))),
+        "Path scope leaked through a string prefix.");
+}
 
 static async Task VerifyRegistryRuntimeCacheAsync(string root)
 {
@@ -1507,4 +1543,20 @@ sealed class FakePerformanceSource : ISystemPerformanceSource
             [new("disk:test", index * 10, index * 5, index * 10, index * 5, index * 100, index * 100, index * 10, index * 5, 512)],
             [new("net:test", index * 500, index * 100, index * 5, index, 0, 0, 0, 0)], index));
     }
+}
+
+sealed class MemoryPermissionStore : IAppPermissionStore
+{
+    private readonly Dictionary<(AppId AppId, string Capability), IReadOnlyList<PermissionGrant>> _values = [];
+    public IReadOnlyList<PermissionGrant> Get(AppId appId, string capability) =>
+        _values.TryGetValue((appId, capability), out var values) ? values : Array.Empty<PermissionGrant>();
+    public void Replace(AppId appId, string capability, IReadOnlyList<PermissionGrant> grants) => _values[(appId, capability)] = grants;
+    public void Clear(AppId appId) { foreach (var key in _values.Keys.Where(key => key.AppId == appId).ToArray()) _values.Remove(key); }
+}
+
+sealed class TestPolicyProvider : IAppPolicyProvider
+{
+    public PermissionDecision GetDefaultDecision(AppIdentity identity, string capability, PermissionScope scope) =>
+        identity.TrustLevel == AppTrustLevel.BuiltIn && capability == AppPermissions.ServerFilesRead && scope == PermissionScope.None
+            ? PermissionDecision.Allow : PermissionDecision.Prompt;
 }

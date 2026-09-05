@@ -21,7 +21,8 @@ public sealed record ApplicationManifest(
     bool SupportsTextFiles = false,
     ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
     IReadOnlyList<string>? SupportedUriSchemes = null,
-    string? IconPath = null)
+    string? IconPath = null,
+    int PermissionModelVersion = 2)
 {
     /// <summary>Client OS platforms on which the package may run. An empty list means unrestricted.</summary>
     public IReadOnlyList<string> SupportedClientPlatforms => ApplicationPlatformNames.Normalize(ClientPlatforms);

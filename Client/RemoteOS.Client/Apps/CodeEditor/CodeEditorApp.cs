@@ -42,6 +42,7 @@ public sealed class CodeEditorApp : RemoteApplicationBase, IFileOpenApplication
         Version: "1.0.0",
         IconGlyph: "💻",
         Description: "Syntax-highlighted editor for remote files",
+        RequestedPermissions: [AppPermissions.ServerFilesRead, AppPermissions.ServerFilesWrite],
         SupportedFileExtensions: SupportedExtensions,
         SupportedFileNames: SupportedFileNames,
         SupportsTextFiles: true,

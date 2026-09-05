@@ -7,6 +7,7 @@
     <PrebuiltServerAssemblyPath Condition="'$(PrebuiltServerAssemblyPath)' == ''">../RemoteOS.Server/bin/Debug/net10.0/RemoteOS.Server.dll</PrebuiltServerAssemblyPath>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Framework/RemoteOS.Core/RemoteOS.Core.csproj" />
     <ProjectReference Include="../RemoteOS.Server/RemoteOS.Server.csproj" Condition="'$(UsePrebuiltServerAssembly)' != 'true'" />
     <!-- The local desktop SDK currently lacks workload locator SDKs. This opt-in path permits
          the smoke test to run against a just-built Server assembly without weakening CI's normal
@@ -26,6 +27,12 @@
     </Reference>
     <Reference Include="Microsoft.EntityFrameworkCore" Condition="'$(UsePrebuiltServerAssembly)' == 'true'">
       <HintPath>../RemoteOS.Server/bin/Debug/net10.0/Microsoft.EntityFrameworkCore.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.EntityFrameworkCore.Sqlite" Condition="'$(UsePrebuiltServerAssembly)' == 'true'">
+      <HintPath>../RemoteOS.Server/bin/Debug/net10.0/Microsoft.EntityFrameworkCore.Sqlite.dll</HintPath>
+    </Reference>
+    <Reference Include="System.IdentityModel.Tokens.Jwt" Condition="'$(UsePrebuiltServerAssembly)' == 'true'">
+      <HintPath>../RemoteOS.Server/bin/Debug/net10.0/System.IdentityModel.Tokens.Jwt.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

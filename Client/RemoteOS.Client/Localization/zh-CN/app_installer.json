@@ -3,6 +3,7 @@
     "Strings": {
         "app_installer.title": "应用安装程序",
         "app_installer.description": "安装前，请查看应用信息及其请求的 RemoteOS 权限。",
+        "app_installer.security_warning": "软件包来源未经验证。权限只能约束正常的 SDK 调用，不能沙箱化恶意代码；请仅安装你已审查来源和代码的软件包。",
         "app_installer.choose_local": "从此计算机选择",
         "app_installer.choose_server": "从服务器选择",
         "app_installer.source": "来源：",

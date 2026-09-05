@@ -18,7 +18,7 @@ using Rect = RemoteOS.Core.Primitives.Rect;
 
 namespace Client.Apps.AppInstaller;
 
-/// <summary>Built-in, consent-first installer for signed-in users' .roapp packages.</summary>
+/// <summary>Built-in installer for user-reviewed .roapp packages; packages are not signed or sandboxed in v2.</summary>
 public sealed class AppInstallerApp : RemoteApplicationBase, IFileOpenApplication
 {
     public override ApplicationManifest Manifest { get; } = new(

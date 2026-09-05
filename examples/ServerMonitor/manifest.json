@@ -1,5 +1,6 @@
 {
   "id": "com.remoteos.example.server-monitor",
+  "permissionModelVersion": 2,
   "displayName": "Server Monitor",
   "version": "0.2.0-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.ServerMonitor.dll",

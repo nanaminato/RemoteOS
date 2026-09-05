@@ -38,16 +38,9 @@ public sealed class AppPermissionRequestService : IAppPermissionRequestService
 
     public async Task RequestUndecidedAsync(AppId appId, CancellationToken cancellationToken = default)
     {
-        var manifest = _applications.GetManifest(appId);
-        if (manifest is null)
-            return;
-
-        // One dialog per declaration. Deferring one request deliberately does not stop the rest.
-        foreach (var permissionId in manifest.Permissions)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await RequestCoreAsync(appId, permissionId, onlyIfUndecided: true, cancellationToken);
-        }
+        // V2 intentionally never asks for every declared capability during application launch.
+        // A package requests a capability at the point it is used through its scoped SDK context.
+        await Task.CompletedTask;
     }
 
     public Task<AppPermissionStatus> RequestAsync(AppId appId, string permissionId, CancellationToken cancellationToken = default) =>

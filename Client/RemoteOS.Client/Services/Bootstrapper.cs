@@ -246,7 +246,7 @@ public static class Bootstrapper
         // Register applications with the runtime.
         var manager = provider.GetRequiredService<ApplicationManager>();
         foreach (var application in provider.GetServices<IRemoteApplication>())
-            manager.Register(application);
+            manager.RegisterBuiltIn(application);
 
         // Development packages follow the same runtime registry as built-in applications.
         provider.GetRequiredService<DeveloperPackageManager>().LoadInstalled();

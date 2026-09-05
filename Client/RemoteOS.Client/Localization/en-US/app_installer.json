@@ -3,6 +3,7 @@
     "Strings": {
         "app_installer.title": "App Installer",
         "app_installer.description": "Review the application information and requested RemoteOS permissions before installing.",
+        "app_installer.security_warning": "Package origin is unverified. Permissions guide normal SDK calls but do not sandbox malicious code; install only packages whose source and code you trust.",
         "app_installer.choose_local": "Choose from this computer",
         "app_installer.choose_server": "Choose from server",
         "app_installer.source": "Source:",

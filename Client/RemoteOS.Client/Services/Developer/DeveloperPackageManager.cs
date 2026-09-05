@@ -21,6 +21,7 @@ public sealed class DeveloperPackageManager
 {
     private readonly ApplicationManager _applications;
     private readonly ExternalAppContextFactory _contextFactory;
+    private readonly IAppPermissionManager _permissions;
     private readonly IWindowManager _windowManager;
     private readonly IAppActivationDiagnostics _activationDiagnostics;
     private readonly string _root;
@@ -32,11 +33,13 @@ public sealed class DeveloperPackageManager
         ApplicationManager applications,
         ExternalAppContextFactory contextFactory,
         IWindowManager windowManager,
+        IAppPermissionManager permissions,
         IAppActivationDiagnostics activationDiagnostics)
     {
         _applications = applications;
         _contextFactory = contextFactory;
         _windowManager = windowManager;
+        _permissions = permissions;
         _activationDiagnostics = activationDiagnostics;
         _root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteOS", "developer-apps");
         _catalogPath = Path.Combine(_root, "catalog.json");
@@ -73,6 +76,14 @@ public sealed class DeveloperPackageManager
         CleanupDeferredUninstalls();
         foreach (var record in _catalog.Values.ToArray())
         {
+            if (record.PermissionModelVersion != 2)
+            {
+                _catalog.Remove(record.Id);
+                _permissions.Clear(new AppId(record.Id));
+                TryDeleteDirectory(AppDirectory(record.Id));
+                RecordActivationDiagnostic($"Package rejected: app={record.Id}, reason=permission-model-v2-required");
+                continue;
+            }
             // Register manifest metadata only. In particular, do not load a package's native
             // dependencies before the compatibility gate has approved its first launch.
             try { Register(record); }
@@ -81,6 +92,7 @@ public sealed class DeveloperPackageManager
                 RecordActivationDiagnostic($"Package registration failed: app={record.Id}, error={exception.GetType().Name}: {exception.Message}");
             }
         }
+        SaveCatalog(_catalogPath, _catalog);
     }
 
     public async Task<DeveloperAppInfo> InstallAsync(Stream package, bool launch, CancellationToken cancellationToken = default)
@@ -106,9 +118,11 @@ public sealed class DeveloperPackageManager
                 manifest.SupportedFileExtensions ?? Array.Empty<string>(), manifest.LocalizedMetadata,
                 manifest.ClientPlatforms ?? Array.Empty<string>(), manifest.ServerRequirements,
                 manifest.SupportedFileNames ?? Array.Empty<string>(), manifest.SupportsExtensionlessFiles,
-                ParseInstancePolicy(manifest.InstancePolicy), manifest.SupportedUriSchemes ?? Array.Empty<string>());
+                ParseInstancePolicy(manifest.InstancePolicy), manifest.SupportedUriSchemes ?? Array.Empty<string>(), manifest.PermissionModelVersion);
             await Dispatcher.UIThread.InvokeAsync(() => Register(record));
 
+            // A package update is a new authorization subject even when its AppId is stable.
+            _permissions.Clear(new AppId(appId));
             _catalog[appId] = record;
             SaveCatalog(_catalogPath, _catalog);
             if (launch)
@@ -210,7 +224,8 @@ public sealed class DeveloperPackageManager
         SupportsTextFiles: false,
         InstancePolicy: record.InstancePolicy,
         SupportedUriSchemes: record.SupportedUriSchemes,
-        IconPath: record.IconPath);
+        IconPath: record.IconPath,
+        PermissionModelVersion: record.PermissionModelVersion);
 
     private async Task<DeveloperPackageManifest> ExtractAndReadManifestAsync(Stream package, string destination, CancellationToken cancellationToken)
     {
@@ -248,6 +263,8 @@ public sealed class DeveloperPackageManager
             throw new InvalidOperationException("Application id must use lowercase letters, digits, dots, or hyphens.");
         if (manifest.Id.StartsWith("remoteos.", StringComparison.Ordinal))
             throw new InvalidOperationException("The remoteos.* application id range is reserved for built-in applications.");
+        if (manifest.PermissionModelVersion != 2)
+            throw new InvalidOperationException("This package uses an unsupported permission model. Rebuild it with permissionModelVersion: 2.");
         if (string.IsNullOrWhiteSpace(manifest.DisplayName) || string.IsNullOrWhiteSpace(manifest.Version)
             || string.IsNullOrWhiteSpace(manifest.EntryAssembly) || string.IsNullOrWhiteSpace(manifest.EntryType))
             throw new InvalidOperationException("manifest.json is missing a required field.");
@@ -483,7 +500,8 @@ public sealed record DeveloperPackageManifest(
     bool SupportsExtensionlessFiles = false,
     string? InstancePolicy = null,
     IReadOnlyList<string>? SupportedUriSchemes = null,
-    string? IconPath = null);
+    string? IconPath = null,
+    int PermissionModelVersion = 0);
 
 internal sealed record DeveloperAppRecord(
     string Id,
@@ -503,6 +521,7 @@ internal sealed record DeveloperAppRecord(
     IReadOnlyList<string>? SupportedFileNames = null,
     bool SupportsExtensionlessFiles = false,
     ApplicationInstancePolicy InstancePolicy = ApplicationInstancePolicy.MultiWindow,
-    IReadOnlyList<string>? SupportedUriSchemes = null);
+    IReadOnlyList<string>? SupportedUriSchemes = null,
+    int PermissionModelVersion = 0);
 
 public sealed record DeveloperAppInfo(string Id, string DisplayName, string Version, string InstallationPath);

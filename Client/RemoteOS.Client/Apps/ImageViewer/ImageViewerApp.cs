@@ -22,6 +22,7 @@ public sealed class ImageViewerApp : RemoteApplicationBase, IFileOpenApplication
         Version: "1.0.0",
         IconGlyph: "🖼️",
         Description: "Lightweight viewer for remote image files",
+        RequestedPermissions: [AppPermissions.ServerFilesRead],
         SupportedFileExtensions: SupportedExtensions);
 
     public override void Activate(AppContext context) => OpenViewer(context, null);

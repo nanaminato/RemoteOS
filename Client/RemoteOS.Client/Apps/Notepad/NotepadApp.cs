@@ -31,6 +31,7 @@ public sealed class NotepadApp : RemoteApplicationBase, IFileOpenApplication
         Version: "1.0.0",
         IconGlyph: "📝",
         Description: "Text editor for remote files",
+        RequestedPermissions: [AppPermissions.ServerFilesRead, AppPermissions.ServerFilesWrite],
         SupportedFileExtensions: SupportedExtensions,
         SupportsExtensionlessFiles: true,
         SupportsTextFiles: true,

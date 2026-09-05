@@ -1,5 +1,6 @@
 {
   "id": "com.remoteos.example.help-center",
+  "permissionModelVersion": 2,
   "displayName": "Help Center",
   "version": "0.1.0-dev",
   "entryAssembly": "lib/net10.0/RemoteOS.Example.HelpCenter.dll",

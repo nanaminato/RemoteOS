@@ -10,6 +10,7 @@
             <StackPanel Spacing="4">
                 <TextBlock Text="{loc:Loc app_installer.title}" FontSize="24" FontWeight="SemiBold" />
                 <TextBlock Text="{loc:Loc app_installer.description}" Opacity="0.7" TextWrapping="Wrap" />
+                <TextBlock Text="{loc:Loc app_installer.security_warning}" Opacity="0.82" TextWrapping="Wrap" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
