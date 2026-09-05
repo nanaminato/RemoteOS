@@ -12,6 +12,8 @@
 
 这是一种“用户信任安装包”的扩展模型，而不是对恶意 App 的安全沙箱模型。本文的 App 权限用于能力声明、默认策略、用户可见性、正常 SDK 调用的授权门控与误操作防护；它不能阻止与 Shell 同进程执行的恶意 .NET 代码绕过 Client 侧检查、反射 Host 服务或直接使用操作系统 API。
 
+本 Goal 是一次**破坏性权限模型升级**：不保留旧 `.roapp`、旧 manifest、旧 SDK 权限调用或旧本地授权记录的兼容性。升级到新模型后，旧包必须由其作者按新 SDK/manifest 重新打包，用户必须重新安装并重新授权。
+
 ## 1. 执行结论与风险接受
 
 ### 1.1 结论
@@ -42,14 +44,14 @@
 
 | 现有基础 | 处理方式 |
 | --- | --- |
-| `AppPermissions` 的 `server.*` 目录 | 保持 ID 兼容，作为 v1 capability 目录；不另建 `filesystem.*` 平行目录。 |
+| `AppPermissions` 的 `server.*` 目录 | 作为新模型的初始能力目录；不承诺旧包或旧 ID 的兼容性。 |
 | `ApplicationManifest.RequestedPermissions` | 保持为“声明需求”，不是 Grant。 |
-| `JsonAppPermissionManager` 和权限 UI | 迁为统一评估器的本地 Grant/Explicit Deny 存储适配层，并保持旧文件迁移。 |
+| `JsonAppPermissionManager` 和权限 UI | 迁为统一评估器的本地 Grant/Explicit Deny 存储适配层；旧授权文件不迁移。 |
 | `ExternalAppContextFactory` / SDK | 继续作为外置包的推荐能力入口，逐步接入统一评估器。 |
 | 内置 App 的 `remoteos.*` ID | 作为 BuiltIn Policy 的键；不因命名空间直接得到全权限。 |
 | `IHostElevationSessionStore` / Privileged Helper | 保持独立；不合并进 App Permission Store。 |
 
-当前 `AppCapabilityEndpoints` 是用户 JWT 下的过渡产品接口。可继续兼容现有文件/API 使用，但不得将它扩展为“Server 可信地识别第三方 App”的机制，也不得据此开放高风险能力。
+当前 `AppCapabilityEndpoints` 是用户 JWT 下的过渡产品接口。新模型可以替换其 App capability 调用方式，不为旧包保留兼容分支；它也不得被扩展为“Server 可信地识别第三方 App”的机制或高风险能力入口。
 
 ## 3. 目标模型
 
@@ -115,7 +117,7 @@ Built-in / third-party App
 
 ## 4. Goal 执行计划
 
-每个 Goal 完成后保持 `dotnet build RemoteOS.sln -c Debug` 通过，并为新增评估规则和迁移行为添加测试。不得将未完成的高风险能力以“临时直连”方式暴露给 App。
+每个 Goal 完成后保持 `dotnet build RemoteOS.sln -c Debug` 通过，并为新模型的评估规则与门控行为添加测试。不得将未完成的高风险能力以“临时直连”方式暴露给 App。
 
 ### Goal 0：决策落档与规范对齐
 
@@ -123,12 +125,14 @@ Built-in / third-party App
 
 - 在开发者模式、包安装与 SDK 文档中写明“用户自行评估第三方包风险；权限不是恶意代码沙箱”。
 - 将主规范中依赖受认证 IPC、包签名或第三方安全隔离的条目标注为未来增强模式，避免与本 Goal 的产品决策相互矛盾。
-- 清点当前 `server.*` 权限、内置 App manifest、`IExternalAppContext` 能力和 App capability endpoint；冻结 v1 权限 ID。
+- 为新 manifest 和 SDK 定义 `permissionModelVersion: 2`；旧包在安装/加载时明确拒绝，并提示重新打包。
+- 清点当前 `server.*` 权限、内置 App manifest、`IExternalAppContext` 能力和 App capability endpoint；冻结新模型的 v2 权限目录。
 - 为每个现有 capability 指定 BuiltIn / ThirdParty 默认值与是否允许 scope；默认拒绝凭据原文、任意进程执行、端口监听、任意服务管理与 Host Elevation。
 
 **验收**
 
 - 产品文档不再把 `AssemblyLoadContext`、本地 Grant、`Trusted` 标签或 `AppId` 声称为安全隔离。
+- 旧包、旧 manifest 和旧授权记录有明确的拒绝/清理行为，没有迁移或兼容分支。
 - 有一份权限矩阵可驱动后续 Policy Registry 和测试。
 
 ### Goal 1：统一权限领域模型与 Policy Registry
@@ -137,7 +141,7 @@ Built-in / third-party App
 
 - 在 `RemoteOS.Core.Applications` 新增 `AppIdentity`、`AppTrustLevel`、`PermissionScope`、`PermissionGrant`、`GrantSource`、`PermissionDecision` 与纯 `IPermissionEvaluator`。
 - 新增 Host-owned `IAppPolicyProvider` / BuiltIn Policy Registry；Policy 不放在 manifest 中。
-- 将 `JsonAppPermissionManager` 改造成 `IPermissionStore` 的本地实现，保留 Windows DPAPI 与旧 `Granted`/`Denied` 数据迁移。
+- 将 `JsonAppPermissionManager` 替换为 `IPermissionStore` 的 v2 本地实现，保留 Windows DPAPI；升级时删除或忽略旧 `Granted`/`Denied` 数据，不做迁移。
 - 初版支持 `SystemDefault`、`User`、`Temporary` grant 与 `ExplicitDeny`；缓存只能在 grant/policy 变更后失效，不得把过期 temporary grant 当永久 grant。
 
 **验收**
@@ -165,10 +169,10 @@ Built-in / third-party App
 
 **工作**
 
-- 将开发包/后续用户包登记为 `Development` 或 `ThirdParty`，展示包路径、版本、未经验证来源与其声明权限。
+- 将开发包/后续用户包登记为 `Development` 或 `ThirdParty`；只接受 `permissionModelVersion: 2` 的包，并展示包路径、版本、未经验证来源与其声明权限。
 - 保持 `IExternalAppContext` 是第三方包的推荐入口；所有已暴露的 facade（文件、指标、桌面外观、媒体、设置）改用 `IPermissionEvaluator`，不再直接读取 `IsGranted`。
 - 将首次提示由“逐权限启动时弹窗”调整为按 capability 首次使用请求；支持允许、拒绝、稍后和有限的 `AllowSession`。
-- 包更新新增 capability 时保持未决定状态；已保存的同名 grant 只对仍在 manifest 中的 capability 生效。
+- 包更新后不继承旧包的 Grant；用户重新安装或更新 v2 包后必须重新授权其全部 capability。
 
 **验收**
 
@@ -195,7 +199,7 @@ Built-in / third-party App
 
 **工作**
 
-- 覆盖 Windows/Linux 的 manifest、Policy、Grant 迁移、撤销、升级与 SDK 门控测试。
+- 覆盖 Windows/Linux 的 v2 manifest、Policy、Grant、撤销、升级和 SDK 门控测试；不编写旧 manifest、旧授权文件或旧包兼容性测试。
 - 完善包安装风险提示、开源包审查建议、开发者模式说明和故障排查文档。
 - 预留未来安全增强的替换点：`IAppPermissionStore`、`IAppPolicyProvider`、`IExternalAppContext` facade 与 Server capability adapter；不得把当前本地 AppId 绑定逻辑固化为不可替换协议。
 
@@ -219,7 +223,7 @@ Built-in / third-party App
 
 ## 6. 实施约束
 
-- 不新建第二套 `filesystem.*` 权限目录；优先演进现有 `server.*` ID，必要时通过版本化 alias 迁移。
+- 不新建第二套 `filesystem.*` 权限目录；新模型直接定义并使用 v2 `server.*` capability 目录，不提供旧 ID alias 或迁移层。
 - 不把 `AppPermission` 与 `HostElevationCapability` 合并，也不将 Grant 传给 Privileged Helper。
 - 不将用户密码、JWT、Host Elevation session、共享密钥或完整文件内容写入权限存储、包元数据或审计日志。
 - 不为方便第三方包访问而向 `IExternalAppContext` 暴露 `IServiceProvider`、通用 HTTP client 或任意本地文件/进程 API。
