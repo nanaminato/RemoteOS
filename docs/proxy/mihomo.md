@@ -1,5 +1,5 @@
-# Mihomo runtime
+# Mihomo 运行时
 
-Managed Mihomo installations are selected only from the fixed Server manifest and verified before activation. Releases use immutable version directories with active/previous rollback state. External runtimes are detection-only unless an administrator explicitly chooses a RemoteOS-managed instance.
+托管 Mihomo 安装仅从固定的 Server 清单中选择，并在激活前完成验证。发布版本使用不可变的版本目录以及当前/上一版本回滚状态。除非管理员明确选择 RemoteOS 托管的实例，否则外部运行时仅可检测。
 
-The controller binds locally and its secret remains in the Proxy-scoped protected store.
+控制器仅绑定本机回环地址，其密钥保留在代理作用域的受保护存储中。

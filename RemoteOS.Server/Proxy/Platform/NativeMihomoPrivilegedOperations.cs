@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using RemoteOS.Protocol.Proxy;
+using RemoteOS.Protocol.Privileged;
 using Server.Proxy.Mihomo;
 
 namespace Server.Proxy.Platform;
@@ -12,6 +12,7 @@ namespace Server.Proxy.Platform;
 /// </summary>
 public sealed class NativeMihomoPrivilegedOperations(
     IProxyPlatformPaths paths,
+    Server.Privileged.IPrivilegedOperationTransport transport,
     IWindowsMihomoProcessHost? windowsProcessHost = null,
     IProxyDiagnosticLogStore? diagnostics = null) : IProxyPrivilegedOperations
 {
@@ -19,6 +20,11 @@ public sealed class NativeMihomoPrivilegedOperations(
     private const string Service = "remoteos-mihomo";
     private const string ConfigId = "mihomo-default";
     private const string ActiveLink = "current";
+
+    // Retains the focused runtime-path unit test constructor. Production DI always supplies the
+    // platform transport; service actions fail closed if this compatibility constructor is used.
+    public NativeMihomoPrivilegedOperations(IProxyPlatformPaths paths)
+        : this(paths, new UnavailablePrivilegedTransport(), null, null) { }
 
     public async Task<ProxyPrivilegedResult> InstallRuntimeAsync(InstallProxyRuntimeOperation request, CancellationToken cancellationToken) =>
         await ActivateRuntimeAsync(request.EngineId, request.Version, request.ReleaseDirectoryId, cancellationToken);
@@ -55,14 +61,10 @@ public sealed class NativeMihomoPrivilegedOperations(
         if (!IsServiceRequest(request.EngineId, request.ServiceName) || request.ConfigurationId != ConfigId) return Invalid();
         if (OperatingSystem.IsLinux())
         {
-            try
-            {
-                await File.WriteAllTextAsync(SystemdUnitPath, SystemdUnit(), cancellationToken);
-                var reload = await SystemctlAsync(["daemon-reload"], cancellationToken);
-                return reload.Succeeded ? await SystemctlAsync(["enable", Service], cancellationToken) : reload;
-            }
-            catch (IOException) { return Unavailable(); }
-            catch (UnauthorizedAccessException) { return Unavailable(); }
+            var installed = await transport.ExecuteAsync(new PrivilegedOperationRequest(PrivilegedOperationKind.ProxyMihomoInstallSystemService), cancellationToken);
+            if (!installed.Success) return Unavailable();
+            var reload = await SystemctlAsync(["daemon-reload"], cancellationToken);
+            return reload.Succeeded ? await SystemctlAsync(["enable", Service], cancellationToken) : reload;
         }
         if (OperatingSystem.IsWindows())
         {
@@ -79,9 +81,8 @@ public sealed class NativeMihomoPrivilegedOperations(
         if (OperatingSystem.IsLinux())
         {
             var disable = await SystemctlAsync(["disable", Service], cancellationToken);
-            try { if (File.Exists(SystemdUnitPath)) File.Delete(SystemdUnitPath); }
-            catch (IOException) { return Unavailable(); }
-            catch (UnauthorizedAccessException) { return Unavailable(); }
+            var removed = await transport.ExecuteAsync(new PrivilegedOperationRequest(PrivilegedOperationKind.ProxyMihomoRemoveSystemService), cancellationToken);
+            if (!removed.Success) return Unavailable();
             var reload = await SystemctlAsync(["daemon-reload"], cancellationToken);
             return disable.Succeeded || reload.Succeeded ? Success() : disable;
         }
@@ -196,19 +197,6 @@ public sealed class NativeMihomoPrivilegedOperations(
     }
 
     private string ActivePath() => Path.Combine(paths.GetEngineVersionsDirectory(Engine), ActiveLink);
-    private string ActiveBinaryPath()
-    {
-        if (!OperatingSystem.IsWindows()) return Path.Combine(ActivePath(), BinaryName());
-        try
-        {
-            var releaseId = File.ReadAllText(ActivePath() + ".txt").Trim();
-            if (IsRelease(Mihomo.MihomoRuntimeManifest.SupportedVersion, releaseId))
-                return Path.Combine(paths.GetEngineVersionsDirectory(Engine), releaseId, BinaryName());
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-        return Path.Combine(ActivePath(), BinaryName());
-    }
     private Task<ProxyPrivilegedResult> WindowsProcessActionAsync(string action, CancellationToken cancellationToken)
     {
         if (windowsProcessHost is null) return Task.FromResult(Unavailable());
@@ -220,63 +208,36 @@ public sealed class NativeMihomoPrivilegedOperations(
             _ => Task.FromResult(Invalid()),
         };
     }
-    private string SystemdUnitPath => "/etc/systemd/system/remoteos-mihomo.service";
-    private string SystemdUnit() => string.Join('\n',
-        "[Unit]",
-        "Description=RemoteOS managed Mihomo",
-        "After=network-online.target",
-        "Wants=network-online.target",
-        "",
-        "[Service]",
-        "Type=simple",
-        $"ExecStart={ActiveBinaryPath()} -d {paths.GetEngineDataDirectory(Engine)} -f {Path.Combine(paths.GetProtectedConfigurationDirectory(), "active.yaml")}",
-        "Restart=on-failure",
-        "RestartSec=3",
-        "NoNewPrivileges=true",
-        "PrivateTmp=true",
-        "",
-        "[Install]",
-        "WantedBy=multi-user.target",
-        "");
     private static string BinaryName() => OperatingSystem.IsWindows() ? "mihomo.exe" : "mihomo";
-    private Task<ProxyPrivilegedResult> SystemctlAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken) => RunFixedAsync("/usr/bin/systemctl", arguments, cancellationToken);
-    private async Task<ProxyPrivilegedResult> RunFixedAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+    private async Task<ProxyPrivilegedResult> SystemctlAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
-        var result = await RunFixedCommandAsync(executable, arguments, cancellationToken);
-        if (!result.Succeeded)
-            await WriteDiagnosticAsync("warning", "Managed Mihomo privileged command " + DescribeCommand(executable, arguments)
-                + " failed" + (result.ExitCode is { } exitCode ? " with exit code " + exitCode : "")
-                + (string.IsNullOrWhiteSpace(result.Output) ? "." : ": " + result.Output), cancellationToken);
-        return result.Succeeded ? Success() : Unavailable();
-    }
-    private async Task<FixedCommandResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
-    {
-        try
+        var action = arguments.ToArray() switch
         {
-            using var process = new Process { StartInfo = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true } };
-            foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
-            if (!process.Start()) return new(false, null, "The process could not be started.");
-            var output = process.StandardOutput.ReadToEndAsync();
-            var error = process.StandardError.ReadToEndAsync();
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); timeout.CancelAfter(TimeSpan.FromSeconds(15));
-            await process.WaitForExitAsync(timeout.Token);
-            var standardOutput = await output;
-            var standardError = await error;
-            var text = (standardOutput + " " + standardError).Trim();
-            return new(process.ExitCode == 0, process.ExitCode, text);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(false, null, "The command timed out after 15 seconds."); }
-        catch (Exception exception) { return new(false, null, exception.GetType().Name); }
+            ["daemon-reload"] => ProxyMihomoServiceAction.DaemonReload,
+            ["enable", Service] => ProxyMihomoServiceAction.Enable,
+            ["disable", Service] => ProxyMihomoServiceAction.Disable,
+            ["start", Service] => ProxyMihomoServiceAction.Start,
+            ["stop", Service] => ProxyMihomoServiceAction.Stop,
+            ["restart", Service] => ProxyMihomoServiceAction.Restart,
+            ["try-restart", Service] => ProxyMihomoServiceAction.TryRestart,
+            _ => throw new InvalidOperationException("Unsupported fixed Mihomo systemd action."),
+        };
+        var result = await transport.ExecuteAsync(new PrivilegedOperationRequest(PrivilegedOperationKind.ProxyMihomoServiceAction,
+            ProxyMihomoServiceAction: action), cancellationToken);
+        return result.Success ? Success() : Unavailable();
     }
     private async Task WriteDiagnosticAsync(string level, string message, CancellationToken cancellationToken)
     {
         if (diagnostics is not null) await diagnostics.WriteAsync(level, message, cancellationToken);
     }
-    private static string DescribeCommand(string executable, IReadOnlyList<string> arguments) => Path.GetFileNameWithoutExtension(executable)
-        + " " + (arguments.Count > 0 ? arguments[0] : "operation");
-    private sealed record FixedCommandResult(bool Succeeded, int? ExitCode, string Output);
     private static ProxyPrivilegedResult Success() => new(true);
     private static ProxyPrivilegedResult Invalid() => new(false, ProxyProblemCodes.NotSupported);
     private static ProxyPrivilegedResult Unavailable() => new(false, ProxyProblemCodes.PrivilegedOperationUnavailable);
     private static ProxyPrivilegedResult Unsupported() => new(false, ProxyProblemCodes.RuntimeUnsupportedPlatform);
+
+    private sealed class UnavailablePrivilegedTransport : Server.Privileged.IPrivilegedOperationTransport
+    {
+        public Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrivilegedOperationResult(false, 69, Error: "privileged transport unavailable", ProblemCode: PrivilegedProblemCode.HelperUnavailable));
+    }
 }

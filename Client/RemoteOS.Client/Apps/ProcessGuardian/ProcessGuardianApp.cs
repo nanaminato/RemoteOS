@@ -5,6 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Theming;
 using Client.Services.Auth;
 using RemoteOS.AppSDK;
@@ -36,6 +37,7 @@ public sealed class ProcessGuardianApp : RemoteApplicationBase
 
         var viewModel = new ProcessGuardianViewModel(client, session);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.processguardian.display_name"), CreateView(viewModel), new Rect(80, 60, 1240, 700), Manifest.IconGlyph);
+        viewModel.ShowPrivilegedHelperUnavailableAsync = problemCode => PrivilegedHelperUnavailableDialog.ShowAsync(context, window, problemCode);
         viewModel.RequestAdministratorApprovalAsync = () => RequestAdministratorApprovalAsync(context, window, session);
         viewModel.ShowEditorAsync = async isEdit =>
         {

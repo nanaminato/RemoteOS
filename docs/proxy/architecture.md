@@ -1,5 +1,5 @@
-# Proxy Manager architecture
+# 代理管理器架构
 
-`remoteos.proxy` is host-global. Avalonia calls only `/api/v1/proxy`; the Server owns the engine registry, runtime, protected configuration, operation ledger and audit trail. Mihomo remains a loopback-only implementation of the engine boundary. Controller schemas and secrets never cross the Server API.
+`remoteos.proxy` 是主机全局功能。Avalonia 只调用 `/api/v1/proxy`；Server 负责引擎注册表、运行时、受保护配置、操作台账和审计追踪。Mihomo 始终只是引擎边界的仅回环实现。控制器架构和密钥绝不会跨越 Server API。
 
-High-risk mutations use an `Idempotency-Key`, return a durable operation ID and are recorded without configuration, credentials or controller secrets.
+高风险变更使用 `Idempotency-Key`，返回持久化操作 ID，并记录时不包含配置、凭据或控制器密钥。

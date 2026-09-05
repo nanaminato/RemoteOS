@@ -248,11 +248,11 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
             return file?.TryGetLocalPath();
         };
 
-        vm.RequestFileElevationAsync = async path =>
+        vm.RequestFileElevationAsync = async (path, capability) =>
         {
             try
             {
-                await client.ElevateFileAccessAsync(path);
+                await client.ElevateFileAccessAsync(path, capability);
                 return true;
             }
             catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
@@ -278,12 +278,53 @@ public sealed class ExplorerApp : RemoteApplicationBase, IAppActivationHandler
                 if (password is null) return false;
                 try
                 {
-                    await client.ElevateFileAccessAsync(path, password);
+                    await client.ElevateFileAccessAsync(path, capability, password);
                     return true;
                 }
                 catch (RemoteOsAuthException retry) when (retry.Type.EndsWith("/elevation-password-invalid", StringComparison.Ordinal))
                 {
                     await (vm.ShowMessageAsync?.Invoke("管理员认证", "密码不正确。") ?? Task.CompletedTask);
+                    return false;
+                }
+            }
+        };
+
+        vm.RequestFileOperationElevationAsync = async (paths, capability) =>
+        {
+            try
+            {
+                await client.ElevateFileOperationAsync(paths, capability);
+                return true;
+            }
+            catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
+            {
+                var password = await context.WindowManager.ShowSystemDialogAsync<string?>("管理员认证", dialog =>
+                {
+                    var input = new TextBox { PasswordChar = '•', PlaceholderText = "请输入当前管理员密码" };
+                    var cancel = new Button { Content = LocalizedText.Get("common.cancel") };
+                    cancel.Click += (_, _) => dialog.Cancel();
+                    var confirm = new Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+                    confirm.Click += (_, _) => dialog.Close(input.Text);
+                    return new StackPanel
+                    {
+                        Margin = new Thickness(20), Spacing = 12,
+                        Children =
+                        {
+                            new TextBlock { Text = "此操作需要管理员权限才能继续。授权将在当前会话中保留 5 分钟。", TextWrapping = TextWrapping.Wrap },
+                            input,
+                            new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, Children = { cancel, confirm } },
+                        },
+                    };
+                }, new Size(420, 190));
+                if (password is null) return false;
+                try
+                {
+                    await client.ElevateFileOperationAsync(paths, capability, password);
+                    return true;
+                }
+                catch (RemoteOsAuthException retry) when (retry.Type.EndsWith("/elevation-password-invalid", StringComparison.Ordinal))
+                {
+                    await (vm.ShowMessageAsync?.Invoke("管理员认证", "密码不正确，未执行该操作。") ?? Task.CompletedTask);
                     return false;
                 }
             }

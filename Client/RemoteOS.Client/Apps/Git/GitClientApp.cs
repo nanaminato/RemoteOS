@@ -4,6 +4,7 @@ using Client.Apps.Explorer.ViewModels;
 using Client.Apps.Git.Views;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Privileged;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -85,6 +86,7 @@ public sealed class GitClientApp : RemoteApplicationBase
         var view = GitClientWorkspace.Create(vm);
         window = context.ShowWindow(LocalizedText.Get("application.remoteos.git.display_name"),
             view, new Rect(70, 55, 1180, 760), Manifest.IconGlyph);
+        vm.ShowPrivilegedHelperUnavailableAsync = problemCode => PrivilegedHelperUnavailableDialog.ShowAsync(context, window, problemCode);
         _ = vm.StartAsync();
     }
 

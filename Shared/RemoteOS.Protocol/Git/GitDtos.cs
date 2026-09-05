@@ -257,4 +257,5 @@ public sealed record GitEngineStatusDto(
 /// <summary>Auto-install response with operation status and incremental progress.</summary>
 public sealed record GitEngineInstallResult(
     [property: JsonPropertyName("success")] bool Success,
-    [property: JsonPropertyName("message")] string? Message = null);
+    [property: JsonPropertyName("message")] string? Message = null,
+    [property: JsonPropertyName("problemCode")] string ProblemCode = "");

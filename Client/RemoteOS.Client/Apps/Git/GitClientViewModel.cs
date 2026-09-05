@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input.Platform;
 using Avalonia.Threading;
 using Client.Localization;
+using Client.Services.Privileged;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.Protocol.Git;
@@ -160,6 +161,8 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
     /// <summary>Displays a modal message box with a single OK button. Used for error/validation
     /// reminders that must grab the user's attention (rather than being silently tucked into StatusText).</summary>
     public Func<string, Task>? ShowMessageAsync { get; set; }
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
 
     /// <summary>Shows the push preview dialog with commit list and file changes.
     /// Returns true if user confirms push, false if cancelled.</summary>
@@ -360,7 +363,13 @@ public sealed partial class GitClientViewModel(IRemoteGitClient client) : Observ
         try
         {
             var result = await client.InstallEngineAsync();
-            InstallMessage = result.Success ? LocalizedText.Get("git.vm.install_verifying") : (result.Message ?? LocalizedText.Get("git.vm.install_failed"));
+            InstallMessage = result.Success
+                ? LocalizedText.Get("git.vm.install_verifying")
+                : PrivilegedHelperProblemText.TryFormat(result.ProblemCode, out var helperMessage)
+                    ? helperMessage
+                    : result.Message ?? LocalizedText.Get("git.vm.install_failed");
+            if (!result.Success && PrivilegedHelperProblemText.TryFormat(result.ProblemCode, out _))
+                await (ShowPrivilegedHelperUnavailableAsync?.Invoke(result.ProblemCode) ?? Task.CompletedTask);
             await RefreshEngineStatusAsync();
             if (result.Success && IsGitAvailable)
             {

@@ -57,6 +57,7 @@
         "explorer.status.enter_target_directory_first": "先に移動先のフォルダーを開いてください",
         "explorer.status.uploaded": "アップロードしました：{0}",
         "explorer.status.upload_failed": "アップロードに失敗しました：{0}",
+        "explorer.status.elevation_required": "この操作には管理者認証が必要です。変更は実行されませんでした。",
         "explorer.status.copied_to_clipboard": "{0} 項目をコピーしました。",
         "explorer.status.cut_to_clipboard": "{0} 項目を切り取りました。",
         "explorer.status.pasting": "貼り付け中 0/{1}…",

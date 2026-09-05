@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using RemoteOS.Protocol.AppSettings;
 using RemoteOS.Protocol.Git;
+using RemoteOS.Protocol.Privileged;
 using Server.Domain;
 using Server.Storage.Sqlite;
 
@@ -19,6 +20,7 @@ public sealed class LocalGitRepositoryService(
     IDbContextFactory<RemoteOsDbContext> dbFactory,
     IHostGitCli gitCli,
     IDataProtectionProvider dataProtection,
+    Server.Privileged.IPrivilegedOperationTransport transport,
     ILogger<LocalGitRepositoryService> logger) : IGitRepositoryService
 {
     private const int MaxDiffPatchSize = 200 * 1024; // 200KB
@@ -43,64 +45,20 @@ public sealed class LocalGitRepositoryService(
     {
         try
         {
-            if (OperatingSystem.IsWindows())
-            {
-                var winget = ResolveWingetPath();
-                if (string.IsNullOrEmpty(winget))
-                    return new GitEngineInstallResult(false, "Windows 包管理器 winget 不可用，请手动安装 Git for Windows：https://git-scm.com/download/win");
-                var args = new[]
-                {
-                    "install", "--id", "Git.Git", "-e", "--source", "winget",
-                    "--silent", "--accept-package-agreements", "--accept-source-agreements",
-                };
-                var result = await RunProcessAsync(winget, Environment.CurrentDirectory, args, cancellationToken);
-                if (!result.Success && gitCli.ResolveGitPath() is null)
-                    return new GitEngineInstallResult(false, string.IsNullOrWhiteSpace(result.Error) ? $"winget 安装失败，退出码 {result.ExitCode}" : result.Error.Trim());
-            }
-            else if (OperatingSystem.IsLinux())
-            {
-                if (File.Exists("/usr/bin/apt-get"))
-                {
-                    await RunProcessAsync("/usr/bin/apt-get", "/", ["update", "-y"], cancellationToken);
-                    var r = await RunProcessAsync("/usr/bin/apt-get", "/", ["install", "-y", "git"], cancellationToken);
-                    if (!r.Success && gitCli.ResolveGitPath() is null)
-                        return new GitEngineInstallResult(false, string.IsNullOrWhiteSpace(r.Error) ? $"apt-get install git 失败，退出码 {r.ExitCode}" : r.Error.Trim());
-                }
-                else if (File.Exists("/usr/bin/dnf"))
-                {
-                    var r = await RunProcessAsync("/usr/bin/dnf", "/", ["install", "-y", "git"], cancellationToken);
-                    if (!r.Success && gitCli.ResolveGitPath() is null)
-                        return new GitEngineInstallResult(false, string.IsNullOrWhiteSpace(r.Error) ? $"dnf install git 失败，退出码 {r.ExitCode}" : r.Error.Trim());
-                }
-                else if (File.Exists("/usr/bin/yum"))
-                {
-                    var r = await RunProcessAsync("/usr/bin/yum", "/", ["install", "-y", "git"], cancellationToken);
-                    if (!r.Success && gitCli.ResolveGitPath() is null)
-                        return new GitEngineInstallResult(false, string.IsNullOrWhiteSpace(r.Error) ? $"yum install git 失败，退出码 {r.ExitCode}" : r.Error.Trim());
-                }
-                else if (File.Exists("/usr/bin/pacman"))
-                {
-                    var r = await RunProcessAsync("/usr/bin/pacman", "/", ["-S", "--noconfirm", "git"], cancellationToken);
-                    if (!r.Success && gitCli.ResolveGitPath() is null)
-                        return new GitEngineInstallResult(false, string.IsNullOrWhiteSpace(r.Error) ? $"pacman -S git 失败，退出码 {r.ExitCode}" : r.Error.Trim());
-                }
-                else
-                {
-                    return new GitEngineInstallResult(false, "未识别的 Linux 包管理器（apt-get/dnf/yum/pacman 都不可用），请手动安装 git。");
-                }
-            }
-            else
-            {
-                return new GitEngineInstallResult(false, "当前操作系统不支持自动安装 Git。");
-            }
+            if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/apt-get"))
+                return new GitEngineInstallResult(false, "此主机需要手动安装 Git；RemoteOS 仅支持受限的 Linux APT Helper 安装。", "git.install_not_supported");
+            var result = await transport.ExecuteAsync(new PrivilegedOperationRequest(PrivilegedOperationKind.GitPackageInstall), cancellationToken);
+            if (!result.Success && gitCli.ResolveGitPath() is null)
+                return new GitEngineInstallResult(false, null,
+                    result.ProblemCode == PrivilegedProblemCode.HelperUnavailable ? "git.privileged_helper_unavailable" : "git.install_failed");
 
             return gitCli.ResolveGitPath() is not null
                 ? new GitEngineInstallResult(true, "Git 安装成功。")
-                : new GitEngineInstallResult(false, "安装命令执行成功，但仍未检测到 git 可执行文件，请检查 PATH 配置或重启服务。");
+                : new GitEngineInstallResult(false, "安装命令执行成功，但仍未检测到 git 可执行文件，请检查 PATH 配置或重启服务。", "git.install_verification_failed");
         }
         catch (Exception ex)
         {
-            return new GitEngineInstallResult(false, $"安装过程中出错：{ex.Message}");
+            return new GitEngineInstallResult(false, $"安装过程中出错：{ex.Message}", "git.install_failed");
         }
     }
 
@@ -118,64 +76,7 @@ public sealed class LocalGitRepositoryService(
 
     private static bool CanAutoInstallGit()
     {
-        if (OperatingSystem.IsWindows()) return ResolveWingetPath() is not null;
-        if (OperatingSystem.IsLinux())
-            return File.Exists("/usr/bin/apt-get") || File.Exists("/usr/bin/dnf")
-                || File.Exists("/usr/bin/yum") || File.Exists("/usr/bin/pacman");
-        return false;
-    }
-
-    private static string? ResolveWingetPath()
-    {
-        var candidates = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Microsoft", "WindowsApps", "winget.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "WindowsApps", "winget.exe"),
-        };
-        foreach (var c in candidates) if (File.Exists(c)) return c;
-        try
-        {
-            using var p = new Process
-            {
-                StartInfo = new ProcessStartInfo("where", ["winget.exe"])
-                {
-                    RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true
-                }
-            };
-            p.Start();
-            var o = p.StandardOutput.ReadToEnd().Trim();
-            p.WaitForExit(TimeSpan.FromSeconds(3));
-            if (p.ExitCode == 0)
-            {
-                var first = o.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(first) && File.Exists(first)) return first;
-            }
-        }
-        catch { /* ignored */ }
-        return null;
-    }
-
-    private static async Task<(int ExitCode, string Output, string Error, bool Success)> RunProcessAsync(
-        string exe, string workingDir, string[] args, CancellationToken cancellationToken)
-    {
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo(exe, args)
-            {
-                WorkingDirectory = workingDir,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            }
-        };
-        process.Start();
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await Task.WhenAll(process.WaitForExitAsync(cancellationToken), outputTask, errorTask);
-        return (process.ExitCode, await outputTask, await errorTask, process.ExitCode == 0);
+        return OperatingSystem.IsLinux() && File.Exists("/usr/bin/apt-get");
     }
 
     // ── Repository registration ──

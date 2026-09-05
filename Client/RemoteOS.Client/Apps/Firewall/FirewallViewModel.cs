@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Net;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Privileged;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RemoteOS.AppSDK;
@@ -60,6 +61,8 @@ public sealed partial class FirewallViewModel : ObservableObject
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
     /// <summary>Provided by the window so a credential is collected only for the pending operation.</summary>
     public Func<Task<string?>>? RequestPasswordAsync { get; set; }
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
     /// <summary>Provided by the window because editing is rendered in a window-owned modal dialog.</summary>
     public Func<bool, Task>? ShowRuleEditorAsync { get; set; }
 
@@ -88,7 +91,8 @@ public sealed partial class FirewallViewModel : ObservableObject
             IsEnabled = status.IsEnabled;
             if (!status.IsAvailable)
             {
-                StatusText = LocalizedText.Format("firewall.status.unavailable", status.ProblemCode);
+                StatusText = LocalizedText.Format("firewall.status.unavailable", ProblemText(status.ProblemCode));
+                await ShowPrivilegedHelperUnavailableAsyncIfNeeded(status.ProblemCode);
                 return;
             }
 
@@ -229,7 +233,8 @@ public sealed partial class FirewallViewModel : ObservableObject
         try
         {
             var result = await operation(confirmation);
-            StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Get("firewall.operation.succeeded") : LocalizedText.Format("firewall.operation.failed", ProblemText(result.ProblemCode));
+            if (!result.Success) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(result.ProblemCode);
             success = result.Success;
         }
         catch (Exception exception)
@@ -242,6 +247,14 @@ public sealed partial class FirewallViewModel : ObservableObject
         if (success) await RefreshAsync();
         return success;
     }
+
+    private static string ProblemText(string? problemCode) =>
+        PrivilegedHelperProblemText.FormatOrFallback(problemCode, "unknown error");
+
+    private Task ShowPrivilegedHelperUnavailableAsyncIfNeeded(string? problemCode) =>
+        PrivilegedHelperProblemText.TryFormat(problemCode, out _)
+            ? ShowPrivilegedHelperUnavailableAsync?.Invoke(problemCode) ?? Task.CompletedTask
+            : Task.CompletedTask;
 
     private bool HasReadPermission => _permissions.IsGranted(AppPermissions.ServerFirewallRead);
     private bool HasManagePermission => HasReadPermission && _permissions.IsGranted(AppPermissions.ServerFirewallManage);

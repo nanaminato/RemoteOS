@@ -1,34 +1,39 @@
-using System.Collections.Concurrent;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Privileged;
 
 namespace Server.Privileged;
 
-/// <summary>Short-lived in-memory file elevation grants, scoped to one JWT and canonical path.</summary>
-public sealed class FileElevationSessionStore : IFileElevationSessionStore
+/// <summary>Explorer compatibility facade over the capability-scoped host elevation store.</summary>
+public sealed class FileElevationSessionStore(IHostElevationSessionStore elevations) : IFileElevationSessionStore
 {
-    private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(5);
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _grants = new(StringComparer.Ordinal);
+    // Retained only for older callers. Endpoint code must use an explicit operation capability.
+    private const HostElevationCapability LegacyCapability = HostElevationCapability.FileWrite;
 
-    public bool IsElevated(ClaimsPrincipal principal, string path)
-    {
-        if (string.Equals(principal.FindFirstValue(JwtRegisteredClaimNames.Name), "root", StringComparison.Ordinal)) return true;
-        var key = Key(principal, path);
-        return key is not null && _grants.TryGetValue(key, out var expires) && expires > DateTimeOffset.UtcNow;
-    }
+    public FileElevationSessionStore() : this(new HostElevationSessionStore()) { }
 
-    public DateTimeOffset Grant(ClaimsPrincipal principal, string path)
-    {
-        var expires = DateTimeOffset.UtcNow.Add(Lifetime);
-        var key = Key(principal, path) ?? throw new InvalidOperationException("The access token has no id.");
-        _grants[key] = expires;
-        return expires;
-    }
+    public bool IsElevated(ClaimsPrincipal principal, string path) => elevations.IsGranted(principal, LegacyCapability, path);
+    public bool IsElevated(ClaimsPrincipal principal, params string[] paths) => paths.All(path => IsElevated(principal, path));
+    public DateTimeOffset Grant(ClaimsPrincipal principal, string path, bool includeDescendants = false)
+        => elevations.Grant(principal, LegacyCapability, path, includeDescendants, "legacy-file-elevation");
 
-    private static string? Key(ClaimsPrincipal principal, string path)
+    public bool IsElevated(ClaimsPrincipal principal, FileElevationCapability capability, params string[] paths)
+        => paths.All(path => elevations.IsGranted(principal, ToHostCapability(capability), path));
+
+    public DateTimeOffset Grant(ClaimsPrincipal principal, FileElevationCapability capability, string path, bool includeDescendants = false,
+        string authenticationMethod = "host-password", string? correlationId = null)
+        => elevations.Grant(principal, ToHostCapability(capability), path, includeDescendants, authenticationMethod, correlationId);
+
+    private static HostElevationCapability ToHostCapability(FileElevationCapability capability) => capability switch
     {
-        var tokenId = principal.FindFirstValue(JwtRegisteredClaimNames.Jti);
-        if (string.IsNullOrWhiteSpace(tokenId)) return null;
-        return tokenId + "\n" + Path.GetFullPath(path);
-    }
+        FileElevationCapability.Read => HostElevationCapability.FileRead,
+        FileElevationCapability.Write => HostElevationCapability.FileWrite,
+        FileElevationCapability.CreateDirectory => HostElevationCapability.FileCreateDirectory,
+        FileElevationCapability.Delete => HostElevationCapability.FileDelete,
+        FileElevationCapability.Rename => HostElevationCapability.FileRename,
+        FileElevationCapability.Move => HostElevationCapability.FileMove,
+        FileElevationCapability.Copy => HostElevationCapability.FileCopy,
+        FileElevationCapability.Upload => HostElevationCapability.FileUpload,
+        _ => throw new ArgumentOutOfRangeException(nameof(capability)),
+    };
 }

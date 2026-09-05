@@ -10,9 +10,4 @@ public sealed class NginxManagedOptions
     /// <summary>Absolute RemoteOS-owned root. Empty selects the platform default.</summary>
     public string InstallationRoot { get; init; } = string.Empty;
 
-    /// <summary>Optional absolute administrator-configured installer executable or script.</summary>
-    public string InstallerCommand { get; init; } = string.Empty;
-
-    /// <summary>Fixed arguments supplied by host configuration, never by HTTP callers.</summary>
-    public IReadOnlyList<string> InstallerArguments { get; init; } = [];
 }

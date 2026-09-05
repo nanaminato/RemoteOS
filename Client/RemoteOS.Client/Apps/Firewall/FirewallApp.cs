@@ -3,6 +3,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Client.Localization;
 using Client.Services.Auth;
+using Client.Services.Privileged;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Core.Primitives;
@@ -33,6 +34,7 @@ public sealed class FirewallApp : RemoteApplicationBase
         }
         var viewModel = new FirewallViewModel(client, session, context.Permissions);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.firewall.display_name"), CreateView(viewModel), new Rect(70, 55, 1160, 760), Manifest.IconGlyph);
+        viewModel.ShowPrivilegedHelperUnavailableAsync = problemCode => PrivilegedHelperUnavailableDialog.ShowAsync(context, window, problemCode);
         viewModel.RequestPasswordAsync = () => RequestPasswordAsync(context, window);
         viewModel.ShowRuleEditorAsync = editing => ShowRuleEditorAsync(context, window, viewModel, editing);
         _ = viewModel.StartAsync();

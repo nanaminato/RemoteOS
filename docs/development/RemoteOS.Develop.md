@@ -6,6 +6,38 @@
 
 ## 常规桌面系统（Windows 10/11）
 
+### 特权 Helper 日常调试
+
+不要为日常断点调试安装 `RemoteOSPrivilegedHelper` 服务。创建开发专用配置（不可放在
+`ProgramData\RemoteOS\privileged-helper`，且仅允许测试目录）。例如
+`C:\RemoteOS-dev\privileged-helper.debug.json`：
+
+```json
+{
+  "pipeName": "remoteos-privileged-helper-dev",
+  "sharedSecret": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  "fileAllowedRoots": ["C:\\RemoteOS-dev"],
+  "allowedServiceIds": ["RemoteOSServer-dev"],
+  "allowConsoleDebug": true
+}
+```
+
+示例密钥仅用于展示；请替换为新的、至少 32 字节的随机 Base64 密钥。然后直接从 IDE 启动：
+
+```powershell
+dotnet run --project RemoteOS.PrivilegedHelper -- --console --config C:\RemoteOS-dev\privileged-helper.debug.json
+```
+
+配置必须显式包含 `allowConsoleDebug: true`，并配置与 Server 完全相同的
+`pipeName`、随机 Base64 `sharedSecret`、`fileAllowedRoots` 与 `allowedServiceIds`。Server 启动
+配置中分别设置 `PrivilegedHelper__PipeName` 和 `PrivilegedHelper__SharedSecret`。这样 Server
+仍通过正式的命名管道、HMAC、重放保护和固定请求协议调用 Helper，断点则直接命中同一进程中的
+执行器。只有需要验证真实管理员行为时才以管理员身份启动 IDE。
+
+`--console` 不能读取并启用生产 `helper.json`：它使用独立配置结构，并要求显式开发开关。发布前
+仍必须在隔离 Windows VM 以 LocalSystem 服务模式至少验证一次，以覆盖 Session 0、HKCU、用户
+profile、DPAPI、网络凭据、映射盘和环境变量差异。
+
 ### 1. 创建调试用户
 
 以**管理员身份**打开 PowerShell，创建用于调试的本地用户：
@@ -46,26 +78,51 @@ $ctx.ValidateCredentials("testuser", "Test@123")
 Remove-LocalUser -Name "testuser"
 ```
 
-## Linux 防火墙调试(linux 专用)
+## Linux 特权 Helper 调试
 
-Firewall 不要求以 root 启动 `dotnet run`。若要在 Linux 调试真实 UFW 操作，先由管理员为**实际运行 Rider（或其他 IDE）的 Linux 账户**执行一次开发配置脚本：
+Linux Helper 是按请求启动的 root 进程，不是常驻服务：`RemoteOS.Server` 保持以普通用户运行，
+仅可通过 `sudo -n` 启动一条 sudoers 规则中**精确指定**的 `RemoteOS.PrivilegedHelper`。因此
+Server 不会继承 root 身份，UFW、受保护文件和受限服务操作才会在 Helper 内以 root 执行。
+
+要调试真实 Server → sudo → Helper 路径，先构建 Helper，然后由管理员安装其 root-owned 开发副本：
 
 ```bash
-sudo deployment/linux/install-remoteos-firewall-development.sh "$USER"
+dotnet build RemoteOS.PrivilegedHelper/RemoteOS.PrivilegedHelper.csproj
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 ```
-### 脚本说明：
-- 安装 root-owned 的 helper 程序
-- 为开发账户写入只允许调用此 helper 的受限 sudoers 规则
-- 不会创建或启动 systemd 服务
-- 不会启动 Server、Agent 或 Desktop  
 
-因此可直接在 Rider 中启动这三个项目进行调试。Server 使用以下命令完成经过双重校验的 UFW 操作：  
+该脚本复制完整 Debug 输出（包括 PDB）到
+`/usr/local/lib/remoteos/privileged-helper-development/`，使其归 `root:root` 且开发账户不可写；
+再创建只允许当前 IDE 用户启动该 apphost 的无密码 sudoers 规则。它不会创建或启动 systemd
+服务，也不会启动 Server、Guardian 或 Client。每次改动 Helper 后，重新执行构建和该脚本以部署新副本。
+
+该脚本默认安装 `restricted` 文件策略（`/etc/remoteos` 和 `/var/lib/remoteos`）。如需调试由
+Helper 访问的受保护文件，请使用单独的无敏感数据夹具，并通过白名单显式授权：
+
 ```bash
-sudo -n /usr/local/lib/remoteos/remoteos-firewall-helper
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER" \
+  --file-access whitelist \
+  --file-roots deployment/linux/privileged-helper-roots.example
 ```
-### 注意事项：
-- ❌ 不要使用 sudo dotnet run
-- 若只调试 UI/API 而未安装 helper，Firewall 会稳定显示 firewall.privileged_proxy_required
+
+可复制示例文件后只保留所需的绝对目录。`--file-access full` 会授权 `/` 下所有路径，仅适合隔离、
+所有使用者均可信的测试机；不得用它读取或测试导出 `/etc/ssh` 的主机私钥。完整说明见
+[`RemoteOS.PrivilegedOperations.Operations.md`](../platform/RemoteOS.PrivilegedOperations.Operations.md#文件访问配置)。
+
+然后选择 Server 的 `http-linux-privileged` 启动配置。该配置的
+`PrivilegedHelper__HelperPath` 指向上述 root-owned 副本；`PrivilegedHelper__SudoPath` 仍必须为
+`/usr/bin/sudo`。普通 `http` 配置不包含此路径，因此适合 UI/API 调试；一旦发起真实 UFW 修改，
+它会稳定返回 `firewall.privileged_proxy_required`。
+
+若只需给 Helper 的 Dispatcher 设断点，可直接以 root 执行构建产物并传入一条结构化请求：
+
+```bash
+printf '%s' '{"operation":"FirewallUfwStatus","operationId":"11111111-1111-1111-1111-111111111111"}' \
+  | sudo ./RemoteOS.PrivilegedHelper/bin/Debug/net10.0/RemoteOS.PrivilegedHelper
+```
+
+不要使用 `sudo dotnet run`，否则构建输出可能被 root 占有。也不要把 sudoers 规则直接指向开发账户
+可写的 `bin/Debug` apphost；那等价于授予该账户 root 能力。
 
 ## 进程守护
 ### 1. 配置 Agent 环境变量

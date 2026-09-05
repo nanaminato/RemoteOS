@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RemoteOS.Protocol.Git;
+using RemoteOS.Protocol.Privileged;
+using Server.Privileged;
 
 namespace Server.Endpoints;
 
@@ -16,8 +18,10 @@ public static class GitEndpoints
         group.MapGet("/engine/status", (Server.Git.IGitRepositoryService service, CancellationToken ct) =>
             service.GetEngineStatusAsync(ct));
 
-        group.MapPost("/engine/install", async (Server.Git.IGitRepositoryService service, CancellationToken ct) =>
+        group.MapPost("/engine/install", async (HttpContext http, IHostElevationSessionStore elevations, Server.Git.IGitRepositoryService service, CancellationToken ct) =>
         {
+            if (!elevations.IsGranted(http.User, HostElevationCapability.GitPackageInstall, "git"))
+                return Results.Problem(statusCode: 403, title: "需要管理员权限", detail: "Git 安装需要当前会话的管理员授权。", type: "https://remoteos.app/problems/elevation-required");
             try { return Results.Ok(await service.InstallEngineAsync(ct)); }
             catch (InvalidOperationException ex) { return Results.Problem(detail: ex.Message, statusCode: 500, title: "Git install", type: ProblemBase + "install-failed"); }
         });

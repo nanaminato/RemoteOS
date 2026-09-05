@@ -1,10 +1,9 @@
-# Proxy installation
+# 代理安装
 
-1. Grant the Proxy application permissions appropriate to the operator.
-2. Install a manifest-verified Managed runtime, or validate an existing External runtime.
-3. Create and activate a profile, then apply a validated configuration.
-4. Start the managed runtime with TUN disabled and confirm controller health. On Windows,
-   `RemoteOS.Server` owns the Mihomo child process; on Linux, systemd owns `mihomo.service`.
-5. Enable TUN only after the platform checklist in `RemoteOS.ProxyManager.SkippedTests.md` has been passed.
+1. 为代理应用授予与操作人员相符的权限。
+2. 安装经清单验证的托管运行时，或验证已有的外部运行时。
+3. 创建并激活配置文件，然后应用已验证的配置。
+4. 在禁用 TUN 的情况下启动托管运行时并确认控制器健康状态。在 Windows 上，`RemoteOS.Server` 拥有 Mihomo 子进程；在 Linux 上，systemd 拥有 `mihomo.service`。
+5. 只有通过 `RemoteOS.ProxyManager.SkippedTests.md` 中的平台检查清单后，才启用 TUN。
 
-An unavailable privileged boundary or platform capability is a safe failure; RemoteOS will not request a password or run substituted shell text.
+不可用的特权边界或平台能力是安全失败：RemoteOS 不会请求密码，也不会执行替代的 Shell 文本。

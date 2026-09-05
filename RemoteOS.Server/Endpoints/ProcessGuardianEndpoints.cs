@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using RemoteOS.Protocol.ProcessGuardian;
+using RemoteOS.Protocol.Privileged;
+using Server.Privileged;
 
 namespace Server.Endpoints;
 
@@ -32,7 +34,14 @@ public static class ProcessGuardianEndpoints
         group.MapGet("/workloads/{id}/logs", (string id, Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.ListLogsAsync(id, ct));
         group.MapGet("/audit", (Server.ProcessGuardian.IProcessGuardianService service, CancellationToken ct) => service.ListAuditAsync(ct));
         group.MapGet("/services", (Server.ProcessGuardian.INativeServiceAdapter services, CancellationToken ct) => services.ListAsync(ct));
-        group.MapPost("/services/{id}/{action}", (string id, string action, NativeServiceActionRequest request, Server.ProcessGuardian.INativeServiceAdapter services, CancellationToken ct) => services.ApplyActionAsync(id, action, request, ct));
+        group.MapPost("/services/{id}/{action}", async (string id, string action, NativeServiceActionRequest request, HttpContext http,
+            IHostElevationSessionStore elevations, Server.ProcessGuardian.INativeServiceAdapter services, CancellationToken ct) =>
+        {
+            if (!elevations.IsGranted(http.User, HostElevationCapability.NativeServiceAction, id))
+                return Results.Problem(statusCode: 403, title: "需要管理员权限", detail: "此服务操作需要当前会话的管理员授权。",
+                    type: "https://remoteos.app/problems/elevation-required");
+            return Results.Ok(await services.ApplyActionAsync(id, action, request, ct));
+        });
         group.MapPost("/agent/installation/plan", (Server.ProcessGuardian.IGuardianAgentInstaller installer, CancellationToken ct) => installer.CreatePlanAsync(ct));
         group.MapPost("/agent/installation/execute", (GuardianInstallationExecutionRequest request, Server.ProcessGuardian.IGuardianAgentInstaller installer, CancellationToken ct) => installer.ExecuteAsync(request, ct));
         return app;

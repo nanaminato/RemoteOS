@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -32,6 +33,8 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     public Func<bool, Task>? ShowEditorAsync { get; set; }
     public Func<GuardianWorkloadDto, Task>? ShowLogsAsync { get; set; }
     public Func<Task>? CloseEditorAsync { get; set; }
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
     /// <summary>Provided by the window and called only for a cross-account RunAs change.</summary>
     public Func<Task<RunAsAdministratorApproval?>>? RequestAdministratorApprovalAsync { get; set; }
 
@@ -49,9 +52,12 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             var workloads = await client.ListWorkloadsAsync();
             StatusText = status.IsInstalled
                 ? LocalizedText.Format("guardian.status.available", status.Version ?? "")
-                : status.ProblemCode is "guardian.agent_not_configured" or "guardian.agent_not_installed"
+                : PrivilegedHelperProblemText.TryFormat(status.ProblemCode, out var helperMessage)
+                    ? helperMessage
+                    : status.ProblemCode is "guardian.agent_not_configured" or "guardian.agent_not_installed"
                     ? LocalizedText.Get("guardian.status.install_required")
                     : LocalizedText.Format("guardian.status.unavailable", status.ProblemCode);
+            if (!status.IsInstalled) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(status.ProblemCode);
             Workloads.Clear(); foreach (var workload in workloads) Workloads.Add(workload);
         }
         catch (Exception exception)
@@ -98,7 +104,8 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         try
         {
             var result = await client.DeleteAsync(workload.Id);
-            StatusText = result.Success ? LocalizedText.Format("guardian.delete.succeeded", workload.Name) : LocalizedText.Format("guardian.delete.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Format("guardian.delete.succeeded", workload.Name) : LocalizedText.Format("guardian.delete.failed", ProblemText(result.ProblemCode));
+            if (!result.Success) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(result.ProblemCode);
             if (result.Success) ClearDefinition();
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.delete.failed", exception.Message); }
@@ -121,7 +128,12 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
     private async Task ApplyActionAsync(string action, GuardianWorkloadDto? workload)
     {
         if (workload is null) return; IsLoading = true;
-        try { var result = await client.ApplyActionAsync(workload.Id, action); StatusText = result.Success ? LocalizedText.Format("guardian.action.succeeded", action, workload.Name) : LocalizedText.Format("guardian.action.failed", action, result.ProblemCode); }
+        try
+        {
+            var result = await client.ApplyActionAsync(workload.Id, action);
+            StatusText = result.Success ? LocalizedText.Format("guardian.action.succeeded", action, workload.Name) : LocalizedText.Format("guardian.action.failed", action, ProblemText(result.ProblemCode));
+            if (!result.Success) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(result.ProblemCode);
+        }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.action.failed", action, exception.Message); }
         finally { IsLoading = false; }
         await RefreshAsync();
@@ -148,7 +160,8 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
             var arguments = ArgumentsText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var definition = new ProcessDefinitionDto(DefinitionId.Trim(), DefinitionName.Trim(), ExecutablePath.Trim(), arguments, WorkingDirectory.Trim(), EnabledOnBoot, RunAs: RunAs.Trim());
             var result = await client.UpsertAsync(new UpsertGuardianWorkloadRequest(definition, approval));
-            StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", result.ProblemCode);
+            StatusText = result.Success ? LocalizedText.Format("guardian.create.succeeded", DefinitionName) : LocalizedText.Format("guardian.create.failed", ProblemText(result.ProblemCode));
+            if (!result.Success) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(result.ProblemCode);
             saved = result.Success;
         }
         catch (Exception exception) { StatusText = LocalizedText.Format("guardian.create.failed", exception.Message); }
@@ -160,6 +173,13 @@ public sealed partial class ProcessGuardianViewModel(IProcessGuardianClient clie
         await RefreshAsync();
         if (CloseEditorAsync is not null) await CloseEditorAsync();
     }
+
+    private static string ProblemText(string? problemCode) => PrivilegedHelperProblemText.FormatOrFallback(problemCode, "unknown error");
+
+    private Task ShowPrivilegedHelperUnavailableAsyncIfNeeded(string? problemCode) =>
+        PrivilegedHelperProblemText.TryFormat(problemCode, out _)
+            ? ShowPrivilegedHelperUnavailableAsync?.Invoke(problemCode) ?? Task.CompletedTask
+            : Task.CompletedTask;
 
     /// <summary>
     /// Loads a definition only if it is still the current editor target. Selection changes

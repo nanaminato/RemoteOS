@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Client.Apps.Certificates;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -89,6 +90,8 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
     private string? _localPackageId;
 
     public bool IsRoot => string.Equals(_session.CurrentUser?.Username, "root", StringComparison.Ordinal);
+    /// <summary>Provided by the window to surface unavailable privileged operations prominently.</summary>
+    public Func<string?, Task>? ShowPrivilegedHelperUnavailableAsync { get; set; }
     public bool IsWindowsServer => _session.CurrentServer?.Platform == PlatformKind.Windows;
     public bool IsLinuxServer => _session.CurrentServer?.Platform == PlatformKind.Linux;
     public bool HasOperationActivity => !string.IsNullOrWhiteSpace(OperationText);
@@ -254,6 +257,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
                 : string.IsNullOrWhiteSpace(status.ProblemCode)
                     ? RuntimeStateText(status.RuntimeState)
                     : LocalizedText.Format("webservers.status.detail", RuntimeStateText(status.RuntimeState), ProblemText(status.ProblemCode));
+            if (status is not null) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(status.ProblemCode);
         }
         catch (Exception)
         {
@@ -278,6 +282,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
                 : result.Valid
                     ? LocalizedText.Get("webservers.test.valid")
                     : LocalizedText.Format("webservers.test.invalid", ProblemText(result.ProblemCode));
+            if (result is not null && !result.Valid) await ShowPrivilegedHelperUnavailableAsyncIfNeeded(result.ProblemCode);
         }
         catch (Exception)
         {
@@ -344,7 +349,11 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             }
             await (ShowManagedDownloadUrlAsync?.Invoke(download.Url) ?? Task.CompletedTask);
         }
-        catch (WebServerApiException exception) { StatusText = ProblemText(exception.ProblemCode); }
+        catch (WebServerApiException exception)
+        {
+            StatusText = ProblemText(exception.ProblemCode);
+            await ShowPrivilegedHelperUnavailableAsyncIfNeeded(exception.ProblemCode);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanInstallManaged))]
@@ -369,6 +378,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         catch (WebServerApiException exception)
         {
             StatusText = LocalizedText.Format("webservers.package.failed", ProblemText(exception.ProblemCode));
+            await ShowPrivilegedHelperUnavailableAsyncIfNeeded(exception.ProblemCode);
         }
         catch (Exception)
         {
@@ -664,6 +674,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             if (operation.OperationId == Guid.Empty)
             {
                 OperationText = LocalizedText.Format("webservers.operation.rejected", ProblemText(operation.ProblemCode));
+                await ShowPrivilegedHelperUnavailableAsyncIfNeeded(operation.ProblemCode);
                 return;
             }
             _currentOperationId = operation.OperationId;
@@ -676,7 +687,10 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
             else if (operation.State == WebServerOperationState.Cancelled)
                 OperationText = LocalizedText.Get("webservers.operation.cancelled");
             else
+            {
                 OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), ProblemText(operation.ProblemCode));
+                await ShowPrivilegedHelperUnavailableAsyncIfNeeded(operation.ProblemCode);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -689,6 +703,7 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
         catch (WebServerApiException exception)
         {
             OperationText = LocalizedText.Format("webservers.operation.failed", OperationName(kindKey), ProblemText(exception.ProblemCode));
+            await ShowPrivilegedHelperUnavailableAsyncIfNeeded(exception.ProblemCode);
         }
         catch (Exception)
         {
@@ -778,12 +793,18 @@ public sealed partial class WebServerManagerViewModel : ObservableObject
 
     private static string ProblemText(string? problemCode)
     {
+        if (PrivilegedHelperProblemText.TryFormat(problemCode, out var helperMessage)) return helperMessage;
         if (string.IsNullOrWhiteSpace(problemCode) || !problemCode.StartsWith("webserver.", StringComparison.Ordinal))
             return LocalizedText.Get("webservers.problem.unknown");
         return LocalizedText.Get($"webservers.problem.{problemCode["webserver.".Length..]}", LocalizedText.Get("webservers.problem.unknown"));
     }
 
     private static string SiteSaveProblemText(string problemCode) => ProblemText(problemCode);
+
+    private Task ShowPrivilegedHelperUnavailableAsyncIfNeeded(string? problemCode) =>
+        PrivilegedHelperProblemText.TryFormat(problemCode, out _)
+            ? ShowPrivilegedHelperUnavailableAsync?.Invoke(problemCode) ?? Task.CompletedTask
+            : Task.CompletedTask;
 
     // nginx -t + reload is fast; a tighter poll keeps the UI responsive without spamming the host.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(750);

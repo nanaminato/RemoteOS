@@ -1,5 +1,5 @@
-# Proxy security
+# 代理安全
 
-The public API exposes engine-neutral, safe DTOs only. It never returns raw YAML, controller addresses or secrets, subscription credentials, private keys or arbitrary command arguments. Controller logs are bounded and sanitized.
+公共 API 仅公开引擎无关的安全 DTO。它绝不返回原始 YAML、控制器地址或密钥、订阅凭据、私钥、任意命令参数。控制器日志有大小限制并会脱敏。
 
-No Proxy workflow disables Defender or a firewall, opens a public controller port, asks for an OS password, or provides a generic privileged-command endpoint.
+任何代理工作流都不会禁用 Defender 或防火墙、开放公共控制器端口、请求操作系统密码，或提供通用特权命令端点。

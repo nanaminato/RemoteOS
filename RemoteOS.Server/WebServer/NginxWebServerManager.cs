@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using RemoteOS.Protocol.WebServers;
+using RemoteOS.Protocol.Privileged;
 using Server.Certificate;
 
 namespace Server.WebServer;
@@ -20,6 +21,7 @@ namespace Server.WebServer;
 /// </summary>
 internal sealed partial class NginxWebServerManager(
     IHostPrivilegeService privileges,
+    IPrivilegedNginxOperations privilegedNginx,
     WebServerOperationStore operations,
     WebServerMetadataRepository metadata,
     IHostApplicationLifetime lifetime,
@@ -96,7 +98,7 @@ internal sealed partial class NginxWebServerManager(
         if (!request.Confirmed)
             return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "validation", "webserver.confirmation_required", null, null, DateTimeOffset.UtcNow);
         if (!privileges.IsAdministrator)
-            return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "authorization", "webserver.config_elevation_required", null, null, DateTimeOffset.UtcNow);
+            return new WebServerOperationDto(Guid.Empty, instanceId, "integrate", WebServerOperationState.Failed, "authorization", "webserver.configuration_helper_unavailable", null, null, DateTimeOffset.UtcNow);
         return await operations.StartAsync(idempotencyKey, instanceId, "integrate", actor, ct => IntegrateCoreAsync(detected, ct), lifetime.ApplicationStopping);
     }
 
@@ -106,8 +108,6 @@ internal sealed partial class NginxWebServerManager(
         if (detected is null || detected.Id != instanceId) return null;
         if (detected.ManagementMode != WebServerManagementMode.Integrated)
             return new WebServerOperationDto(Guid.Empty, instanceId, "reload", WebServerOperationState.Failed, "authorization", "webserver.reload_not_permitted", null, null, DateTimeOffset.UtcNow);
-        if (!privileges.IsAdministrator)
-            return new WebServerOperationDto(Guid.Empty, instanceId, "reload", WebServerOperationState.Failed, "authorization", "webserver.lifecycle_elevation_required", null, null, DateTimeOffset.UtcNow);
         return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
             new WebServerOperationResult((await RunNginxAsync(detected.ExecutablePath, ["-s", "reload"], ct)).Success ? "" : "webserver.reload_failed"), lifetime.ApplicationStopping);
     }
@@ -117,8 +117,6 @@ internal sealed partial class NginxWebServerManager(
         var layout = GetManagedLayout();
         if (!request.Confirmed)
             return Rejected(layout.InstanceId, "install", "webserver.confirmation_required");
-        if (!privileges.IsAdministrator)
-            return Rejected(layout.InstanceId, "install", "webserver.install_elevation_required");
         if (IsManagedInstallation(layout))
             return Rejected(layout.InstanceId, "install", "webserver.managed_already_installed");
         // The built-in Linux installer owns the distribution package it installs.  Do not
@@ -134,8 +132,10 @@ internal sealed partial class NginxWebServerManager(
             return Rejected(layout.InstanceId, "install", "webserver.managed_installation_exists");
         if (!OperatingSystem.IsWindows() && !string.IsNullOrWhiteSpace(request.Version) && !LinuxPackageVersionPattern().IsMatch(request.Version.Trim()))
             return Rejected(layout.InstanceId, "install", "webserver.version_invalid");
-        if (!OperatingSystem.IsWindows() && !IsConfiguredInstaller() && !CanUseBuiltInInstaller())
+        if (!OperatingSystem.IsWindows() && !CanUseBuiltInInstaller())
             return Rejected(layout.InstanceId, "install", "webserver.install_unsupported_platform");
+        if (OperatingSystem.IsWindows())
+            return Rejected(layout.InstanceId, "install", "webserver.install_manual_host_action_required");
         return await operations.StartAsync(idempotencyKey, layout.InstanceId, "install", actor,
             (progress, ct) => InstallManagedCoreAsync(layout, request, progress, ct), lifetime.ApplicationStopping);
     }
@@ -195,23 +195,29 @@ internal sealed partial class NginxWebServerManager(
     {
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null) return null;
-        if (!privileges.IsAdministrator)
-            return Rejected(instanceId, action.ToString().ToLowerInvariant(), "webserver.lifecycle_elevation_required");
+        // The system-package lifecycle is delegated to IPrivilegedNginxOperations. ACME
+        // integration still writes protected configuration and remains unavailable until its
+        // file operation is migrated to the same Helper boundary.
         if (action == WebServerLifecycleAction.Reload)
         {
             if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
                 return Rejected(instanceId, "reload", "webserver.reload_not_permitted");
             return await operations.StartAsync(idempotencyKey, instanceId, "reload", actor, async ct =>
             {
-                var success = instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService()
-                    ? await RunSystemdNginxAsync("reload", ct)
-                    : (await RunNginxAsync(instance.ExecutablePath,
-                        instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], ct)).Success;
-                return new WebServerOperationResult(success ? "" : "webserver.reload_failed");
+                if (instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService())
+                {
+                    var helper = await RunSystemdNginxOperationAsync("reload", ct);
+                    return new WebServerOperationResult(helper.Success ? "" : ToWebServerProblem(helper.ProblemCode, "webserver.reload_failed"));
+                }
+                var reload = await RunNginxAsync(instance.ExecutablePath,
+                    instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], ct);
+                return new WebServerOperationResult(reload.Success ? "" : "webserver.reload_failed");
             }, lifetime.ApplicationStopping);
         }
         if (action == WebServerLifecycleAction.EnableAcmeHttp01)
         {
+            if (!privileges.IsAdministrator)
+                return Rejected(instanceId, "enable-acme-http01", "webserver.configuration_helper_unavailable");
             if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
                 return Rejected(instanceId, "enable-acme-http01", "webserver.acme_integration_required");
             return await operations.StartAsync(idempotencyKey, instanceId, "enable-acme-http01", actor,
@@ -230,7 +236,6 @@ internal sealed partial class NginxWebServerManager(
         var instance = (await DiscoverAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Id == instanceId);
         if (instance is null) return null;
         if (!request.Confirmed) return Rejected(instanceId, "uninstall", "webserver.confirmation_required");
-        if (!privileges.IsAdministrator) return Rejected(instanceId, "uninstall", "webserver.install_elevation_required");
         if (instance.ManagementMode != WebServerManagementMode.Managed) return Rejected(instanceId, "uninstall", "webserver.managed_required");
         return await operations.StartAsync(idempotencyKey, instanceId, "uninstall", actor,
             ct => UninstallManagedCoreAsync(GetManagedLayout(), ct), lifetime.ApplicationStopping);
@@ -252,10 +257,7 @@ internal sealed partial class NginxWebServerManager(
             return null;
         }
         if (!privileges.IsAdministrator)
-        {
-            logger.LogError("Nginx site save rejected because the RemoteOS Server process is not elevated. InstanceId={InstanceId}, ServerIdentity={ServerIdentity}, Configuration={Configuration}", instance.Id, Environment.UserName, instance.ConfigurationPath);
-            throw new WebServerSiteApplyException("webserver.site_elevation_required");
-        }
+            throw new WebServerSiteApplyException("webserver.configuration_helper_unavailable");
         if (instance.ManagementMode is not (WebServerManagementMode.Integrated or WebServerManagementMode.Managed))
         {
             logger.LogWarning("Nginx site save rejected because the instance is not integrated or managed. InstanceId={InstanceId}, ManagementMode={ManagementMode}, Configuration={Configuration}", instance.Id, instance.ManagementMode, instance.ConfigurationPath);
@@ -605,9 +607,14 @@ internal sealed partial class NginxWebServerManager(
                 : IsManagedNginxRunning(GetManagedLayout())
             : IsNginxRunning(instance.ExecutablePath);
         if (!running) return null;
-        var reloaded = instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService()
-            ? await RunSystemdNginxAsync("reload", cancellationToken)
-            : (await RunNginxAsync(instance.ExecutablePath, instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], cancellationToken)).Success;
+        if (instance.ManagementMode == WebServerManagementMode.Managed && UsesSystemPackageManagedService())
+        {
+            var helper = await RunSystemdNginxOperationAsync("reload", cancellationToken);
+            if (!helper.Success) return ToWebServerProblem(helper.ProblemCode, "webserver.site_reload_failed");
+            return null;
+        }
+        var reloaded = (await RunNginxAsync(instance.ExecutablePath,
+            instance.ManagementMode == WebServerManagementMode.Managed ? ManagedArguments(GetManagedLayout(), ["-s", "reload"]) : ["-s", "reload"], cancellationToken)).Success;
         if (reloaded) return null;
         logger.LogWarning("Nginx site configuration reload failed. InstanceId={InstanceId}", instance.Id);
         return "webserver.site_reload_failed";
@@ -690,11 +697,11 @@ internal sealed partial class NginxWebServerManager(
             CanRead: true,
             CanTestConfiguration: true,
             CanIntegrate: !isManaged && !integrated && privileges.IsAdministrator && includeDirectory is not null,
-            CanReload: (integrated || isManaged) && privileges.IsAdministrator,
-            CanStart: isManaged && privileges.IsAdministrator,
-            CanStop: isManaged && privileges.IsAdministrator,
-            CanRestart: isManaged && privileges.IsAdministrator,
-            CanUninstall: isManaged && privileges.IsAdministrator);
+            CanReload: integrated || isManaged,
+            CanStart: isManaged,
+            CanStop: isManaged,
+            CanRestart: isManaged,
+            CanUninstall: isManaged);
         var instance = new WebServerDto(InstanceId(executable), ProviderKey, WebServerType.Nginx, mode, executable, configPath, version, DateTimeOffset.UtcNow, capabilities);
         await metadata.UpsertInstanceAsync(instance, cancellationToken);
         return instance;
@@ -807,9 +814,9 @@ internal sealed partial class NginxWebServerManager(
     {
         if (OperatingSystem.IsWindows())
             return await InstallWindowsManagedAsync(layout, request, progress, cancellationToken);
-        await progress.ReportAsync(IsConfiguredInstaller() ? "installer_running" : "installing_package", cancellationToken);
-        var started = await RunInstallerAsync(layout, request.Version, cancellationToken);
-        if (!started) return new WebServerOperationResult("webserver.install_failed");
+        await progress.ReportAsync("installing_package", cancellationToken);
+        var install = await RunInstallerAsync(layout, request.Version, cancellationToken);
+        if (!install.Success) return new WebServerOperationResult(ToWebServerProblem(install.ProblemCode, "webserver.install_failed"));
         await progress.ReportAsync("verifying_layout", cancellationToken);
         if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath) || !Directory.Exists(layout.Root) || IsSymbolicLink(layout.Root))
             return new WebServerOperationResult("webserver.install_layout_invalid");
@@ -1067,10 +1074,14 @@ internal sealed partial class NginxWebServerManager(
                 WebServerLifecycleAction.Restart => "restart",
                 _ => null
             };
-            if (command is not "stop" && !await RunSystemdNginxAsync("enable", cancellationToken))
-                return new WebServerOperationResult($"webserver.{action.ToString().ToLowerInvariant()}_failed");
-            var success = command is not null && await RunSystemdNginxAsync(command, cancellationToken);
-            return new WebServerOperationResult(success ? "" : $"webserver.{action.ToString().ToLowerInvariant()}_failed");
+            if (command is not "stop")
+            {
+                var enable = await RunSystemdNginxOperationAsync("enable", cancellationToken);
+                if (!enable.Success) return new WebServerOperationResult(ToWebServerProblem(enable.ProblemCode, $"webserver.{action.ToString().ToLowerInvariant()}_failed"));
+            }
+            var systemd = command is null ? new PrivilegedOperationResult(false, ProblemCode: PrivilegedProblemCode.InvalidRequest)
+                : await RunSystemdNginxOperationAsync(command, cancellationToken);
+            return new WebServerOperationResult(systemd.Success ? "" : ToWebServerProblem(systemd.ProblemCode, $"webserver.{action.ToString().ToLowerInvariant()}_failed"));
         }
         var result = action switch
         {
@@ -1094,11 +1105,13 @@ internal sealed partial class NginxWebServerManager(
             _ = await RunNginxAsync(layout.ExecutablePath, ManagedArguments(layout, ["-s", "quit"]), cancellationToken);
         try
         {
-            if (UsesSystemPackageManagedExecutable()
-                && !await RunProcessAsync("/usr/bin/apt-get", ["purge", "--yes", "--auto-remove", "nginx"], cancellationToken))
+            var uninstall = UsesSystemPackageManagedExecutable()
+                ? await privilegedNginx.UninstallPackageAsync(cancellationToken)
+                : new PrivilegedOperationResult(true);
+            if (!uninstall.Success)
             {
                 logger.LogWarning("Could not remove the APT-installed Nginx package for a managed installation. Executable={Executable}", layout.ExecutablePath);
-                return new WebServerOperationResult("webserver.uninstall_failed");
+                return new WebServerOperationResult(ToWebServerProblem(uninstall.ProblemCode, "webserver.uninstall_failed"));
             }
             Directory.Delete(layout.Root, recursive: true);
             return new WebServerOperationResult("");
@@ -1123,62 +1136,58 @@ internal sealed partial class NginxWebServerManager(
         return await StartManagedAsync(layout, cancellationToken);
     }
 
-    private bool IsConfiguredInstaller() => Path.IsPathFullyQualified(managedOptions.InstallerCommand) && File.Exists(managedOptions.InstallerCommand);
-
     private static bool CanUseBuiltInInstaller() => OperatingSystem.IsLinux() && File.Exists("/usr/bin/apt-get");
 
-    private Task<bool> RunInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken) =>
-        IsConfiguredInstaller()
-            ? RunConfiguredInstallerAsync(cancellationToken)
-            : RunBuiltInLinuxInstallerAsync(layout, version, cancellationToken);
+    // Arbitrary host-configured installers are deliberately not supported. Package installation
+    // uses the fixed, Helper-owned apt operation; other platforms report not-supported.
+    private Task<NginxInstallResult> RunInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken) =>
+        RunBuiltInLinuxInstallerAsync(layout, version, cancellationToken);
 
-    private async Task<bool> RunConfiguredInstallerAsync(CancellationToken cancellationToken)
+    private async Task<NginxInstallResult> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken)
     {
+        if (!CanUseBuiltInInstaller()) return new(false, PrivilegedProblemCode.UnsupportedOperation);
+        var package = await privilegedNginx.InstallPackageAsync(version, cancellationToken);
+        if (!package.Success) return new(false, package.ProblemCode);
+        if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath)) return new(false, PrivilegedProblemCode.InternalError);
         try
         {
-            using var process = new Process { StartInfo = new ProcessStartInfo(managedOptions.InstallerCommand) { UseShellExecute = false, CreateNoWindow = true } };
-            foreach (var argument in managedOptions.InstallerArguments) process.StartInfo.ArgumentList.Add(argument);
-            if (!process.Start()) return false;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromMinutes(10));
-            await process.WaitForExitAsync(timeout.Token);
-            return process.ExitCode == 0;
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
-        catch { return false; }
-    }
-
-    private async Task<bool> RunBuiltInLinuxInstallerAsync(ManagedLayout layout, string? version, CancellationToken cancellationToken)
-    {
-        if (!CanUseBuiltInInstaller()) return false;
-        if (!await RunProcessAsync("/usr/bin/apt-get", ["update"], cancellationToken)) return false;
-        var package = string.IsNullOrWhiteSpace(version) ? "nginx" : $"nginx={version.Trim()}";
-        if (!await RunProcessAsync("/usr/bin/apt-get", ["install", "--yes", "--no-install-recommends", package], cancellationToken)) return false;
-        if (!File.Exists(layout.ExecutablePath) || IsSymbolicLink(layout.ExecutablePath)) return false;
-        try
-        {
-            if (IsSymbolicLink(layout.Root)) return false;
+            if (IsSymbolicLink(layout.Root)) return new(false, PrivilegedProblemCode.InternalError);
             Directory.CreateDirectory(layout.Root);
             // The APT package owns both the executable and nginx.service. Keep that service
             // enabled and let systemd own the daemon lifecycle; RemoteOS manages only its
             // package ownership marker and the files it creates in /etc/nginx/conf.d.
-            return await RunSystemdNginxAsync("enable", cancellationToken, "--now");
+            var systemd = await RunSystemdNginxOperationAsync("enable", cancellationToken, "--now");
+            return new(systemd.Success, systemd.ProblemCode);
         }
-        catch (IOException) { return false; }
-        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { return new(false, PrivilegedProblemCode.InternalError); }
+        catch (UnauthorizedAccessException) { return new(false, PrivilegedProblemCode.AccessDenied); }
     }
 
     private async Task<bool> RunSystemdNginxAsync(string command, CancellationToken cancellationToken, params string[] additionalArguments)
+        => (await RunSystemdNginxOperationAsync(command, cancellationToken, additionalArguments)).Success;
+
+    private Task<PrivilegedOperationResult> RunSystemdNginxOperationAsync(string command, CancellationToken cancellationToken, params string[] additionalArguments)
     {
-        if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/systemctl")) return false;
-        var arguments = new List<string> { command };
-        arguments.AddRange(additionalArguments);
-        arguments.Add("nginx.service");
-        return await RunProcessAsync("/usr/bin/systemctl", arguments, cancellationToken);
+        var action = (command, additionalArguments) switch
+        {
+            ("start", []) => NginxSystemServiceAction.Start,
+            ("stop", []) => NginxSystemServiceAction.Stop,
+            ("restart", []) => NginxSystemServiceAction.Restart,
+            ("reload", []) => NginxSystemServiceAction.Reload,
+            ("enable", []) => NginxSystemServiceAction.Enable,
+            ("disable", []) => NginxSystemServiceAction.Disable,
+            ("enable", ["--now"]) => NginxSystemServiceAction.EnableAndStart,
+            ("disable", ["--now"]) => NginxSystemServiceAction.DisableAndStop,
+            _ => throw new InvalidOperationException("Unsupported fixed Nginx systemd action."),
+        };
+        return privilegedNginx.ApplySystemServiceActionAsync(action, cancellationToken);
     }
 
-    private Task<bool> IsSystemdNginxActiveAsync(CancellationToken cancellationToken) =>
-        RunSystemdNginxAsync("is-active", cancellationToken, "--quiet");
+    private static async Task<bool> IsSystemdNginxActiveAsync(CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/systemctl")) return false;
+        return await RunProcessAsync("/usr/bin/systemctl", ["is-active", "--quiet", "nginx.service"], cancellationToken);
+    }
 
     private async Task StopLegacyCustomManagedInstanceAsync(ManagedLayout layout, CancellationToken cancellationToken)
     {
@@ -1220,7 +1229,7 @@ internal sealed partial class NginxWebServerManager(
         return new ManagedLayout(root, executable, configuration, Path.Combine(root, ManagedMarkerName), InstanceId(executable));
     }
 
-    private bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux() && !IsConfiguredInstaller();
+    private static bool UsesSystemPackageManagedExecutable() => OperatingSystem.IsLinux();
 
     private bool UsesSystemPackageManagedService() => UsesSystemPackageManagedExecutable();
 
@@ -1254,6 +1263,10 @@ internal sealed partial class NginxWebServerManager(
         new(Guid.Empty, instanceId, kind, WebServerOperationState.Failed, "validation", problemCode, null, null, DateTimeOffset.UtcNow);
 
     private sealed record ManagedLayout(string Root, string ExecutablePath, string ConfigurationPath, string MarkerPath, string InstanceId);
+    private sealed record NginxInstallResult(bool Success, PrivilegedProblemCode ProblemCode);
+
+    private static string ToWebServerProblem(PrivilegedProblemCode problemCode, string fallback) =>
+        problemCode == PrivilegedProblemCode.HelperUnavailable ? "webserver.privileged_helper_unavailable" : fallback;
 
     internal sealed class WebServerSiteValidationException(string problemCode) : Exception(problemCode)
     {

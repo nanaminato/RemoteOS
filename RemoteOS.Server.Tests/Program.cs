@@ -33,14 +33,22 @@ using Server.WebServer;
 using Server.ConfigurationRegistry;
 using RemoteOS.Protocol.Registry;
 using RemoteOS.Protocol.Proxy;
+using RemoteOS.Protocol.Files;
+using RemoteOS.Protocol.Privileged;
 using Server.Proxy.Mihomo;
 using Server.Proxy;
 using Server.Proxy.Platform;
+using Server.Privileged;
+using Server.ProcessGuardian;
+using Server.Firewall;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 var root = Path.Combine(Path.GetTempPath(), $"remoteos-server-tests-{Guid.NewGuid():N}");
 Directory.CreateDirectory(root);
 try
 {
+    await VerifyPrivilegedOperationProtocolAsync();
     await VerifyCertificateStoreAndSniAsync(root);
     VerifyCertificateApiRoutes();
     await VerifyRenewalRetryAsync(root);
@@ -70,6 +78,8 @@ try
     await VerifyTrackedWorkspaceWallpaperUpdateAsync(root);
     await VerifyRegistryRuntimeCacheAsync(root);
     await VerifyPerformanceSamplerAsync();
+    VerifyFileElevationSessionScope(root);
+    VerifyHostElevationCapabilityScope(root);
     Console.WriteLine("RemoteOS.Server backend verification passed.");
 }
 
@@ -96,6 +106,99 @@ static void VerifyWorkspacePreferencesJsonContract()
     Assert(deserialized.WallpaperKey == preferences.WallpaperKey, "Wallpaper key changed during JSON deserialization.");
     Assert(deserialized.DefaultApps.SequenceEqual(preferences.DefaultApps), "Default app mappings changed during JSON deserialization.");
 }
+
+static void VerifyFileElevationSessionScope(string root)
+{
+    var directory = Path.Combine(root, "protected");
+    var nestedFile = Path.Combine(directory, "nested", "file.txt");
+    var sibling = Path.Combine(root, "unrelated", "file.txt");
+    var principal = Principal("jwt-one");
+    var otherPrincipal = Principal("jwt-two");
+    var store = new FileElevationSessionStore();
+
+    var expiry = store.Grant(principal, directory, includeDescendants: true);
+    Assert(expiry > DateTimeOffset.UtcNow.AddMinutes(4), "File elevation grant did not retain the five-minute lifetime.");
+    Assert(store.IsElevated(principal, directory, nestedFile), "A directory elevation grant did not cover a nested mutation target.");
+    Assert(!store.IsElevated(principal, sibling), "A directory elevation grant leaked to a sibling path.");
+    Assert(!store.IsElevated(otherPrincipal, nestedFile), "A directory elevation grant leaked to a different JWT.");
+
+    var exactFile = Path.Combine(root, "exact", "file.txt");
+    store.Grant(principal, exactFile);
+    Assert(store.IsElevated(principal, exactFile), "An exact file elevation grant was not recognized.");
+    Assert(!store.IsElevated(principal, Path.Combine(exactFile, "child")), "An exact file elevation grant unexpectedly covered descendants.");
+
+    var request = new RemoteOS.Protocol.Files.FileElevationRequest(directory, "password", [Path.Combine(root, "second")], IncludeDescendants: true);
+    var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(json.Contains("includeDescendants", StringComparison.Ordinal) && json.Contains("relatedPaths", StringComparison.Ordinal),
+        "File elevation request lost its multi-directory grant contract.");
+}
+
+static void VerifyHostElevationCapabilityScope(string root)
+{
+    var directory = Path.Combine(root, "capability-protected");
+    var nestedFile = Path.Combine(directory, "nested", "file.txt");
+    var principal = Principal("capability-jwt");
+    var otherPrincipal = Principal("capability-other-jwt");
+    var store = new HostElevationSessionStore();
+
+    store.Grant(principal, HostElevationCapability.FileCopy, directory, includeDescendants: true, "test");
+    Assert(store.IsGranted(principal, HostElevationCapability.FileCopy, nestedFile), "Capability grant did not cover its descendant scope.");
+    Assert(!store.IsGranted(principal, HostElevationCapability.FileDelete, nestedFile), "File copy grant leaked to file delete.");
+    Assert(!store.IsGranted(otherPrincipal, HostElevationCapability.FileCopy, nestedFile), "Capability grant leaked to a different JWT.");
+    store.Revoke(principal);
+    Assert(!store.IsGranted(principal, HostElevationCapability.FileCopy, nestedFile), "Revoked JWT retained an elevation grant.");
+
+    var nonFileDescendantRejected = false;
+    try { store.Grant(principal, HostElevationCapability.NativeServiceAction, "remoteos-server.service", includeDescendants: true, "test"); }
+    catch (ArgumentException) { nonFileDescendantRejected = true; }
+    Assert(nonFileDescendantRejected, "A non-file capability must not receive a descendant scope.");
+
+    var request = new FileElevationRequest(directory, "password", Capability: FileElevationCapability.Copy);
+    var json = JsonSerializer.Serialize(request, RemoteOS.Protocol.Common.RemoteOsJsonOptions.Default);
+    Assert(json.Contains("capability", StringComparison.Ordinal), "File elevation request did not serialize its operation capability.");
+}
+
+static async Task VerifyPrivilegedOperationProtocolAsync()
+{
+    var requestProperties = typeof(PrivilegedOperationRequest).GetProperties().Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+    Assert(!requestProperties.Contains("Executable") && !requestProperties.Contains("Arguments") && !requestProperties.Contains("StandardInputBase64"),
+        "The privileged protocol must not expose a generic command-execution surface.");
+    Assert(Enum.IsDefined(PrivilegedOperationKind.ProxyMihomoInstallSystemService)
+        && Enum.IsDefined(PrivilegedOperationKind.NginxPackageInstall), "Dedicated Nginx and Mihomo Helper operations are missing.");
+
+    var transport = new CapturingPrivilegedTransport();
+    var nginx = new PrivilegedNginxOperations(transport);
+    Assert((await nginx.ApplySystemServiceActionAsync(NginxSystemServiceAction.Reload)).Success, "Nginx fixed service operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxSystemServiceAction
+        && transport.LastRequest.NginxServiceAction == NginxSystemServiceAction.Reload,
+        "Nginx facade did not preserve its closed lifecycle action.");
+    Assert((await nginx.WriteManagedFileAsync("/etc/nginx/conf.d/remoteos.d/example.conf", Encoding.UTF8.GetBytes("server {}\n"))).Success,
+        "Nginx managed-file write was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NginxWriteManagedFile
+        && transport.LastRequest.Path == "/etc/nginx/conf.d/remoteos.d/example.conf"
+        && !string.IsNullOrWhiteSpace(transport.LastRequest.ContentBase64),
+        "Nginx facade did not preserve its closed managed-file write request.");
+
+    var services = new PrivilegedNativeServiceOperations(transport);
+    Assert((await services.ApplyAsync("remoteos-server.service", PrivilegedServiceAction.Restart)).Success, "Native service operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.NativeServiceAction
+        && transport.LastRequest.ServiceId == "remoteos-server.service" && transport.LastRequest.ServiceAction == PrivilegedServiceAction.Restart,
+        "Native-service facade did not preserve its allowlisted structured request.");
+
+    var firewall = new LinuxUfwFirewallService(transport, NullLogger<LinuxUfwFirewallService>.Instance);
+    Assert((await firewall.SetEnabledAsync(true, CancellationToken.None)).Success,
+        "Firewall operation was not accepted by the transport facade.");
+    Assert(transport.LastRequest?.Operation == PrivilegedOperationKind.FirewallUfwSetEnabled
+        && transport.LastRequest.FirewallEnabled == true,
+        "Firewall facade did not preserve its closed enabled-state request.");
+}
+
+static ClaimsPrincipal Principal(string tokenId) => new(new ClaimsIdentity(
+[
+    new Claim(JwtRegisteredClaimNames.Jti, tokenId),
+    new Claim(JwtRegisteredClaimNames.Sub, "test-subject"),
+    new Claim(JwtRegisteredClaimNames.Name, "test-user"),
+], "test"));
 
 static async Task VerifyRegistryRuntimeCacheAsync(string root)
 {
@@ -1153,6 +1256,16 @@ static X509Certificate2 CreateX509(string domain)
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+sealed class CapturingPrivilegedTransport : IPrivilegedOperationTransport
+{
+    public PrivilegedOperationRequest? LastRequest { get; private set; }
+    public Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOperationRequest request, CancellationToken cancellationToken = default)
+    {
+        LastRequest = request;
+        return Task.FromResult(new PrivilegedOperationResult(true));
+    }
 }
 
 sealed class FixtureHttpClientFactory(byte[] payload) : IHttpClientFactory

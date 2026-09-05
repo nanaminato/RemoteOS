@@ -10,7 +10,7 @@ public interface INativeServiceAdapter
     Task<GuardianOperationResult> ApplyActionAsync(string id, string action, NativeServiceActionRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class NativeServiceAdapter(NativeServiceAdapterOptions options) : INativeServiceAdapter
+public sealed class NativeServiceAdapter(NativeServiceAdapterOptions options, IPrivilegedNativeServiceOperations privileged) : INativeServiceAdapter
 {
     public async Task<IReadOnlyList<NativeServiceDto>> ListAsync(CancellationToken cancellationToken = default)
     {
@@ -30,10 +30,18 @@ public sealed class NativeServiceAdapter(NativeServiceAdapterOptions options) : 
         if (!request.Confirmed) return new GuardianOperationResult(false, "guardian.confirmation_required");
         if (!IsServiceName(id) || !options.AllowedServiceNames.Contains(id, StringComparer.OrdinalIgnoreCase) || action is not ("start" or "stop" or "restart"))
             return new GuardianOperationResult(false, "guardian.validation_failed");
-        var output = OperatingSystem.IsWindows()
-            ? await RunAsync("sc.exe", [action, id], cancellationToken)
-            : await RunAsync("systemctl", [action, id], cancellationToken);
-        return new GuardianOperationResult(!output.StartsWith("!", StringComparison.Ordinal), output.StartsWith("!", StringComparison.Ordinal) ? "guardian.service_action_failed" : string.Empty);
+        var privilegedAction = action switch
+        {
+            "start" => RemoteOS.Protocol.Privileged.PrivilegedServiceAction.Start,
+            "stop" => RemoteOS.Protocol.Privileged.PrivilegedServiceAction.Stop,
+            "restart" => RemoteOS.Protocol.Privileged.PrivilegedServiceAction.Restart,
+            _ => throw new InvalidOperationException("Validated service action was not mapped."),
+        };
+        var result = await privileged.ApplyAsync(id, privilegedAction, cancellationToken);
+        return new GuardianOperationResult(result.Success, result.Success ? string.Empty
+            : result.ProblemCode == RemoteOS.Protocol.Privileged.PrivilegedProblemCode.HelperUnavailable
+                ? "guardian.privileged_helper_unavailable"
+                : "guardian.service_action_failed");
     }
 
     private static async Task<string> RunAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)

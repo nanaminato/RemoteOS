@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Client.Localization;
+using Client.Services.Auth;
 using Client.Apps.Explorer.Models;
 using RemoteOS.Protocol.Files;
 
@@ -94,7 +95,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
     /// <summary>请求本地保存路径（用于下载目标）。参数：默认文件名。返回本地路径或 null。</summary>
     public Func<string, Task<string?>>? RequestLocalSaveFileAsync { get; set; }
     /// <summary>Ensures direct or short-lived elevated access before a protected file is opened or downloaded.</summary>
-    public Func<string, Task<bool>>? RequestFileElevationAsync { get; set; }
+    public Func<string, FileElevationCapability, Task<bool>>? RequestFileElevationAsync { get; set; }
+    /// <summary>Requests a five-minute elevated directory grant after a mutating operation was denied.</summary>
+    public Func<IReadOnlyList<string>, FileElevationCapability, Task<bool>>? RequestFileOperationElevationAsync { get; set; }
     /// <summary>使用默认程序打开一个远程文件。</summary>
     public Func<FileSystemEntryDto, Task>? OpenFileAsync { get; set; }
     /// <summary>选择程序后打开一个远程文件。</summary>
@@ -497,7 +500,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         StatusText = LocalizedText.Format("explorer.status.moving", entry.Name);
         try
         {
-            await _client.MoveAsync(entry.Path, destinationPath, overwrite: false);
+            if (!await RetryWithOperationElevationAsync(
+                    async () => { await _client.MoveAsync(entry.Path, destinationPath, overwrite: false); },
+                    FileElevationCapability.Move, ParentDirectory(entry.Path), targetDirectory)) return;
             StatusText = LocalizedText.Format("explorer.status.moved", entry.Name, targetDirectory);
             await RefreshAsync();
         }
@@ -710,7 +715,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
     {
         try
         {
-            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path)) return;
+            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path, FileElevationCapability.Read)) return;
             if (OpenFileAsync is null) { StatusText = LocalizedText.Get("explorer.status.no_file_opener"); return; }
             await OpenFileAsync(entry);
         }
@@ -755,7 +760,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
         try
         {
             var target = Path.Combine(AddressbarPath, name);
-            await _client.CreateDirectoryAsync(target);
+            if (!await RetryWithOperationElevationAsync(
+                    async () => { await _client.CreateDirectoryAsync(target); }, FileElevationCapability.CreateDirectory, AddressbarPath)) return;
             StatusText = LocalizedText.Format("explorer.status.folder_created", name);
             await RefreshAsync();
         }
@@ -774,7 +780,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (!confirmed) return;
         try
         {
-            await _client.DeleteAsync(entry.Path);
+            if (!await RetryWithOperationElevationAsync(
+                    async () => { await _client.DeleteAsync(entry.Path); }, FileElevationCapability.Delete, ParentDirectory(entry.Path))) return;
             StatusText = LocalizedText.Format("explorer.status.deleted", entry.Name);
             SelectedEntry = null;
             await RefreshAsync();
@@ -791,7 +798,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(newName) || newName == entry.Name) return;
         try
         {
-            await _client.RenameAsync(entry.Path, newName);
+            if (!await RetryWithOperationElevationAsync(
+                    async () => { await _client.RenameAsync(entry.Path, newName); }, FileElevationCapability.Rename, ParentDirectory(entry.Path))) return;
             StatusText = LocalizedText.Format("explorer.status.renamed", newName);
             await RefreshAsync();
         }
@@ -857,10 +865,10 @@ public sealed partial class ExplorerViewModel : ObservableObject
                 var entry = entries[index];
                 TransferText = LocalizedText.Format("explorer.status.pasting_item", entry.Name, index + 1, entries.Length);
                 var destination = CombineRemotePath(targetDirectory, entry.Name);
-                if (_fileClipboard.Operation == RemoteFileClipboardOperation.Cut)
-                    await _client.MoveAsync(entry.Path, destination, overwrite: false);
-                else
-                    await _client.CopyAsync(entry.Path, destination, overwrite: false);
+                var transferred = _fileClipboard.Operation == RemoteFileClipboardOperation.Cut
+                    ? await RetryWithOperationElevationAsync(async () => { await _client.MoveAsync(entry.Path, destination, overwrite: false); }, FileElevationCapability.Move, ParentDirectory(entry.Path), targetDirectory)
+                    : await RetryWithOperationElevationAsync(async () => { await _client.CopyAsync(entry.Path, destination, overwrite: false); }, FileElevationCapability.Copy, ParentDirectory(entry.Path), targetDirectory);
+                if (!transferred) return;
                 TransferItemCompleted = index + 1;
             }
 
@@ -903,7 +911,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(dest) || dest == entry.Path) return;
         try
         {
-            await _client.MoveAsync(entry.Path, dest, overwrite: false);
+            if (!await RetryWithOperationElevationAsync(
+                    async () => { await _client.MoveAsync(entry.Path, dest, overwrite: false); },
+                    FileElevationCapability.Move, ParentDirectory(entry.Path), ParentDirectory(dest))) return;
             StatusText = LocalizedText.Format("explorer.status.moved_to", dest);
             await RefreshAsync();
         }
@@ -923,7 +933,7 @@ public sealed partial class ExplorerViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(localPath)) return;
         try
         {
-            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path)) return;
+            if (RequestFileElevationAsync is not null && !await RequestFileElevationAsync(entry.Path, FileElevationCapability.Read)) return;
             var r = await _client.DownloadAsync(entry.Path);
             if (r is not (var stream, _))
             {
@@ -977,7 +987,9 @@ public sealed partial class ExplorerViewModel : ObservableObject
             {
                 var directory = plan.Directories[index];
                 TransferText = LocalizedText.Format("explorer.status.creating_folder", directory, index + 1, TransferItemTotal);
-                await _client.CreateDirectoryAsync(CombineRemoteRelativePath(AddressbarPath, directory));
+                var remoteDirectory = CombineRemoteRelativePath(AddressbarPath, directory);
+                if (!await RetryWithOperationElevationAsync(
+                        async () => { await _client.CreateDirectoryAsync(remoteDirectory); }, FileElevationCapability.CreateDirectory, AddressbarPath)) return;
                 TransferItemCompleted = index + 1;
             }
 
@@ -998,7 +1010,8 @@ public sealed partial class ExplorerViewModel : ObservableObject
                     ? AddressbarPath
                     : CombineRemoteRelativePath(AddressbarPath, destinationDirectory);
                 using var stream = File.OpenRead(file.SourcePath);
-                await _client.UploadAsync(targetDirectory, GetRelativeFileName(file.RelativePath), stream, progress);
+                if (!await RetryWithOperationElevationAsync(
+                        async () => { await _client.UploadAsync(targetDirectory, GetRelativeFileName(file.RelativePath), stream, progress); }, FileElevationCapability.Upload, AddressbarPath)) return;
                 completedBytes += file.Length;
                 TransferBytesCompleted = completedBytes;
                 TransferItemCompleted = operationIndex;
@@ -1043,6 +1056,39 @@ public sealed partial class ExplorerViewModel : ObservableObject
         OpenTerminalCommand.NotifyCanExecuteChanged();
         PropertiesCommand.NotifyCanExecuteChanged();
     }
+
+    /// <summary>
+    /// Leaves the first mutation to the host OS. Only its explicit elevation-required response
+    /// opens the system authentication flow, then retries once with the JWT-scoped grant.
+    /// </summary>
+    private async Task<bool> RetryWithOperationElevationAsync(Func<Task> operation, FileElevationCapability capability, params string?[] directoryPaths)
+    {
+        try
+        {
+            await operation();
+            return true;
+        }
+        catch (RemoteOsAuthException ex) when (ex.Type.EndsWith("/elevation-required", StringComparison.Ordinal))
+        {
+            var directories = directoryPaths.Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path => path!).Distinct(PathStringComparer).ToArray();
+            if (directories.Length == 0 || RequestFileOperationElevationAsync is null
+                || !await RequestFileOperationElevationAsync(directories, capability))
+            {
+                StatusText = LocalizedText.Get("explorer.status.elevation_required");
+                return false;
+            }
+            await operation();
+            return true;
+        }
+    }
+
+    private static string ParentDirectory(string path)
+        => Path.GetDirectoryName(path) ?? Path.GetPathRoot(path) ?? path;
+
+    private static StringComparer PathStringComparer => OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
 
     private void BeginTransfer(string text, int itemTotal, long totalBytes)
     {

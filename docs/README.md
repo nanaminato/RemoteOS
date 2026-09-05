@@ -7,6 +7,7 @@
 > - 用户 Workspace 模型见 [`RemoteOS.Workspace.md`](./architecture/RemoteOS.Workspace.md)
 > - 注册表与配置同步架构见 [`RemoteOS.Registry.md`](./architecture/RemoteOS.Registry.md)（设计中）
 > - 登录与身份模型见 [`RemoteOS.Authentication.md`](./platform/RemoteOS.Authentication.md)
+> - 认证限流与登录防护建议见 [`RemoteOS.Authentication.Hardening.md`](./platform/RemoteOS.Authentication.Hardening.md)
 > - 安全设计见 [`RemoteOS.Security.md`](./platform/RemoteOS.Security.md)
 > - 桌面外壳与模态对话框见 [`RemoteOS.Desktop.md`](./desktop/RemoteOS.Desktop.md)
 > - 文件管理器见 [`RemoteOS.Explorer.md`](./applications/RemoteOS.Explorer.md)
@@ -18,7 +19,7 @@
 > - 任务管理器见 [`RemoteOS.TaskManager.md`](./applications/RemoteOS.TaskManager.md)
 > - 任务管理器性能采集重写方案（后续 Goal 执行基线）见 [`RemoteOS.TaskManager.Rewrite.md`](./applications/RemoteOS.TaskManager.Rewrite.md)
 > - FRP 内网穿透的 Goal 执行基线见 [`RemoteOS.FRP_Integration.Goal.md`](./applications/RemoteOS.FRP_Integration.Goal.md)；架构与安全设计见 [`RemoteOS.FRP_Integration.Design.md`](./applications/RemoteOS.FRP_Integration.Design.md)，当前实现与运维边界见 [`RemoteOS.FRP_Integration.Implementation.md`](./applications/RemoteOS.FRP_Integration.Implementation.md)
-> - 代理管理器的 Goal 执行基线见 [`RemoteOS.ProxyManager.Goal.md`](./applications/RemoteOS.ProxyManager.Goal.md)；架构与安全设计见 [`RemoteOS.ProxyManager.Design.md`](./applications/RemoteOS.ProxyManager.Design.md)，实施前调研见 [`PROXY_IMPLEMENTATION_DISCOVERY.md`](../PROXY_IMPLEMENTATION_DISCOVERY.md)
+> - 代理管理器已完成代码级实现，发布级平台验证仍待完成：当前能力、缺口和下一阶段入口见 [`RemoteOS.ProxyManager.Discovery.md`](./applications/RemoteOS.ProxyManager.Discovery.md)（[English](./applications/RemoteOS.ProxyManager.Discovery.en.md)）；执行基线见 [`RemoteOS.ProxyManager.Goal.md`](./applications/RemoteOS.ProxyManager.Goal.md)，架构与安全设计见 [`RemoteOS.ProxyManager.Design.md`](./applications/RemoteOS.ProxyManager.Design.md)，操作员文档见 [`docs/proxy/`](./proxy/)
 > - Docker 管理器见 [`RemoteOS.DockerManager.md`](./applications/RemoteOS.DockerManager.md)
 > - 证书管理器见 [`RemoteOS.CertificateManager.md`](./applications/RemoteOS.CertificateManager.md)
 > - Web Server 管理器 / Nginx 集成设计中，见 [`RemoteOS.WebServerManager.Design.md`](./applications/RemoteOS.WebServerManager.Design.md)
@@ -420,8 +421,10 @@ RemoteOS.Server     = Cloud Backend
 | 文档 | 用途 |
 |------|------|
 | [`Authentication`](./platform/RemoteOS.Authentication.md) | 登录系统、Linux 用户集成、身份模型 |
+| [`Authentication Hardening`](./platform/RemoteOS.Authentication.Hardening.md) | 认证限流、风险控制与登录防护建议 |
 | [`Login`](./platform/RemoteOS.Login.md) | 登录窗口、auth 端点、JWT 与错误处理 |
 | [`Security`](./platform/RemoteOS.Security.md) | 安全设计、权限提升与危险操作确认 |
+| [`PrivilegedOperations Goal`](./platform/RemoteOS.PrivilegedOperations.Goal.md) | 跨平台受限 Helper、Windows Server LocalSystem 服务与特权操作迁移执行计划 |
 | [`Storage`](./platform/RemoteOS.Storage.md) | EF Core + SQLite、持久化范围与表结构 |
 
 ### 桌面体验

@@ -323,9 +323,18 @@ else
 var privilegedHelperOptions = builder.Configuration.GetSection("PrivilegedHelper").Get<Server.Privileged.PrivilegedHelperOptions>()
                              ?? new Server.Privileged.PrivilegedHelperOptions();
 builder.Services.AddSingleton(privilegedHelperOptions);
-builder.Services.AddSingleton<Server.Privileged.IPrivilegedOperationRunner, Server.Privileged.LocalPrivilegedOperationRunner>();
+builder.Services.AddSingleton<Server.Privileged.LocalPrivilegedOperationRunner>();
+builder.Services.AddSingleton<Server.Privileged.IPrivilegedOperationRunner>(sp => sp.GetRequiredService<Server.Privileged.LocalPrivilegedOperationRunner>());
+builder.Services.AddSingleton<Server.Privileged.IPrivilegedOperationTransport>(sp =>
+    OperatingSystem.IsWindows()
+        ? ActivatorUtilities.CreateInstance<Server.Privileged.WindowsNamedPipePrivilegedOperationTransport>(sp)
+        : sp.GetRequiredService<Server.Privileged.LocalPrivilegedOperationRunner>());
 builder.Services.AddSingleton<Server.Privileged.IPrivilegedFileService, Server.Privileged.PrivilegedFileService>();
+builder.Services.AddSingleton<Server.Privileged.IHostElevationSessionStore, Server.Privileged.HostElevationSessionStore>();
 builder.Services.AddSingleton<Server.Privileged.IFileElevationSessionStore, Server.Privileged.FileElevationSessionStore>();
+builder.Services.AddSingleton<Server.Privileged.IHostAdministratorAuthenticator, Server.Privileged.HostAdministratorAuthenticator>();
+builder.Services.AddSingleton<Server.ProcessGuardian.IPrivilegedNativeServiceOperations, Server.ProcessGuardian.PrivilegedNativeServiceOperations>();
+builder.Services.AddSingleton<Server.WebServer.IPrivilegedNginxOperations, Server.WebServer.PrivilegedNginxOperations>();
 
 // 任务管理器：系统指标采集 Provider（按宿主 OS 平台选择，与 IIdentityProvider 同模式）。
 // CPU/内存平台特定（Linux 读 /proc；Windows 走 P/Invoke），磁盘/网络/GPU/进程跨平台共享。
@@ -353,7 +362,6 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Server.SystemPerfo
 builder.Services.AddSingleton(builder.Configuration.GetSection("DockerEngine").Get<Server.Docker.DockerCliEngineOptions>() ?? new Server.Docker.DockerCliEngineOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerEngineService, Server.Docker.DockerCliEngineService>();
 builder.Services.AddScoped<Server.ImageMirrors.IDockerImageMirrorResolver, Server.ImageMirrors.DockerImageMirrorResolver>();
-builder.Services.AddSingleton(builder.Configuration.GetSection("DockerRuntimeInstaller").Get<Server.Docker.DockerRuntimeInstallerOptions>() ?? new Server.Docker.DockerRuntimeInstallerOptions());
 builder.Services.AddSingleton<Server.Docker.IDockerRuntimeInstaller, Server.Docker.DockerRuntimeInstaller>();
 builder.Services.Configure<Server.Docker.DockerComposeOptions>(builder.Configuration.GetSection("DockerCompose"));
 builder.Services.AddSingleton<Server.Docker.IDockerComposeService, Server.Docker.DockerComposeService>();
@@ -361,7 +369,6 @@ var guardianOptions = builder.Configuration.GetSection("GuardianAgent").Get<Serv
 builder.Services.AddSingleton(guardianOptions);
 builder.Services.AddSingleton<Server.ProcessGuardian.IProcessGuardianService, Server.ProcessGuardian.NamedPipeProcessGuardianService>();
 builder.Services.AddSingleton<Server.ProcessGuardian.IRunAsAuthorizationService, Server.ProcessGuardian.RunAsAuthorizationService>();
-builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianAgentInstaller").Get<Server.ProcessGuardian.GuardianAgentInstallerOptions>() ?? new Server.ProcessGuardian.GuardianAgentInstallerOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.IGuardianAgentInstaller, Server.ProcessGuardian.GuardianAgentInstaller>();
 builder.Services.AddSingleton(builder.Configuration.GetSection("GuardianNativeServices").Get<Server.ProcessGuardian.NativeServiceAdapterOptions>() ?? new Server.ProcessGuardian.NativeServiceAdapterOptions());
 builder.Services.AddSingleton<Server.ProcessGuardian.INativeServiceAdapter, Server.ProcessGuardian.NativeServiceAdapter>();
@@ -697,6 +704,7 @@ app.UseRateLimiter();
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
 app.MapFileEndpoints();
+app.MapPrivilegedEndpoints();
 app.MapAppCapabilityEndpoints();
 app.MapAppSettingsEndpoints();
 app.MapRegistryEndpoints();

@@ -8,6 +8,7 @@ using Client.Apps.Explorer.Views;
 using Client.Apps.WebServers.Views;
 using Client.Apps.Certificates;
 using Client.Localization;
+using Client.Services.Privileged;
 using Client.Services.Auth;
 using Client.Views;
 using RemoteOS.AppSDK;
@@ -43,6 +44,7 @@ public sealed class WebServerManagerApp : RemoteApplicationBase
         var view = WebServerManagerWorkspace.Create(viewModel);
         var window = context.ShowWindow(LocalizedText.Get("application.remoteos.webservers.display_name"),
             view, new Rect(70, 55, 1080, 680), Manifest.IconGlyph);
+        viewModel.ShowPrivilegedHelperUnavailableAsync = problemCode => PrivilegedHelperUnavailableDialog.ShowAsync(context, window, problemCode);
         viewModel.RequestIntegrationConfirmationAsync = async () =>
         {
             return await ConfirmAsync("webservers.integration.confirmation.title", "webservers.integration.confirmation.message", "webservers.integration.confirmation.confirm");
