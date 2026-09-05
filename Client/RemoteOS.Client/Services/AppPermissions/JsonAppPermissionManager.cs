@@ -5,6 +5,7 @@ using System.Text.Json;
 using RemoteOS.AppSDK;
 using RemoteOS.Core.Applications;
 using RemoteOS.Runtime;
+using CoreAppPermissions = RemoteOS.Core.Applications.AppPermissions;
 
 namespace Client.Services.AppPermissions;
 
@@ -99,7 +100,7 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager, IAppPermis
 
     public void Replace(AppId appId, string capability, IReadOnlyList<PermissionGrant> grants)
     {
-        if (!AppPermissions.IsKnown(capability)) throw new ArgumentOutOfRangeException(nameof(capability));
+        if (!CoreAppPermissions.IsKnown(capability)) throw new ArgumentOutOfRangeException(nameof(capability));
         if (grants.Any(grant => grant.AppId != appId || grant.Capability != capability))
             throw new ArgumentException("A grant must belong to the selected application and capability.", nameof(grants));
         lock (_gate)
@@ -131,7 +132,7 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager, IAppPermis
 
     private ApplicationManifest RequireDeclared(AppId appId, string permissionId)
     {
-        if (!AppPermissions.IsKnown(permissionId)) throw new ArgumentOutOfRangeException(nameof(permissionId));
+        if (!CoreAppPermissions.IsKnown(permissionId)) throw new ArgumentOutOfRangeException(nameof(permissionId));
         var manifest = _applications.GetManifest(appId);
         if (manifest is null || !manifest.Permissions.Contains(permissionId, StringComparer.Ordinal))
             throw new InvalidOperationException($"Application '{appId}' did not declare '{permissionId}'.");
@@ -146,7 +147,7 @@ public sealed class JsonAppPermissionManager : IAppPermissionManager, IAppPermis
         {
             var document = JsonSerializer.Deserialize<GrantDocument>(json);
             if (document?.PermissionModelVersion != ModelVersion || document.Grants is null) return new(StringComparer.Ordinal);
-            return document.Grants.Where(grant => AppPermissions.IsKnown(grant.Capability) && grant.IsActive(DateTimeOffset.UtcNow))
+            return document.Grants.Where(grant => CoreAppPermissions.IsKnown(grant.Capability) && grant.IsActive(DateTimeOffset.UtcNow))
                 .GroupBy(grant => grant.AppId.Value, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
         }
