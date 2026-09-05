@@ -14,3 +14,4 @@
 
 # Development fixture example. Prefer an isolated directory with no production secrets.
 # /var/lib/remoteos-dev/privileged-files
+/etc/ssh

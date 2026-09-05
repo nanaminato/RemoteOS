@@ -7,7 +7,10 @@ param(
     [int] $ServerPort = 5000,
     [string] $ServerServiceName = 'RemoteOSServer',
     [string] $GuardianServiceName = 'RemoteOSGuardian',
-    [string] $PrivilegedHelperServiceName = 'RemoteOSPrivilegedHelper'
+    [string] $PrivilegedHelperServiceName = 'RemoteOSPrivilegedHelper',
+    [ValidateSet('restricted', 'full', 'whitelist')]
+    [string] $FileAccess = 'restricted',
+    [string] $FileRootsFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +30,52 @@ if (-not (Test-Path -LiteralPath $ServerExecutable -PathType Leaf) -or -not (Tes
     throw 'ServerExecutable, GuardianExecutable, and PrivilegedHelperExecutable must all exist.'
 }
 if ($ServerPort -lt 1 -or $ServerPort -gt 65535) { throw 'ServerPort must be between 1 and 65535.' }
+
+function Test-FullyQualifiedWindowsPath([string] $Path) {
+    return (-not [string]::IsNullOrWhiteSpace($Path) -and $Path -match '^[a-zA-Z]:[\\/]|^\\\\')
+}
+
+function Get-WhitelistedFileRoots([string] $Path) {
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw '-FileAccess whitelist requires an existing -FileRootsFile JSON file.'
+    }
+    try {
+        $roots = @(Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json)
+    } catch {
+        throw "Could not read FileRootsFile as a JSON array: $($_.Exception.Message)"
+    }
+    if ($roots.Count -eq 0) { throw 'The file-root whitelist must contain at least one path.' }
+    foreach ($root in $roots) {
+        if ($root -isnot [string] -or -not (Test-FullyQualifiedWindowsPath $root)) {
+            throw "Whitelist path must be a fully qualified Windows or UNC path: $root"
+        }
+    }
+    return @($roots | ForEach-Object { $_.Trim() } | Select-Object -Unique)
+}
+
+function Get-FullLocalFileRoots {
+    $roots = @([IO.DriveInfo]::GetDrives() |
+        Where-Object {
+            $_.IsReady -and ($_.DriveType -eq [IO.DriveType]::Fixed -or $_.DriveType -eq [IO.DriveType]::Removable -or $_.DriveType -eq [IO.DriveType]::Ram)
+        } |
+        ForEach-Object { $_.RootDirectory.FullName } |
+        Select-Object -Unique)
+    if ($roots.Count -eq 0) { throw 'No ready local file-system volume was found for -FileAccess full.' }
+    return $roots
+}
+
+if ($FileAccess -eq 'whitelist') {
+    $fileAllowedRoots = Get-WhitelistedFileRoots $FileRootsFile
+} elseif (-not [string]::IsNullOrWhiteSpace($FileRootsFile)) {
+    throw '-FileRootsFile is valid only with -FileAccess whitelist.'
+} elseif ($FileAccess -eq 'full') {
+    # Explicit opt-in: permits all paths on the local volumes present during installation.
+    # UNC paths are deliberately excluded because they have separate credentials and trust boundaries.
+    $fileAllowedRoots = Get-FullLocalFileRoots
+    Write-Warning "Full file access is enabled for local volume roots: $($fileAllowedRoots -join ', ')"
+} else {
+    $fileAllowedRoots = @($env:ProgramData + '\RemoteOS')
+}
 
 $guardianData = Join-Path $env:ProgramData 'RemoteOS\guardian'
 $composeData = Join-Path $env:ProgramData 'RemoteOS\docker-compose'
@@ -107,7 +156,7 @@ $helperSettings = [ordered]@{
     pipeName = 'remoteos-privileged-helper'
     sharedSecret = $helperSecret
     serverServiceSid = $serverServiceSid
-    fileAllowedRoots = @($env:ProgramData + '\RemoteOS')
+    fileAllowedRoots = $fileAllowedRoots
     allowedServiceIds = @($ServerServiceName, $GuardianServiceName)
     helperExecutableSha256 = (Get-FileHash -LiteralPath $PrivilegedHelperExecutable -Algorithm SHA256).Hash
 }

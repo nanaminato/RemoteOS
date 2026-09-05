@@ -91,6 +91,30 @@ Helper 以冲突结果拒绝而不会再次执行。
 缺失、密钥不匹配或协议版本不匹配，Server 必须返回 Helper 不可用，不能回退为启动提升的
 可执行文件。
 
+### Windows 文件访问配置
+
+`Install-RemoteOSServices.ps1` 默认使用 `-FileAccess restricted`，仅允许
+`%ProgramData%\RemoteOS`。可在提升的 PowerShell 会话中选择：
+
+```powershell
+# 默认的最小权限策略。
+.\deployment\windows\Install-RemoteOSServices.ps1 -FileAccess restricted
+
+# 从 JSON 白名单文件加载受管目录。
+.\deployment\windows\Install-RemoteOSServices.ps1 `
+  -FileAccess whitelist `
+  -FileRootsFile .\deployment\windows\privileged-helper-roots.example.json
+
+# 授权安装时所有已就绪的本地卷（C:\、D:\ 等）；不包含 UNC 网络共享。
+.\deployment\windows\Install-RemoteOSServices.ps1 -FileAccess full
+```
+
+白名单文件必须是 JSON 字符串数组，且每项为绝对 Windows 或 UNC 路径；可从
+[`privileged-helper-roots.example.json`](../../deployment/windows/privileged-helper-roots.example.json)
+复制并仅保留所需目录。白名单根及其所有后代可用于读取、写入、删除、移动、复制、上传和创建目录。
+不要添加 `C:\`、`C:\Windows`、用户配置文件根目录或存放私钥的目录，除非所有有文件功能权限的
+RemoteOS 用户都可信。`full` 不是单次管理员提升，而是放宽整个文件接口；仅应在隔离测试环境使用。
+
 日常开发可改用 `RemoteOS.PrivilegedHelper.exe --console --config <debug-config>`。这不是降低
 生产权限模型的替代品：控制台配置必须单独创建并显式启用，管道仅允许当前开发用户；其协议、HMAC、
 重放保护和操作分发器与服务模式相同。生产安装目录中的 `helper.json` 不能用作控制台配置，且部署
