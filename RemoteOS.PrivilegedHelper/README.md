@@ -20,6 +20,10 @@ sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 
 Server 本身仍是非特权进程：sudo 会针对每个结构化请求启动一个 Helper 进程，且 Helper 只允许封闭操作集。绝不可让 sudoers 规则指向开发账户可写的 `bin/Debug` 可执行文件；这会赋予账户等同 root 的控制权。
 
+开发安装默认仅允许 `/etc/remoteos` 和 `/var/lib/remoteos`。若需调试受保护文件目录，使用
+`--file-access whitelist --file-roots deployment/linux/privileged-helper-roots.example`，并从示例中只保留测试所需的绝对目录。
+`--file-access full` 会允许 `/` 下所有文件，仅限隔离的可信测试机；不要用它将 `/etc/ssh` 私钥暴露给文件浏览器。
+
 ## Windows 开发
 
 日常开发时，直接在 IDE 中使用 `--console` 运行 Helper，不要安装 Windows 服务。在部署目录外创建仅用于开发的配置，使用新的随机 Base64 密钥（至少 32 字节），并且只允许一次性文件根目录：

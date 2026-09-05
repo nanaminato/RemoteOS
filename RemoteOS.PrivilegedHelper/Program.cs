@@ -244,6 +244,7 @@ static IReadOnlyList<string> LoadAllowedRoots()
         ? File.ReadAllText(policyPath)
         : Environment.GetEnvironmentVariable("REMOTEOS_PRIVILEGED_FILE_ROOTS") ?? string.Empty;
     return configured.Split([Path.PathSeparator, '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Where(line => !line.StartsWith('#'))
     .Where(Path.IsPathFullyQualified).Select(Path.GetFullPath).Distinct(GetPathComparer()).ToArray();
 }
 

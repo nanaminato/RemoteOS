@@ -8,12 +8,93 @@ if [[ ${EUID} -ne 0 ]]; then
   exit 1
 fi
 
-INSTALL_ROOT="${1:?usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE PRIVILEGED_HELPER_EXECUTABLE SERVER_PORT [SERVICE_USER]}"
+usage() {
+  echo "usage: install-remoteos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE PRIVILEGED_HELPER_EXECUTABLE SERVER_PORT [SERVICE_USER] [--file-access restricted|full|whitelist] [--file-roots PATH]" >&2
+  exit 1
+}
+
+INSTALL_ROOT="${1:-}"
 SERVER_EXECUTABLE="${2:?missing SERVER_EXECUTABLE}"
 GUARDIAN_EXECUTABLE="${3:?missing GUARDIAN_EXECUTABLE}"
 PRIVILEGED_HELPER_EXECUTABLE="${4:?missing PRIVILEGED_HELPER_EXECUTABLE}"
 SERVER_PORT="${5:?missing SERVER_PORT}"
-SERVICE_USER="${6:-remoteos-server}"
+[[ -n "$INSTALL_ROOT" ]] || usage
+shift 5
+
+SERVICE_USER=remoteos-server
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  SERVICE_USER="$1"
+  shift
+fi
+FILE_ACCESS=restricted
+FILE_ROOTS_FILE=
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file-access)
+      [[ $# -ge 2 ]] || usage
+      FILE_ACCESS="$2"
+      shift 2
+      ;;
+    --file-roots)
+      [[ $# -ge 2 ]] || usage
+      FILE_ROOTS_FILE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage
+      ;;
+  esac
+done
+
+case "$FILE_ACCESS" in
+  restricted|full|whitelist) ;;
+  *) echo "Invalid --file-access value: $FILE_ACCESS" >&2; usage ;;
+esac
+if [[ "$FILE_ACCESS" == whitelist ]]; then
+  [[ -n "$FILE_ROOTS_FILE" && -f "$FILE_ROOTS_FILE" ]] || { echo "--file-access whitelist requires an existing --file-roots file." >&2; exit 1; }
+elif [[ -n "$FILE_ROOTS_FILE" ]]; then
+  echo "--file-roots is valid only with --file-access whitelist." >&2
+  usage
+fi
+
+validate_file_roots() {
+  local roots_file="$1" raw root count=0
+  while IFS= read -r raw || [[ -n "$raw" ]]; do
+    root="${raw#"${raw%%[![:space:]]*}"}"
+    root="${root%"${root##*[![:space:]]}"}"
+    [[ -z "$root" || "${root:0:1}" == "#" ]] && continue
+    [[ "$root" == /* ]] || { echo "Whitelist path must be absolute: $root" >&2; exit 1; }
+    ((count += 1))
+  done < "$roots_file"
+  (( count > 0 )) || { echo "Whitelist contains no paths." >&2; exit 1; }
+}
+
+install_file_root_policy() {
+  local temporary_policy
+  temporary_policy="$(mktemp /etc/remoteos/privileged-helper-roots.XXXXXX)"
+  case "$FILE_ACCESS" in
+    restricted)
+      cat >"$temporary_policy" <<EOF
+/etc/remoteos
+/var/lib/remoteos
+EOF
+      ;;
+    full)
+      # '/' is intentional and means every absolute Linux path. This profile is unsafe for
+      # untrusted users because FileRead can return private keys and other root-readable data.
+      printf '/\n' >"$temporary_policy"
+      ;;
+    whitelist)
+      validate_file_roots "$FILE_ROOTS_FILE"
+      cp -- "$FILE_ROOTS_FILE" "$temporary_policy"
+      ;;
+  esac
+  chown root:root "$temporary_policy"
+  chmod 0600 "$temporary_policy"
+  mv -f -- "$temporary_policy" /etc/remoteos/privileged-helper-roots
+}
+
 PRIVILEGED_HELPER_SOURCE_DIR="$(dirname -- "$PRIVILEGED_HELPER_EXECUTABLE")"
 PRIVILEGED_HELPER_INSTALL_DIR=/usr/local/lib/remoteos/privileged-helper
 PRIVILEGED_HELPER="$PRIVILEGED_HELPER_INSTALL_DIR/$(basename -- "$PRIVILEGED_HELPER_EXECUTABLE")"
@@ -54,14 +135,9 @@ PrivilegedHelper__SudoPath=$(command -v sudo)
 EOF
 chmod 0600 /etc/remoteos/guardian.env /etc/remoteos/server.env
 
-# This is a Helper policy, not Server configuration. Keep the first deployment scope small;
-# additional protected Explorer roots must be explicitly reviewed and added by the installer.
-cat >/etc/remoteos/privileged-helper-roots <<EOF
-/etc/remoteos
-/var/lib/remoteos
-EOF
-chown root:root /etc/remoteos/privileged-helper-roots
-chmod 0600 /etc/remoteos/privileged-helper-roots
+# This is a Helper policy, not Server configuration. The caller selects the access profile;
+# restricted remains the secure default and full access is explicitly opt-in.
+install_file_root_policy
 cat >/etc/remoteos/privileged-services <<EOF
 remoteos-server.service
 remoteos-guardian.service

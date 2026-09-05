@@ -96,6 +96,19 @@ sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER"
 再创建只允许当前 IDE 用户启动该 apphost 的无密码 sudoers 规则。它不会创建或启动 systemd
 服务，也不会启动 Server、Guardian 或 Client。每次改动 Helper 后，重新执行构建和该脚本以部署新副本。
 
+该脚本默认安装 `restricted` 文件策略（`/etc/remoteos` 和 `/var/lib/remoteos`）。如需调试由
+Helper 访问的受保护文件，请使用单独的无敏感数据夹具，并通过白名单显式授权：
+
+```bash
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER" \
+  --file-access whitelist \
+  --file-roots deployment/linux/privileged-helper-roots.example
+```
+
+可复制示例文件后只保留所需的绝对目录。`--file-access full` 会授权 `/` 下所有路径，仅适合隔离、
+所有使用者均可信的测试机；不得用它读取或测试导出 `/etc/ssh` 的主机私钥。完整说明见
+[`RemoteOS.PrivilegedOperations.Operations.md`](../platform/RemoteOS.PrivilegedOperations.Operations.md#文件访问配置)。
+
 然后选择 Server 的 `http-linux-privileged` 启动配置。该配置的
 `PrivilegedHelper__HelperPath` 指向上述 root-owned 副本；`PrivilegedHelper__SudoPath` 仍必须为
 `/usr/bin/sudo`。普通 `http` 配置不包含此路径，因此适合 UI/API 调试；一旦发起真实 UFW 修改，

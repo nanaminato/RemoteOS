@@ -30,6 +30,12 @@ The Server itself remains unprivileged: sudo starts one Helper process for each 
 and the Helper permits only the closed operation set. Never point a sudoers rule at a development
 account-writable `bin/Debug` executable; that would give the account root-equivalent control.
 
+The development installer defaults to `/etc/remoteos` and `/var/lib/remoteos`. To test another
+protected directory, use `--file-access whitelist --file-roots deployment/linux/privileged-helper-roots.example`
+and retain only the absolute test roots you need. `--file-access full` permits every path below `/`;
+use it only on an isolated test host whose RemoteOS users are all trusted. Never use it to expose
+private keys below `/etc/ssh` through the file explorer.
+
 ## Windows development
 
 Run the Helper directly from the IDE with `--console`; do not install a Windows service for daily

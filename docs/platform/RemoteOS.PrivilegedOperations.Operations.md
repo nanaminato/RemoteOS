@@ -24,8 +24,51 @@ sudo -u remoteos-server sudo -n /usr/local/lib/remoteos/privileged-helper/<appho
 第二个命令没有 JSON 请求时必须失败；它只能证明 sudoers 指向固定 apphost，不能用于
 执行命令。不要向 sudoers 增加通配符、shell 或自定义参数规则。
 
+### 文件访问配置
+
+安装器默认使用 `--file-access restricted`，仅允许：
+
+```text
+/etc/remoteos
+/var/lib/remoteos
+```
+
+可在常规安装参数之后明确选择下列模式：
+
+```bash
+# 默认；适合生产环境。
+sudo deployment/linux/install-remoteos-services.sh ... --file-access restricted
+
+# 从审查过的白名单文件安装策略。
+sudo deployment/linux/install-remoteos-services.sh ... \
+  --file-access whitelist \
+  --file-roots deployment/linux/privileged-helper-roots.example
+
+# 允许所有绝对路径；仅限隔离的、所有 RemoteOS 使用者均可信的测试主机。
+sudo deployment/linux/install-remoteos-services.sh ... --file-access full
+```
+
+`whitelist` 文件每行一个绝对目录；空行和以 `#` 开头的注释会被忽略。可从
+[`privileged-helper-roots.example`](../../deployment/linux/privileged-helper-roots.example)
+复制后删除不需要的条目。一个根目录会授权其所有子路径的读取、写入、删除、移动、复制、上传和创建目录。
+因此不要将 `/`、`/etc`、`/home` 或 `/tmp` 写入生产白名单；尤其不要把 `/etc/ssh` 加入通用文件操作，
+否则有权限使用文件功能的用户可读取 SSH 主机私钥。
+
+`full` 模式会将 `/` 写入策略文件，等价于所有路径均可经 root Helper 处理。它不是对单个管理员的临时提升，
+而是扩大整个 RemoteOS 文件接口的能力；生产环境应使用 `restricted` 或经过审查的 `whitelist`。
+
+开发安装脚本也支持相同参数。例如，调试受保护文件流程时可以使用独立夹具：
+
+```bash
+sudo deployment/linux/install-remoteos-privileged-helper-development.sh "$USER" \
+  --file-access whitelist \
+  --file-roots deployment/linux/privileged-helper-roots.example
+```
+
+该开发脚本会写入同一份系统策略文件；不要在同时运行生产 Server 的主机上将它切换为 `full`。
+
 若增加受保护文件根或可控制服务，修改前必须进行安全审查；策略文件必须保持
-`root:root`、`0600`。重装服务会恢复默认的最小策略。
+`root:root`、`0600`。重装服务会根据所选模式重建文件策略。
 
 ## Windows Server
 
