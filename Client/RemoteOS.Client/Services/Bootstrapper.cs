@@ -15,6 +15,7 @@ using Client.Services.Developer;
 using Client.Services.DesktopRestore;
 using Client.Services.Diagnostics;
 using Client.Services.WindowLayout;
+using Client.Services.VirtualSystemDrive;
 using Client.Services.Theming;
 using Client.ViewModels.Login;
 using Client.ViewModels.Shell;
@@ -51,6 +52,9 @@ public static class Bootstrapper
         services.AddSingleton<ApplicationManager>(sp =>
             new ApplicationManager(sp.GetRequiredService<IWindowManager>(), sp));
         services.AddSingleton<IAppActivationService>(sp => sp.GetRequiredService<ApplicationManager>());
+        services.AddSingleton<VirtualSystemDrive>();
+        services.AddSingleton<IBuiltInApplicationFactoryRegistry, BuiltInApplicationRegistry>();
+        services.AddSingleton<BuiltInDescriptorSeeder>();
 
         // Auth（登录模块）：typed HttpClient + 仅内存认证会话 + 登录视图模型。
         services.AddHttpClient<IRemoteOsClient, RemoteOsClient>()
@@ -184,28 +188,27 @@ public static class Bootstrapper
         services.AddSingleton<PreferencesSync>();
 
         // Built-in applications.
-        services.AddSingleton<IRemoteApplication, WelcomeApp>();
-        services.AddSingleton<IRemoteApplication, NotepadApp>();
-        services.AddSingleton<IRemoteApplication, CodeEditorApp>();
-        services.AddSingleton<IRemoteApplication, ImageViewerApp>();
-        services.AddSingleton<IRemoteApplication, SettingsApp>();
+        services.AddSingleton<WelcomeApp>();
+        services.AddSingleton<NotepadApp>();
+        services.AddSingleton<CodeEditorApp>();
+        services.AddSingleton<ImageViewerApp>();
+        services.AddSingleton<SettingsApp>();
         services.AddSingleton<TerminalApp>();
-        services.AddSingleton<IRemoteApplication>(sp => sp.GetRequiredService<TerminalApp>());
         services.AddSingleton<IDesktopRestoreParticipant, TerminalDesktopRestoreParticipant>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Explorer.ExplorerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Browser.BrowserApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.PortForwarding.PortForwardingApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.TaskManager.TaskManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Docker.DockerManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.ProcessGuardian.ProcessGuardianApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Firewall.FirewallApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Certificates.CertificateManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.WebServers.WebServerManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Tunnels.TunnelManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Proxy.ProxyManagerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Git.GitClientApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.AppInstaller.AppInstallerApp>();
-        services.AddSingleton<IRemoteApplication, Client.Apps.Registry.RegistryApp>();
+        services.AddSingleton<Client.Apps.Explorer.ExplorerApp>();
+        services.AddSingleton<Client.Apps.Browser.BrowserApp>();
+        services.AddSingleton<Client.Apps.PortForwarding.PortForwardingApp>();
+        services.AddSingleton<Client.Apps.TaskManager.TaskManagerApp>();
+        services.AddSingleton<Client.Apps.Docker.DockerManagerApp>();
+        services.AddSingleton<Client.Apps.ProcessGuardian.ProcessGuardianApp>();
+        services.AddSingleton<Client.Apps.Firewall.FirewallApp>();
+        services.AddSingleton<Client.Apps.Certificates.CertificateManagerApp>();
+        services.AddSingleton<Client.Apps.WebServers.WebServerManagerApp>();
+        services.AddSingleton<Client.Apps.Tunnels.TunnelManagerApp>();
+        services.AddSingleton<Client.Apps.Proxy.ProxyManagerApp>();
+        services.AddSingleton<Client.Apps.Git.GitClientApp>();
+        services.AddSingleton<Client.Apps.AppInstaller.AppInstallerApp>();
+        services.AddSingleton<Client.Apps.Registry.RegistryApp>();
 
         services.AddSingleton<DesktopShellViewModel>(sp =>
         {
@@ -243,10 +246,15 @@ public static class Bootstrapper
 
         windowManager.LayoutStore = provider.GetRequiredService<WindowLayoutStore>();
 
-        // Register applications with the runtime.
+        // The observable built-in descriptor mirror is repaired from Host-compiled definitions.
+        // A disk file never establishes BuiltIn identity or selects code to load.
+        provider.GetRequiredService<BuiltInDescriptorSeeder>().EnsureSeededAsync().GetAwaiter().GetResult();
+
+        // Register applications with the runtime. Goal 2 moves this final registration loop to
+        // Catalog discovery; this registry is already the sole Host-owned factory mapping.
         var manager = provider.GetRequiredService<ApplicationManager>();
-        foreach (var application in provider.GetServices<IRemoteApplication>())
-            manager.RegisterBuiltIn(application);
+        foreach (var definition in provider.GetRequiredService<IBuiltInApplicationFactoryRegistry>().Definitions)
+            manager.RegisterBuiltIn(definition.Factory(provider));
 
         // Development packages follow the same runtime registry as built-in applications.
         provider.GetRequiredService<DeveloperPackageManager>().LoadInstalled();
