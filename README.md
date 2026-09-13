@@ -249,6 +249,8 @@ dotnet run
 
 > ⚠️ **生产环境**：请务必修改 `appsettings.json` 中的 `Jwt:Secret`（至少 32 字符随机字符串）。
 
+生产部署请使用[一键服务端安装器](./deployment/README.md)：它会生成并保护 JWT、组件 IPC 密钥，安装 Server、Guardian Agent 与权限助手，并完成健康检查。
+
 ### 3. 启动客户端
 
 ```bash
