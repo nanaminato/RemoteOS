@@ -255,6 +255,7 @@
         "settings.environment.browse": "参照…",
         "settings.environment.preview": "変更をプレビュー",
         "settings.environment.apply": "許可して適用",
+        "settings.environment.authorize": "リモート環境変数の変更を認証",
         "settings.environment.query": "操作を照会",
         "settings.environment.rollback": "以前の値に復元",
         "settings.environment.path_hint": "順序・重複・空項目を保持します。空項目は現在のディレクトリを検索する場合があります。最後の項目を削除すると空の値になります。「設定を下書きに追加」で反映します。リモートの存在確認は未実施です。",

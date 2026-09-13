@@ -96,14 +96,14 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
             finally { registration.Dispose(); editor?.Clear(); }
         };
         var hostTimeService = context.Services.GetRequiredService<Services.HostSettings.IHostTimeService>();
-        async Task<bool> AuthorizeHostSettingsAsync(Services.HostSettings.HostSettingsConnection connection, string target,
+        async Task<bool> AuthorizeHostSettingsAsync(Services.HostSettings.HostSettingsConnection connection, string titleKey, string target,
             Func<string?, string?, Task<RelaxKonOS.Protocol.Privileged.HostElevationResult>> authorize)
         {
             try { return (await authorize(null, null)).Elevated; }
             catch (RelaxKonOSAuthException error) when (error.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
             {
                 var credentials = await context.WindowManager.ShowSystemDialogAsync<(string Password, string? Administrator)?>(
-                    LocalizedText.Get("settings.host_time.authorize"), dialog =>
+                    LocalizedText.Get(titleKey), dialog =>
                     {
                         var password = new Avalonia.Controls.TextBox { PasswordChar = '•', PlaceholderText = LocalizedText.Get("settings.host_time.password") };
                         var administrator = new Avalonia.Controls.TextBox { PlaceholderText = LocalizedText.Get("settings.host_time.administrator") };
@@ -132,7 +132,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
             }
         }
         viewModel.Pages.OfType<TimeLanguagePageViewModel>().Single().HostTime.RequestAuthorizationAsync = connection =>
-            AuthorizeHostSettingsAsync(connection, "host/time", (password, administrator) => hostTimeService.AuthorizeAsync(connection, password, administrator));
+            AuthorizeHostSettingsAsync(connection, "settings.host_time.authorize", "host/time", (password, administrator) => hostTimeService.AuthorizeAsync(connection, password, administrator));
         var hostEnvironment = context.Services.GetRequiredService<Services.HostSettings.IHostEnvironmentService>();
         var systemPage = viewModel.Pages.OfType<SystemPageViewModel>().Single();
         systemPage.RequestEnvironmentVariablesAsync = async () =>
@@ -147,7 +147,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                     RequestAuthorizationAsync = async (connection, scope, capability) =>
                     {
                         var target = await hostEnvironment.ResolveTargetAsync(connection, scope);
-                        return await AuthorizeHostSettingsAsync(connection, target.ResourceId + " · " + capability,
+                        return await AuthorizeHostSettingsAsync(connection, "settings.environment.authorize", target.ResourceId + " · " + capability,
                             (password, administrator) => hostEnvironment.AuthorizeAsync(connection, scope, capability, password, administrator));
                     },
                 };

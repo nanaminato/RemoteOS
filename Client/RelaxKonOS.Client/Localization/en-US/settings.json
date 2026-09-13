@@ -255,6 +255,7 @@
         "settings.environment.browse": "Browse…",
         "settings.environment.preview": "Preview batch",
         "settings.environment.apply": "Authorize and apply",
+        "settings.environment.authorize": "Authorize remote environment variable change",
         "settings.environment.query": "Query operation",
         "settings.environment.rollback": "Restore previous values",
         "settings.environment.path_hint": "Order, duplicates and empty entries are preserved. Empty entries may search the current directory. Removing the last entry leaves an empty value. Stage set to include these edits in the batch. Remote path existence has not been checked.",

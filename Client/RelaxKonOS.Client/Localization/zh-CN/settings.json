@@ -255,6 +255,7 @@
         "settings.environment.browse": "浏览…",
         "settings.environment.preview": "预览批次",
         "settings.environment.apply": "授权并应用",
+        "settings.environment.authorize": "授权远程环境变量修改",
         "settings.environment.query": "查询操作",
         "settings.environment.rollback": "恢复原值",
         "settings.environment.path_hint": "保留顺序、重复项和空项。空项可能搜索当前目录；删除最后一项会留下空值。点击“暂存设置”将编辑加入批次。尚未检查远程路径是否存在。",
