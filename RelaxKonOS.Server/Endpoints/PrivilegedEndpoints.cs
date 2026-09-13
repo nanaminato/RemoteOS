@@ -32,11 +32,16 @@ public static class PrivilegedEndpoints
                 }
                 catch (RelaxKonOS.Server.Settings.SettingsException error) { return Problem(error.StatusCode, error.Code, "环境身份映射失败。"); }
             }
+            // Environment has two Windows stores, but Linux deliberately exposes only the PAM
+            // machine-login store. Do not fabricate a Linux per-user target merely to retain a
+            // Windows-shaped elevation bundle.
+            var environmentScopes = OperatingSystem.IsLinux()
+                ? new[] { RelaxKonOS.Protocol.Settings.SettingsScope.HostMachine }
+                : new[] { RelaxKonOS.Protocol.Settings.SettingsScope.HostUser, RelaxKonOS.Protocol.Settings.SettingsScope.HostMachine };
             // An older single-capability environment grant is deliberately upgraded on the
-            // next request; only a complete three-capability grant for both stores can skip
-            // verification.
+            // next request; only a complete three-capability grant for every supported store can skip verification.
             var environmentBundleAlreadyGranted = isEnvironmentCapability
-                && new[] { RelaxKonOS.Protocol.Settings.SettingsScope.HostUser, RelaxKonOS.Protocol.Settings.SettingsScope.HostMachine }
+                && environmentScopes
                     .All(scope => new[]
                     {
                         HostElevationCapability.HostEnvironmentRead,
@@ -58,11 +63,7 @@ public static class PrivilegedEndpoints
                 // and expire together after the normal short session lifetime.
                 if (isEnvironmentCapability)
                 {
-                    var targets = new[]
-                    {
-                        environment.ResolveTarget(http.User, RelaxKonOS.Protocol.Settings.SettingsScope.HostUser),
-                        environment.ResolveTarget(http.User, RelaxKonOS.Protocol.Settings.SettingsScope.HostMachine),
-                    };
+                    var targets = environmentScopes.Select(scope => environment.ResolveTarget(http.User, scope)).ToArray();
                     DateTimeOffset environmentExpires = default;
                     foreach (var target in targets)
                     foreach (var capability in new[]

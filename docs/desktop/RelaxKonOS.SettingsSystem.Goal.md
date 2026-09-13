@@ -142,9 +142,9 @@ Windows 名称大小写不敏感，Linux 大小写敏感；PATH 分隔符分别�
 
 ### 7.3 Linux provider
 
-Linux 不存在覆盖所有 shell、PAM、systemd 服务的统一用户环境存储。第一轮明确支持：Ubuntu 的机器 `/etc/environment` 受限无 shell 语法，以及 RelaxKonOS 启动器使用的用户/Workspace 环境；用户持久范围标注“RelaxKonOS 启动的进程”，不宣传为所有宿主登录程序生效。
+Linux 不存在覆盖所有 shell、PAM、systemd 服务的统一用户环境存储。当前实现只支持机器 `host/environment/machine` 的 `/etc/environment`，并把它明确显示为“PAM 登录环境”；Linux `HostUser` 被拒绝，不能伪造为通用用户环境。后续若实现 RelaxKonOS 启动器环境或 systemd `environment.d`，必须作为独立 provider/作用域，分别声明消费者与优先级。
 
-执行阶段核对目标发行版真实加载机制；读到不能无损编辑的语法时给出具体错误并保持文件不变。保留无关条目和文件元数据，采用受限解析、受保护临时文件、原子替换与读回；不向 `.bashrc`、`.profile` 批量追加脚本。未来增加 PAM/environment.d provider 必须单独声明支持的消费者与优先级。
+Helper 仅在扫描到未关闭 `readenv`、未改写 `envfile` 的 `pam_env.so` 配置时开放该 provider；否则失败为不支持。读到不能无损编辑的语法时保持文件不变。写入以原始字节 revision 条件化，使用 Helper 互斥、写前二次比对、同目录落盘临时文件、原子替换与读回；保留模式并拒绝链接/目录。不向 `.bashrc`、`.profile` 批量追加脚本。真实目标发行版的 PAM 栈、登录消费者与外部编辑恢复仍须在指定 Ubuntu VM 验证。
 
 ### 7.4 提权边界
 
@@ -253,7 +253,7 @@ Windows 只作为信息架构与交互依据，RelaxKonOS 的路由、权限与�
 | provider | 实施方案 | 当前验收状态 |
 | --- | --- | --- |
 | Windows 环境 | Helper 固定 HKLM 环境键 / 目标 SID 下 Environment；保留 REG_SZ/REG_EXPAND_SZ、读回及广播 | 待实现，待指定远程 Windows 测试目标 |
-| Ubuntu 环境 | 固定 `/etc/environment` 受限保真解析、原子替换；用户范围仅 RelaxKonOS 启动器 | 待实现，待指定 Ubuntu VM |
+| Ubuntu 环境 | 固定 `/etc/environment` PAM 登录环境；受限保真解析、条件原子替换与读回；Linux HostUser 显式不支持 | Helper/Server/UI/行为测试已实现；待指定 Ubuntu VM 实机 PAM 登录、外部改写与回滚验收 |
 | 时区 / 主机名 | 平台枚举合法时区 ID；固定 OS API/绝对程序；主机名校验、策略与待重启结果 | 待实现及远程测试 |
 | DNS | 探测 Windows 网卡 / Ubuntu 实际网络 owner；固定动作 OS 持久恢复任务先落盘，再写 DNS | 待实现；不能因尚未实现就声明平台不支持 |
 | 错误 | 428 缺少 revision/授权前置；409 外部修改或幂等载荷冲突；能力原因独立区分离线、权限、Helper、平台、策略 | Workspace revision 已落地；宿主能力待实现 |

@@ -60,10 +60,16 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     public bool CanDiscard => !IsBusy && (!_submitted || _operation?.State is SettingsOperationState.Applied or SettingsOperationState.RolledBack or SettingsOperationState.Failed);
     public string TargetText => _connection is null ? "" : _connection.ServerUrl + " · " + _session.CurrentUser?.Username + " · " + _snapshot?.Target.ResourceId;
     public string ScopeHeading => MachineScope
-        ? T("settings.environment.system_variables", "System variables")
+        ? IsLinuxPamEnvironment
+            ? T("settings.environment.pam_login_environment", "PAM login environment")
+            : T("settings.environment.system_variables", "System variables")
         : T("settings.environment.user_variables", "User variables");
     public bool IsWindowsEnvironment => _userSnapshot is not null && !_userSnapshot.CaseSensitiveNames;
     public bool IsNotWindowsEnvironment => !IsWindowsEnvironment;
+    public bool IsLinuxPamEnvironment => _snapshot?.Provider == "linux-pam-environment";
+    public string EnvironmentEffectText => _snapshot?.EffectiveState == SettingsEffectiveState.NewLogin
+        ? T("settings.environment.pam_login_effect", "Changes apply to new PAM login sessions only. They do not update running processes or system services.")
+        : T("settings.environment.effect", "Saved changes affect new processes. Running processes retain their environment.");
     /// <summary>True only after the administrator grant has succeeded and the unmasked snapshot is loaded.</summary>
     public bool HasLoadedEnvironment => _snapshot is not null;
     public string SelectedDetails => SelectedVariable is not { } value ? "" : value.ValueKind + " · " + value.Source + Environment.NewLine
@@ -101,31 +107,35 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         SelectWindowsScope(SettingsScope.HostMachine, value);
     }
 
-    /// <summary>Opened once for a Windows target.  The server expands this single verified grant to
-    /// the environment read/reveal/change capabilities for the current user's two environment stores.</summary>
+    /// <summary>Open the machine store first. Windows elevation expands to both registry stores;
+    /// Linux has only the explicitly supported PAM machine-login store.</summary>
     public Task InitializeAsync() => RunAsync(async ct =>
     {
         var connection = _service.CaptureConnection();
         _connection = connection;
-        if (!await Authorize(connection, SettingsScope.HostUser, HostElevationCapability.HostEnvironmentChange, ct)) return;
-        await LoadWindowsScopesAsync(connection, ct);
+        if (!await Authorize(connection, SettingsScope.HostMachine, HostElevationCapability.HostEnvironmentChange, ct)) return;
+        await LoadHostScopesAsync(connection, ct);
         StatusText = T("settings.host_time.loaded", "Loaded");
     });
 
-    private async Task LoadWindowsScopesAsync(HostSettingsConnection connection, CancellationToken ct)
+    private async Task LoadHostScopesAsync(HostSettingsConnection connection, CancellationToken ct)
     {
-        var user = await _service.ReadAsync(connection, SettingsScope.HostUser, reveal: true, ct);
+        var machine = await _service.ReadAsync(connection, SettingsScope.HostMachine, reveal: true, ct);
         ct.ThrowIfCancellationRequested();
-        if (user.CaseSensitiveNames)
+        if (machine.CaseSensitiveNames)
         {
-            _snapshot = user;
+            MachineScope = true;
+            _snapshot = machine;
             _userSnapshot = _machineSnapshot = null;
             RefreshVariables();
             OnPropertyChanged(nameof(IsWindowsEnvironment));
             OnPropertyChanged(nameof(IsNotWindowsEnvironment));
+            OnPropertyChanged(nameof(IsLinuxPamEnvironment));
+            OnPropertyChanged(nameof(EnvironmentEffectText));
+            OnPropertyChanged(nameof(ScopeHeading));
             return;
         }
-        var machine = await _service.ReadAsync(connection, SettingsScope.HostMachine, reveal: true, ct);
+        var user = await _service.ReadAsync(connection, SettingsScope.HostUser, reveal: true, ct);
         ct.ThrowIfCancellationRequested();
         _userSnapshot = user;
         _machineSnapshot = machine;
@@ -134,6 +144,8 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         SelectWindowsScope(SettingsScope.HostUser, null);
         OnPropertyChanged(nameof(IsWindowsEnvironment));
         OnPropertyChanged(nameof(IsNotWindowsEnvironment));
+        OnPropertyChanged(nameof(IsLinuxPamEnvironment));
+        OnPropertyChanged(nameof(EnvironmentEffectText));
     }
 
     private void SelectWindowsScope(SettingsScope scope, EnvironmentVariable? variable)
@@ -208,7 +220,7 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         if (operation.State == SettingsOperationState.Applied)
         {
             _submitted = false;
-            await LoadWindowsScopesAsync(connection, ct);
+            await LoadHostScopesAsync(connection, ct);
         }
     }
     [RelayCommand(CanExecute = nameof(CanEdit))]
@@ -237,7 +249,7 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         var plan = await _service.PreviewAsync(Connection(), new(Scope, _snapshot.Revision, Guid.NewGuid().ToString("N"), change), ct);
         ct.ThrowIfCancellationRequested(); _plan = plan;
         PreviewText = string.Join(Environment.NewLine, plan.Differences.Select(d => d.SettingId + " · " + d.Before + " → " + d.After))
-            + Environment.NewLine + T("settings.environment.effect", "New processes only") + Environment.NewLine + plan.ExpiresAt.ToLocalTime().ToString("g");
+            + Environment.NewLine + EnvironmentEffectText + Environment.NewLine + plan.ExpiresAt.ToLocalTime().ToString("g");
         StatusText = Ref("settings.host_time.review", "Review the plan");
     });
     [RelayCommand(CanExecute = nameof(CanApply))]
@@ -318,6 +330,7 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     {
         OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanChangeScope)); OnPropertyChanged(nameof(TargetText)); OnPropertyChanged(nameof(OperationId));
         OnPropertyChanged(nameof(IsWindowsEnvironment)); OnPropertyChanged(nameof(IsNotWindowsEnvironment));
+        OnPropertyChanged(nameof(IsLinuxPamEnvironment)); OnPropertyChanged(nameof(EnvironmentEffectText)); OnPropertyChanged(nameof(ScopeHeading));
         OnPropertyChanged(nameof(HasLoadedEnvironment));
         UpdatePathCommands();
         LoadCommand.NotifyCanExecuteChanged(); RevealCommand.NotifyCanExecuteChanged(); StageSetCommand.NotifyCanExecuteChanged(); StageDeleteCommand.NotifyCanExecuteChanged();

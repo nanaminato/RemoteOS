@@ -97,10 +97,12 @@ Linux Helper launch and privileged child launches clear inherited environment va
 
 Real Windows/Ubuntu timezone changes, external changes, policy rejection and recovery remain unverified on designated test hosts.
 
-### Settings environment operations (integration in progress)
+### Settings environment operations (integrated; target-host validation pending)
 
 Closed `HostEnvironmentRead` / `HostEnvironmentApply` operations accept only structured `environmentTarget` / `environmentChange` fields. They reject mixed file, service or time fields; other operations reject environment payloads. Windows uses fixed machine storage or `HKEY_USERS/<SID>/Environment`, never the Helper's HKCU. A canonical, resolvable account SID and a loaded user hive are required. The Server must map the authenticated user to the SID; clients must not choose arbitrary accounts.
 
 Raw REG_SZ / REG_EXPAND_SZ values and types are preserved. Writes compare the full snapshot revision, mutate the requested values, flush, read back and broadcast the Environment change notification. Registry batches are not transactions: the Server must persist recovery material before dispatch and reconcile interrupted or partial writes as uncertain outcomes. Broadcast does not replace running process environments or guarantee delivery to other sessions/services.
 
-Raw values are restricted to authenticated local IPC and must never be forwarded directly to HTTP, normal audit or diagnostics. Audit records only a resource hash. Environment HTTP authorization/coordinator integration is pending; real Windows registry/ACL and service runtime isolation validation require a designated remote test host. Linux currently has only the restricted document core; its provider remains required work, not a platform exemption.
+Linux supports only the fixed `host/environment/machine` `/etc/environment` provider. The Helper first requires an installed PAM configuration containing a `pam_env.so` entry that has neither disabled `readenv` nor redirected `envfile`; otherwise it reports unsupported. It does not fabricate a Linux `HostUser` store. Reads and writes use the restricted non-shell, lossless parser, byte revision, Helper mutex, a second revision check before write, same-directory temporary file, flush, atomic replacement, and readback validation. The original mode is retained and links/directories are rejected. Its effective state is “new PAM login session”; it never claims to update running processes, shell profiles, or systemd services.
+
+Raw values are restricted to authenticated local IPC and must never be forwarded directly to HTTP, normal audit or diagnostics. Audit records only a resource hash. Environment HTTP authorization/coordinator integration is complete; real Windows registry/ACL and service runtime isolation validation, plus Linux PAM login, external-edit, and rollback validation, still require designated remote test hosts.
