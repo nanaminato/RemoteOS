@@ -265,10 +265,8 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 };
                                 var content = new Avalonia.Controls.StackPanel
                                 {
-                                    Margin = new Avalonia.Thickness(20), Spacing = 10,
+                                    Margin = new Avalonia.Thickness(20, 0, 20, 12), Spacing = 10,
                                 };
-                                content.Children.Add(new Avalonia.Controls.TextBlock { Text = LocalizedText.Get("settings.environment.name") });
-                                content.Children.Add(name);
                                 content.Children.Add(new Avalonia.Controls.TextBlock { Text = LocalizedText.Get(isPath ? "settings.environment.path_entries" : "settings.environment.value") });
                                 if (isPath)
                                 {
@@ -285,15 +283,27 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 {
                                     Orientation = Avalonia.Layout.Orientation.Horizontal,
                                     HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                                    Spacing = 8, Children = { cancel, save },
+                                    Margin = new Avalonia.Thickness(20, 0, 20, 12), Spacing = 8, Children = { cancel, save },
                                 };
-                                var editorLayout = new Avalonia.Controls.Grid { RowDefinitions = new Avalonia.Controls.RowDefinitions("*,Auto") };
-                                editorLayout.Children.Add(new Avalonia.Controls.ScrollViewer
+                                var nameHeader = new Avalonia.Controls.StackPanel
+                                {
+                                    Margin = new Avalonia.Thickness(20, 20, 20, 12), Spacing = 10,
+                                    Children =
+                                    {
+                                        new Avalonia.Controls.TextBlock { Text = LocalizedText.Get("settings.environment.name") },
+                                        name,
+                                    },
+                                };
+                                var editorLayout = new Avalonia.Controls.Grid { RowDefinitions = new Avalonia.Controls.RowDefinitions("Auto,*,Auto") };
+                                editorLayout.Children.Add(nameHeader);
+                                var scrollableContent = new Avalonia.Controls.ScrollViewer
                                 {
                                     Content = content,
                                     VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                                });
-                                Avalonia.Controls.Grid.SetRow(footer, 1);
+                                };
+                                Avalonia.Controls.Grid.SetRow(scrollableContent, 1);
+                                editorLayout.Children.Add(scrollableContent);
+                                Avalonia.Controls.Grid.SetRow(footer, 2);
                                 editorLayout.Children.Add(footer);
                                 return editorLayout;
                             }, new Size(560, existing?.Name.Equals("PATH", StringComparison.OrdinalIgnoreCase) == true ? 480 : 330));
