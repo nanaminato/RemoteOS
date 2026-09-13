@@ -1,6 +1,6 @@
 # RelaxKonOS 一键服务端安装
 
-发布包包含已 `dotnet publish` 的 Server、Guardian Agent、权限助手，以及本目录中的平台部署引擎。引导安装器负责语言、预检、安装来源、监听方式、文件权限范围、服务启动和健康检查；平台部署引擎只负责受控的系统级变更。
+发布包包含已 `dotnet publish` 的桌面 Client、Server、Guardian Agent、权限助手，以及本目录中的平台部署引擎。引导安装器负责语言、预检、安装来源、监听方式、文件权限范围、服务启动和健康检查；平台部署引擎只负责受控的系统级变更。
 
 引导安装器会先把三个组件的完整 publish 输出复制到持久安装目录（Windows 默认 `C:\Program Files\RelaxKonOS`，Linux 默认 `/opt/relaxkonos`）；服务绝不会指向临时下载目录或离线介质。
 
@@ -22,6 +22,18 @@ deployment/linux/install-relaxkonos-services.sh
 ./deployment/packaging/New-RelaxKonOSRelease.ps1 -Version 0.1.0 -Runtime win-x64
 ```
 
+Linux 则运行：
+
+```bash
+./deployment/packaging/package-relaxkonos.sh 0.1.0 linux-x64 Release
+```
+
+两者都会发布完整桌面 Client 与服务端组件，并产出 ZIP、`.sha256` 与同名 `.json` 下载描述文件。
+
+## 官方在线来源
+
+安装器默认从 `https://downloads.relaxkon.com/relaxkonos/stable/latest/{rid}.json` 读取当前稳定版，其中 `{rid}` 是 `win-x64`、`win-arm64`、`linux-x64` 或 `linux-arm64`。该描述文件包含 ZIP 的 HTTPS 地址和 SHA-256；将通过验证的版本描述文件同步为 `latest/{rid}.json`，即可完成稳定版切换，无需修改安装器。
+
 ## Windows
 
 管理员 PowerShell 中运行：
@@ -30,7 +42,7 @@ deployment/linux/install-relaxkonos-services.sh
 & .\deployment\bootstrap\Install-RelaxKonOS.ps1 -BundlePath 'D:\RelaxKonOS-release'
 ```
 
-也可以传入 `-ReleaseUri` 与必须的 `-ReleaseSha256` 安装在线 ZIP。`-NonInteractive` 适用于自动化；此时必须显式提供发布来源，默认仅监听 `127.0.0.1:5000`、只允许权限助手访问 RelaxKonOS 数据目录。
+直接运行安装器即可获取官方稳定版。也可以传入 `-ReleaseUri` 与必须的 `-ReleaseSha256` 安装指定 ZIP，或用 `-BundlePath` 进行离线安装。`-NonInteractive` 会同样使用官方稳定版；默认仅监听 `127.0.0.1:5000`、只允许权限助手访问 RelaxKonOS 数据目录。
 
 ## Linux
 
@@ -38,6 +50,6 @@ deployment/linux/install-relaxkonos-services.sh
 sudo ./deployment/bootstrap/install-relaxkonos.sh --bundle /mnt/RelaxKonOS-release
 ```
 
-在线安装传入 `--release-uri URL --release-sha256 SHA256`。Linux 权限助手不是常驻服务：Server 账户只能通过固定的 sudo 规则执行 root-owned Helper；Server 和 Guardian 则是 systemd 服务。
+直接运行安装器即可获取官方稳定版。也可传入 `--release-uri URL --release-sha256 SHA256` 安装指定 ZIP，或用 `--bundle` 进行离线安装。Linux 权限助手不是常驻服务：Server 账户只能通过固定的 sudo 规则执行 root-owned Helper；Server 和 Guardian 则是 systemd 服务。
 
 局域网模式仅将 Server 绑定到 `0.0.0.0`，不会自动打开防火墙。公网部署请选择反向代理模式（默认本机监听），并由反向代理终结 HTTPS。

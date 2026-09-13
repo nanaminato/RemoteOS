@@ -5,6 +5,7 @@ LANGUAGE=auto
 BUNDLE_PATH=
 RELEASE_URI=
 RELEASE_SHA256=
+RELEASE_CATALOG_BASE=https://downloads.relaxkon.com/relaxkonos/stable/latest
 INSTALL_ROOT=/opt/relaxkonos
 DATA_ROOT=/var/lib/relaxkonos
 NETWORK_PROFILE=local
@@ -15,7 +16,7 @@ NON_INTERACTIVE=false
 ORIGINAL_ARGUMENTS=("$@")
 
 usage() {
-  echo "usage: install-relaxkonos.sh [--language auto|zh-CN|en-US|ja-JP] (--bundle DIRECTORY | --release-uri ZIP_URL --release-sha256 SHA256) [--install-root PATH] [--data-root PATH] [--network local|lan|reverse-proxy] [--server-port PORT] [--file-access restricted|full|whitelist] [--file-roots PATH] [--non-interactive]" >&2
+  echo "usage: install-relaxkonos.sh [--language auto|zh-CN|en-US|ja-JP] [--bundle DIRECTORY | --release-uri ZIP_URL --release-sha256 SHA256] [--release-catalog-base URL] [--install-root PATH] [--data-root PATH] [--network local|lan|reverse-proxy] [--server-port PORT] [--file-access restricted|full|whitelist] [--file-roots PATH] [--non-interactive]" >&2
   exit 64
 }
 
@@ -25,6 +26,7 @@ while [[ $# -gt 0 ]]; do
     --bundle) BUNDLE_PATH="${2:-}"; shift 2 ;;
     --release-uri) RELEASE_URI="${2:-}"; shift 2 ;;
     --release-sha256) RELEASE_SHA256="${2:-}"; shift 2 ;;
+    --release-catalog-base) RELEASE_CATALOG_BASE="${2:-}"; shift 2 ;;
     --install-root) INSTALL_ROOT="${2:-}"; shift 2 ;;
     --data-root) DATA_ROOT="${2:-}"; shift 2 ;;
     --network) NETWORK_PROFILE="${2:-}"; shift 2 ;;
@@ -48,20 +50,34 @@ say() {
   local key="$1"
   case "$LANGUAGE:$key" in
     zh-CN:title) echo 'RelaxKonOS 服务端安装器' ;; en-US:title) echo 'RelaxKonOS Server Installer' ;; ja-JP:title) echo 'RelaxKonOS サーバー インストーラー' ;;
-    zh-CN:source) echo '选择安装来源：1) 本地发布目录  2) 发布 ZIP URL' ;; en-US:source) echo 'Select source: 1) local release directory  2) release ZIP URL' ;; ja-JP:source) echo 'インストール元: 1) ローカル リリース ディレクトリ  2) リリース ZIP URL' ;;
+    zh-CN:source) echo '选择安装来源：1) 官方稳定版（默认）  2) 本地发布目录  3) 自定义发布 ZIP URL' ;; en-US:source) echo 'Select source: 1) official stable release (default)  2) local release directory  3) custom release ZIP URL' ;; ja-JP:source) echo 'インストール元: 1) 公式安定版（既定） 2) ローカル リリース ディレクトリ 3) カスタム ZIP URL' ;;
     zh-CN:network) echo '网络模式：1) 仅本机（推荐）  2) 局域网 HTTP  3) 反向代理' ;; en-US:network) echo 'Network: 1) local only (recommended)  2) LAN HTTP  3) reverse proxy' ;; ja-JP:network) echo 'ネットワーク: 1) ローカルのみ（推奨） 2) LAN HTTP 3) リバースプロキシ' ;;
     zh-CN:file) echo '权限助手文件范围：1) 仅数据目录（推荐）  2) 白名单  3) 所有本地磁盘' ;; en-US:file) echo 'Privileged file access: 1) data directory only (recommended) 2) whitelist 3) all local disks' ;; ja-JP:file) echo '特権ヘルパーのファイル範囲: 1) データのみ（推奨）2) ホワイトリスト 3) 全ディスク' ;;
     zh-CN:done) echo '安装完成。' ;; en-US:done) echo 'Installation completed.' ;; ja-JP:done) echo 'インストールが完了しました。' ;;
   esac
 }
 
+TEMPORARY_DIRECTORY=
+cleanup() { [[ -z "$TEMPORARY_DIRECTORY" ]] || rm -rf -- "$TEMPORARY_DIRECTORY"; }
+trap cleanup EXIT
 if [[ -z "$BUNDLE_PATH" && -z "$RELEASE_URI" && "$NON_INTERACTIVE" == false ]]; then
   echo "$(say source)"; read -r source
-  case "$source" in
-    1) read -r -p 'Bundle directory: ' BUNDLE_PATH ;;
-    2) read -r -p 'Release ZIP URL: ' RELEASE_URI; read -r -p 'Release ZIP SHA-256: ' RELEASE_SHA256 ;;
+  case "${source:-1}" in
+    1) ;;
+    2) read -r -p 'Bundle directory: ' BUNDLE_PATH ;;
+    3) read -r -p 'Release ZIP URL: ' RELEASE_URI; read -r -p 'Release ZIP SHA-256: ' RELEASE_SHA256 ;;
     *) echo 'Invalid source selection.' >&2; exit 64 ;;
   esac
+fi
+if [[ -z "$BUNDLE_PATH" && -z "$RELEASE_URI" ]]; then
+  case "$(uname -m)" in x86_64|amd64) RUNTIME=linux-x64 ;; aarch64|arm64) RUNTIME=linux-arm64 ;; *) echo 'Unsupported Linux architecture.' >&2; exit 64 ;; esac
+  command -v curl >/dev/null || { echo 'curl is required to load the official release descriptor.' >&2; exit 69; }
+  TEMPORARY_DIRECTORY="$(mktemp -d)"
+  descriptor="$TEMPORARY_DIRECTORY/$RUNTIME.json"
+  curl --fail --location --silent --show-error "${RELEASE_CATALOG_BASE%/}/$RUNTIME.json" --output "$descriptor"
+  RELEASE_URI="$(sed -nE 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$descriptor" | head -n1)"
+  RELEASE_SHA256="$(sed -nE 's/.*"sha256"[[:space:]]*:[[:space:]]*"([A-Fa-f0-9]{64})".*/\1/p' "$descriptor" | head -n1)"
+  grep -Eq '"schemaVersion"[[:space:]]*:[[:space:]]*1' "$descriptor" && grep -Eq "\"runtime\"[[:space:]]*:[[:space:]]*\"$RUNTIME\"" "$descriptor" && [[ "$RELEASE_URI" =~ ^https:// ]] && [[ "$RELEASE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] || { echo 'The official release descriptor is invalid.' >&2; exit 65; }
 fi
 [[ -n "$BUNDLE_PATH" && -z "$RELEASE_URI" || -z "$BUNDLE_PATH" && -n "$RELEASE_URI" ]] || { echo 'Specify exactly one release source.' >&2; exit 64; }
 [[ "$INSTALL_ROOT" == /* && "$DATA_ROOT" == /* ]] || { echo 'Install and data paths must be absolute.' >&2; exit 64; }
@@ -70,14 +86,11 @@ case "$NETWORK_PROFILE" in local|lan|reverse-proxy) ;; *) usage ;; esac
 case "$FILE_ACCESS" in restricted|full|whitelist) ;; *) usage ;; esac
 [[ "$FILE_ACCESS" != whitelist || -f "$FILE_ROOTS_FILE" ]] || { echo '--file-roots is required for whitelist access.' >&2; exit 64; }
 
-TEMPORARY_DIRECTORY=
-cleanup() { [[ -z "$TEMPORARY_DIRECTORY" ]] || rm -rf -- "$TEMPORARY_DIRECTORY"; }
-trap cleanup EXIT
 if [[ -n "$RELEASE_URI" ]]; then
   [[ "$RELEASE_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] || { echo 'Online installs require a SHA-256 release checksum.' >&2; exit 64; }
   command -v curl >/dev/null || { echo 'curl is required for an online install.' >&2; exit 69; }
   command -v unzip >/dev/null || { echo 'unzip is required for an online install.' >&2; exit 69; }
-  TEMPORARY_DIRECTORY="$(mktemp -d)"
+  if [[ -z "$TEMPORARY_DIRECTORY" ]]; then TEMPORARY_DIRECTORY="$(mktemp -d)"; fi
   curl --fail --location --silent --show-error "$RELEASE_URI" --output "$TEMPORARY_DIRECTORY/release.zip"
   echo "$RELEASE_SHA256  $TEMPORARY_DIRECTORY/release.zip" | sha256sum --check --status || { echo 'Release ZIP SHA-256 verification failed.' >&2; exit 65; }
   BUNDLE_PATH="$TEMPORARY_DIRECTORY/bundle"; mkdir "$BUNDLE_PATH"; unzip -q "$TEMPORARY_DIRECTORY/release.zip" -d "$BUNDLE_PATH"

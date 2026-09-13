@@ -6,6 +6,7 @@ param(
     [string] $Runtime = 'win-x64',
     [ValidateSet('Release', 'Debug')]
     [string] $Configuration = 'Release',
+    [string] $DownloadBaseUri = 'https://downloads.relaxkon.com/relaxkonos/stable',
     [string] $OutputDirectory = (Join-Path $PSScriptRoot 'artifacts')
 )
 
@@ -24,6 +25,7 @@ New-Item -ItemType Directory -Path (Join-Path $bundle 'deployment') -Force | Out
 $platform = if ($Runtime.StartsWith('win-')) { 'windows' } else { 'linux' }
 $extension = if ($platform -eq 'windows') { '.exe' } else { '' }
 $publishTargets = @(
+    @{ Project = 'Client\RelaxKonOS.Client.Desktop\RelaxKonOS.Client.Desktop.csproj'; Name = 'client'; Executable = "RelaxKonOS.Client.Desktop$extension" },
     @{ Project = 'RelaxKonOS.Server\RelaxKonOS.Server.csproj'; Name = 'server'; Executable = "RelaxKonOS.Server$extension" },
     @{ Project = 'RelaxKonOS.Guardian.Agent\RelaxKonOS.Guardian.Agent.csproj'; Name = 'guardian'; Executable = "RelaxKonOS.Guardian.Agent$extension" },
     @{ Project = 'RelaxKonOS.PrivilegedHelper\RelaxKonOS.PrivilegedHelper.csproj'; Name = 'privileged-helper'; Executable = "RelaxKonOS.PrivilegedHelper$extension" }
@@ -45,6 +47,7 @@ $manifest = [ordered]@{
     payload = [ordered]@{}
 }
 $manifest.payload[$platform] = [ordered]@{
+    client = "payload/$platform/client/RelaxKonOS.Client.Desktop$extension"
     server = "payload/$platform/server/RelaxKonOS.Server$extension"
     guardian = "payload/$platform/guardian/RelaxKonOS.Guardian.Agent$extension"
     privilegedHelper = "payload/$platform/privileged-helper/RelaxKonOS.PrivilegedHelper$extension"
@@ -54,6 +57,15 @@ $manifest.payload[$platform] = [ordered]@{
 Compress-Archive -Path (Join-Path $bundle '*') -DestinationPath $archive -CompressionLevel Optimal
 $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText(($archive + '.sha256'), "$hash  $([IO.Path]::GetFileName($archive))`n", [Text.UTF8Encoding]::new($false))
+$downloadBase = $DownloadBaseUri.TrimEnd('/')
+$descriptor = [ordered]@{
+    schemaVersion = 1
+    version = $Version
+    runtime = $Runtime
+    url = "$downloadBase/$Version/$Runtime/$([IO.Path]::GetFileName($archive))"
+    sha256 = $hash
+}
+[IO.File]::WriteAllText(($archive + '.json'), ($descriptor | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 Write-Host "Bundle: $bundle"
 Write-Host "Archive: $archive"
 Write-Host "SHA-256: $hash"

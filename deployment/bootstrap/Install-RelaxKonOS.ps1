@@ -5,6 +5,7 @@ param(
     [string] $BundlePath,
     [string] $ReleaseUri,
     [string] $ReleaseSha256,
+    [string] $ReleaseCatalogBaseUri = 'https://downloads.relaxkon.com/relaxkonos/stable/latest',
     [string] $InstallRoot = (Join-Path $env:ProgramFiles 'RelaxKonOS'),
     [string] $DataRoot = (Join-Path $env:ProgramData 'RelaxKonOS'),
     [ValidateSet('local', 'lan', 'reverse-proxy')]
@@ -20,9 +21,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $Text = @{
-    'zh-CN' = @{ title = 'RelaxKonOS 服务端安装器'; source = '选择安装来源：1) 本地发布目录  2) 发布 ZIP URL'; local = '本地发布目录'; remote = '发布 ZIP URL'; hash = '发布 ZIP 的 SHA-256'; network = '网络模式：1) 仅本机（推荐）  2) 局域网 HTTP  3) 反向代理'; file = '权限助手文件范围：1) 仅 RelaxKonOS 数据目录（推荐）  2) 白名单  3) 所有本地磁盘'; confirm = '确认开始安装？[Y/n]'; elevation = '需要管理员权限，正在请求 UAC 提升。'; done = '安装完成。'; health = '健康检查通过。'; lan = '局域网模式不会自动开放防火墙；请仅为受信任来源创建入站规则。'; proxy = '反向代理模式仅监听本机；请在反向代理处配置 HTTPS。' }
-    'en-US' = @{ title = 'RelaxKonOS Server Installer'; source = 'Select source: 1) local release directory  2) release ZIP URL'; local = 'Local release directory'; remote = 'Release ZIP URL'; hash = 'SHA-256 of release ZIP'; network = 'Network: 1) local only (recommended)  2) LAN HTTP  3) reverse proxy'; file = 'Privileged file access: 1) RelaxKonOS data only (recommended)  2) whitelist  3) all local disks'; confirm = 'Start installation? [Y/n]'; elevation = 'Administrator permission is required; requesting UAC elevation.'; done = 'Installation completed.'; health = 'Health check passed.'; lan = 'LAN mode does not open the firewall automatically; create an inbound rule only for trusted sources.'; proxy = 'Reverse-proxy mode listens locally only; configure HTTPS at the reverse proxy.' }
-    'ja-JP' = @{ title = 'RelaxKonOS サーバー インストーラー'; source = 'インストール元: 1) ローカル リリース ディレクトリ  2) リリース ZIP URL'; local = 'ローカル リリース ディレクトリ'; remote = 'リリース ZIP URL'; hash = 'リリース ZIP の SHA-256'; network = 'ネットワーク: 1) ローカルのみ（推奨）  2) LAN HTTP  3) リバースプロキシ'; file = '特権ヘルパーのファイル範囲: 1) RelaxKonOS データのみ（推奨）  2) ホワイトリスト  3) 全ローカルディスク'; confirm = 'インストールを開始しますか？ [Y/n]'; elevation = '管理者権限が必要です。UAC 昇格を要求します。'; done = 'インストールが完了しました。'; health = 'ヘルスチェックに成功しました。'; lan = 'LAN モードはファイアウォールを自動変更しません。信頼できる送信元だけを許可してください。'; proxy = 'リバースプロキシ モードはローカルのみで待ち受けます。HTTPS はリバースプロキシで設定してください。' }
+    'zh-CN' = @{ title = 'RelaxKonOS 服务端安装器'; source = '选择安装来源：1) 官方稳定版（默认）  2) 本地发布目录  3) 自定义发布 ZIP URL'; local = '本地发布目录'; remote = '发布 ZIP URL'; hash = '发布 ZIP 的 SHA-256'; network = '网络模式：1) 仅本机（推荐）  2) 局域网 HTTP  3) 反向代理'; file = '权限助手文件范围：1) 仅 RelaxKonOS 数据目录（推荐）  2) 白名单  3) 所有本地磁盘'; confirm = '确认开始安装？[Y/n]'; elevation = '需要管理员权限，正在请求 UAC 提升。'; done = '安装完成。'; health = '健康检查通过。'; lan = '局域网模式不会自动开放防火墙；请仅为受信任来源创建入站规则。'; proxy = '反向代理模式仅监听本机；请在反向代理处配置 HTTPS。' }
+    'en-US' = @{ title = 'RelaxKonOS Server Installer'; source = 'Select source: 1) official stable release (default)  2) local release directory  3) custom release ZIP URL'; local = 'Local release directory'; remote = 'Release ZIP URL'; hash = 'SHA-256 of release ZIP'; network = 'Network: 1) local only (recommended)  2) LAN HTTP  3) reverse proxy'; file = 'Privileged file access: 1) RelaxKonOS data only (recommended)  2) whitelist  3) all local disks'; confirm = 'Start installation? [Y/n]'; elevation = 'Administrator permission is required; requesting UAC elevation.'; done = 'Installation completed.'; health = 'Health check passed.'; lan = 'LAN mode does not open the firewall automatically; create an inbound rule only for trusted sources.'; proxy = 'Reverse-proxy mode listens locally only; configure HTTPS at the reverse proxy.' }
+    'ja-JP' = @{ title = 'RelaxKonOS サーバー インストーラー'; source = 'インストール元: 1) 公式安定版（既定）  2) ローカル リリース ディレクトリ  3) カスタム リリース ZIP URL'; local = 'ローカル リリース ディレクトリ'; remote = 'リリース ZIP URL'; hash = 'リリース ZIP の SHA-256'; network = 'ネットワーク: 1) ローカルのみ（推奨）  2) LAN HTTP  3) リバースプロキシ'; file = '特権ヘルパーのファイル範囲: 1) RelaxKonOS データのみ（推奨）  2) ホワイトリスト  3) 全ローカルディスク'; confirm = 'インストールを開始しますか？ [Y/n]'; elevation = '管理者権限が必要です。UAC 昇格を要求します。'; done = 'インストールが完了しました。'; health = 'ヘルスチェックに成功しました。'; lan = 'LAN モードはファイアウォールを自動変更しません。信頼できる送信元だけを許可してください。'; proxy = 'リバースプロキシ モードはローカルのみで待ち受けます。HTTPS はリバースプロキシで設定してください。' }
 }
 
 function Select-Language {
@@ -52,6 +53,12 @@ function Resolve-ContainedPath([string] $Root, [string] $Relative) {
     if (-not $candidate.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) { throw 'Release manifest path escapes the bundle.' }
     return $candidate
 }
+function Get-CurrentRuntime {
+    $architecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    if ($architecture -eq [Runtime.InteropServices.Architecture]::Arm64) { return 'win-arm64' }
+    if ($architecture -eq [Runtime.InteropServices.Architecture]::X64) { return 'win-x64' }
+    throw "Unsupported Windows architecture: $architecture"
+}
 
 if (-not (Test-Administrator)) {
     Write-Host $M.elevation
@@ -61,6 +68,7 @@ if (-not (Test-Administrator)) {
     if ($BundlePath) { $elevationArguments += @('-BundlePath', (Quote-Argument $BundlePath)) }
     if ($ReleaseUri) { $elevationArguments += @('-ReleaseUri', (Quote-Argument $ReleaseUri)) }
     if ($ReleaseSha256) { $elevationArguments += @('-ReleaseSha256', $ReleaseSha256) }
+    if ($ReleaseCatalogBaseUri) { $elevationArguments += @('-ReleaseCatalogBaseUri', (Quote-Argument $ReleaseCatalogBaseUri)) }
     if ($FileRootsFile) { $elevationArguments += @('-FileRootsFile', (Quote-Argument $FileRootsFile)) }
     if ($NonInteractive) { $elevationArguments += '-NonInteractive' }
     $host = Join-Path $PSHOME 'powershell.exe'
@@ -71,10 +79,22 @@ if (-not (Test-Administrator)) {
 
 Write-Host "`n$($M.title)" -ForegroundColor Cyan
 if (-not $BundlePath -and -not $ReleaseUri -and -not $NonInteractive) {
-    $source = Read-Required $M.source
-    if ($source -eq '1') { $BundlePath = Read-Required $M.local }
-    elseif ($source -eq '2') { $ReleaseUri = Read-Required $M.remote; $ReleaseSha256 = Read-Required $M.hash }
+    $source = Read-Host $M.source
+    if ([string]::IsNullOrWhiteSpace($source)) { $source = '1' }
+    if ($source -eq '2') { $BundlePath = Read-Required $M.local }
+    elseif ($source -eq '3') { $ReleaseUri = Read-Required $M.remote; $ReleaseSha256 = Read-Required $M.hash }
+    elseif ($source -eq '1') { }
     else { throw 'Invalid source selection.' }
+}
+if (-not $BundlePath -and -not $ReleaseUri) {
+    $runtime = Get-CurrentRuntime
+    $catalogUri = $ReleaseCatalogBaseUri.TrimEnd('/') + "/$runtime.json"
+    try { $releaseDescriptor = Invoke-RestMethod -Uri $catalogUri } catch { throw "Could not load the default release descriptor: $catalogUri" }
+    if ($releaseDescriptor.schemaVersion -ne 1 -or $releaseDescriptor.runtime -ne $runtime -or $releaseDescriptor.url -notmatch '^https://' -or $releaseDescriptor.sha256 -notmatch '^[A-Fa-f0-9]{64}$') {
+        throw 'The default release descriptor is invalid.'
+    }
+    $ReleaseUri = $releaseDescriptor.url
+    $ReleaseSha256 = $releaseDescriptor.sha256
 }
 if ([bool]$BundlePath -eq [bool]$ReleaseUri) { throw 'Specify exactly one of BundlePath or ReleaseUri.' }
 
