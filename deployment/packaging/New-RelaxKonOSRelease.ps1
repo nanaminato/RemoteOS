@@ -44,6 +44,7 @@ $manifest = [ordered]@{
     schemaVersion = 1
     version = $Version
     runtime = $Runtime
+    supportedSystems = if ($platform -eq 'windows') { @('windows') } else { @('debian-12', 'ubuntu-22.04', 'ubuntu-24.04', 'ubuntu-26.04') }
     payload = [ordered]@{}
 }
 $manifest.payload[$platform] = [ordered]@{

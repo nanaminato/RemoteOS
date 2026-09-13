@@ -12,11 +12,12 @@ NETWORK_PROFILE=local
 SERVER_PORT=5000
 FILE_ACCESS=restricted
 FILE_ROOTS_FILE=
+ALLOW_UNSUPPORTED_SYSTEM=false
 NON_INTERACTIVE=false
 ORIGINAL_ARGUMENTS=("$@")
 
 usage() {
-  echo "usage: install-relaxkonos.sh [--language auto|zh-CN|en-US|ja-JP] [--bundle DIRECTORY | --release-uri ZIP_URL --release-sha256 SHA256] [--release-catalog-base URL] [--install-root PATH] [--data-root PATH] [--network local|lan|reverse-proxy] [--server-port PORT] [--file-access restricted|full|whitelist] [--file-roots PATH] [--non-interactive]" >&2
+  echo "usage: install-relaxkonos.sh [--language auto|zh-CN|en-US|ja-JP] [--bundle DIRECTORY_OR_ZIP | --release-uri ZIP_URL --release-sha256 SHA256] [--release-catalog-base URL] [--allow-unsupported-system] [--install-root PATH] [--data-root PATH] [--network local|lan|reverse-proxy] [--server-port PORT] [--file-access restricted|full|whitelist] [--file-roots PATH] [--non-interactive]" >&2
   exit 64
 }
 
@@ -33,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     --server-port) SERVER_PORT="${2:-}"; shift 2 ;;
     --file-access) FILE_ACCESS="${2:-}"; shift 2 ;;
     --file-roots) FILE_ROOTS_FILE="${2:-}"; shift 2 ;;
+    --allow-unsupported-system) ALLOW_UNSUPPORTED_SYSTEM=true; shift ;;
     --non-interactive) NON_INTERACTIVE=true; shift ;;
     -h|--help) usage ;;
     *) usage ;;
@@ -69,8 +71,9 @@ if [[ -z "$BUNDLE_PATH" && -z "$RELEASE_URI" && "$NON_INTERACTIVE" == false ]]; 
     *) echo 'Invalid source selection.' >&2; exit 64 ;;
   esac
 fi
+case "$(uname -m)" in x86_64|amd64) CURRENT_RUNTIME=linux-x64 ;; aarch64|arm64) CURRENT_RUNTIME=linux-arm64 ;; *) echo 'Unsupported Linux architecture.' >&2; exit 64 ;; esac
 if [[ -z "$BUNDLE_PATH" && -z "$RELEASE_URI" ]]; then
-  case "$(uname -m)" in x86_64|amd64) RUNTIME=linux-x64 ;; aarch64|arm64) RUNTIME=linux-arm64 ;; *) echo 'Unsupported Linux architecture.' >&2; exit 64 ;; esac
+  RUNTIME="$CURRENT_RUNTIME"
   command -v curl >/dev/null || { echo 'curl is required to load the official release descriptor.' >&2; exit 69; }
   TEMPORARY_DIRECTORY="$(mktemp -d)"
   descriptor="$TEMPORARY_DIRECTORY/$RUNTIME.json"
@@ -96,6 +99,14 @@ if [[ -n "$RELEASE_URI" ]]; then
   BUNDLE_PATH="$TEMPORARY_DIRECTORY/bundle"; mkdir "$BUNDLE_PATH"; unzip -q "$TEMPORARY_DIRECTORY/release.zip" -d "$BUNDLE_PATH"
 fi
 
+if [[ -f "$BUNDLE_PATH" ]]; then
+  [[ "$BUNDLE_PATH" == *.zip ]] || { echo 'A local release file must be a ZIP archive.' >&2; exit 64; }
+  command -v unzip >/dev/null || { echo 'unzip is required for a local ZIP release.' >&2; exit 69; }
+  if [[ -z "$TEMPORARY_DIRECTORY" ]]; then TEMPORARY_DIRECTORY="$(mktemp -d)"; fi
+  offline_bundle="$TEMPORARY_DIRECTORY/bundle"; mkdir -p "$offline_bundle"; unzip -q "$BUNDLE_PATH" -d "$offline_bundle"; BUNDLE_PATH="$offline_bundle"
+fi
+[[ -d "$BUNDLE_PATH" ]] || { echo 'Bundle path must be a release directory or ZIP archive.' >&2; exit 64; }
+
 MANIFEST="$BUNDLE_PATH/manifest.json"
 SERVER="$BUNDLE_PATH/payload/linux/server/RelaxKonOS.Server"
 GUARDIAN="$BUNDLE_PATH/payload/linux/guardian/RelaxKonOS.Guardian.Agent"
@@ -103,6 +114,14 @@ HELPER="$BUNDLE_PATH/payload/linux/privileged-helper/RelaxKonOS.PrivilegedHelper
 ENGINE="$BUNDLE_PATH/deployment/linux/install-relaxkonos-services.sh"
 [[ -f "$MANIFEST" && -f "$SERVER" && -f "$GUARDIAN" && -f "$HELPER" && -f "$ENGINE" ]] || { echo 'Release bundle is incomplete or has an unsupported layout.' >&2; exit 65; }
 grep -Eq '"schemaVersion"[[:space:]]*:[[:space:]]*1' "$MANIFEST" || { echo 'Unsupported release manifest.' >&2; exit 65; }
+grep -Eq "\"runtime\"[[:space:]]*:[[:space:]]*\"$CURRENT_RUNTIME\"" "$MANIFEST" || { echo "This release package is not compatible with $CURRENT_RUNTIME." >&2; exit 65; }
+command -v systemctl >/dev/null && [[ -d /run/systemd/system ]] || { echo 'RelaxKonOS requires a systemd host.' >&2; exit 69; }
+for tool in sudo visudo openssl; do command -v "$tool" >/dev/null || { echo "Required system tool is missing: $tool" >&2; exit 69; }; done
+source /etc/os-release 2>/dev/null || { echo 'Cannot identify the Linux distribution.' >&2; exit 69; }
+if ! { [[ "$ID" == debian && "$VERSION_ID" == 12 ]] || [[ "$ID" == ubuntu && ( "$VERSION_ID" == 22.04 || "$VERSION_ID" == 24.04 || "$VERSION_ID" == 26.04 ) ]]; }; then
+  [[ "$ALLOW_UNSUPPORTED_SYSTEM" == true ]] || { echo "Unsupported Linux system: ${ID:-unknown} ${VERSION_ID:-unknown}. Use --allow-unsupported-system only after validating host compatibility." >&2; exit 65; }
+  echo "WARNING: continuing on unsupported Linux system: ${ID:-unknown} ${VERSION_ID:-unknown}." >&2
+fi
 
 if [[ "$NON_INTERACTIVE" == false ]]; then
   echo "$(say network)"; read -r network

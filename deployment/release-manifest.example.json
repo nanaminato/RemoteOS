@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "version": "0.1.0",
+  "runtime": "win-x64",
+  "supportedSystems": ["windows"],
   "payload": {
     "windows": {
       "client": "payload/windows/client/RelaxKonOS.Client.Desktop.exe",

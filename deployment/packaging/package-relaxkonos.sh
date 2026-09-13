@@ -31,7 +31,7 @@ mkdir -p "$BUNDLE/deployment"
 cp -a "$PROJECT_ROOT/deployment/bootstrap" "$BUNDLE/deployment/bootstrap"
 cp -a "$PROJECT_ROOT/deployment/linux" "$BUNDLE/deployment/linux"
 cat >"$BUNDLE/manifest.json" <<EOF
-{"schemaVersion":1,"version":"$VERSION","runtime":"$RUNTIME","payload":{"linux":{"client":"payload/linux/client/RelaxKonOS.Client.Desktop","server":"payload/linux/server/RelaxKonOS.Server","guardian":"payload/linux/guardian/RelaxKonOS.Guardian.Agent","privilegedHelper":"payload/linux/privileged-helper/RelaxKonOS.PrivilegedHelper"}}}
+{"schemaVersion":1,"version":"$VERSION","runtime":"$RUNTIME","supportedSystems":["debian-12","ubuntu-22.04","ubuntu-24.04","ubuntu-26.04"],"payload":{"linux":{"client":"payload/linux/client/RelaxKonOS.Client.Desktop","server":"payload/linux/server/RelaxKonOS.Server","guardian":"payload/linux/guardian/RelaxKonOS.Guardian.Agent","privilegedHelper":"payload/linux/privileged-helper/RelaxKonOS.PrivilegedHelper"}}}
 EOF
 (cd "$BUNDLE" && zip -qr "$ARCHIVE" .)
 HASH="$(sha256sum "$ARCHIVE" | awk '{print $1}')"

@@ -113,10 +113,21 @@ try {
     }
 
     $BundlePath = [IO.Path]::GetFullPath($BundlePath)
+    if (Test-Path -LiteralPath $BundlePath -PathType Leaf) {
+        if ([IO.Path]::GetExtension($BundlePath) -ne '.zip') { throw 'A local release file must be a ZIP archive.' }
+        $temporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) ('RelaxKonOS-offline-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
+        Expand-Archive -LiteralPath $BundlePath -DestinationPath $temporaryDirectory
+        $BundlePath = $temporaryDirectory
+    }
+    if (-not (Test-Path -LiteralPath $BundlePath -PathType Container)) { throw 'BundlePath must be a release directory or ZIP archive.' }
     $manifestPath = Join-Path $BundlePath 'manifest.json'
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'The release bundle must contain manifest.json.' }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    if ($manifest.schemaVersion -ne 1 -or -not $manifest.payload.windows) { throw 'Unsupported Windows release manifest.' }
+    $runtime = Get-CurrentRuntime
+    if ($manifest.schemaVersion -ne 1 -or $manifest.runtime -ne $runtime -or -not $manifest.payload.windows) {
+        throw "This release package is not compatible with $runtime."
+    }
     $server = Resolve-ContainedPath $BundlePath $manifest.payload.windows.server
     $guardian = Resolve-ContainedPath $BundlePath $manifest.payload.windows.guardian
     $helper = Resolve-ContainedPath $BundlePath $manifest.payload.windows.privilegedHelper
