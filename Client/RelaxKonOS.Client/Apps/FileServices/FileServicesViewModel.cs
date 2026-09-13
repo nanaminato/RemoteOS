@@ -11,18 +11,21 @@ using RelaxKonOS.Protocol.FileServices;
 namespace RelaxKonOS.Client.Apps.FileServices;
 
 /// <summary>Window-local SMB control-plane state. It never retains Samba passwords or Helper output.</summary>
-public sealed partial class FileServicesViewModel(IRemoteFileServicesClient client, IAppPermissionScope permissions) : ObservableObject
+public sealed partial class FileServicesViewModel(IRemoteFileServicesClient client, IAppPermissionScope permissions) : LocalizedObservableObject
 {
     public InstallationTaskViewModel Installation { get; set; } = null!;
 
     public ObservableCollection<FileShareDto> Shares { get; } = [];
     public ObservableCollection<FileServiceUserDto> Users { get; } = [];
-    [ObservableProperty] private string _statusText = LocalizedText.Get("file_services.status.loading", "Loading SMB status…");
+    [ObservableProperty] private LocalizedStatus _statusText = LocalizedText.Ref("file_services.status.loading", "Loading SMB status…");
     [ObservableProperty] private string _connectionText = "—";
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(NewShareCommand), nameof(RefreshCommand), nameof(InstallCommand), nameof(StartServiceCommand), nameof(StopCommand), nameof(RestartCommand), nameof(EditShareCommand), nameof(DeleteShareCommand), nameof(ToggleUserCommand), nameof(SetSambaPasswordCommand))] private bool _isBusy;
+    // A modal confirmation or elevation prompt is local UI, not a submitted host operation.
+    // Keep commands serialized while it is open without showing the operation progress bar.
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(NewShareCommand), nameof(RefreshCommand), nameof(InstallCommand), nameof(StartServiceCommand), nameof(StopCommand), nameof(RestartCommand), nameof(EditShareCommand), nameof(DeleteShareCommand), nameof(ToggleUserCommand), nameof(SetSambaPasswordCommand))] private bool _isAwaitingInput;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(SupportsSambaCredentials))] private FileServiceCapabilitiesDto? _capabilities;
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(EditShareCommand), nameof(DeleteShareCommand))] private FileShareDto? _selectedShare;
-    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(ToggleUserCommand), nameof(SetSambaPasswordCommand))] private FileServiceUserDto? _selectedUser;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(UserToggleText))] [NotifyCanExecuteChangedFor(nameof(ToggleUserCommand), nameof(SetSambaPasswordCommand))] private FileServiceUserDto? _selectedUser;
     [ObservableProperty] private string _shareName = string.Empty;
     [ObservableProperty] private string _sharePath = string.Empty;
     [ObservableProperty] private string _shareDescription = string.Empty;
@@ -30,11 +33,13 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
     [ObservableProperty] private bool _shareEnabled = true;
     [ObservableProperty] private bool _shareGuestAllowed;
     public ObservableCollection<FileSharePermissionEditor> SharePermissions { get; } = [];
-    public bool CanManage => permissions.IsGranted(AppPermissions.ServerFileServicesManage) && !IsBusy && Capabilities is { Supported: true, ManagedSharesSupported: true } && RuntimeState is FileServiceRuntimeState.Running or FileServiceRuntimeState.Stopped;
+    public bool CanManage => permissions.IsGranted(AppPermissions.ServerFileServicesManage) && !IsBusy && !IsAwaitingInput && Capabilities is { Supported: true, ManagedSharesSupported: true } && RuntimeState is FileServiceRuntimeState.Running or FileServiceRuntimeState.Stopped;
     public FileServiceRuntimeState? RuntimeState { get; private set; }
     public string PlatformText => Capabilities is null ? T("status.loading") : Capabilities.WindowsShareSecuritySupported ? T("platform.windows") : SupportsSambaCredentials ? T("platform.linux") : T("state.Unsupported");
     public string PlatformHelp => Capabilities is null ? T("status.loading") : T(Capabilities.WindowsShareSecuritySupported ? "windows_help" : SupportsSambaCredentials ? "linux_help" : "state.Unsupported");
-    public bool SupportsInstall => Capabilities is { Supported: true, InstallSupported: true };
+    // InstallSupported is the authoritative operation capability. Do not suppress the action
+    // merely because an older or temporarily unhealthy server reports Supported as false.
+    public bool SupportsInstall => Capabilities?.InstallSupported == true;
     public string VersionText { get; private set; } = "—";
     public Func<string, Task<bool>>? ConfirmSharePathAsync { get; set; }
     public static bool RequiresSharePathWarning(string path, bool windows)
@@ -46,27 +51,31 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
         return normalized.Split(separator).Contains("..") || !(normalized.Equals(root, comparison) || normalized.StartsWith(root + separator, comparison));
     }
     public Func<string, Task<bool>>? ConfirmDeleteAsync { get; set; }
-    private bool CanInstall() => !IsBusy && permissions.IsGranted(AppPermissions.ServerFileServicesManage) && SupportsInstall && RuntimeState == FileServiceRuntimeState.NotInstalled;
+    private bool CanInstall() => !IsBusy && !IsAwaitingInput && permissions.IsGranted(AppPermissions.ServerFileServicesManage) && SupportsInstall && RuntimeState == FileServiceRuntimeState.NotInstalled;
     private bool CanStart() => CanManage && RuntimeState == FileServiceRuntimeState.Stopped;
     private bool CanStop() => CanManage && RuntimeState == FileServiceRuntimeState.Running;
     private static string T(string key) => LocalizedText.Get("file_services." + key);
-    private static string Problem(string code) => LocalizedText.Get("file_services.problem." + code, code);
+    private static LocalizedStatus Ref(string key) => LocalizedText.Ref("file_services." + key);
+    private static LocalizedStatus Problem(string code) => LocalizedText.Ref("file_services.problem." + code, code);
     private void NotifyActions()
     {
         foreach (var command in new IRelayCommand[] { RefreshCommand, InstallCommand, StartServiceCommand, StopCommand, RestartCommand, NewShareCommand, EditShareCommand, DeleteShareCommand, ToggleUserCommand, SetSambaPasswordCommand }) command.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(PlatformText)); OnPropertyChanged(nameof(PlatformHelp)); OnPropertyChanged(nameof(SupportsInstall)); OnPropertyChanged(nameof(VersionText));
     }
     public bool IsWindowsServer => Capabilities?.WindowsShareSecuritySupported == true;
-    public void AddSharePermission(string principal = "", FileShareAccess access = FileShareAccess.Read) => SharePermissions.Add(new(principal, access, IsWindowsServer));
+    public void AddSharePermission(string principal = "", FileShareAccess access = FileShareAccess.Read) => SharePermissions.Add(new(principal, access, IsWindowsServer,
+        SupportsSambaCredentials ? Users.Where(user => user.Eligible).Select(user => user.Username) : []));
     public bool SupportsSambaCredentials => Capabilities?.SambaCredentialsSupported == true;
-    public Func<Task<string?>>? RequestHostAdministratorPasswordAsync { get; set; }
+    public string UserToggleText => LocalizedText.Get(SelectedUser?.Enabled == true ? "file_services.user_disable" : "file_services.user_enable");
+    /// <summary>Requests a one-time host password. The optional argument explains why a previous entry was rejected.</summary>
+    public Func<string?, Task<string?>>? RequestHostAdministratorPasswordAsync { get; set; }
     public Func<bool, Task>? ShowShareEditorAsync { get; set; }
     public Func<Task<string?>>? ShowSharePathPickerAsync { get; set; }
     public Func<Task<string?>>? RequestSambaPasswordAsync { get; set; }
     public async Task StartAsync() => await RefreshAsync();
     [RelayCommand(CanExecute = nameof(CanRead))] private async Task RefreshAsync()
     {
-        if (!CanRead()) { StatusText = LocalizedText.Get("file_services.status.read_required", "File Services read permission is required."); return; }
+        if (!CanRead()) { StatusText = LocalizedText.Ref("file_services.status.read_required", "File Services read permission is required."); return; }
         IsBusy = true;
         try
         {
@@ -81,7 +90,7 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
         Capabilities = await client.GetCapabilitiesAsync();
         var status = await client.GetStatusAsync();
         RuntimeState = status.State; VersionText = status.Version ?? "—";
-        StatusText = status.HealthProblemCode is { } code ? Problem(code) : LocalizedText.Format("file_services.status.ready", T("state." + status.State));
+        StatusText = status.HealthProblemCode is { } code ? Problem(code) : LocalizedText.Ref("file_services.status.ready", LocalizedText.Get("file_services.state." + status.State));
         SelectedShare = null; SelectedUser = null; Shares.Clear(); Users.Clear();
         if (Capabilities.Supported && status.State is FileServiceRuntimeState.Running or FileServiceRuntimeState.Stopped)
         {
@@ -100,7 +109,7 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
     [RelayCommand(CanExecute = nameof(CanManage))] private async Task NewShareAsync() { ClearEditor(); if (ShowShareEditorAsync is not null) await ShowShareEditorAsync(false); }
     [RelayCommand(CanExecute = nameof(CanEditShare))] private async Task EditShareAsync()
     {
-        if (SelectedShare is null || !SelectedShare.Managed) { StatusText = LocalizedText.Get("file_services.status.managed_only", "Only RelaxKonOS-managed shares can be edited."); return; }
+        if (SelectedShare is null || !SelectedShare.Managed) { StatusText = LocalizedText.Ref("file_services.status.managed_only", "Only RelaxKonOS-managed shares can be edited."); return; }
         ShareName = SelectedShare.Name; SharePath = SelectedShare.Path; ShareDescription = SelectedShare.Description ?? string.Empty; ShareReadOnly = SelectedShare.ReadOnly; ShareEnabled = SelectedShare.Enabled; ShareGuestAllowed = SelectedShare.GuestAllowed;
         SharePermissions.Clear();
         foreach (var permission in SelectedShare.Permissions.Where(permission => !IsGeneratedWindowsGuestPermission(permission)))
@@ -125,12 +134,16 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
     [RelayCommand(CanExecute = nameof(CanUser))] private Task ToggleUserAsync() => SelectedUser is { } user ? Apply(() => client.SetUserEnabledAsync(user.Username, !user.Enabled)) : Task.CompletedTask;
     [RelayCommand(CanExecute = nameof(CanUser))] private async Task SetSambaPasswordAsync()
     {
-        if (SelectedUser is not { } user || RequestSambaPasswordAsync is null) return; var password = await RequestSambaPasswordAsync();
+        if (SelectedUser is not { } user || RequestSambaPasswordAsync is null) return;
+        IsAwaitingInput = true;
+        string? password;
+        try { password = await RequestSambaPasswordAsync(); }
+        finally { IsAwaitingInput = false; }
         if (string.IsNullOrEmpty(password)) return;
         try { await Apply(() => client.SetSambaPasswordAsync(user.Username, new SetSambaPasswordRequest(password))); }
         finally { password = null!; }
     }
-    private bool CanRead() => permissions.IsGranted(AppPermissions.ServerFileServicesRead) && !IsBusy;
+    private bool CanRead() => permissions.IsGranted(AppPermissions.ServerFileServicesRead) && !IsBusy && !IsAwaitingInput;
     private bool CanEditShare() => CanManage && SelectedShare is { Managed: true };
     private bool CanUser() => CanManage && Capabilities?.SambaCredentialsSupported == true && SelectedUser is { Eligible: true };
     public async Task PickSharePathAsync()
@@ -153,12 +166,12 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
     {
         request = default!;
         if (string.IsNullOrWhiteSpace(ShareName) || string.IsNullOrWhiteSpace(SharePath))
-        { StatusText = T("validation"); return false; }
+        { StatusText = Ref("validation"); return false; }
         var rules = new List<FileSharePermissionDto>();
         foreach (var item in SharePermissions)
         {
-            if (string.IsNullOrWhiteSpace(item.Principal)) { StatusText = LocalizedText.Get("file_services.share_permission_invalid", "Each permission requires a principal."); return false; }
-            if (IsWindowsServer && !System.Text.RegularExpressions.Regex.IsMatch(item.Principal.Trim(), @"^S-[0-9]+(-[0-9]+)+$")) { StatusText = T("windows_sid_required"); return false; }
+            if (string.IsNullOrWhiteSpace(item.Principal)) { StatusText = LocalizedText.Ref("file_services.share_permission_invalid", "Each permission requires a principal."); return false; }
+            if (IsWindowsServer && !System.Text.RegularExpressions.Regex.IsMatch(item.Principal.Trim(), @"^S-[0-9]+(-[0-9]+)+$")) { StatusText = Ref("windows_sid_required"); return false; }
             rules.Add(new(item.Principal.Trim(), item.SelectedAccess.Value));
         }
         request = new(ShareName.Trim(), SharePath.Trim(), string.IsNullOrWhiteSpace(ShareDescription) ? null : ShareDescription.Trim(), ShareReadOnly, ShareEnabled, ShareGuestAllowed, rules); return true;
@@ -166,50 +179,64 @@ public sealed partial class FileServicesViewModel(IRemoteFileServicesClient clie
     private async Task<bool> Apply(Func<Task<FileServiceOperationResultDto>> action, Func<Task<bool>>? confirm = null)
     {
         if (!CanManage && !CanInstall()) return false;
-        IsBusy = true;
+        IsAwaitingInput = true;
         try
         {
-            if (confirm is not null && !await confirm()) { StatusText = T("share_cancelled"); return false; }
+            if (confirm is not null && !await confirm()) { StatusText = Ref("share_cancelled"); return false; }
             if (!await EnsureElevatedAsync())
-            { StatusText = T("status.manage_required"); return false; }
+            { StatusText = Ref("status.manage_required"); return false; }
+            IsAwaitingInput = false;
+            IsBusy = true;
             var result = await action();
             try { await LoadAsync(); }
             catch (Exception ex)
-            { StatusText = T("refresh_failed") + " " + ex.Message; return result.Succeeded; }
-            StatusText = result.Succeeded ? LocalizedText.Get("file_services.status.operation_completed", "SMB operation completed.") : result.ProblemCode is { } code ? Problem(code) : T("operation_failed");
+            { StatusText = LocalizedText.Ref("file_services.refresh_failed", "Could not refresh SMB status. {0}", ex.Message); return result.Succeeded; }
+            StatusText = result.Succeeded ? LocalizedText.Ref("file_services.status.operation_completed", "SMB operation completed.") : result.ProblemCode is { } code ? Problem(code) : Ref("operation_failed");
             return result.Succeeded;
         }
         catch (HttpRequestException ex) when (ex.StatusCode is not null && ex.Message.StartsWith("file-services.", StringComparison.Ordinal))
         { StatusText = Problem(ex.Message); return false; }
         catch (Exception ex) { StatusText = ex.Message; return false; }
-        finally { IsBusy = false; NotifyActions(); }
+        finally { IsAwaitingInput = false; IsBusy = false; NotifyActions(); }
     }
     private async Task<bool> EnsureElevatedAsync()
     {
-        var password = await (RequestHostAdministratorPasswordAsync?.Invoke() ?? Task.FromResult<string?>(null));
-        if (string.IsNullOrEmpty(password)) return false;
-        try { return await client.ElevateAsync(password); } finally { password = null!; }
+        string? error = null;
+        while (true)
+        {
+            var password = await (RequestHostAdministratorPasswordAsync?.Invoke(error) ?? Task.FromResult<string?>(null));
+            if (string.IsNullOrEmpty(password)) return false;
+            try { return await client.ElevateAsync(password); }
+            catch (HttpRequestException ex) when (ex.Message == "elevation-password-invalid")
+            {
+                error = LocalizedText.Get("file_services.host_password_invalid");
+            }
+            finally { password = null!; }
+        }
     }
 }
 
 public sealed partial class FileSharePermissionEditor : ObservableObject
 {
     public bool IsWindowsServer { get; }
-    public IReadOnlyList<FileSharePrincipalOption> PrincipalOptions { get; } = [
-        new("S-1-5-32-544", "file_services.principal.administrators"), new("S-1-5-32-545", "file_services.principal.users"),
-        new("S-1-5-11", "file_services.principal.authenticated_users"), new("S-1-1-0", "file_services.principal.everyone")];
+    public IReadOnlyList<FileSharePrincipalOption> PrincipalOptions { get; }
+    public bool HasPrincipalOptions => PrincipalOptions.Count > 0;
     [ObservableProperty] private FileSharePrincipalOption? _selectedPrincipal;
-    partial void OnSelectedPrincipalChanged(FileSharePrincipalOption? value) { if (value is not null) Principal = value.Sid; }
+    partial void OnSelectedPrincipalChanged(FileSharePrincipalOption? value) { if (value is not null) Principal = value.Value; }
     private readonly IReadOnlyList<FileShareAccessOption> _accessOptions = FileShareAccessOption.Create();
     public IReadOnlyList<FileShareAccessOption> AccessOptions => _accessOptions;
     [ObservableProperty] private string _principal;
     [ObservableProperty] private FileShareAccessOption _selectedAccess;
 
-    public FileSharePermissionEditor(string principal = "", FileShareAccess access = FileShareAccess.Read, bool isWindowsServer = false)
+    public FileSharePermissionEditor(string principal = "", FileShareAccess access = FileShareAccess.Read, bool isWindowsServer = false, IEnumerable<string>? linuxUsers = null)
     {
         IsWindowsServer = isWindowsServer;
+        PrincipalOptions = isWindowsServer
+            ? [new("S-1-5-32-544", LocalizedText.Get("file_services.principal.administrators")), new("S-1-5-32-545", LocalizedText.Get("file_services.principal.users")),
+               new("S-1-5-11", LocalizedText.Get("file_services.principal.authenticated_users")), new("S-1-1-0", LocalizedText.Get("file_services.principal.everyone"))]
+            : (linuxUsers ?? []).Distinct(StringComparer.Ordinal).OrderBy(username => username, StringComparer.Ordinal).Select(username => new FileSharePrincipalOption(username, username)).ToArray();
         _principal = principal;
-        _selectedPrincipal = PrincipalOptions.FirstOrDefault(option => string.Equals(option.Sid, principal, StringComparison.OrdinalIgnoreCase));
+        _selectedPrincipal = PrincipalOptions.FirstOrDefault(option => string.Equals(option.Value, principal, StringComparison.OrdinalIgnoreCase));
         _selectedAccess = _accessOptions.First(x => x.Value == access);
     }
 }
@@ -223,7 +250,4 @@ public sealed record FileShareAccessOption(FileShareAccess Value, string Label)
     ];
 }
 
-public sealed record FileSharePrincipalOption(string Sid, string LocalizationKey)
-{
-    public string Label => $"{LocalizedText.Get(LocalizationKey)} ({Sid})";
-}
+public sealed record FileSharePrincipalOption(string Value, string Label);

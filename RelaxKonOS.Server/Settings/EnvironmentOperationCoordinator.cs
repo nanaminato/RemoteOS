@@ -34,11 +34,12 @@ public sealed class EnvironmentOperationCoordinator(SettingsOperationJournal jou
         // Plan output never serializes an environment value, including secrets under an unexpected name.
         var differences = request.Change.Changes.Select(change => new SettingsDifference(change.Name,
             values.ContainsKey(change.Name) ? "[configured]" : null, change.Operation == EnvironmentMutationKind.Delete ? null : "[configured]")).ToArray();
+        var effectiveState = HostEnvironmentService.EffectiveState(baseline);
         var plan = new SettingsPlan(id, target, baseline.Revision, DateTimeOffset.UtcNow.AddMinutes(5), differences,
-            HostElevationCapability.HostEnvironmentChange, target.ResourceId, SettingsEffectiveState.NewProcess,
-            "settings.environment.new_process_required");
+            HostElevationCapability.HostEnvironmentChange, target.ResourceId, effectiveState,
+            effectiveState == SettingsEffectiveState.NewLogin ? "settings.environment.new_login_required" : "settings.environment.new_process_required");
         journal.Save(new StoredEnvironmentOperation(actor, hash, request.Change, new(restore, ConfirmHighImpact: true), plan,
-            new(id, "host.environment", target, SettingsOperationState.Prepared, DateTimeOffset.UtcNow, EffectiveState: SettingsEffectiveState.NewProcess)));
+            new(id, "host.environment", target, SettingsOperationState.Prepared, DateTimeOffset.UtcNow, EffectiveState: effectiveState)));
         return plan;
     }
 
@@ -92,8 +93,10 @@ public sealed class EnvironmentOperationCoordinator(SettingsOperationJournal jou
                     "settings.environment.helper_" + result.ProblemCode.ToString().ToLowerInvariant()).Operation;
             if (observed.Target != stored.Plan.Target || !Matches(observed, change))
                 return Save(stored, stored.RollingBack ? SettingsOperationState.RecoveryRequired : SettingsOperationState.Unknown, "settings.readback_mismatch").Operation;
+            var notificationWarning = observed.Provider == "windows-registry" && !observed.NotificationDelivered
+                ? "settings.environment.notification_not_delivered" : null;
             return Save(stored, stored.RollingBack ? SettingsOperationState.RolledBack : SettingsOperationState.Applied,
-                observed.NotificationDelivered ? null : "settings.environment.notification_not_delivered", observed.Revision).Operation;
+                notificationWarning, observed.Revision).Operation;
         }
         catch { return Save(stored, stored.RollingBack ? SettingsOperationState.RecoveryRequired : SettingsOperationState.Unknown, "settings.operation.outcome_unknown").Operation; }
     }

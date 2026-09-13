@@ -1,3 +1,4 @@
+using RelaxKonOS.Client.Localization;
 using RelaxKonOS.Client.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public abstract class SettingsPageViewModel : ObservableObject
     // Shared monochrome geometry uses the navigation foreground in every theme.
     public Avalonia.Media.Geometry Icon => Avalonia.Media.Geometry.Parse(Route switch
     {
+        "environment" => "M3,4 L21,4 M3,12 L21,12 M3,20 L21,20 M8,1 L8,7 M16,9 L16,15 M10,17 L10,23",
         "system" => "M2,3 L22,3 22,17 2,17 Z M8,21 L16,21 M12,17 L12,21",
         "personalization" => "M4,3 L20,3 20,15 4,15 Z M8,15 L8,21 16,21 16,15 M4,8 L20,8",
         "time-language" => "M12,2 A10,10 0 1 1 11.99,2 M12,5 L12,12 17,15",
@@ -54,6 +56,30 @@ public abstract class SettingsPageViewModel : ObservableObject
 
     protected string T(string key, string englishFallback) =>
         App.Services.GetRequiredService<LocalizationService>().Get(key, englishFallback);
+
+    /// <summary>
+    /// Captures a resource key for a field that must follow the display language. Prefer this over
+    /// <see cref="T"/> when the value is stored rather than rendered immediately.
+    /// </summary>
+    protected static LocalizedStatus Ref(string key) => LocalizedText.Ref(key);
+
+    /// <summary>Captures a resource key with an English source fallback and optional format arguments.</summary>
+    protected static LocalizedStatus Ref(string key, string englishFallback, params object?[] arguments) =>
+        LocalizedText.Ref(key, englishFallback, arguments);
+
+    /// <summary>Captures a resource key with a single format argument for a stored value.</summary>
+    protected static LocalizedStatus Ref(string key, object? argument) => LocalizedText.Ref(key, argument);
+
+    /// <summary>Captures a resource key with two format arguments for a stored value.</summary>
+    protected static LocalizedStatus Ref(string key, object? first, object? second) =>
+        LocalizedText.Ref(key, first, second);
+
+    /// <summary>Captures a resource key with three format arguments for a stored value.</summary>
+    protected static LocalizedStatus Ref(string key, object? first, object? second, object? third) =>
+        LocalizedText.Ref(key, first, second, third);
+
+    /// <summary>Captures a resource key with an arbitrary argument list for a stored value.</summary>
+    protected static LocalizedStatus Ref(string key, params object?[] arguments) => LocalizedText.Ref(key, arguments);
 
     /// <summary>触发根 VM 的防抖保存。仅用户编辑路径调用。</summary>
     protected void Save() => _save?.Invoke();

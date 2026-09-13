@@ -9,7 +9,7 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 usage() {
-  echo "usage: install-relaxkonos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE PRIVILEGED_HELPER_EXECUTABLE SERVER_PORT [SERVICE_USER] [--file-access restricted|full|whitelist] [--file-roots PATH]" >&2
+  echo "usage: install-relaxkonos-services.sh INSTALL_ROOT SERVER_EXECUTABLE GUARDIAN_EXECUTABLE PRIVILEGED_HELPER_EXECUTABLE SERVER_PORT SERVER_LISTEN_URL [SERVICE_USER] [--data-root PATH] [--file-access restricted|full|whitelist] [--file-roots PATH]" >&2
   exit 1
 }
 
@@ -18,8 +18,9 @@ SERVER_EXECUTABLE="${2:?missing SERVER_EXECUTABLE}"
 GUARDIAN_EXECUTABLE="${3:?missing GUARDIAN_EXECUTABLE}"
 PRIVILEGED_HELPER_EXECUTABLE="${4:?missing PRIVILEGED_HELPER_EXECUTABLE}"
 SERVER_PORT="${5:?missing SERVER_PORT}"
+SERVER_LISTEN_URL="${6:?missing SERVER_LISTEN_URL}"
 [[ -n "$INSTALL_ROOT" ]] || usage
-shift 5
+shift 6
 
 SERVICE_USER=relaxkonos-server
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -28,6 +29,7 @@ if [[ $# -gt 0 && "$1" != --* ]]; then
 fi
 FILE_ACCESS=restricted
 FILE_ROOTS_FILE=
+DATA_ROOT=/var/lib/relaxkonos
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --file-access)
@@ -38,6 +40,11 @@ while [[ $# -gt 0 ]]; do
     --file-roots)
       [[ $# -ge 2 ]] || usage
       FILE_ROOTS_FILE="$2"
+      shift 2
+      ;;
+    --data-root)
+      [[ $# -ge 2 ]] || usage
+      DATA_ROOT="$2"
       shift 2
       ;;
     *)
@@ -77,7 +84,7 @@ install_file_root_policy() {
     restricted)
       cat >"$temporary_policy" <<EOF
 /etc/relaxkonos
-/var/lib/relaxkonos
+$DATA_ROOT
 EOF
       ;;
     full)
@@ -104,32 +111,43 @@ for file in "$SERVER_EXECUTABLE" "$GUARDIAN_EXECUTABLE" "$PRIVILEGED_HELPER_EXEC
   [[ -f "$file" ]] || { echo "Missing executable: $file" >&2; exit 1; }
 done
 [[ "$SERVER_PORT" =~ ^[0-9]+$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || { echo "Invalid server port." >&2; exit 1; }
+[[ "$SERVER_LISTEN_URL" =~ ^http://[^[:space:]]+$ ]] || { echo "SERVER_LISTEN_URL must be an absolute HTTP URL." >&2; exit 1; }
+[[ "$DATA_ROOT" == /* ]] || { echo "--data-root must be an absolute path." >&2; exit 1; }
 [[ "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Invalid service user." >&2; exit 1; }
 command -v sudo >/dev/null || { echo "sudo is required for the privileged helper." >&2; exit 1; }
 command -v visudo >/dev/null || { echo "visudo is required for validating the privileged-helper sudoers rule." >&2; exit 1; }
 
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-  useradd --system --user-group --home-dir /var/lib/relaxkonos --shell /usr/sbin/nologin "$SERVICE_USER"
+  useradd --system --user-group --home-dir "$DATA_ROOT" --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
 SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
 
-install -d -m 0700 /etc/relaxkonos /var/lib/relaxkonos/guardian
-install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 /var/lib/relaxkonos/docker-compose
-install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "$INSTALL_ROOT/data"
+GUARDIAN_DATA="$DATA_ROOT/guardian"
+COMPOSE_DATA="$DATA_ROOT/docker-compose"
+SERVER_DATA="$DATA_ROOT/server"
+install -d -m 0700 /etc/relaxkonos "$GUARDIAN_DATA"
+install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "$COMPOSE_DATA"
+install -d -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 0750 "$SERVER_DATA"
 SECRET="$(openssl rand -base64 48)"
+JWT_SECRET=
+if [[ -f /etc/relaxkonos/server.env ]]; then
+  JWT_SECRET="$(grep -m1 '^Jwt__Secret=' /etc/relaxkonos/server.env | cut -d= -f2- || true)"
+fi
+if [[ ${#JWT_SECRET} -lt 32 ]]; then JWT_SECRET="$(openssl rand -base64 48)"; fi
 
 cat >/etc/relaxkonos/guardian.env <<EOF
 RELAXKONOS_GUARDIAN_SHARED_SECRET=$SECRET
 RELAXKONOS_GUARDIAN_PIPE=relaxkonos-guardian
-RELAXKONOS_GUARDIAN_DATA_DIR=/var/lib/relaxkonos/guardian
+RELAXKONOS_GUARDIAN_DATA_DIR=$GUARDIAN_DATA
 RELAXKONOS_GUARDIAN_SERVER_SERVICE=relaxkonos-server.service
 RELAXKONOS_GUARDIAN_SERVER_HEALTH_URL=http://127.0.0.1:$SERVER_PORT/healthz
 EOF
 cat >/etc/relaxkonos/server.env <<EOF
+Jwt__Secret=$JWT_SECRET
 GuardianAgent__SharedSecret=$SECRET
 GuardianAgent__PipeName=relaxkonos-guardian
-Storage__DatabasePath=$INSTALL_ROOT/data/relaxkonos.db
-DockerCompose__DataDirectory=/var/lib/relaxkonos/docker-compose
+Storage__DatabasePath=$SERVER_DATA/relaxkonos.db
+DockerCompose__DataDirectory=$COMPOSE_DATA
 PrivilegedHelper__HelperPath=$PRIVILEGED_HELPER
 PrivilegedHelper__SudoPath=$(command -v sudo)
 EOF
@@ -196,6 +214,7 @@ Wants=network-online.target relaxkonos-guardian.service
 [Service]
 Type=simple
 EnvironmentFile=/etc/relaxkonos/server.env
+Environment=ASPNETCORE_URLS=$SERVER_LISTEN_URL
 User=$SERVICE_USER
 Group=$SERVICE_GROUP
 WorkingDirectory=$(dirname "$SERVER_EXECUTABLE")
@@ -209,4 +228,4 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now relaxkonos-guardian.service relaxkonos-server.service
-echo "Installed RelaxKonOS Server and Guardian services (Server user: $SERVICE_USER)."
+echo "Installed RelaxKonOS Server and Guardian services (Server user: $SERVICE_USER; listening on $SERVER_LISTEN_URL)."

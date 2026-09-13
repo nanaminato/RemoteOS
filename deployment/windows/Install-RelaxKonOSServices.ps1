@@ -5,6 +5,8 @@ param(
     [string] $GuardianExecutable,
     [string] $PrivilegedHelperExecutable,
     [int] $ServerPort = 5000,
+    [string] $ServerListenUrl,
+    [string] $DataRoot = (Join-Path $env:ProgramData 'RelaxKonOS'),
     [string] $ServerServiceName = 'RelaxKonOSServer',
     [string] $GuardianServiceName = 'RelaxKonOSGuardian',
     [string] $PrivilegedHelperServiceName = 'RelaxKonOSPrivilegedHelper',
@@ -30,6 +32,12 @@ if (-not (Test-Path -LiteralPath $ServerExecutable -PathType Leaf) -or -not (Tes
     throw 'ServerExecutable, GuardianExecutable, and PrivilegedHelperExecutable must all exist.'
 }
 if ($ServerPort -lt 1 -or $ServerPort -gt 65535) { throw 'ServerPort must be between 1 and 65535.' }
+if ([string]::IsNullOrWhiteSpace($ServerListenUrl)) { $ServerListenUrl = "http://127.0.0.1:$ServerPort" }
+try { $serverListenUri = [Uri]$ServerListenUrl } catch { throw 'ServerListenUrl must be an absolute HTTP URL.' }
+if (-not $serverListenUri.IsAbsoluteUri -or $serverListenUri.Scheme -ne 'http' -or $serverListenUri.Port -ne $ServerPort) {
+    throw 'ServerListenUrl must be an absolute HTTP URL using ServerPort.'
+}
+$DataRoot = [IO.Path]::GetFullPath($DataRoot)
 
 function Test-FullyQualifiedWindowsPath([string] $Path) {
     return (-not [string]::IsNullOrWhiteSpace($Path) -and $Path -match '^[a-zA-Z]:[\\/]|^\\\\')
@@ -74,15 +82,15 @@ if ($FileAccess -eq 'whitelist') {
     $fileAllowedRoots = Get-FullLocalFileRoots
     Write-Warning "Full file access is enabled for local volume roots: $($fileAllowedRoots -join ', ')"
 } else {
-    $fileAllowedRoots = @($env:ProgramData + '\RelaxKonOS')
+    $fileAllowedRoots = @($DataRoot)
 }
 
-$guardianData = Join-Path $env:ProgramData 'RelaxKonOS\guardian'
-$composeData = Join-Path $env:ProgramData 'RelaxKonOS\docker-compose'
-$serverData = Join-Path $env:ProgramData 'RelaxKonOS\server'
+$guardianData = Join-Path $DataRoot 'guardian'
+$composeData = Join-Path $DataRoot 'docker-compose'
+$serverData = Join-Path $DataRoot 'server'
 $guardianConfig = Join-Path $guardianData 'guardian.json'
 $serverHostConfig = Join-Path (Split-Path -Parent $ServerExecutable) 'appsettings.host.json'
-$privilegedData = Join-Path $env:ProgramData 'RelaxKonOS\privileged-helper'
+$privilegedData = Join-Path $DataRoot 'privileged-helper'
 $privilegedConfig = Join-Path $privilegedData 'helper.json'
 New-Item -ItemType Directory -Force -Path $guardianData | Out-Null
 New-Item -ItemType Directory -Force -Path $composeData | Out-Null
@@ -94,6 +102,22 @@ $sharedSecret = [Convert]::ToBase64String($secretBytes)
 $helperSecretBytes = New-Object byte[] 48
 [Security.Cryptography.RandomNumberGenerator]::Fill($helperSecretBytes)
 $helperSecret = [Convert]::ToBase64String($helperSecretBytes)
+# Keep a valid production token key over an in-place repair or upgrade. Replacing it would
+# immediately invalidate every active client session for no security benefit.
+$jwtSecret = $null
+if (Test-Path -LiteralPath $serverHostConfig -PathType Leaf) {
+    try {
+        $existingServerSettings = Get-Content -LiteralPath $serverHostConfig -Raw | ConvertFrom-Json
+        if ($existingServerSettings.Jwt.Secret -is [string] -and $existingServerSettings.Jwt.Secret.Length -ge 32) {
+            $jwtSecret = $existingServerSettings.Jwt.Secret
+        }
+    } catch { }
+}
+if ([string]::IsNullOrWhiteSpace($jwtSecret)) {
+    $jwtSecretBytes = New-Object byte[] 48
+    [Security.Cryptography.RandomNumberGenerator]::Fill($jwtSecretBytes)
+    $jwtSecret = [Convert]::ToBase64String($jwtSecretBytes)
+}
 
 $agentSettings = [ordered]@{
     pipeName = 'relaxkonos-guardian'
@@ -108,6 +132,9 @@ $agentSettings = [ordered]@{
     }
 }
 $serverSettings = [ordered]@{
+    Jwt = [ordered]@{
+        Secret = $jwtSecret
+    }
     GuardianAgent = [ordered]@{
         PipeName = 'relaxkonos-guardian'
         SharedSecret = $sharedSecret
@@ -142,7 +169,7 @@ function Install-OrUpdateService([string] $Name, [string] $BinaryPath) {
 }
 
 Install-OrUpdateService $GuardianServiceName ('"' + $GuardianExecutable + '" --config "' + $guardianConfig + '"')
-Install-OrUpdateService $ServerServiceName ('"' + $ServerExecutable + '"')
+Install-OrUpdateService $ServerServiceName ('"' + $ServerExecutable + '" --urls "' + $serverListenUri.AbsoluteUri.TrimEnd('/') + '"')
 
 # The Server keeps a service SID even while running as LocalService. It is the sole non-admin
 # identity allowed to connect to the Helper pipe and read its machine secret.
@@ -173,4 +200,4 @@ if ($PSCmdlet.ShouldProcess('RelaxKonOS services', 'Start or restart')) {
     Restart-Service -Name $ServerServiceName -Force
 }
 
-Write-Host "Installed $GuardianServiceName, $PrivilegedHelperServiceName (LocalSystem), and $ServerServiceName (LocalService)."
+Write-Host "Installed $GuardianServiceName, $PrivilegedHelperServiceName (LocalSystem), and $ServerServiceName (LocalService). Listening on $($serverListenUri.AbsoluteUri.TrimEnd('/'))."

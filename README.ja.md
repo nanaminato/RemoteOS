@@ -250,6 +250,8 @@ dotnet run
 
 > ⚠️ **本番環境**: `appsettings.json` の `Jwt:Secret` を少なくとも32文字のランダム文字列に変更してください。
 
+本番環境では[ワンコマンド サーバー インストーラー](./deployment/README.md)を使用してください。JWT とコンポーネント IPC シークレットを生成・保護し、Server、Guardian Agent、特権ヘルパーのインストールとヘルスチェックを行います。
+
 ### 3. クライアントの起動
 
 ```bash
