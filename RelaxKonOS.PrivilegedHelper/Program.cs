@@ -615,9 +615,9 @@ static async Task<PrivilegedOperationResult> ReadSambaUsersAsync()
     var enabled = new HashSet<string>(StringComparer.Ordinal);
     if (File.Exists("/usr/bin/pdbedit"))
     {
-        var result = await RunFixedCommandWithOutputAsync("/usr/bin/pdbedit", ["-L"], "Samba user enumeration failed");
+        var result = await RunFixedCommandWithOutputAsync("/usr/bin/pdbedit", ["-L", "-v"], "Samba user enumeration failed");
         if (result.Success && DecodeUtf8(result.OutputBase64) is { } output)
-            foreach (var line in output.Split('\n')) { var name = line.Split(':', 2)[0].Trim(); if (IsValidSmbUsername(name)) enabled.Add(name); }
+            enabled.UnionWith(SambaUserStatus.ParseEnabledUsers(output).Where(IsValidSmbUsername));
     }
     var users = File.ReadLines("/etc/passwd").Select(line => line.Split(':')).Where(parts => parts.Length >= 7 && IsValidSmbUsername(parts[0]) && int.TryParse(parts[2], out var uid) && uid >= 1000 && !parts[6].Contains("nologin", StringComparison.OrdinalIgnoreCase))
         .Select(parts => new FileServiceUserDto(parts[0], enabled.Contains(parts[0]), true)).OrderBy(x => x.Username, StringComparer.Ordinal).ToArray();
@@ -633,7 +633,7 @@ static async Task<PrivilegedOperationResult> ApplySmbManagedConfigurationAsync(I
     if (!File.Exists(SmbMainConfiguration)) return Fail(2, PrivilegedProblemCode.NotFound, "Samba main configuration is unavailable");
     var originalMain = await File.ReadAllTextAsync(SmbMainConfiguration);
     var originalInclude = File.Exists(SmbManagedConfiguration) ? await File.ReadAllBytesAsync(SmbManagedConfiguration) : null;
-    if (!TryEnsureManagedInclude(originalMain, out var candidateMain)) return Fail(64, PrivilegedProblemCode.Conflict, "Samba main configuration is not safely managed");
+    if (!SambaMainConfiguration.TryEnsureManagedInclude(originalMain, SmbMarker, SmbInclude, out var candidateMain)) return Fail(64, PrivilegedProblemCode.Conflict, "Samba main configuration is not safely managed");
     var candidateInclude = SerializeManagedShares(requested);
     var staging = SmbManagedConfiguration + ".new";
     try
@@ -655,7 +655,7 @@ static async Task<PrivilegedOperationResult> SetSambaUserEnabledAsync(string? us
 {
     if (!OperatingSystem.IsLinux() || !IsValidSmbUsername(username) || enabled is null || !UserExists(username!)) return Fail(64, PrivilegedProblemCode.InvalidRequest, "Samba system account is invalid");
     if (!File.Exists("/usr/bin/smbpasswd")) return Fail(2, PrivilegedProblemCode.NotFound, "Samba is not installed");
-    return await RunFixedCommandAsync("/usr/bin/smbpasswd", [enabled.Value ? "-e" : "-d", username!], TimeSpan.FromSeconds(30), "Samba credential update failed");
+    return await RunFixedCommandAsync("/usr/bin/smbpasswd", [enabled.Value ? "-e" : "-d", username!], TimeSpan.FromSeconds(30), "Samba credential update failed", "smbpasswd-account-state");
 }
 
 static async Task<PrivilegedOperationResult> SetSambaUserPasswordAsync(string? username, string? password)
@@ -663,13 +663,17 @@ static async Task<PrivilegedOperationResult> SetSambaUserPasswordAsync(string? u
     if (!OperatingSystem.IsLinux() || !IsValidSmbUsername(username) || !UserExists(username!) || password is not { Length: >= 12 and <= 1024 } || password.Any(char.IsControl)) return Fail(64, PrivilegedProblemCode.InvalidRequest, "Samba credential request is invalid");
     if (!File.Exists("/usr/bin/smbpasswd")) return Fail(2, PrivilegedProblemCode.NotFound, "Samba is not installed");
     // smbpasswd's documented noninteractive stdin protocol is fixed here; the secret is not logged or returned.
-    using var process = new System.Diagnostics.Process { StartInfo = new System.Diagnostics.ProcessStartInfo("/usr/bin/smbpasswd") { UseShellExecute = false, RedirectStandardInput = true, CreateNoWindow = true } };
-    process.StartInfo.ArgumentList.Add("-s"); process.StartInfo.ArgumentList.Add(username!);
+    using var process = new System.Diagnostics.Process { StartInfo = new System.Diagnostics.ProcessStartInfo("/usr/bin/smbpasswd") { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardError = true, CreateNoWindow = true } };
+    foreach (var argument in SambaCredentialCommand.SetPassword(username!)) process.StartInfo.ArgumentList.Add(argument);
     if (!process.Start()) return Fail(69, PrivilegedProblemCode.HelperUnavailable, "Samba credential helper could not start");
     await process.StandardInput.WriteLineAsync(password); await process.StandardInput.WriteLineAsync(password); await process.StandardInput.DisposeAsync();
+    var error = process.StandardError.ReadToEndAsync();
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
     try { await process.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) { return Fail(124, PrivilegedProblemCode.TimedOut, "Samba credential operation timed out"); }
-    return process.ExitCode == 0 ? new(true) : Fail(1, PrivilegedProblemCode.InternalError, "Samba credential update failed");
+    await error;
+    if (process.ExitCode == 0) return new(true);
+    WriteHelperDiagnostic("smbpasswd-password", process.ExitCode);
+    return Fail(1, PrivilegedProblemCode.InternalError, "Samba credential update failed");
 }
 
 static async Task<bool> IsSmbHealthyAsync()
@@ -691,21 +695,6 @@ static async Task<PrivilegedOperationResult> RestoreSmbConfigurationAsync(string
         return reload.Success ? Fail(1, PrivilegedProblemCode.Conflict, reason) : Fail(1, PrivilegedProblemCode.InternalError, "Samba rollback failed");
     }
     catch { return Fail(1, PrivilegedProblemCode.InternalError, "Samba rollback failed"); }
-}
-
-static bool TryEnsureManagedInclude(string main, out string candidate)
-{
-    candidate = main;
-    var markerCount = main.Split('\n').Count(line => line.TrimEnd('\r') == SmbMarker);
-    var includeCount = main.Split('\n').Count(line => line.Trim().Equals(SmbInclude, StringComparison.OrdinalIgnoreCase));
-    if (markerCount > 1 || includeCount > 1 || markerCount != includeCount) return false;
-    if (markerCount == 1) return true;
-    var global = main.IndexOf("[global]", StringComparison.OrdinalIgnoreCase);
-    if (global < 0) return false;
-    var end = main.IndexOf('\n', global);
-    if (end < 0) end = main.Length;
-    candidate = main.Insert(end + (end < main.Length ? 1 : 0), SmbMarker + "\n" + SmbInclude + "\n");
-    return true;
 }
 
 static string SerializeManagedShares(IReadOnlyList<SmbManagedShareRequest> shares) => SambaShareConfiguration.Serialize(shares);
@@ -816,7 +805,7 @@ static async Task<PrivilegedOperationResult> RunFixedCommandWithOutputAsync(stri
     return process.ExitCode == 0 ? new(true, OutputBase64: Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text))) : Fail(1, PrivilegedProblemCode.InternalError, failure);
 }
 
-static async Task<PrivilegedOperationResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, TimeSpan timeout, string failure)
+static async Task<PrivilegedOperationResult> RunFixedCommandAsync(string executable, IReadOnlyList<string> arguments, TimeSpan timeout, string failure, string? diagnostic = null)
 {
     // The one-shot Helper reserves its stdout exclusively for the final JSON protocol result.
     // Package managers emit progress on stdout, so drain child output internally rather than
@@ -832,8 +821,12 @@ static async Task<PrivilegedOperationResult> RunFixedCommandAsync(string executa
     try { await process.WaitForExitAsync(cancellation.Token); }
     catch (OperationCanceledException) { return Fail(124, PrivilegedProblemCode.TimedOut, "host operation timed out"); }
     await Task.WhenAll(output, error);
-    return process.ExitCode == 0 ? new(true) : Fail(1, PrivilegedProblemCode.InternalError, failure);
+    if (process.ExitCode == 0) return new(true);
+    if (diagnostic is not null) WriteHelperDiagnostic(diagnostic, process.ExitCode);
+    return Fail(1, PrivilegedProblemCode.InternalError, failure);
 }
+
+static void WriteHelperDiagnostic(string eventName, int exitCode) => Console.Error.WriteLine($"relaxkonos-diagnostic:{eventName} exit={exitCode}");
 
 static PrivilegedOperationResult Fail(int exitCode, PrivilegedProblemCode code, string error) => new(false, exitCode, Error: error, ProblemCode: code);
 static Task WriteResultAsync(PrivilegedOperationResult result) => Console.Out.WriteLineAsync(JsonSerializer.Serialize(PrivilegedOperationFrame.Completed(result)));

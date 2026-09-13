@@ -35,8 +35,7 @@ public sealed class LinuxSambaPlatformAdapter(IPrivilegedSmbOperations helper) :
     {
         if (!OperatingSystem.IsLinux()) return Unsupported();
         var result = await helper.DetectAsync(Guid.NewGuid(), ct);
-        if (!result.Success) return new(FileServiceProtocol.Smb, result.ProblemCode == PrivilegedProblemCode.HelperUnavailable ? FileServiceRuntimeState.Unavailable : FileServiceRuntimeState.Unsupported,
-            null, false, false, result.ProblemCode == PrivilegedProblemCode.UnsupportedOperation ? FileServiceProblemCodes.UnsupportedPlatform : Problem(result));
+        if (!result.Success) return DetectionFailure(result);
         return DecodeStatus(result) ?? new(FileServiceProtocol.Smb, FileServiceRuntimeState.NotInstalled, null, false, false, FileServiceProblemCodes.NotInstalled);
     }
     public async Task<FileServiceOperationResultDto> InstallAsync(Guid id, CancellationToken ct)
@@ -67,10 +66,29 @@ public sealed class LinuxSambaPlatformAdapter(IPrivilegedSmbOperations helper) :
             s.Permissions.Select(p => new SmbSharePermissionRequest(p.Principal, p.Access.ToString())).ToArray())).ToArray();
         return Result(operationId, await helper.ApplyLinuxConfigurationAsync(shares, operationId, ct));
     }
-    public async Task<FileServiceOperationResultDto> SetUserAsync(string username, bool enabled, string? password, Guid id, CancellationToken ct) => password is null
-        ? Result(id, await helper.SetUserEnabledAsync(username, enabled, id, ct)) : Result(id, await helper.SetUserPasswordAsync(username, password, id, ct));
+    public async Task<FileServiceOperationResultDto> SetUserAsync(string username, bool enabled, string? password, Guid id, CancellationToken ct) => CredentialResult(id, password is null
+        ? await helper.SetUserEnabledAsync(username, enabled, id, ct) : await helper.SetUserPasswordAsync(username, password, id, ct));
     private static FileServiceStatusDto Unsupported() => new(FileServiceProtocol.Smb, FileServiceRuntimeState.Unsupported, null, false, false, FileServiceProblemCodes.UnsupportedPlatform);
+    /// <summary>
+    /// A failed probe cannot establish either Samba's installation state or that its configuration
+    /// is invalid. Keep those diagnoses separate so the client does not hide install support as if
+    /// the Linux platform itself were unsupported.
+    /// </summary>
+    internal static FileServiceStatusDto DetectionFailure(PrivilegedOperationResult result) => result.ProblemCode switch
+    {
+        PrivilegedProblemCode.UnsupportedOperation => Unsupported(),
+        PrivilegedProblemCode.HelperUnavailable or PrivilegedProblemCode.AccessDenied or PrivilegedProblemCode.TimedOut
+            => new(FileServiceProtocol.Smb, FileServiceRuntimeState.Unavailable, null, false, false, FileServiceProblemCodes.HelperUnavailable),
+        _ => new(FileServiceProtocol.Smb, FileServiceRuntimeState.Unavailable, null, false, false, FileServiceProblemCodes.DetectionFailed),
+    };
     internal static FileServiceOperationResultDto Result(Guid id, PrivilegedOperationResult result) => new(id, result.Success, result.Success ? null : Problem(result));
+    internal static FileServiceOperationResultDto CredentialResult(Guid id, PrivilegedOperationResult result) => new(id, result.Success, result.Success ? null : result.ProblemCode switch
+    {
+        PrivilegedProblemCode.InvalidRequest => FileServiceProblemCodes.SystemAccountNotFound,
+        PrivilegedProblemCode.NotFound => FileServiceProblemCodes.NotInstalled,
+        PrivilegedProblemCode.HelperUnavailable => FileServiceProblemCodes.HelperUnavailable,
+        _ => FileServiceProblemCodes.CredentialUpdateFailed,
+    });
     internal static string Problem(PrivilegedOperationResult result)
     {
         // Helper errors are fixed, non-secret classifications. Preserve the product-level
