@@ -13,6 +13,7 @@ public sealed partial class EnvironmentPageViewModel
     [ObservableProperty] private string? _selectedDraftName;
     public bool IsPath => _snapshot is not null && VariableName.Equals("PATH",
         _snapshot.CaseSensitiveNames ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+    public bool IsNotPath => !IsPath;
     public bool CanEditPath => CanEdit && IsPath;
     public bool CanReplacePathEntry => CanEditPath && SelectedPathIndex >= 0 && SelectedPathIndex < PathEntries.Count;
     public bool CanMovePathUp => CanReplacePathEntry && SelectedPathIndex > 0;
@@ -32,7 +33,7 @@ public sealed partial class EnvironmentPageViewModel
     {
         PathEntries = IsPath ? EnvironmentExpansion.SplitPath(VariableValue, !_snapshot!.CaseSensitiveNames) : Array.Empty<string>();
         SelectedPathIndex = -1; PathEntryValue = "";
-        OnPropertyChanged(nameof(IsPath)); OnPropertyChanged(nameof(PathWarnings)); UpdatePathCommands();
+        OnPropertyChanged(nameof(IsPath)); OnPropertyChanged(nameof(IsNotPath)); OnPropertyChanged(nameof(PathWarnings)); UpdatePathCommands();
     }
     private void SetPath(IReadOnlyList<string> entries, int selected)
     {
