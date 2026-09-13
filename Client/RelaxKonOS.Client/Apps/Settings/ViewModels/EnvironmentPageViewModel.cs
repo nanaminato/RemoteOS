@@ -64,6 +64,8 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         : T("settings.environment.user_variables", "User variables");
     public bool IsWindowsEnvironment => _userSnapshot is not null && !_userSnapshot.CaseSensitiveNames;
     public bool IsNotWindowsEnvironment => !IsWindowsEnvironment;
+    /// <summary>True only after the administrator grant has succeeded and the unmasked snapshot is loaded.</summary>
+    public bool HasLoadedEnvironment => _snapshot is not null;
     public string SelectedDetails => SelectedVariable is not { } value ? "" : value.ValueKind + " · " + value.Source + Environment.NewLine
         + (value.ExpandedPreview ?? "") + Environment.NewLine + string.Join(Environment.NewLine, value.Warnings);
     public string OperationId => _plan?.PlanId.ToString("D") ?? "";
@@ -316,6 +318,7 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     {
         OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanChangeScope)); OnPropertyChanged(nameof(TargetText)); OnPropertyChanged(nameof(OperationId));
         OnPropertyChanged(nameof(IsWindowsEnvironment)); OnPropertyChanged(nameof(IsNotWindowsEnvironment));
+        OnPropertyChanged(nameof(HasLoadedEnvironment));
         UpdatePathCommands();
         LoadCommand.NotifyCanExecuteChanged(); RevealCommand.NotifyCanExecuteChanged(); StageSetCommand.NotifyCanExecuteChanged(); StageDeleteCommand.NotifyCanExecuteChanged();
         PreviewCommand.NotifyCanExecuteChanged(); ApplyCommand.NotifyCanExecuteChanged(); QueryCommand.NotifyCanExecuteChanged(); RollbackCommand.NotifyCanExecuteChanged(); DiscardCommand.NotifyCanExecuteChanged();

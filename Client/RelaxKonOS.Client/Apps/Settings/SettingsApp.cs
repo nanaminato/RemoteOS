@@ -137,18 +137,23 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
             EnvironmentPageViewModel? editor = null;
             try
             {
+                // Detect/load the server environment before creating its editor window.  This
+                // prevents the generic page from flashing behind the administrator prompt.
+                editor = new EnvironmentPageViewModel(settings, hostEnvironment, session)
+                {
+                    RequestAuthorizationAsync = async (connection, scope, capability) =>
+                    {
+                        var target = await hostEnvironment.ResolveTargetAsync(connection, scope);
+                        return await AuthorizeHostSettingsAsync(connection, target.ResourceId + " · " + capability,
+                            (password, administrator) => hostEnvironment.AuthorizeAsync(connection, scope, capability, password, administrator));
+                    },
+                };
+                await editor.InitializeAsync();
+                if (!editor.HasLoadedEnvironment) return;
                 await context.ShowDialogAsync<bool>(window, LocalizedText.Get("settings.environment.title"), environmentDialog =>
                 {
-                    editor = new EnvironmentPageViewModel(settings, hostEnvironment, session)
-                    {
-                        RequestClose = () => environmentDialog.Close(false),
-                        RequestAuthorizationAsync = async (connection, scope, capability) =>
-                        {
-                            var target = await hostEnvironment.ResolveTargetAsync(connection, scope);
-                            return await AuthorizeHostSettingsAsync(connection, target.ResourceId + " · " + capability,
-                                (password, administrator) => hostEnvironment.AuthorizeAsync(connection, scope, capability, password, administrator));
-                        },
-                        RequestWindowsMutationAsync = async (scope, existing) =>
+                    editor.RequestClose = () => environmentDialog.Close(false);
+                    editor.RequestWindowsMutationAsync = async (scope, existing) =>
                         {
                             WindowsEnvironmentMutation? mutation = null;
                             var title = LocalizedText.Get(scope == SettingsScope.HostMachine
@@ -174,7 +179,21 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     ? (existing?.RawValue ?? "").Split(';', StringSplitOptions.None) : Array.Empty<string>());
                                 var pathEntry = new Avalonia.Controls.TextBox { MaxLength = EnvironmentValidation.MaximumValueLength };
                                 var pathList = new Avalonia.Controls.ListBox { ItemsSource = pathEntries, MinHeight = 230 };
-                                pathList.SelectionChanged += (_, _) => pathEntry.Text = pathList.SelectedItem as string ?? "";
+                                Avalonia.Controls.Button? browse = null;
+                                var syncingPathEntry = false;
+                                pathList.SelectionChanged += (_, _) =>
+                                {
+                                    syncingPathEntry = true;
+                                    pathEntry.Text = pathList.SelectedItem as string ?? "";
+                                    syncingPathEntry = false;
+                                    if (browse is not null) browse.IsEnabled = pathList.SelectedIndex >= 0;
+                                };
+                                pathEntry.TextChanged += (_, _) =>
+                                {
+                                    var index = pathList.SelectedIndex;
+                                    if (syncingPathEntry || index < 0) return;
+                                    pathEntries[index] = pathEntry.Text ?? "";
+                                };
                                 var pathButtons = new Avalonia.Controls.StackPanel
                                 {
                                     Spacing = 7,
@@ -186,8 +205,8 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     button.Click += (_, _) => action();
                                     pathButtons.Children.Add(button);
                                 }
-                                AddPathButton("common.new", () => { pathEntries.Add(pathEntry.Text ?? ""); pathList.SelectedIndex = pathEntries.Count - 1; });
-                                AddPathButton("settings.environment.edit", () => { if (pathList.SelectedIndex >= 0) pathEntries[pathList.SelectedIndex] = pathEntry.Text ?? ""; });
+                                AddPathButton("common.new", () => { pathEntries.Add(""); pathList.SelectedIndex = pathEntries.Count - 1; pathEntry.Focus(); });
+                                AddPathButton("settings.environment.edit", () => { if (pathList.SelectedIndex >= 0) pathEntry.Focus(); });
                                 AddPathButton("common.delete", () => { if (pathList.SelectedIndex >= 0) pathEntries.RemoveAt(pathList.SelectedIndex); });
                                 AddPathButton("settings.environment.path_up", () =>
                                 {
@@ -199,7 +218,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     var index = pathList.SelectedIndex; if (index < 0 || index >= pathEntries.Count - 1) return;
                                     (pathEntries[index + 1], pathEntries[index]) = (pathEntries[index], pathEntries[index + 1]); pathList.SelectedIndex = index + 1;
                                 });
-                                var browse = new Avalonia.Controls.Button { Content = LocalizedText.Get("settings.environment.browse") };
+                                browse = new Avalonia.Controls.Button { Content = LocalizedText.Get("settings.environment.browse"), IsEnabled = !isPath };
                                 browse.Click += async (_, _) =>
                                 {
                                     if (explorer is null) return;
@@ -268,8 +287,8 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 return editorLayout;
                             }, new Size(560, existing?.Name.Equals("PATH", StringComparison.OrdinalIgnoreCase) == true ? 480 : 330));
                             return mutation;
-                        },
-                        RequestWindowsDeletionConfirmationAsync = async (scope, variable) =>
+                        };
+                    editor.RequestWindowsDeletionConfirmationAsync = async (scope, variable) =>
                         {
                             var confirmed = false;
                             await environmentDialog.ShowDialogAsync<bool>(LocalizedText.Get("settings.environment.delete"), dialog => new ConfirmDialogView
@@ -280,8 +299,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     LocalizedText.Get("common.delete")),
                             }, new Size(420, 220));
                             return confirmed;
-                        },
-                    };
+                        };
                     return new EnvironmentPageView { DataContext = editor };
                 }, new Size(820, 760));
             }
