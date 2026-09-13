@@ -112,9 +112,22 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                             Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#C42B1C")),
                         };
                         var submitting = false;
-                        var cancel = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.cancel") };
+                        const double authorizationActionWidth = 80;
+                        const double authorizationActionHeight = 40;
+                        var cancel = new Avalonia.Controls.Button
+                        {
+                            Content = LocalizedText.Get("common.cancel"),
+                            Width = authorizationActionWidth,
+                            Height = authorizationActionHeight,
+                        };
                         cancel.Click += (_, _) => { password.Text = ""; dialog.Cancel(); };
-                        var confirm = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+                        var confirm = new Avalonia.Controls.Button
+                        {
+                            Content = LocalizedText.Get("common.ok"),
+                            Width = authorizationActionWidth,
+                            Height = authorizationActionHeight,
+                            Classes = { "primary" },
+                        };
                         confirm.Click += async (_, _) =>
                         {
                             var secret = password.Text ?? "";
@@ -161,7 +174,13 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                             {
                                 new Avalonia.Controls.TextBlock { Text = LocalizedText.Get("settings.host_time.password_prompt"), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
                                 password, errorText,
-                                new Avalonia.Controls.WrapPanel { Children = { cancel, confirm } }
+                                new Avalonia.Controls.StackPanel
+                                {
+                                    Orientation = Avalonia.Layout.Orientation.Horizontal,
+                                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                                    Spacing = 8,
+                                    Children = { cancel, confirm },
+                                }
                             }
                         };
                     }, new Size(420, 210));

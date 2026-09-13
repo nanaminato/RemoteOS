@@ -100,7 +100,7 @@
         "settings.system_properties.title": "システムのプロパティ",
         "settings.system_properties.description": "詳細なシステム設定は個別のウィンドウで変更します。",
         "settings.system_properties.advanced": "詳細設定",
-        "settings.system_properties.open": "設定…",
+        "settings.system_properties.open": "設定",
         "settings.system_properties.performance_hint": "視覚効果とパフォーマンスの設定。",
         "settings.system_properties.environment_hint": "ユーザーおよびリモート コンピューターの環境変数。",
         "settings.performance.title": "パフォーマンス オプション",

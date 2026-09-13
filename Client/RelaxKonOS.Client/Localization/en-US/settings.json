@@ -100,7 +100,7 @@
         "settings.system_properties.title": "System properties",
         "settings.system_properties.description": "Change advanced system settings in their own windows.",
         "settings.system_properties.advanced": "Advanced",
-        "settings.system_properties.open": "Settings…",
+        "settings.system_properties.open": "Settings",
         "settings.system_properties.performance_hint": "Visual effects and performance preferences.",
         "settings.system_properties.environment_hint": "User and remote machine environment variables.",
         "settings.performance.title": "Performance options",
