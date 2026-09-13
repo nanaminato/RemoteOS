@@ -29,8 +29,8 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     public override string DisplayNameKey => "settings.environment.title";
     public override string DisplayName => "Environment variables";
     public Func<HostSettingsConnection, SettingsScope, HostElevationCapability, Task<bool>>? RequestAuthorizationAsync { get; set; }
-    public Func<SettingsScope, EnvironmentVariable?, Task<WindowsEnvironmentMutation?>>? RequestWindowsMutationAsync { get; set; }
-    public Func<SettingsScope, EnvironmentVariable, Task<bool>>? RequestWindowsDeletionConfirmationAsync { get; set; }
+    public Func<SettingsScope, EnvironmentVariable?, Task<EnvironmentMutation?>>? RequestEnvironmentMutationAsync { get; set; }
+    public Func<SettingsScope, EnvironmentVariable, Task<bool>>? RequestEnvironmentDeletionConfirmationAsync { get; set; }
     public Action? RequestClose { get; set; }
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _machineScope;
@@ -177,38 +177,38 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     });
 
     [RelayCommand]
-    private Task NewUserVariableAsync() => EditWindowsVariableAsync(SettingsScope.HostUser, null);
+    private Task NewUserVariableAsync() => EditEnvironmentVariableAsync(SettingsScope.HostUser, null);
     [RelayCommand]
-    private Task EditUserVariableAsync() => EditWindowsVariableAsync(SettingsScope.HostUser, SelectedUserVariable);
+    private Task EditUserVariableAsync() => EditEnvironmentVariableAsync(SettingsScope.HostUser, SelectedUserVariable);
     [RelayCommand]
-    private Task DeleteUserVariableAsync() => DeleteWindowsVariableAsync(SettingsScope.HostUser, SelectedUserVariable);
+    private Task DeleteUserVariableAsync() => DeleteEnvironmentVariableAsync(SettingsScope.HostUser, SelectedUserVariable);
     [RelayCommand]
-    private Task NewSystemVariableAsync() => EditWindowsVariableAsync(SettingsScope.HostMachine, null);
+    private Task NewSystemVariableAsync() => EditEnvironmentVariableAsync(SettingsScope.HostMachine, null);
     [RelayCommand]
-    private Task EditSystemVariableAsync() => EditWindowsVariableAsync(SettingsScope.HostMachine, SelectedSystemVariable);
+    private Task EditSystemVariableAsync() => EditEnvironmentVariableAsync(SettingsScope.HostMachine, SelectedSystemVariable);
     [RelayCommand]
-    private Task DeleteSystemVariableAsync() => DeleteWindowsVariableAsync(SettingsScope.HostMachine, SelectedSystemVariable);
+    private Task DeleteSystemVariableAsync() => DeleteEnvironmentVariableAsync(SettingsScope.HostMachine, SelectedSystemVariable);
 
-    private Task EditWindowsVariableAsync(SettingsScope scope, EnvironmentVariable? variable) => RunAsync(async ct =>
+    private Task EditEnvironmentVariableAsync(SettingsScope scope, EnvironmentVariable? variable) => RunAsync(async ct =>
     {
-        if (!IsWindowsEnvironment || RequestWindowsMutationAsync is null) return;
-        var mutation = await RequestWindowsMutationAsync(scope, variable);
+        if (!IsWindowsEnvironment || RequestEnvironmentMutationAsync is null) return;
+        var mutation = await RequestEnvironmentMutationAsync(scope, variable);
         if (mutation is not { } edit) return;
-        await ApplyWindowsMutationAsync(scope, edit, ct);
+        await ApplyEnvironmentMutationAsync(scope, edit, ct);
     });
 
-    private Task DeleteWindowsVariableAsync(SettingsScope scope, EnvironmentVariable? variable) => RunAsync(async ct =>
+    private Task DeleteEnvironmentVariableAsync(SettingsScope scope, EnvironmentVariable? variable) => RunAsync(async ct =>
     {
         if (!IsWindowsEnvironment || variable is null) return;
-        if (RequestWindowsDeletionConfirmationAsync is null || !await RequestWindowsDeletionConfirmationAsync(scope, variable)) return;
-        await ApplyWindowsMutationAsync(scope, new(new(variable.Name, EnvironmentMutationKind.Delete), ConfirmHighImpact: true), ct);
+        if (RequestEnvironmentDeletionConfirmationAsync is null || !await RequestEnvironmentDeletionConfirmationAsync(scope, variable)) return;
+        await ApplyEnvironmentMutationAsync(scope, new(variable.Name, EnvironmentMutationKind.Delete), ct);
     });
 
-    private async Task ApplyWindowsMutationAsync(SettingsScope scope, WindowsEnvironmentMutation edit, CancellationToken ct)
+    private async Task ApplyEnvironmentMutationAsync(SettingsScope scope, EnvironmentMutation mutation, CancellationToken ct)
     {
         var baseline = scope == SettingsScope.HostMachine ? _machineSnapshot : _userSnapshot;
         if (baseline is null) return;
-        var change = new EnvironmentChangeSet([edit.Mutation], edit.ConfirmHighImpact);
+        var change = new EnvironmentChangeSet([mutation], ConfirmHighImpact: true);
         if (EnvironmentValidation.Validate(change, windows: true) is { } error) throw new InvalidOperationException(error);
         var connection = Connection();
         var plan = await _service.PreviewAsync(connection, new(scope, baseline.Revision, Guid.NewGuid().ToString("N"), change), ct);
@@ -223,6 +223,25 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
             await LoadHostScopesAsync(connection, ct);
         }
     }
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private Task NewVariableAsync() => EditBatchVariableAsync(null);
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private Task EditVariableAsync() => SelectedVariable is { } variable ? EditBatchVariableAsync(variable) : Task.CompletedTask;
+    [RelayCommand(CanExecute = nameof(CanEdit))]
+    private Task DeleteVariableAsync() => RunAsync(async ct =>
+    {
+        if (IsWindowsEnvironment || SelectedVariable is not { } variable || RequestEnvironmentDeletionConfirmationAsync is null
+            || !await RequestEnvironmentDeletionConfirmationAsync(Scope, variable)) return;
+        Stage(new(variable.Name, EnvironmentMutationKind.Delete));
+        ct.ThrowIfCancellationRequested();
+    });
+    private Task EditBatchVariableAsync(EnvironmentVariable? variable) => RunAsync(async ct =>
+    {
+        if (IsWindowsEnvironment || RequestEnvironmentMutationAsync is null) return;
+        var mutation = await RequestEnvironmentMutationAsync(Scope, variable);
+        if (mutation is { } edit) Stage(edit);
+        ct.ThrowIfCancellationRequested();
+    });
     [RelayCommand(CanExecute = nameof(CanEdit))]
     private void StageSet() => Stage(new(VariableName, EnvironmentMutationKind.Set, VariableValue,
         ExpandString ? EnvironmentValueKind.ExpandString : EnvironmentValueKind.String));
@@ -334,6 +353,7 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         OnPropertyChanged(nameof(HasLoadedEnvironment));
         UpdatePathCommands();
         LoadCommand.NotifyCanExecuteChanged(); RevealCommand.NotifyCanExecuteChanged(); StageSetCommand.NotifyCanExecuteChanged(); StageDeleteCommand.NotifyCanExecuteChanged();
+        NewVariableCommand.NotifyCanExecuteChanged(); EditVariableCommand.NotifyCanExecuteChanged(); DeleteVariableCommand.NotifyCanExecuteChanged();
         PreviewCommand.NotifyCanExecuteChanged(); ApplyCommand.NotifyCanExecuteChanged(); QueryCommand.NotifyCanExecuteChanged(); RollbackCommand.NotifyCanExecuteChanged(); DiscardCommand.NotifyCanExecuteChanged();
         EditUserVariableCommand.NotifyCanExecuteChanged(); DeleteUserVariableCommand.NotifyCanExecuteChanged(); EditSystemVariableCommand.NotifyCanExecuteChanged(); DeleteSystemVariableCommand.NotifyCanExecuteChanged();
     }

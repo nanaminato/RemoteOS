@@ -156,9 +156,10 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                 await context.ShowDialogAsync<bool>(window, LocalizedText.Get("settings.environment.title"), environmentDialog =>
                 {
                     editor.RequestClose = () => environmentDialog.Close(false);
-                    editor.RequestWindowsMutationAsync = async (scope, existing) =>
+                    editor.RequestEnvironmentMutationAsync = async (scope, existing) =>
                         {
-                            WindowsEnvironmentMutation? mutation = null;
+                            EnvironmentMutation? mutation = null;
+                            var windows = editor.IsWindowsEnvironment;
                             var title = LocalizedText.Get(scope == SettingsScope.HostMachine
                                 ? "settings.environment.system_variables" : "settings.environment.user_variables");
                             await environmentDialog.ShowDialogAsync<bool>(title, dialog =>
@@ -178,16 +179,16 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     MaxLength = EnvironmentValidation.MaximumValueLength,
                                     MinHeight = 32,
                                 };
-                                var pathEditor = new WindowsPathEditor(existing?.RawValue ?? "", isPath);
+                                var pathEditor = new EnvironmentPathEditor(existing?.RawValue ?? "", isPath, windows ? ";" : ":");
                                 var pathEntry = new Avalonia.Controls.TextBox { MaxLength = EnvironmentValidation.MaximumValueLength };
                                 var pathList = new Avalonia.Controls.ListBox { ItemsSource = pathEditor.Entries, MinHeight = 230, SelectionMode = Avalonia.Controls.SelectionMode.Single };
                                 pathList.Classes.Add("windows-path-editor");
                                 pathList.Bind(Avalonia.Controls.Primitives.SelectingItemsControl.SelectedItemProperty,
-                                    new Binding(nameof(WindowsPathEditor.SelectedEntry)) { Source = pathEditor, Mode = BindingMode.TwoWay });
-                                pathList.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<WindowsPathEntry>((_, _) =>
+                                    new Binding(nameof(EnvironmentPathEditor.SelectedEntry)) { Source = pathEditor, Mode = BindingMode.TwoWay });
+                                pathList.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<EnvironmentPathEntry>((_, _) =>
                                 {
                                     var text = new Avalonia.Controls.TextBlock { Margin = new Avalonia.Thickness(8, 4), TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
-                                    text.Bind(Avalonia.Controls.TextBlock.TextProperty, new Binding(nameof(WindowsPathEntry.Value)));
+                                    text.Bind(Avalonia.Controls.TextBlock.TextProperty, new Binding(nameof(EnvironmentPathEntry.Value)));
                                     return text;
                                 });
                                 // This dialog is hosted in its own window, so its selected state needs a local style.
@@ -203,7 +204,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 pathEntry.Bind(Avalonia.Controls.TextBox.TextProperty,
                                     new Binding("SelectedEntry.Value") { Source = pathEditor, Mode = BindingMode.TwoWay });
                                 pathEntry.Bind(Avalonia.Controls.Control.IsEnabledProperty,
-                                    new Binding(nameof(WindowsPathEditor.HasSelection)) { Source = pathEditor });
+                                    new Binding(nameof(EnvironmentPathEditor.HasSelection)) { Source = pathEditor });
                                 Avalonia.Controls.Button? browse = null;
                                 var pathButtons = new Avalonia.Controls.StackPanel
                                 {
@@ -230,7 +231,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 browse = new Avalonia.Controls.Button { Content = LocalizedText.Get("settings.environment.browse"), IsEnabled = !isPath };
                                 if (isPath)
                                     browse.Bind(Avalonia.Controls.Control.IsEnabledProperty,
-                                        new Binding(nameof(WindowsPathEditor.HasSelection)) { Source = pathEditor });
+                                        new Binding(nameof(EnvironmentPathEditor.HasSelection)) { Source = pathEditor });
                                 browse.Click += async (_, _) =>
                                 {
                                     if (explorer is null) return;
@@ -255,13 +256,11 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 {
                                     var variableName = name.Text?.Trim() ?? "";
                                     var variableValue = isPath ? pathEditor.JoinedValue : value.Text ?? "";
-                                    if (!EnvironmentValidation.IsValidName(variableName, windows: true)
+                                    if (!EnvironmentValidation.IsValidName(variableName, windows)
                                         || variableValue.Length > EnvironmentValidation.MaximumValueLength)
                                         return;
-                                    mutation = new WindowsEnvironmentMutation(
-                                        new EnvironmentMutation(variableName, EnvironmentMutationKind.Set, variableValue,
-                                            existing?.ValueKind ?? EnvironmentValueKind.String),
-                                        ConfirmHighImpact: true);
+                                    mutation = new EnvironmentMutation(variableName, EnvironmentMutationKind.Set, variableValue,
+                                        existing?.ValueKind ?? EnvironmentValueKind.String);
                                     dialog.Close(true);
                                 };
                                 var content = new Avalonia.Controls.StackPanel
@@ -300,7 +299,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                             }, new Size(560, existing?.Name.Equals("PATH", StringComparison.OrdinalIgnoreCase) == true ? 480 : 330));
                             return mutation;
                         };
-                    editor.RequestWindowsDeletionConfirmationAsync = async (scope, variable) =>
+                    editor.RequestEnvironmentDeletionConfirmationAsync = async (scope, variable) =>
                         {
                             var confirmed = false;
                             await environmentDialog.ShowDialogAsync<bool>(LocalizedText.Get("settings.environment.delete"), dialog => new ConfirmDialogView
@@ -543,27 +542,29 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
 }
 
 /// <summary>Owns the PATH edit dialog's list and current item so both controls stay in sync.</summary>
-internal sealed partial class WindowsPathEditor : ObservableObject
+internal sealed partial class EnvironmentPathEditor : ObservableObject
 {
-    public System.Collections.ObjectModel.ObservableCollection<WindowsPathEntry> Entries { get; }
+    public System.Collections.ObjectModel.ObservableCollection<EnvironmentPathEntry> Entries { get; }
 
-    [ObservableProperty] private WindowsPathEntry? _selectedEntry;
+    [ObservableProperty] private EnvironmentPathEntry? _selectedEntry;
 
     public bool HasSelection => SelectedEntry is not null;
-    public string JoinedValue => string.Join(';', Entries.Select(entry => entry.Value));
+    public string JoinedValue => string.Join(_separator, Entries.Select(entry => entry.Value));
+    private readonly string _separator;
 
-    public WindowsPathEditor(string value, bool isPath)
+    public EnvironmentPathEditor(string value, bool isPath, string separator)
     {
+        _separator = separator;
         Entries = new(isPath
-            ? value.Split(';', StringSplitOptions.None).Select(entry => new WindowsPathEntry(entry))
-            : Array.Empty<WindowsPathEntry>());
+            ? value.Split(separator, StringSplitOptions.None).Select(entry => new EnvironmentPathEntry(entry))
+            : Array.Empty<EnvironmentPathEntry>());
     }
 
-    partial void OnSelectedEntryChanged(WindowsPathEntry? value) => OnPropertyChanged(nameof(HasSelection));
+    partial void OnSelectedEntryChanged(EnvironmentPathEntry? value) => OnPropertyChanged(nameof(HasSelection));
 
     public void Add()
     {
-        var entry = new WindowsPathEntry("");
+        var entry = new EnvironmentPathEntry("");
         Entries.Add(entry);
         SelectedEntry = entry;
     }
@@ -587,7 +588,7 @@ internal sealed partial class WindowsPathEditor : ObservableObject
     }
 }
 
-internal sealed partial class WindowsPathEntry(string value) : ObservableObject
+internal sealed partial class EnvironmentPathEntry(string value) : ObservableObject
 {
     [ObservableProperty] private string _value = value;
 }
