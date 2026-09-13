@@ -18,8 +18,6 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     private HostEnvironmentSnapshot? _snapshot;
     private HostEnvironmentSnapshot? _userSnapshot;
     private HostEnvironmentSnapshot? _machineSnapshot;
-    private SettingsPlan? _plan;
-    private SettingsOperation? _operation;
     private readonly List<EnvironmentMutation> _draft = new();
     private CancellationTokenSource _lifetime = new();
     private bool _submitted, _disposed;
@@ -38,7 +36,6 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     [ObservableProperty] private string _variableName = "";
     [ObservableProperty] private string _variableValue = "";
     [ObservableProperty] private bool _expandString;
-    [ObservableProperty] private bool _confirmHighImpact = true;
     [ObservableProperty] private EnvironmentVariable? _selectedVariable;
     [ObservableProperty] private IReadOnlyList<EnvironmentVariable> _variables = Array.Empty<EnvironmentVariable>();
     [ObservableProperty] private IReadOnlyList<EnvironmentVariable> _userVariables = Array.Empty<EnvironmentVariable>();
@@ -46,18 +43,13 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     [ObservableProperty] private EnvironmentVariable? _selectedUserVariable;
     [ObservableProperty] private EnvironmentVariable? _selectedSystemVariable;
     [ObservableProperty] private string _draftText = "";
-    [ObservableProperty] private string _previewText = "";
     [ObservableProperty] private LocalizedStatus _statusText;
     [ObservableProperty] private string _problemCode = "";
     public SettingsScope Scope => MachineScope ? SettingsScope.HostMachine : SettingsScope.HostUser;
     public bool CanEdit => !IsBusy && !_submitted && _snapshot is not null;
     public bool CanLoad => !IsBusy && _draft.Count == 0 && !_submitted;
     public bool CanChangeScope => CanLoad;
-    public bool CanPreview => CanEdit && _draft.Count > 0;
-    public bool CanApply => !IsBusy && !_submitted && _plan is not null && _plan.ExpiresAt > DateTimeOffset.UtcNow;
-    public bool CanQuery => !IsBusy && _plan is not null;
-    public bool CanRollback => !IsBusy && _operation?.State == SettingsOperationState.Applied;
-    public bool CanDiscard => !IsBusy && (!_submitted || _operation?.State is SettingsOperationState.Applied or SettingsOperationState.RolledBack or SettingsOperationState.Failed);
+    public bool CanApply => CanEdit && _draft.Count > 0;
     public string TargetText => _connection is null ? "" : _connection.ServerUrl + " · " + _session.CurrentUser?.Username + " · " + _snapshot?.Target.ResourceId;
     public string ScopeHeading => MachineScope
         ? IsLinuxPamEnvironment
@@ -74,7 +66,6 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     public bool HasLoadedEnvironment => _snapshot is not null;
     public string SelectedDetails => SelectedVariable is not { } value ? "" : value.ValueKind + " · " + value.Source + Environment.NewLine
         + (value.ExpandedPreview ?? "") + Environment.NewLine + string.Join(Environment.NewLine, value.Warnings);
-    public string OperationId => _plan?.PlanId.ToString("D") ?? "";
     partial void OnIsBusyChanged(bool value) => Update();
     partial void OnFilterChanged(string value) => RefreshVariables();
     partial void OnMachineScopeChanged(bool value)
@@ -88,7 +79,6 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         Clear();
         OnPropertyChanged(nameof(ScopeHeading));
     }
-    partial void OnConfirmHighImpactChanged(bool value) { _plan = null; PreviewText = ""; Update(); }
     partial void OnSelectedVariableChanged(EnvironmentVariable? value)
     {
         VariableName = value?.Name ?? "";
@@ -214,14 +204,16 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
         var plan = await _service.PreviewAsync(connection, new(scope, baseline.Revision, Guid.NewGuid().ToString("N"), change), ct);
         ct.ThrowIfCancellationRequested();
         _submitted = true;
-        var operation = await _service.ApplyAsync(connection, plan.PlanId, ct);
-        ct.ThrowIfCancellationRequested();
-        Show(operation);
-        if (operation.State == SettingsOperationState.Applied)
+        try
         {
-            _submitted = false;
-            await LoadHostScopesAsync(connection, ct);
+            var operation = await _service.ApplyAsync(connection, plan.PlanId, ct);
+            ct.ThrowIfCancellationRequested();
+            StatusText = Ref("settings.operation." + operation.State.ToString().ToLowerInvariant(), operation.State.ToString());
+            ProblemCode = operation.ProblemCode ?? "";
+            if (operation.State == SettingsOperationState.Applied)
+                await LoadHostScopesAsync(connection, ct);
         }
+        finally { _submitted = false; }
     }
     [RelayCommand(CanExecute = nameof(CanEdit))]
     private Task NewVariableAsync() => EditBatchVariableAsync(null);
@@ -250,67 +242,50 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     private void Stage(EnvironmentMutation mutation)
     {
         var windows = !_snapshot!.CaseSensitiveNames;
-        // Confirmation is checked at preview time, after the user can review the staged batch.
+        // Each staged mutation is validated immediately; the complete batch is validated again when applied.
         if (EnvironmentValidation.Validate(new(new[] { mutation }, true), windows) is { } error)
         { ProblemCode = error; return; }
         var comparison = windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var next = _draft.Where(item => !item.Name.Equals(mutation.Name, comparison)).Append(mutation).ToArray();
         if (EnvironmentValidation.Validate(new(next, true), windows) is { } batchError) { ProblemCode = batchError; return; }
-        _draft.Clear(); _draft.AddRange(next); _plan = null; PreviewText = ""; ProblemCode = "";
+        _draft.Clear(); _draft.AddRange(next); ProblemCode = "";
         RefreshDraft();
         VariableValue = ""; Update();
     }
-    [RelayCommand(CanExecute = nameof(CanPreview))]
-    private Task PreviewAsync() => RunAsync(async ct =>
-    {
-        var change = new EnvironmentChangeSet(_draft.ToArray(), ConfirmHighImpact);
-        if (EnvironmentValidation.Validate(change, !_snapshot!.CaseSensitiveNames) is { } error) throw new InvalidOperationException(error);
-        var plan = await _service.PreviewAsync(Connection(), new(Scope, _snapshot.Revision, Guid.NewGuid().ToString("N"), change), ct);
-        ct.ThrowIfCancellationRequested(); _plan = plan;
-        PreviewText = string.Join(Environment.NewLine, plan.Differences.Select(d => d.SettingId + " · " + d.Before + " → " + d.After))
-            + Environment.NewLine + EnvironmentEffectText + Environment.NewLine + plan.ExpiresAt.ToLocalTime().ToString("g");
-        StatusText = Ref("settings.host_time.review", "Review the plan");
-    });
     [RelayCommand(CanExecute = nameof(CanApply))]
-    private Task ApplyAsync() => RunAsync(async ct =>
+    private async Task ApplyAsync()
     {
-        var connection = Connection(); var plan = _plan!;
-        if (!await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentRead, ct)
-            || !await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentChange, ct)) return;
-        if (_plan != plan) throw new InvalidOperationException("settings.connection_changed");
-        _submitted = true; StatusText = Ref("settings.host_time.outcome_unknown", "Query the operation before retrying");
-        var operation = await _service.ApplyAsync(connection, plan.PlanId, ct);
-        ct.ThrowIfCancellationRequested(); Show(operation);
-    });
-    [RelayCommand(CanExecute = nameof(CanQuery))]
-    private Task QueryAsync() => RunAsync(async ct =>
-    { var operation = await _service.GetOperationAsync(Connection(), _plan!.PlanId, ct); ct.ThrowIfCancellationRequested(); Show(operation); });
-    [RelayCommand(CanExecute = nameof(CanRollback))]
-    private Task RollbackAsync() => RunAsync(async ct =>
-    {
-        var connection = Connection();
-        if (!await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentRead, ct)
-            || !await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentChange, ct)) return;
-        var revision = _operation!.ObservedRevision!;
-        _operation = null; // A lost rollback response must not retain the previous Applied state.
-        StatusText = Ref("settings.host_time.outcome_unknown", "Query the operation before retrying");
-        var operation = await _service.RollbackAsync(connection, _plan!.PlanId, revision, ct);
-        ct.ThrowIfCancellationRequested(); Show(operation);
-    });
-    [RelayCommand(CanExecute = nameof(CanDiscard))]
-    private void Discard() => Clear();
+        var applied = false;
+        await RunAsync(async ct =>
+        {
+            var connection = Connection();
+            if (!await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentRead, ct)
+                || !await Authorize(connection, Scope, HostElevationCapability.HostEnvironmentChange, ct)) return;
+            var change = new EnvironmentChangeSet(_draft.ToArray(), ConfirmHighImpact: true);
+            if (EnvironmentValidation.Validate(change, !_snapshot!.CaseSensitiveNames) is { } error) throw new InvalidOperationException(error);
+            var plan = await _service.PreviewAsync(connection, new(Scope, _snapshot.Revision, Guid.NewGuid().ToString("N"), change), ct);
+            ct.ThrowIfCancellationRequested();
+            _submitted = true;
+            try
+            {
+                var operation = await _service.ApplyAsync(connection, plan.PlanId, ct);
+                ct.ThrowIfCancellationRequested();
+                applied = operation.State == SettingsOperationState.Applied;
+                if (!applied)
+                {
+                    StatusText = Ref("settings.operation." + operation.State.ToString().ToLowerInvariant(), operation.State.ToString());
+                    ProblemCode = operation.ProblemCode ?? "";
+                }
+            }
+            finally { _submitted = false; }
+        });
+        if (applied) Close();
+    }
     [RelayCommand]
     private void Close()
     {
         Clear();
         RequestClose?.Invoke();
-    }
-    private void Show(SettingsOperation operation)
-    {
-        _operation = operation; _submitted = operation.State != SettingsOperationState.Prepared;
-        StatusText = Ref("settings.operation." + operation.State.ToString().ToLowerInvariant(), operation.State.ToString());
-        ProblemCode = operation.ProblemCode ?? "";
-        if (_submitted) { _snapshot = null; _draft.Clear(); RefreshDraft(); VariableValue = ""; Variables = Array.Empty<EnvironmentVariable>(); SelectedVariable = null; }
     }
     private Task<bool> Authorize(HostSettingsConnection connection, HostElevationCapability capability, CancellationToken ct)
         => Authorize(connection, Scope, capability, ct);
@@ -338,23 +313,23 @@ public sealed partial class EnvironmentPageViewModel : SettingsPageViewModel, ID
     }
     private void Clear()
     {
-        _snapshot = null; _plan = null; _operation = null; _submitted = false; _draft.Clear();
+        _snapshot = null; _submitted = false; _draft.Clear();
         Variables = Array.Empty<EnvironmentVariable>(); UserVariables = Array.Empty<EnvironmentVariable>(); SystemVariables = Array.Empty<EnvironmentVariable>();
         SelectedVariable = null; SelectedUserVariable = null; SelectedSystemVariable = null; VariableName = ""; VariableValue = "";
         _userSnapshot = _machineSnapshot = null;
         DraftNames = Array.Empty<string>(); SelectedDraftName = null;
-        DraftText = ""; PreviewText = ""; StatusText = ""; ProblemCode = ""; ConfirmHighImpact = true; Update();
+        DraftText = ""; StatusText = ""; ProblemCode = ""; Update();
     }
     private void Update()
     {
-        OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanChangeScope)); OnPropertyChanged(nameof(TargetText)); OnPropertyChanged(nameof(OperationId));
+        OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanChangeScope)); OnPropertyChanged(nameof(TargetText));
         OnPropertyChanged(nameof(IsWindowsEnvironment)); OnPropertyChanged(nameof(IsNotWindowsEnvironment));
         OnPropertyChanged(nameof(IsLinuxPamEnvironment)); OnPropertyChanged(nameof(EnvironmentEffectText)); OnPropertyChanged(nameof(ScopeHeading));
         OnPropertyChanged(nameof(HasLoadedEnvironment));
         UpdatePathCommands();
         LoadCommand.NotifyCanExecuteChanged(); RevealCommand.NotifyCanExecuteChanged(); StageSetCommand.NotifyCanExecuteChanged(); StageDeleteCommand.NotifyCanExecuteChanged();
         NewVariableCommand.NotifyCanExecuteChanged(); EditVariableCommand.NotifyCanExecuteChanged(); DeleteVariableCommand.NotifyCanExecuteChanged();
-        PreviewCommand.NotifyCanExecuteChanged(); ApplyCommand.NotifyCanExecuteChanged(); QueryCommand.NotifyCanExecuteChanged(); RollbackCommand.NotifyCanExecuteChanged(); DiscardCommand.NotifyCanExecuteChanged();
+        ApplyCommand.NotifyCanExecuteChanged();
         EditUserVariableCommand.NotifyCanExecuteChanged(); DeleteUserVariableCommand.NotifyCanExecuteChanged(); EditSystemVariableCommand.NotifyCanExecuteChanged(); DeleteSystemVariableCommand.NotifyCanExecuteChanged();
     }
     private void SessionChanged(object? sender, AuthSessionStateChangedEventArgs args) => Dispatcher.UIThread.Post(() =>

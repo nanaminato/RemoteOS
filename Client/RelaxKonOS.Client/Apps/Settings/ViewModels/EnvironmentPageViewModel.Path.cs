@@ -93,7 +93,7 @@ public sealed partial class EnvironmentPageViewModel
     private void RemoveDraft()
     {
         _draft.RemoveAll(item => item.Name == SelectedDraftName);
-        _plan = null; PreviewText = ""; RefreshDraft(); Update();
+        RefreshDraft(); Update();
     }
     private void UpdatePathCommands()
     {
