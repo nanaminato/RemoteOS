@@ -172,6 +172,7 @@ public static class WorkspaceEndpoints
         var scheme = request.ColorScheme?.Trim();
         if (string.IsNullOrWhiteSpace(fontFamily) || fontFamily.Length > 128
             || string.IsNullOrWhiteSpace(scheme) || scheme.Length > 64
+            || !double.IsFinite(request.FontSize)
             || request.FontSize is < 8 or > 40
             || !IsHexColor(request.BackgroundColor) || !IsHexColor(request.ForegroundColor) || !IsHexColor(request.CursorColor))
             return false;
