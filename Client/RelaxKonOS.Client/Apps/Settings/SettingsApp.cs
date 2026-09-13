@@ -2,6 +2,9 @@ using RelaxKonOS.Client.Services.WorkspaceSettings;
 using Avalonia.Threading;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using Avalonia.Data;
+using Avalonia.Styling;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Text.Json;
 using RelaxKonOS.Client.Apps.Settings.ViewModels;
 using RelaxKonOS.Client.Apps.Settings.Views;
@@ -175,25 +178,33 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     MaxLength = EnvironmentValidation.MaximumValueLength,
                                     MinHeight = 32,
                                 };
-                                var pathEntries = new System.Collections.ObjectModel.ObservableCollection<string>(isPath
-                                    ? (existing?.RawValue ?? "").Split(';', StringSplitOptions.None) : Array.Empty<string>());
+                                var pathEditor = new WindowsPathEditor(existing?.RawValue ?? "", isPath);
                                 var pathEntry = new Avalonia.Controls.TextBox { MaxLength = EnvironmentValidation.MaximumValueLength };
-                                var pathList = new Avalonia.Controls.ListBox { ItemsSource = pathEntries, MinHeight = 230 };
+                                var pathList = new Avalonia.Controls.ListBox { ItemsSource = pathEditor.Entries, MinHeight = 230, SelectionMode = Avalonia.Controls.SelectionMode.Single };
+                                pathList.Classes.Add("windows-path-editor");
+                                pathList.Bind(Avalonia.Controls.Primitives.SelectingItemsControl.SelectedItemProperty,
+                                    new Binding(nameof(WindowsPathEditor.SelectedEntry)) { Source = pathEditor, Mode = BindingMode.TwoWay });
+                                pathList.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<WindowsPathEntry>((_, _) =>
+                                {
+                                    var text = new Avalonia.Controls.TextBlock { Margin = new Avalonia.Thickness(8, 4), TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
+                                    text.Bind(Avalonia.Controls.TextBlock.TextProperty, new Binding(nameof(WindowsPathEntry.Value)));
+                                    return text;
+                                });
+                                // This dialog is hosted in its own window, so its selected state needs a local style.
+                                pathList.Styles.Add(new Avalonia.Styling.Style(selector => selector.Is<Avalonia.Controls.ListBoxItem>().Class(":selected"))
+                                {
+                                    Setters =
+                                    {
+                                        new Avalonia.Styling.Setter(Avalonia.Controls.ListBoxItem.BackgroundProperty, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#CFE8FF"))),
+                                        new Avalonia.Styling.Setter(Avalonia.Controls.ListBoxItem.BorderBrushProperty, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4A90C2"))),
+                                        new Avalonia.Styling.Setter(Avalonia.Controls.ListBoxItem.BorderThicknessProperty, new Avalonia.Thickness(1)),
+                                    },
+                                });
+                                pathEntry.Bind(Avalonia.Controls.TextBox.TextProperty,
+                                    new Binding("SelectedEntry.Value") { Source = pathEditor, Mode = BindingMode.TwoWay });
+                                pathEntry.Bind(Avalonia.Controls.Control.IsEnabledProperty,
+                                    new Binding(nameof(WindowsPathEditor.HasSelection)) { Source = pathEditor });
                                 Avalonia.Controls.Button? browse = null;
-                                var syncingPathEntry = false;
-                                pathList.SelectionChanged += (_, _) =>
-                                {
-                                    syncingPathEntry = true;
-                                    pathEntry.Text = pathList.SelectedItem as string ?? "";
-                                    syncingPathEntry = false;
-                                    if (browse is not null) browse.IsEnabled = pathList.SelectedIndex >= 0;
-                                };
-                                pathEntry.TextChanged += (_, _) =>
-                                {
-                                    var index = pathList.SelectedIndex;
-                                    if (syncingPathEntry || index < 0) return;
-                                    pathEntries[index] = pathEntry.Text ?? "";
-                                };
                                 var pathButtons = new Avalonia.Controls.StackPanel
                                 {
                                     Spacing = 7,
@@ -205,20 +216,21 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                     button.Click += (_, _) => action();
                                     pathButtons.Children.Add(button);
                                 }
-                                AddPathButton("common.new", () => { pathEntries.Add(""); pathList.SelectedIndex = pathEntries.Count - 1; pathEntry.Focus(); });
-                                AddPathButton("settings.environment.edit", () => { if (pathList.SelectedIndex >= 0) pathEntry.Focus(); });
-                                AddPathButton("common.delete", () => { if (pathList.SelectedIndex >= 0) pathEntries.RemoveAt(pathList.SelectedIndex); });
+                                AddPathButton("common.new", () => { pathEditor.Add(); pathEntry.Focus(); });
+                                AddPathButton("settings.environment.edit", () => { if (pathEditor.HasSelection) pathEntry.Focus(); });
+                                AddPathButton("common.delete", pathEditor.RemoveSelected);
                                 AddPathButton("settings.environment.path_up", () =>
                                 {
-                                    var index = pathList.SelectedIndex; if (index <= 0) return;
-                                    (pathEntries[index - 1], pathEntries[index]) = (pathEntries[index], pathEntries[index - 1]); pathList.SelectedIndex = index - 1;
+                                    pathEditor.MoveSelected(-1);
                                 });
                                 AddPathButton("settings.environment.path_down", () =>
                                 {
-                                    var index = pathList.SelectedIndex; if (index < 0 || index >= pathEntries.Count - 1) return;
-                                    (pathEntries[index + 1], pathEntries[index]) = (pathEntries[index], pathEntries[index + 1]); pathList.SelectedIndex = index + 1;
+                                    pathEditor.MoveSelected(1);
                                 });
                                 browse = new Avalonia.Controls.Button { Content = LocalizedText.Get("settings.environment.browse"), IsEnabled = !isPath };
+                                if (isPath)
+                                    browse.Bind(Avalonia.Controls.Control.IsEnabledProperty,
+                                        new Binding(nameof(WindowsPathEditor.HasSelection)) { Source = pathEditor });
                                 browse.Click += async (_, _) =>
                                 {
                                     if (explorer is null) return;
@@ -233,7 +245,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                         return new ExplorerMainView { DataContext = picker };
                                     });
                                     if (string.IsNullOrWhiteSpace(selected)) return;
-                                    if (isPath) pathEntry.Text = selected;
+                                    if (isPath && pathEditor.SelectedEntry is { } entry) entry.Value = selected;
                                     else value.Text = selected;
                                 };
                                 var cancel = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.cancel"), MinWidth = 88 };
@@ -242,7 +254,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 save.Click += (_, _) =>
                                 {
                                     var variableName = name.Text?.Trim() ?? "";
-                                    var variableValue = isPath ? string.Join(';', pathEntries) : value.Text ?? "";
+                                    var variableValue = isPath ? pathEditor.JoinedValue : value.Text ?? "";
                                     if (!EnvironmentValidation.IsValidName(variableName, windows: true)
                                         || variableValue.Length > EnvironmentValidation.MaximumValueLength)
                                         return;
@@ -261,11 +273,11 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                                 content.Children.Add(new Avalonia.Controls.TextBlock { Text = LocalizedText.Get(isPath ? "settings.environment.path_entries" : "settings.environment.value") });
                                 if (isPath)
                                 {
-                                    var pathEditor = new Avalonia.Controls.Grid { ColumnDefinitions = new Avalonia.Controls.ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
-                                    pathEditor.Children.Add(pathList);
+                                    var pathEditorLayout = new Avalonia.Controls.Grid { ColumnDefinitions = new Avalonia.Controls.ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
+                                    pathEditorLayout.Children.Add(pathList);
                                     Avalonia.Controls.Grid.SetColumn(pathButtons, 1);
-                                    pathEditor.Children.Add(pathButtons);
-                                    content.Children.Add(pathEditor);
+                                    pathEditorLayout.Children.Add(pathButtons);
+                                    content.Children.Add(pathEditorLayout);
                                     content.Children.Add(pathEntry);
                                 }
                                 else content.Children.Add(value);
@@ -528,4 +540,54 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
         {
             DataContext = new ConfirmDialogViewModel(message, result => dialog.Close(result), LocalizedText.Get("common.ok")),
         });
+}
+
+/// <summary>Owns the PATH edit dialog's list and current item so both controls stay in sync.</summary>
+internal sealed partial class WindowsPathEditor : ObservableObject
+{
+    public System.Collections.ObjectModel.ObservableCollection<WindowsPathEntry> Entries { get; }
+
+    [ObservableProperty] private WindowsPathEntry? _selectedEntry;
+
+    public bool HasSelection => SelectedEntry is not null;
+    public string JoinedValue => string.Join(';', Entries.Select(entry => entry.Value));
+
+    public WindowsPathEditor(string value, bool isPath)
+    {
+        Entries = new(isPath
+            ? value.Split(';', StringSplitOptions.None).Select(entry => new WindowsPathEntry(entry))
+            : Array.Empty<WindowsPathEntry>());
+    }
+
+    partial void OnSelectedEntryChanged(WindowsPathEntry? value) => OnPropertyChanged(nameof(HasSelection));
+
+    public void Add()
+    {
+        var entry = new WindowsPathEntry("");
+        Entries.Add(entry);
+        SelectedEntry = entry;
+    }
+
+    public void RemoveSelected()
+    {
+        if (SelectedEntry is not { } entry) return;
+        var index = Entries.IndexOf(entry);
+        if (index < 0) return;
+        Entries.RemoveAt(index);
+        SelectedEntry = Entries.Count == 0 ? null : Entries[Math.Min(index, Entries.Count - 1)];
+    }
+
+    public void MoveSelected(int offset)
+    {
+        if (SelectedEntry is not { } entry) return;
+        var index = Entries.IndexOf(entry);
+        var destination = index + offset;
+        if (index < 0 || destination < 0 || destination >= Entries.Count) return;
+        Entries.Move(index, destination);
+    }
+}
+
+internal sealed partial class WindowsPathEntry(string value) : ObservableObject
+{
+    [ObservableProperty] private string _value = value;
 }
