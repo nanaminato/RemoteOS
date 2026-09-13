@@ -5,43 +5,43 @@
     </PropertyGroup>
     <ItemGroup>
         <!-- Avalonia packages. Important: keep version in sync! -->
-        <!-- 12.1.0 → 12.1.1：RoyalTerminal 0.5.2 传递依赖要求 Avalonia >= 12.1.1 -->
-        <PackageVersion Include="Avalonia" Version="12.1.1" />
-        <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-        <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.1" />
-        <PackageVersion Include="Avalonia.Desktop" Version="12.1.1" />
-        <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.1" />
+        <!-- RoyalTerminal 0.5.2 requires Avalonia >= 12.1.1. -->
+        <PackageVersion Include="Avalonia" Version="12.1.2" />
+        <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+        <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+        <PackageVersion Include="Avalonia.Desktop" Version="12.1.2" />
+        <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
         <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
         <PackageVersion Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
 
         <!-- MVVM / DI -->
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
 
         <!-- Server -->
-        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
-        <!-- Pin fixed transitive dependencies until their upstream packages raise their lower bounds. -->
-        <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
-        <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
+        <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+        <!-- ASP.NET Core OpenAPI 10.0.x requires Microsoft.OpenApi < 3.0. -->
+        <PackageVersion Include="Microsoft.OpenApi" Version="2.12.0" />
+        <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
 
         <!-- Server Persistence: EF Core + SQLite（User/Workspace/Device 持久化，含 TerminalSettings） -->
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-        <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
 
         <!-- Protocol / SignalR / JWT（为后续实现阶段预备，本次仅定义版本，未在任何 csproj 引用） -->
-        <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
-        <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
-        <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
-        <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.0" />
-        <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
-        <PackageVersion Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+        <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.12" />
+        <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
+        <PackageVersion Include="System.ServiceProcess.ServiceController" Version="10.0.12" />
         <!-- Windows SMB Server configuration is accessed only through its fixed WMI provider. -->
-        <PackageVersion Include="System.Management" Version="10.0.0" />
+        <PackageVersion Include="System.Management" Version="10.0.12" />
         <!-- Certificate manager: ACME v2 client, isolated behind RelaxKonOS.Server.Certificate. -->
         <PackageVersion Include="Webprofusion.Certify.ACME.Anvil" Version="3.3.3" />
-        <!-- RoyalTerminal 0.5.2 传递依赖要求 >= 10.0.11。集中管理中必须只保留一个版本声明。 -->
-        <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.11" />
+        <!-- RoyalTerminal 0.5.2 requires the .NET 10 package family. -->
+        <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
 
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15" />
 
@@ -52,14 +52,14 @@
         <PackageVersion Include="RoyalApps.RoyalTerminal.Terminal.Pty.Platform" Version="0.5.2" />
 
         <!-- Explorer: 移植自 Jaya 文件管理器（BSD-3）。Behaviors 用于双击导航等交互；Newtonsoft 保留 Jaya 配置模型序列化 -->
-        <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.0.1" />
-        <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.7" />
+        <PackageVersion Include="Newtonsoft.Json" Version="13.0.4" />
 
         <!-- Browser: 官方 Avalonia WebView 组件（NativeWebView），平台原生引擎（Win=WebView2/macOS=WKWebView/Linux=WebKitGTK） -->
-        <PackageVersion Include="Avalonia.Controls.WebView" Version="12.0.1" />
+        <PackageVersion Include="Avalonia.Controls.WebView" Version="12.1.0" />
 
         <!-- Video Player example: managed Avalonia control + Windows native VLC runtime. -->
-        <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.0" />
+        <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.1" />
         <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
     </ItemGroup>
 </Project>

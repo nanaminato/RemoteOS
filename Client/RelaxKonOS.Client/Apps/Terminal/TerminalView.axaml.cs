@@ -19,6 +19,7 @@ public partial class TerminalView : UserControl
 {
     private const int InitialColumns = 80;
     private const int InitialRows = 24;
+    private const double MinimumSupportedFontSize = 8;
     private readonly SignalRTransportFactory _transportFactory;
     private readonly TerminalControl _terminal;
     private readonly MenuItem _copyItem;
@@ -49,12 +50,12 @@ public partial class TerminalView : UserControl
             transportFactory);
 
         control.Focusable = true;
-        // 120 columns cannot fit this app's 820-DIP initial window at a readable 14-DIP
-        // font size. RoyalTerminal scales its actual font down to honour fixed dimensions.
+        // These values only initialize the PTY. RoyalTerminal derives the live grid from the
+        // arranged host size; it never needs to reduce the configured font to fill the window.
         control.Columns = InitialColumns;
         control.Rows = InitialRows;
         control.ScrollbackLimit = 10000;
-        control.TerminalFontSize = 14;
+        control.TerminalFontSize = TerminalSettingsDto.Default.FontSize;
         control.FontFamilyName = ResolveFontFamily(TerminalSettingsDto.Default.FontFamily);
         return control;
     }
@@ -156,7 +157,7 @@ public partial class TerminalView : UserControl
     private void ApplyAppearance(RelaxKonOS.Protocol.Workspace.TerminalSettingsDto appearance)
     {
         _terminal.FontFamilyName = ResolveFontFamily(appearance.FontFamily);
-        _terminal.TerminalFontSize = Math.Clamp(appearance.FontSize, 12, 32);
+        _terminal.TerminalFontSize = Math.Clamp(appearance.FontSize, MinimumSupportedFontSize, 40);
         TerminalHost.Background = new SolidColorBrush(Color.Parse(appearance.BackgroundColor));
 
         // Renderer palette APIs differ between RoyalTerminal renderers; apply values when present.

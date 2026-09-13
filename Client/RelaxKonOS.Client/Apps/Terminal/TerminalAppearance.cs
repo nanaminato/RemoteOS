@@ -8,7 +8,7 @@ public static class TerminalAppearance
     public static readonly IReadOnlyList<string> FontFamilies =
         ["DejaVu Sans Mono", "Noto Mono", "Liberation Mono", "Cascadia Mono", "Consolas", "JetBrains Mono", "Courier New"];
 
-    public static readonly IReadOnlyList<double> FontSizes = [12, 14, 16, 18, 20, 24];
+    public static readonly IReadOnlyList<double> FontSizes = [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40];
 
     public static readonly IReadOnlyList<string> ColorSchemes =
         ["Campbell", "One Half Dark", "Solarized Dark", "Light"];
