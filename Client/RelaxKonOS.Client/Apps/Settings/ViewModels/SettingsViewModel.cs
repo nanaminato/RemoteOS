@@ -1,3 +1,4 @@
+using RelaxKonOS.Client.Localization;
 using RelaxKonOS.Client.Services.WorkspaceSettings;
 using RelaxKonOS.Client.Services;
 using RelaxKonOS.Client.Services.Auth;
@@ -67,6 +68,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         Pages = new SettingsPageViewModel[]
         {
             new SystemPageViewModel(settings, session, save),
+            new AccountSecurityPageViewModel(settings, App.Services.GetRequiredService<AccountSecurityClient>(), session,
+                App.Services.GetRequiredService<IRememberedSessionStore>()),
             new PersonalizationPageViewModel(settings, save),
             new TimeLanguagePageViewModel(settings, localization, save,
                 new HostTimeEditorViewModel(App.Services.GetRequiredService<Services.HostSettings.IHostTimeService>(), session, localization)),
@@ -108,6 +111,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         if (_initialized) return;
         _initialized = true;
         _ = RefreshCatalogAsync();
+        _ = Pages.OfType<AccountSecurityPageViewModel>().Single().LoadAsync();
 
         if (_session is not { State: AuthSessionState.Authenticated, ServerUrl: { } url, Tokens: { } tokens, CurrentWorkspace: { } ws })
             return;
@@ -135,7 +139,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    public string SaveStatus => RelaxKonOS.Client.Localization.LocalizedText.Get("settings.save." + _editor.State.ToString().ToLowerInvariant());
+    /// <summary>
+    /// Save-status line. The idle state intentionally shows nothing, so it is answered here rather
+    /// than through the resource table: <c>LocalizedText.Get</c> uses the key as its own fallback,
+    /// which would surface the literal text "settings.save.idle" for an empty translation.
+    /// </summary>
+    public string SaveStatus => _editor.State == PreferencesSaveState.Idle
+        ? string.Empty
+        : LocalizedText.Get("settings.save." + _editor.State.ToString().ToLowerInvariant());
     public bool CanDiscard => _editor.HasDraft && _editor.State != PreferencesSaveState.Saving;
     public bool CanRetry => _editor.State == PreferencesSaveState.Failed;
 

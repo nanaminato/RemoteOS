@@ -85,7 +85,9 @@ public static async Task<PrivilegedOperationResult> ExecuteAsync(PrivilegedOpera
         {
             PrivilegedOperationKind.HostEnvironmentRead or PrivilegedOperationKind.HostEnvironmentApply => OperatingSystem.IsWindows()
                 ? RelaxKonOS.PrivilegedHelper.WindowsEnvironmentOperations.Execute(request)
-                : Fail(69, PrivilegedProblemCode.UnsupportedOperation, "environment provider implementation is pending for this platform"),
+                : OperatingSystem.IsLinux()
+                    ? RelaxKonOS.PrivilegedHelper.LinuxEnvironmentOperations.Execute(request)
+                    : Fail(69, PrivilegedProblemCode.UnsupportedOperation, "environment provider is unavailable on this platform"),
             PrivilegedOperationKind.HostTimeRead or PrivilegedOperationKind.HostTimeApply => await RelaxKonOS.PrivilegedHelper.HostTimeOperations.ExecuteAsync(request),
             PrivilegedOperationKind.FileRead => await ReadFileAsync(request.Path, policy.FileAllowedRoots),
             PrivilegedOperationKind.FileWrite => await WriteFileAsync(request.Path, request.ContentBase64, policy.FileAllowedRoots),

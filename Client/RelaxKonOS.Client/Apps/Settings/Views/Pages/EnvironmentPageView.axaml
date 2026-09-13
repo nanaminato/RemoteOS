@@ -1,0 +1,55 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="clr-namespace:RelaxKonOS.Client.Apps.Settings.ViewModels" xmlns:protocol="clr-namespace:RelaxKonOS.Protocol.Settings;assembly=RelaxKonOS.Protocol"
+ xmlns:loc="clr-namespace:RelaxKonOS.Client.Localization" x:Class="RelaxKonOS.Client.Apps.Settings.Views.Pages.EnvironmentPageView" x:DataType="vm:EnvironmentPageViewModel"
+ Background="{DynamicResource SurfaceBrush}" Width="760">
+  <UserControl.Styles>
+    <Style Selector="ListBox.windows-environment-list > ListBoxItem:selected">
+      <Setter Property="Background" Value="#CFE8FF" />
+      <Setter Property="BorderBrush" Value="#4A90C2" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </UserControl.Styles>
+  <Grid>
+  <!-- Windows hosts deliberately use the familiar two-store environment editor. -->
+  <Grid IsVisible="{Binding IsWindowsEnvironment}" Margin="14" RowDefinitions="*,*,Auto" RowSpacing="16">
+    <GroupBox Header="{loc:Loc settings.environment.user_variables}" Padding="10">
+      <Grid RowDefinitions="*,Auto" RowSpacing="12">
+        <Border BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" MinHeight="190"><ListBox Classes="windows-environment-list" ItemsSource="{Binding UserVariables}" SelectedItem="{Binding SelectedUserVariable, Mode=TwoWay}" SelectionMode="Single" BorderThickness="0"><ListBox.ItemTemplate><DataTemplate x:DataType="protocol:EnvironmentVariable"><Grid ColumnDefinitions="190,*" Margin="6,3"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding RawValue}" TextTrimming="CharacterEllipsis" /></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Border>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"><Button Content="{loc:Loc common.new}" Command="{Binding NewUserVariableCommand}" /><Button Content="{loc:Loc settings.environment.edit}" Command="{Binding EditUserVariableCommand}" /><Button Content="{loc:Loc common.delete}" Command="{Binding DeleteUserVariableCommand}" /></StackPanel>
+      </Grid>
+    </GroupBox>
+    <GroupBox Grid.Row="1" Header="{loc:Loc settings.environment.system_variables}" Padding="10">
+      <Grid RowDefinitions="*,Auto" RowSpacing="12">
+        <Border BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" MinHeight="190"><ListBox Classes="windows-environment-list" ItemsSource="{Binding SystemVariables}" SelectedItem="{Binding SelectedSystemVariable, Mode=TwoWay}" SelectionMode="Single" BorderThickness="0"><ListBox.ItemTemplate><DataTemplate x:DataType="protocol:EnvironmentVariable"><Grid ColumnDefinitions="190,*" Margin="6,3"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding RawValue}" TextTrimming="CharacterEllipsis" /></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Border>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"><Button Content="{loc:Loc common.new}" Command="{Binding NewSystemVariableCommand}" /><Button Content="{loc:Loc settings.environment.edit}" Command="{Binding EditSystemVariableCommand}" /><Button Content="{loc:Loc common.delete}" Command="{Binding DeleteSystemVariableCommand}" /></StackPanel>
+      </Grid>
+    </GroupBox>
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="12"><StackPanel><TextBlock Text="{Binding EnvironmentEffectText}" TextWrapping="Wrap" Opacity="0.72" /><TextBlock Text="{Binding ProblemCode}" TextWrapping="Wrap" /></StackPanel><Button Grid.Column="1" Content="{loc:Loc common.ok}" Command="{Binding CloseCommand}" MinWidth="90" /></Grid>
+  </Grid>
+  <!-- Non-Windows hosts edit each variable in the shared dialog.  The application footer
+       sits outside the scroll viewer so its buttons remain available in short dialogs. -->
+  <Grid IsVisible="{Binding IsNotWindowsEnvironment}" RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="12">
+        <StackPanel Spacing="4"><TextBlock Text="{loc:Loc settings.environment.title}" FontSize="20" FontWeight="SemiBold" /><TextBlock Text="{Binding EnvironmentEffectText}" TextWrapping="Wrap" Opacity="0.72" /></StackPanel>
+        <Grid Grid.Row="1"><StackPanel Spacing="3"><TextBlock Text="{Binding ScopeHeading}" FontWeight="SemiBold" /><TextBlock Text="{Binding TargetText}" TextWrapping="Wrap" FontSize="12" Opacity="0.65" /></StackPanel></Grid>
+        <Grid Grid.Row="2" RowDefinitions="Auto,*,Auto" RowSpacing="8"><TextBox Text="{Binding Filter}" PlaceholderText="{loc:Loc settings.environment.filter}" /><Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" MinHeight="180"><ListBox ItemsSource="{Binding Variables}" SelectedItem="{Binding SelectedVariable}" BorderThickness="0"><ListBox.ItemTemplate><DataTemplate x:DataType="protocol:EnvironmentVariable"><Grid ColumnDefinitions="210,*" Margin="4,2"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding RawValue}" TextTrimming="CharacterEllipsis" /></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></Border><TextBlock Grid.Row="2" Text="{Binding SelectedDetails}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.7" /></Grid>
+        <StackPanel Grid.Row="3" Spacing="8">
+          <TextBlock Text="{loc:Loc settings.environment.edit_hint}" TextWrapping="Wrap" FontSize="12" Opacity="0.72" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="{loc:Loc common.new}" Command="{Binding NewVariableCommand}" />
+            <Button Content="{loc:Loc settings.environment.edit}" Command="{Binding EditVariableCommand}" />
+            <Button Content="{loc:Loc common.delete}" Command="{Binding DeleteVariableCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding DraftText}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding ProblemCode}" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"><Button Content="{loc:Loc settings.environment.apply}" Command="{Binding ApplyCommand}" /><Button Content="{loc:Loc common.cancel}" Command="{Binding CloseCommand}" /></StackPanel>
+    </Border>
+  </Grid>
+  </Grid>
+</UserControl>

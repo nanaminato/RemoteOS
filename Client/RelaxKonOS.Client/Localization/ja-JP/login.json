@@ -8,7 +8,7 @@
         "login.computer": "コンピューター:",
         "login.username": "ユーザー名:",
         "login.password": "パスワード:",
-        "login.username_placeholder": "例: alice",
+        "login.username_placeholder": "システムユーザー名、または小文字のエイリアス",
         "login.password_placeholder": "パスワードを入力",
         "login.options.hide": "オプションを非表示",
         "login.options.show": "オプションを表示",

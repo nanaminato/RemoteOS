@@ -73,10 +73,12 @@ Linux Helper 启动及 Helper 管理子进程现在显式清空继承环境，�
 
 真实 Windows/Ubuntu 写入、策略锁定、外部时区编辑与回滚尚未在指定测试主机验证。详见 SettingsSystem.Goal 执行记录。
 
-### 设置系统环境操作（接入中，尚未实机验收）
+### 设置系统环境操作（已接入，尚未实机验收）
 
 封闭操作 `HostEnvironmentRead` / `HostEnvironmentApply` 使用结构化 `environmentTarget` / `environmentChange`；不能混合通用文件、服务或时区字段。其他操作也拒绝环境载荷。Windows 实现固定机器环境键及 `HKEY_USERS/<SID>/Environment`，禁止使用 Helper 的 HKCU；SID 必须是可解析的规范账户 SID，配置单元未加载则返回 NotFound，不创建或挂载任意配置单元。Server 必须先从认证用户映射 SID，客户端不能选择任意 SID。
 
 读回保留 REG_SZ / REG_EXPAND_SZ 原始值；写入前比较完整快照摘要，批量变更逐项写注册表并 Flush、读回及发送 Environment 变化通知。批量注册表写入不承诺事务，Server 必须在写前持久化恢复材料，并将中断/部分失败作为未知结果协调。广播只能通知可到达的会话，不会重写运行进程环境，也不保证其他登录会话或 Windows 服务立即生效。
 
-原始变量仅存在于受认证本地 IPC 的 `hostEnvironment` 结果；禁止直接透传 HTTP、普通审计或诊断。审计只记录资源标识摘要。环境 HTTP/授权协调器仍未开放，Windows 实机读写/注册表 ACL/服务运行时隔离均待指定远程测试目标验证。Linux 目前仅完成受限文档核心，封闭操作的 Linux provider 仍待接入，不能据此认定 Linux 不适用或阶段完成。
+Linux 仅支持固定 `host/environment/machine` 的 `/etc/environment` provider。Helper 先确认本机 PAM 配置存在未禁用、未重定向 `envfile` 的 `pam_env.so`，否则返回不支持；不会伪造 Linux `HostUser` 存储。读写使用受限无 shell 语法的保真解析、字节 revision、Helper 互斥、写前二次 revision 检查、同目录临时文件、落盘及原子替换、读回验证。保留原文件模式并拒绝链接/目录。其生效语义是“新的 PAM 登录会话”，绝不声称会更新运行中进程、Shell 配置或 systemd 服务。
+
+原始变量仅存在于受认证本地 IPC 的 `hostEnvironment` 结果；禁止直接透传 HTTP、普通审计或诊断。审计只记录资源标识摘要。环境 HTTP/授权协调器已接入；Windows 实机读写/注册表 ACL/服务运行时隔离，以及 Linux 真实 PAM 登录、外部改写与回滚仍待指定远程测试目标验证。

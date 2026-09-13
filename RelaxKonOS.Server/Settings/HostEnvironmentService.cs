@@ -29,6 +29,10 @@ public sealed class HostEnvironmentService(IUserRepository users, IHostElevation
             throw new SettingsException(401, "settings.unauthenticated");
         var user = users.FindById(id) ?? throw new SettingsException(401, "settings.user_mapping_missing");
         if (scope is not (SettingsScope.HostMachine or SettingsScope.HostUser)) throw new SettingsException(400, "settings.environment.invalid_scope");
+        // Linux does not have a system-wide per-user environment store.  The supported Linux
+        // provider is /etc/environment for PAM login sessions and is intentionally machine-only.
+        if (OperatingSystem.IsLinux() && scope == SettingsScope.HostUser)
+            throw new SettingsException(400, "settings.environment.linux_user_scope_unsupported");
         var platformIdentity = user.PlatformIdentity;
         if (OperatingSystem.IsWindows())
         {
@@ -36,7 +40,7 @@ public sealed class HostEnvironmentService(IUserRepository users, IHostElevation
             try
             {
                 var mappedSid = (SecurityIdentifier)new NTAccount(user.Username).Translate(typeof(SecurityIdentifier));
-                var storedSid = (SecurityIdentifier)new NTAccount(user.PlatformIdentity).Translate(typeof(SecurityIdentifier));
+                var storedSid = new SecurityIdentifier(user.PlatformIdentity);
                 if (!mappedSid.IsAccountSid() || mappedSid.Value != storedSid.Value)
                     throw new SettingsException(403, "settings.environment.identity_mismatch");
                 platformIdentity = mappedSid.Value;
@@ -91,7 +95,7 @@ public sealed class HostEnvironmentService(IUserRepository users, IHostElevation
                 value.Kind, scope, sensitive, masked, warnings);
         }).ToArray();
         return new(target, state.Revision, DateTimeOffset.UtcNow, new(SettingsCapabilityState.Available),
-            SettingsEffectiveState.NewProcess, state.Provider, !windows, windows ? ";" : ":", projected);
+            EffectiveState(state), state.Provider, !windows, windows ? ";" : ":", projected);
     }
 
     public Task<PrivilegedOperationResult> ApplyAsync(ClaimsPrincipal principal, SettingsTarget target, EnvironmentChangeSet change,
@@ -102,4 +106,7 @@ public sealed class HostEnvironmentService(IUserRepository users, IHostElevation
         return transport.ExecuteAsync(new(PrivilegedOperationKind.HostEnvironmentApply, EnvironmentTarget: target,
             EnvironmentChange: change, ExpectedRevision: revision, OperationId: operationId), ct);
     }
+
+    internal static SettingsEffectiveState EffectiveState(PrivilegedEnvironmentState state) =>
+        state.Provider == "linux-pam-environment" ? SettingsEffectiveState.NewLogin : SettingsEffectiveState.NewProcess;
 }

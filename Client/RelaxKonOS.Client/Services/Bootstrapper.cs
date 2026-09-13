@@ -80,6 +80,8 @@ public static class Bootstrapper
             .AddRelaxKonOSAuthentication();
         services.AddSingleton<IRememberedSessionStore, RememberedSessionStore>();
         services.AddSingleton<IAuthSession, AuthSession>();
+        services.AddHttpClient<AccountSecurityClient>()
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddTransient<AuthenticatedHttpHandler>();
         services.AddSingleton<ApplicationCompatibilityService>();
         services.AddSingleton<IApplicationCompatibilityEvaluator>(sp => sp.GetRequiredService<ApplicationCompatibilityService>());
@@ -162,6 +164,9 @@ public static class Bootstrapper
         // 偏好持久化到服务端 Workspace（/workspaces/{id}/preferences），多设备共享。
         // Host writes must not pass through an authentication handler that can replay requests.
         services.AddHttpClient<HostSettings.IHostTimeService, HostSettings.HostTimeService>()
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+            .AddHttpMessageHandler<AcceptLanguageHandler>();
+        services.AddHttpClient<HostSettings.IHostEnvironmentService, HostSettings.HostEnvironmentService>()
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
             .AddHttpMessageHandler<AcceptLanguageHandler>();
         services.AddHttpClient<IWorkspaceSettingsService, WorkspaceSettingsService>()
