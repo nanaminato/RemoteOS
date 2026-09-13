@@ -96,43 +96,80 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
             finally { registration.Dispose(); editor?.Clear(); }
         };
         var hostTimeService = context.Services.GetRequiredService<Services.HostSettings.IHostTimeService>();
-        async Task<bool> AuthorizeHostSettingsAsync(Services.HostSettings.HostSettingsConnection connection, string titleKey, string target,
+        async Task<bool> AuthorizeHostSettingsAsync(Services.HostSettings.HostSettingsConnection connection, string titleKey,
             Func<string?, string?, Task<RelaxKonOS.Protocol.Privileged.HostElevationResult>> authorize)
         {
             try { return (await authorize(null, null)).Elevated; }
             catch (RelaxKonOSAuthException error) when (error.Type.EndsWith("/elevation-password-required", StringComparison.Ordinal))
             {
-                var credentials = await context.WindowManager.ShowSystemDialogAsync<(string Password, string? Administrator)?>(
+                var authorized = await context.WindowManager.ShowSystemDialogAsync<bool>(
                     LocalizedText.Get(titleKey), dialog =>
                     {
                         var password = new Avalonia.Controls.TextBox { PasswordChar = '•', PlaceholderText = LocalizedText.Get("settings.host_time.password") };
-                        var administrator = new Avalonia.Controls.TextBox { PlaceholderText = LocalizedText.Get("settings.host_time.administrator") };
+                        var errorText = new Avalonia.Controls.TextBlock
+                        {
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#C42B1C")),
+                        };
+                        var submitting = false;
                         var cancel = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.cancel") };
                         cancel.Click += (_, _) => { password.Text = ""; dialog.Cancel(); };
-                        var confirm = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.ok") };
-                        confirm.Click += (_, _) =>
+                        var confirm = new Avalonia.Controls.Button { Content = LocalizedText.Get("common.ok"), Classes = { "primary" } };
+                        confirm.Click += async (_, _) =>
                         {
                             var secret = password.Text ?? "";
                             password.Text = "";
-                            dialog.Close((secret, string.IsNullOrWhiteSpace(administrator.Text) ? null : administrator.Text));
+                            if (string.IsNullOrWhiteSpace(secret))
+                            {
+                                errorText.Text = LocalizedText.Get("settings.host_time.password_required");
+                                password.Focus();
+                                return;
+                            }
+                            if (submitting) return;
+                            submitting = true;
+                            confirm.IsEnabled = cancel.IsEnabled = false;
+                            try
+                            {
+                                var result = await authorize(secret, null);
+                                if (!hostTimeService.IsCurrent(connection)) { dialog.Cancel(); return; }
+                                if (result.Elevated) { dialog.Close(true); return; }
+                                errorText.Text = LocalizedText.Get("settings.host_time.password_invalid");
+                            }
+                            catch (RelaxKonOSAuthException retry) when (retry.Type.EndsWith("/elevation-account-not-administrator", StringComparison.Ordinal))
+                            {
+                                errorText.Text = LocalizedText.Get("settings.host_time.administrator_required");
+                            }
+                            catch (RelaxKonOSAuthException)
+                            {
+                                errorText.Text = LocalizedText.Get("settings.host_time.password_invalid");
+                            }
+                            catch
+                            {
+                                errorText.Text = LocalizedText.Get("settings.host_time.password_check_failed");
+                            }
+                            finally
+                            {
+                                submitting = false;
+                                confirm.IsEnabled = cancel.IsEnabled = true;
+                                password.Focus();
+                            }
                         };
                         return new Avalonia.Controls.StackPanel
                         {
                             Margin = new Avalonia.Thickness(20), Spacing = 10,
                             Children =
                             {
-                                new Avalonia.Controls.TextBlock { Text = connection.ServerUrl + " · " + target, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                                administrator, password,
+                                new Avalonia.Controls.TextBlock { Text = LocalizedText.Get("settings.host_time.password_prompt"), TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                                password, errorText,
                                 new Avalonia.Controls.WrapPanel { Children = { cancel, confirm } }
                             }
                         };
-                    }, new Size(440, 260));
-                if (credentials is not { } value || !hostTimeService.IsCurrent(connection)) return false;
-                return (await authorize(value.Password, value.Administrator)).Elevated;
+                    }, new Size(420, 210));
+                return authorized && hostTimeService.IsCurrent(connection);
             }
         }
         viewModel.Pages.OfType<TimeLanguagePageViewModel>().Single().HostTime.RequestAuthorizationAsync = connection =>
-            AuthorizeHostSettingsAsync(connection, "settings.host_time.authorize", "host/time", (password, administrator) => hostTimeService.AuthorizeAsync(connection, password, administrator));
+            AuthorizeHostSettingsAsync(connection, "settings.host_time.authorize", (password, administrator) => hostTimeService.AuthorizeAsync(connection, password, administrator));
         var hostEnvironment = context.Services.GetRequiredService<Services.HostSettings.IHostEnvironmentService>();
         var systemPage = viewModel.Pages.OfType<SystemPageViewModel>().Single();
         systemPage.RequestEnvironmentVariablesAsync = async () =>
@@ -146,8 +183,7 @@ public sealed class SettingsApp : RemoteApplicationBase, IAppActivationHandler
                 {
                     RequestAuthorizationAsync = async (connection, scope, capability) =>
                     {
-                        var target = await hostEnvironment.ResolveTargetAsync(connection, scope);
-                        return await AuthorizeHostSettingsAsync(connection, "settings.environment.authorize", target.ResourceId + " · " + capability,
+                        return await AuthorizeHostSettingsAsync(connection, "settings.environment.authorize",
                             (password, administrator) => hostEnvironment.AuthorizeAsync(connection, scope, capability, password, administrator));
                     },
                 };
