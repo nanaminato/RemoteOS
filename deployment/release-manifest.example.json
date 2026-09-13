@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0",
+  "payload": {
+    "windows": {
+      "server": "payload/windows/server/RelaxKonOS.Server.exe",
+      "guardian": "payload/windows/guardian/RelaxKonOS.Guardian.Agent.exe",
+      "privilegedHelper": "payload/windows/privileged-helper/RelaxKonOS.PrivilegedHelper.exe"
+    },
+    "linux": {
+      "server": "payload/linux/server/RelaxKonOS.Server",
+      "guardian": "payload/linux/guardian/RelaxKonOS.Guardian.Agent",
+      "privilegedHelper": "payload/linux/privileged-helper/RelaxKonOS.PrivilegedHelper"
+    }
+  }
+}

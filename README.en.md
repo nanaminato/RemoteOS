@@ -251,6 +251,8 @@ dotnet run
 
 > ⚠️ **Production**: Always change `Jwt:Secret` in `appsettings.json` to at least a 32-character random string.
 
+For production, use the [one-command server installer](./deployment/README.md). It generates and protects JWT and component IPC secrets, installs Server, Guardian Agent, and the privileged helper, then performs a health check.
+
 ### 3. Start the Client
 
 ```bash
