@@ -7,10 +7,11 @@ param(
     [ValidateSet('Release', 'Debug')]
     [string] $Configuration = 'Release',
     [string] $DownloadBaseUri = 'https://downloads.relaxkon.com/relaxkonos/stable',
-    [string] $OutputDirectory = (Join-Path $PSScriptRoot 'artifacts')
+    [string] $OutputDirectory = 'artifacts'
 )
 
 $ErrorActionPreference = 'Stop'
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $bundleName = "RelaxKonOS-$Version-$Runtime"
 $bundle = Join-Path $OutputDirectory $bundleName
